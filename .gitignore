@@ -1,0 +1,200 @@
+
+# =========================================================
+# Python
+# =========================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Python build / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# =========================================================
+# Virtual Environments
+# =========================================================
+
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# =========================================================
+# Environment Variables / Secrets
+# =========================================================
+
+.env
+.env.*
+!.env.example
+
+# =========================================================
+# Django
+# =========================================================
+
+*.log
+local_settings.py
+
+# SQLite / local databases
+db.sqlite3
+db.sqlite3-journal
+*.sqlite3
+*.sqlite3-journal
+
+# Django migrations
+# DO NOT ignore migrations in normal Django projects.
+# Migrations should be committed to Git.
+
+# =========================================================
+# Static / Media
+# =========================================================
+
+# User-uploaded files
+media/
+
+# Django collectstatic output
+staticfiles/
+
+# Uncomment ONLY if your project generates static files here
+# static/
+
+# =========================================================
+# Testing / Coverage
+# =========================================================
+
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.cache/
+.hypothesis/
+coverage.xml
+nosetests.xml
+*.cover
+*.py.cover
+*.lcov
+
+# =========================================================
+# Type Checking
+# =========================================================
+
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# =========================================================
+# Django / Celery
+# =========================================================
+
+celerybeat-schedule
+celerybeat.pid
+
+# =========================================================
+# IDEs / Editors
+# =========================================================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# =========================================================
+# OS
+# =========================================================
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =========================================================
+# Jupyter
+# =========================================================
+
+.ipynb_checkpoints/
+
+# =========================================================
+# Documentation
+# =========================================================
+
+docs/_build/
+*.md
+
+# =========================================================
+# MkDocs
+# =========================================================
+
+/site/
+
+# =========================================================
+# Ruff / Linters / Tools
+# =========================================================
+
+.ruff_cache/
+
+# =========================================================
+# Logs / Runtime
+# =========================================================
+
+*.pid
+*.seed
+*.tmp
+*.temp
+
+# =========================================================
+# Docker
+# =========================================================
+
+docker-compose.override.yml
+
+# =========================================================
+# Local development / temporary files
+# =========================================================
+
+*.bak
+*.backup
+*.old
+*.orig
+*.tmp
+*.temp
+*.sh
+# =========================================================
+# OS / Editor leftovers
+# =========================================================
+
+.fseventsd
+.Trashes
+
