@@ -11,6 +11,9 @@ DEFAULT_ROLES: list[dict[str, object]] = [
     {"code": "manager", "name": "مدیر مستقیم", "priority": 50},
     {"code": "hr", "name": "منابع انسانی", "priority": 40},
     {"code": "workflow_admin", "name": "مدیر فرآیند", "priority": 10},
+    {"code": "student", "name": "دانش‌آموز", "priority": 90},
+    {"code": "teacher", "name": "معلم / مدرس", "priority": 40},
+    {"code": "parent", "name": "والدین", "priority": 80},
 ]
 
 

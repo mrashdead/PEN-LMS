@@ -1,13 +1,121 @@
 # apps/core/models.py
 from __future__ import annotations
 
+import datetime
 import uuid
-from typing import Any, Optional, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, Tuple, TypeVar
 
+import jdatetime
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 T = TypeVar("T", bound=models.Model)
+
+
+class JalaliDateField(models.DateField):
+    """
+    فیلد تاریخ شمسی — در دیتابیس به صورت میلادی (Gregorian) ذخیره می‌شود
+    اما از طریق property و form به صورت شمسی (Jalali) تبادل می‌کند.
+    """
+
+    description = "Jalali (Shamsi) date field"
+
+    def from_db_value(self, value, expression, connection):
+        if value is None:
+            return None
+        if isinstance(value, jdatetime.date):
+            return value
+        try:
+            if isinstance(value, datetime.date):
+                return jdatetime.date.fromgregorian(date=value)
+            return value
+        except (ValueError, TypeError):
+            return value
+
+    def to_python(self, value):
+        if value is None:
+            return value
+        if isinstance(value, jdatetime.date):
+            return value.togregorian()
+        if isinstance(value, datetime.date):
+            return value
+        try:
+            parsed = jdatetime.date.fromisoformat(str(value))
+            return parsed.togregorian()
+        except (ValueError, TypeError):
+            pass
+        try:
+            return datetime.date.fromisoformat(str(value))
+        except (ValueError, TypeError):
+            raise ValidationError(
+                "تاریخ نامعتبر. لطفاً تاریخ را به فرمت YYYY-MM-DD (شمسی یا میلادی) وارد کنید."
+            )
+
+    def get_prep_value(self, value):
+        value = self.to_python(value)
+        if isinstance(value, jdatetime.date):
+            value = value.togregorian()
+        return super().get_prep_value(value)
+
+    def formfield(self, **kwargs):
+        from django.forms import DateField as FormDateField
+
+        defaults = {"form_class": FormDateField}
+        defaults.update(kwargs)
+        return super().formfield(**defaults)
+
+
+class JalaliDateTimeField(models.DateTimeField):
+    """
+    فیلد تاریخ و زمان شمسی — در دیتابیس به صورت میلادی ذخیره می‌شود.
+    """
+
+    description = "Jalali (Shamsi) datetime field"
+
+    def from_db_value(self, value, expression, connection):
+        if value is None:
+            return None
+        if isinstance(value, jdatetime.datetime):
+            return value
+        try:
+            if isinstance(value, datetime.datetime):
+                if timezone.is_aware(value):
+                    value = timezone.localtime(value)
+                return jdatetime.datetime.fromgregorian(datetime=value)
+            return value
+        except (ValueError, TypeError):
+            return value
+
+    def to_python(self, value):
+        if value is None:
+            return value
+        if isinstance(value, jdatetime.datetime):
+            return value.togregorian()
+        if isinstance(value, datetime.datetime):
+            return value
+        try:
+            parsed = jdatetime.datetime.fromisoformat(str(value))
+            return parsed.togregorian()
+        except (ValueError, TypeError):
+            pass
+        try:
+            return datetime.datetime.fromisoformat(str(value))
+        except (ValueError, TypeError):
+            raise ValidationError(
+                "تاریخ و زمان نامعتبر. لطفاً به فرمت YYYY-MM-DD HH:MM:SS وارد کنید."
+            )
+
+    def get_prep_value(self, value):
+        value = self.to_python(value)
+        if isinstance(value, jdatetime.datetime):
+            value = value.togregorian()
+        return super().get_prep_value(value)
+
+    def formfield(self, **kwargs):
+        defaults = {"form_class": type(self).__class__}
+        defaults.update(kwargs)
+        return super().formfield(**defaults)
 
 
 class TimeStampedModel(models.Model):
@@ -19,6 +127,16 @@ class TimeStampedModel(models.Model):
         editable=False,
     )
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def created_at_jalali(self) -> str:
+        from apps.core.utils import persian_date
+        return persian_date(self.created_at)
+
+    @property
+    def updated_at_jalali(self) -> str:
+        from apps.core.utils import persian_date
+        return persian_date(self.updated_at)
 
     class Meta:
         abstract = True

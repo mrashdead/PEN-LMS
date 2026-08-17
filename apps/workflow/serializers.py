@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
+from apps.core.fields import PersianCharField
 from apps.workflow.models import ActionLog, Instance, Transition, WorkflowDefinition
 
 
 class WorkflowDefinitionSerializer(serializers.ModelSerializer):
+    created_at = PersianCharField(source="created_at_jalali", read_only=True)
+    updated_at = PersianCharField(source="updated_at_jalali", read_only=True)
+
     class Meta:
         model = WorkflowDefinition
         fields = ("id", "code", "name", "description", "is_active", "version", "created_at", "updated_at")
@@ -21,6 +25,8 @@ class InstanceListSerializer(serializers.ModelSerializer):
     requester_username = serializers.SlugRelatedField(
         source="requester", slug_field="username", read_only=True
     )
+    created_at = PersianCharField(source="created_at_jalali", read_only=True)
+    updated_at = PersianCharField(source="updated_at_jalali", read_only=True)
 
     class Meta:
         model = Instance
@@ -46,6 +52,8 @@ class InstanceDetailSerializer(serializers.ModelSerializer):
         source="requester", slug_field="username", read_only=True
     )
     task_count = serializers.SerializerMethodField()
+    created_at = PersianCharField(source="created_at_jalali", read_only=True)
+    updated_at = PersianCharField(source="updated_at_jalali", read_only=True)
 
     class Meta:
         model = Instance
@@ -116,6 +124,7 @@ class ActionLogSerializer(serializers.ModelSerializer):
     actor_username = serializers.SlugRelatedField(
         source="actor", slug_field="username", read_only=True
     )
+    created_at = PersianCharField(source="created_at_jalali", read_only=True)
 
     class Meta:
         model = ActionLog

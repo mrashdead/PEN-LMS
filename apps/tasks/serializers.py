@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
+from apps.core.fields import JalaliDateTimeField, PersianCharField
 from apps.tasks.models import WorkflowTask
 
 
@@ -14,6 +15,9 @@ class WorkflowTaskListSerializer(serializers.ModelSerializer):
     workflow_definition_code = serializers.SlugRelatedField(
         source="instance.workflow_definition", slug_field="code", read_only=True
     )
+    due_date = JalaliDateTimeField(allow_null=True, required=False)
+    completed_at = JalaliDateTimeField(allow_null=True, required=False)
+    created_at = PersianCharField(source="created_at_jalali", read_only=True)
 
     class Meta:
         model = WorkflowTask
@@ -46,6 +50,10 @@ class WorkflowTaskDetailSerializer(serializers.ModelSerializer):
     workflow_definition_code = serializers.SlugRelatedField(
         source="instance.workflow_definition", slug_field="code", read_only=True
     )
+    due_date = JalaliDateTimeField(allow_null=True, required=False)
+    completed_at = JalaliDateTimeField(allow_null=True, required=False)
+    created_at = PersianCharField(source="created_at_jalali", read_only=True)
+    updated_at = PersianCharField(source="updated_at_jalali", read_only=True)
 
     class Meta:
         model = WorkflowTask

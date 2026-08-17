@@ -35,6 +35,7 @@ INSTALLED_APPS: list[str] = [
     "apps.core",
     "apps.accounts",
     "apps.workflow",
+    "apps.persons",
     "apps.tasks",
 
 ]
@@ -148,3 +149,68 @@ LOGGING = {
         "apps.tasks": {"level": "DEBUG", "propagate": False, "handlers": ["console"]},
     },
 }
+
+# ─────────────────────────────────────────────────────────
+#  Persian / Jalali Configuration
+# ─────────────────────────────────────────────────────────
+
+# Format localization (numbers, dates)
+USE_L10N = True
+USE_THOUSAND_SEPARATOR = True
+
+# Django admin: force Persian locale for admin interface
+# (already set: LANGUAGE_CODE = "fa-ir")
+
+# Number formatting: use Persian digits in admin
+FORMAT_MODULE_PATH = "pen.formats"
+
+# First day of week: Saturday (0) for Persian calendar
+FIRST_DAY_OF_WEEK = 6  # Saturday = 6, Sunday = 0, Monday = 1
+
+# Date formats (used as fallback)
+DATE_FORMAT = "Y/m/d"
+DATETIME_FORMAT = "Y/m/d H:i"
+TIME_FORMAT = "H:i"
+YEAR_MONTH_FORMAT = "Y/m"
+MONTH_DAY_FORMAT = "m/d"
+SHORT_DATE_FORMAT = "Y/m/d"
+SHORT_DATETIME_FORMAT = "Y/m/d H:i"
+DATE_INPUT_FORMATS = [
+    "%Y/%m/%d",
+    "%Y-%m-%d",
+    "%y/%m/%d",
+    "%y-%m-%d",
+]
+TIME_INPUT_FORMATS = [
+    "%H:%M",
+    "%H:%M:%S",
+]
+DATETIME_INPUT_FORMATS = [
+    "%Y/%m/%d %H:%M",
+    "%Y-%m-%d %H:%M",
+    "%Y/%m/%d %H:%M:%S",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d %H:%M:%S.%f",
+    "%Y/%m/%d %H:%M:%S.%f",
+]
+
+# Decimal / Thousand separators
+THOUSAND_SEPARATOR = ","
+DECIMAL_SEPARATOR = "."
+NUMBER_GROUPING = 3
+
+# Locale paths (for custom translations)
+LOCALE_PATHS = [
+    BASE_DIR / "locale",
+]
+
+# Django admin extras
+if DEBUG:
+    # Show admin in Persian (RTL) - already enabled via LANGUAGE_CODE
+    pass
+
+# Persian names for months (used in admin)
+JALALI_MONTH_NAMES = [
+    "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+    "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند",
+]
