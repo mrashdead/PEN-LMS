@@ -99,7 +99,7 @@ class PersonService:
         """
         ساخت User برای یک Person موجود.
         اگر username داده نشود، از کد ملی استفاده می‌کند.
-        اگر password داده نشود، یک رمز تصادفی می‌سازد.
+        اگر password داده نشود، از کد ملی استفاده می‌کند.
         """
         person = Person.objects.select_for_update().get(pk=person_id)
         if person.user_id:
@@ -135,7 +135,7 @@ class PersonService:
             final_username = f"{base}_{suffix}"
             suffix += 1
 
-        final_password = password or self._generate_temp_password()
+        final_password = password or person.national_code
 
         user = User.objects.create_user(
             username=final_username,
@@ -159,6 +159,33 @@ class PersonService:
                 user.assign_role(role_code, assigned_by=person.registered_by)
             except Exception as e:
                 logger.warning("Could not assign role %s: %s", role_code, e)
+
+        # Assign Django Group based on person_type
+        group_map = {
+            Person.Type.STUDENT: "دانش‌آموز",
+            Person.Type.TEACHER: "معلم / مدرس",
+            Person.Type.EMPLOYEE: "کارمند",
+            Person.Type.PARENT: "والدین",
+        }
+        group_name = group_map.get(person.person_type)
+        if group_name:
+            try:
+                from django.contrib.auth.models import Group
+                group = Group.objects.get(name=group_name)
+                user.groups.add(group)
+                logger.info(
+                    "User %s added to group '%s'",
+                    user.username,
+                    group_name,
+                )
+            except Group.DoesNotExist:
+                logger.warning(
+                    "Group '%s' not found (run `seed_groups` first) for user %s",
+                    group_name,
+                    user.username,
+                )
+            except Exception as e:
+                logger.warning("Could not add user %s to group %s: %s", user.username, group_name, e)
 
         # Link person to user
         person.user = user

@@ -28,6 +28,9 @@ class WorkflowDefinition(DomainModel):
         verbose_name = "Workflow Definition"
         verbose_name_plural = "Workflow Definitions"
         ordering = ("code", "version")
+        permissions = [
+            ("manage_workflow_definition", "مدیریت تعاریف فرآیند"),
+        ]
         indexes = [
             models.Index(fields=["code", "is_active"]),
             models.Index(fields=["version"]),
@@ -193,6 +196,11 @@ class Instance(DomainModel):
         verbose_name = "Instance"
         verbose_name_plural = "Instances"
         ordering = ("-created_at",)
+        permissions = [
+            ("view_all_instances", "مشاهده همه درخواست‌ها"),
+            ("approve_instance", "تأیید درخواست"),
+            ("cancel_any_instance", "لغو هر درخواست"),
+        ]
         indexes = [
             models.Index(fields=["workflow_definition", "status"]),
             models.Index(fields=["requester", "status"]),

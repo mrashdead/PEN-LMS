@@ -164,7 +164,7 @@ class CreateUserForPersonSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
         write_only=True,
-        help_text="رمز عبور (اختیاری — پیش‌فرض تصادفی)",
+        help_text="رمز عبور (اختیاری — پیش‌فرض کد ملی)",
     )
 
 

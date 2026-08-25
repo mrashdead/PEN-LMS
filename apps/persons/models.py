@@ -113,6 +113,14 @@ class Person(DomainModel):
         verbose_name = "Person (هویت)"
         verbose_name_plural = "Persons (اشخاص)"
         ordering = ("-created_at",)
+        permissions = [
+            ("view_person_detail", "مشاهده جزئیات کامل شخص"),
+            ("view_person_list", "مشاهده لیست اشخاص"),
+            ("create_user_for_person", "ساخت کاربر برای شخص"),
+            ("view_grades_report", "مشاهده گزارش کارنامه"),
+            ("view_attendance_report", "مشاهده گزارش حضورغیاب"),
+            ("view_financial_report", "مشاهده گزارش مالی"),
+        ]
         indexes = [
             models.Index(fields=["national_code"]),
             models.Index(fields=["person_type", "is_active"]),

@@ -1,26 +1,21 @@
 """
 URL configuration for pen project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import RedirectView
+
+from apps.core import views as core_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/workflow/', include('apps.workflow.urls')),
     path('api/tasks/', include('apps.tasks.urls')),
     path('api/persons/', include('apps.persons.urls')),
-
+    path('api/academics/', include('apps.academics.urls')),
+    # Dashboard
+    path('dashboard/login/', core_views.DashboardLoginView.as_view(), name='dashboard-login'),
+    path('dashboard/logout/', core_views.DashboardLogoutView.as_view(), name='dashboard-logout'),
+    path('dashboard/', core_views.DashboardHomeView.as_view(), name='dashboard-home'),
+    path('', RedirectView.as_view(url='/dashboard/', permanent=True)),
 ]

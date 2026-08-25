@@ -1,0 +1,32 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Pen LMS{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'dashboard/css/style.css' %}">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand"><span>Pen LMS</span></div>
+    <nav>
+      <a href="#" data-page="home" class="active"><span>داشبورد</span></a>
+      <a href="#" data-page="persons"><span>اشخاص</span></a>
+      <a href="#" data-page="workflow"> <span>فرآیندها</span></a>
+      <a href="#" data-page="tasks"><span>وظایف</span></a>
+      <a href="#" data-page="academics"> <span>آموزش</span></a>
+    </nav>
+    <div class="user-info">
+      <div>{{ request.user.get_full_name|default:request.user.username }}</div>
+      <div><a href="{% url 'dashboard-logout' %}" style="color:var(--gray-400);font-size:.75rem">خروج</a></div>
+    </div>
+  </aside>
+  <main class="main" id="page-content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="{% static 'dashboard/js/api.js' %}"></script>
+<script src="{% static 'dashboard/js/app.js' %}"></script>
+</body>
+</html>
