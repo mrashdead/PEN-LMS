@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -125,6 +127,19 @@ class Transition(DomainModel):
         help_text='List of role codes allowed to perform this transition, e.g. ["manager"]',
     )
     requires_comment = models.BooleanField(default=False)
+    guard_expression = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Optional guard conditions as JSON. Examples:\n"
+            '{"type": "always_true"}\n'
+            '{"type": "role_not_in", "roles": ["manager"], "field": "requester"}\n'
+            '{"type": "entity_field_lt", "field": "enrolled_count", "other_field": "capacity"}\n'
+            '{"type": "all", "guards": [...]}\n'
+            '{"type": "any", "guards": [...]}\n'
+            "Empty/{} = always true (allow). Unknown type = deny (fail closed)."
+        ),
+    )
 
     class Meta:
         app_label = "workflow"
@@ -261,3 +276,41 @@ class ActionLog(DomainModel):
 
     def __str__(self) -> str:
         return f"{self.instance_id}: {self.action} by {self.actor_id}"
+
+
+class EntityWorkflow(DomainModel):
+    """
+    GenericForeignKey bridge: connects a Workflow Instance to any domain entity
+    (CourseOffering, Lead, GradeForm, …) so transitions can inspect the entity's
+    state without a direct FK on Instance.
+    """
+
+    instance = models.ForeignKey(
+        Instance,
+        on_delete=models.CASCADE,
+        related_name="entity_links",
+    )
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+    )
+    object_id = models.UUIDField(db_index=True)
+    entity = GenericForeignKey("content_type", "object_id")
+
+    class Meta:
+        app_label = "workflow"
+        db_table = "workflow_entity_link"
+        verbose_name = "Entity Workflow Link"
+        verbose_name_plural = "Entity Workflow Links"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["content_type", "object_id"],
+                name="uniq_workflow_entity_link",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["instance", "content_type"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.instance_id} ↔ {self.content_type}.{self.object_id}"

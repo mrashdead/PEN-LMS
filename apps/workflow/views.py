@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from rest_framework import generics, permissions, status, views
@@ -12,9 +13,11 @@ from apps.workflow.serializers import (
     ActionLogSerializer,
     CancelInstanceSerializer,
     CreateInstanceSerializer,
+    EntityWorkflowSerializer,
     ExecuteTransitionSerializer,
     InstanceDetailSerializer,
     InstanceListSerializer,
+    LinkEntitySerializer,
     TransitionSerializer,
 )
 from apps.workflow.services import WorkflowEngineService, WorkflowEngineError
@@ -73,6 +76,7 @@ class InstanceDetailView(generics.RetrieveAPIView):
 
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = InstanceDetailSerializer
+    lookup_url_kwarg = "instance_id"
 
     def get_queryset(self):
         user = self.request.user
@@ -147,6 +151,51 @@ class CancelInstanceView(views.APIView):
 
         output = InstanceDetailSerializer(instance, context={"request": request})
         return Response(output.data)
+
+
+class LinkEntityView(views.APIView):
+    """
+    POST /api/workflow/instances/{id}/link-entity/
+    Link a domain entity (e.g. CourseOffering, Lead) to this workflow instance.
+    Body: {"entity_type": "education.courseoffering", "entity_id": "uuid"}
+    """
+
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, instance_id: UUID):
+        serializer = LinkEntitySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        entity_type_str = serializer.validated_data["entity_type"]
+        entity_id = serializer.validated_data["entity_id"]
+
+        # Resolve content type
+        try:
+            app_label, model_name = entity_type_str.strip().lower().split(".")
+            ct = ContentType.objects.get(app_label=app_label, model=model_name)
+        except (ValueError, ContentType.DoesNotExist):
+            return Response(
+                {"error": f"Invalid entity_type: '{entity_type_str}'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Resolve entity instance
+        try:
+            entity = ct.get_object_for_this_type(pk=entity_id)
+        except ct.model_class().DoesNotExist:  # type: ignore[union-attr]
+            return Response(
+                {"error": f"Entity '{entity_type_str}' with id '{entity_id}' not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Delegate to service
+        try:
+            link = engine.link_entity(instance_id=instance_id, entity=entity)
+        except WorkflowEngineError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        output = EntityWorkflowSerializer(link, context={"request": request})
+        return Response(output.data, status=status.HTTP_201_CREATED)
 
 
 class ActionLogListView(generics.ListAPIView):

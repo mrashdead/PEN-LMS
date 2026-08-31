@@ -9,6 +9,7 @@ from apps.workflow.views import (
     ExecuteTransitionView,
     InstanceDetailView,
     InstanceListCreateView,
+    LinkEntityView,
 )
 
 urlpatterns = [
@@ -33,5 +34,10 @@ urlpatterns = [
         "instances/<uuid:instance_id>/logs/",
         ActionLogListView.as_view(),
         name="workflow-instance-logs",
+    ),
+    path(
+        "instances/<uuid:instance_id>/link-entity/",
+        LinkEntityView.as_view(),
+        name="workflow-instance-link-entity",
     ),
 ]

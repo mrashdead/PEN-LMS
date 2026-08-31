@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.contrib import admin
 
 from apps.core.admin import JalaliAdminMixin
-from apps.workflow.models import ActionLog, Instance, State, Transition, WorkflowDefinition
+from apps.workflow.models import ActionLog, EntityWorkflow, Instance, State, Transition, WorkflowDefinition
 
 
 class StateInline(admin.TabularInline):
@@ -50,7 +50,7 @@ class TransitionAdmin(JalaliAdminMixin, admin.ModelAdmin):
     fieldsets = (
         (None, {"fields": ("workflow_definition", "name")}),
         ("States", {"fields": ("from_state", "to_state")}),
-        ("Permissions", {"fields": ("allowed_role_codes", "requires_comment")}),
+        ("Permissions", {"fields": ("allowed_role_codes", "requires_comment", "guard_expression")}),
         ("Timestamps", {"fields": ("created_at_jalali_display", "updated_at_jalali_display")}),
     )
 
@@ -70,4 +70,13 @@ class ActionLogAdmin(JalaliAdminMixin, admin.ModelAdmin):
     list_filter = ("action", "created_at")
     search_fields = ("instance__title", "actor__username", "action")
     autocomplete_fields = ("instance", "from_state", "to_state", "actor")
+    readonly_fields = ("created_at_jalali_display", "updated_at_jalali_display", "created_at", "updated_at")
+
+
+@admin.register(EntityWorkflow)
+class EntityWorkflowAdmin(JalaliAdminMixin, admin.ModelAdmin):
+    list_display = ("instance", "content_type", "object_id", "created_at_jalali_display")
+    list_filter = ("content_type",)
+    search_fields = ("instance__title", "object_id")
+    autocomplete_fields = ("instance",)
     readonly_fields = ("created_at_jalali_display", "updated_at_jalali_display", "created_at", "updated_at")

@@ -3,7 +3,7 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from apps.core.fields import PersianCharField
-from apps.workflow.models import ActionLog, Instance, Transition, WorkflowDefinition
+from apps.workflow.models import ActionLog, EntityWorkflow, Instance, Transition, WorkflowDefinition
 
 
 class WorkflowDefinitionSerializer(serializers.ModelSerializer):
@@ -112,6 +112,29 @@ class ExecuteTransitionSerializer(serializers.Serializer):
 
 class CancelInstanceSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class LinkEntitySerializer(serializers.Serializer):
+    """
+    Serializer for linking a domain entity to a workflow instance.
+    """
+    entity_type = serializers.CharField(
+        help_text="Content type app_label.model, e.g. 'education.courseoffering'"
+    )
+    entity_id = serializers.UUIDField(
+        help_text="UUID primary key of the domain entity"
+    )
+
+
+class EntityWorkflowSerializer(serializers.ModelSerializer):
+    content_type_name = serializers.StringRelatedField(
+        source="content_type", read_only=True
+    )
+
+    class Meta:
+        model = EntityWorkflow
+        fields = ("id", "instance_id", "content_type", "content_type_name", "object_id", "created_at")
+        read_only_fields = ("created_at",)
 
 
 class ActionLogSerializer(serializers.ModelSerializer):

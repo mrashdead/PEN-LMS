@@ -5,10 +5,13 @@ import uuid
 from typing import Optional
 
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 from django.utils import timezone
 
+from apps.workflow.guards import GuardDeniedError
 from apps.workflow.models import ActionLog, Instance, State, Transition, WorkflowDefinition
+from apps.workflow.validators import TransitionValidator
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +22,10 @@ class WorkflowEngineError(Exception):
 
 class InvalidTransitionError(WorkflowEngineError):
     """Transition not allowed from current state or by this actor."""
+
+
+class GuardDeniedError(InvalidTransitionError):
+    """Transition blocked by a guard condition."""
 
 
 class WorkflowNotActiveError(WorkflowEngineError):
@@ -122,6 +129,7 @@ class WorkflowEngineService:
           - Instance is running
           - Transition from current state
           - Actor has required role (via role_codes)
+          - Guard condition passes (if any)
         """
         if instance.status != Instance.Status.RUNNING:
             return []
@@ -136,13 +144,11 @@ class WorkflowEngineService:
             ).select_related("to_state")
         )
 
-        actor_roles = actor.role_codes()
+        validator = TransitionValidator()
         allowed: list[Transition] = []
         for t in transitions:
-            if not t.allowed_role_codes:
-                allowed.append(t)
-                continue
-            if any(role in actor_roles for role in t.allowed_role_codes):
+            result = validator.validate(instance, t, actor)
+            if result.is_valid:
                 allowed.append(t)
 
         return allowed
@@ -176,7 +182,8 @@ class WorkflowEngineService:
           10. Create tasks for the new state (if not final)
           11. If final state -> mark instance completed/rejected
         """
-        # 1. Lock instance
+        # 1. Lock instance + transition (sorted PK order to prevent deadlocks)
+        # Lock instance first; then lock transition by PK
         instance = (
             Instance.objects.select_for_update()
             .filter(pk=instance_id)
@@ -185,46 +192,21 @@ class WorkflowEngineService:
         if not instance:
             raise WorkflowEngineError(f"Instance {instance_id} not found.")
 
-        # Reload with related objects for display
-        if instance:
-            instance.current_state  # touch lazy load
-            instance.workflow_definition
-
         # 2. Load transition
         try:
             transition = Transition.objects.select_for_update().get(pk=transition_id)
         except Transition.DoesNotExist:
             raise WorkflowEngineError(f"Transition {transition_id} not found.")
 
-        # 3. Validate instance is running
-        if instance.status != Instance.Status.RUNNING:
-            raise InstanceNotRunningError(
-                f"Instance {instance_id} is '{instance.status}', not running."
-            )
-
-        # 4. Validate transition belongs to the same workflow
-        if transition.workflow_definition_id != instance.workflow_definition_id:
+        # 3. Validate using TransitionValidator (pure, testable)
+        validator = TransitionValidator()
+        result = validator.validate(instance, transition, actor)
+        if not result.is_valid:
             raise InvalidTransitionError(
-                "Transition does not belong to the instance's workflow."
+                "; ".join(result.errors)
             )
 
-        # 5. Validate transition is from current state
-        if transition.from_state_id != instance.current_state_id:
-            raise InvalidTransitionError(
-                f"Transition '{transition.name}' is not from current state "
-                f"'{instance.current_state.code if instance.current_state else '?'}'."
-            )
-
-        # 6. Validate actor has required role
-        if transition.allowed_role_codes:
-            actor_roles = actor.role_codes()
-            if not any(role in actor_roles for role in transition.allowed_role_codes):
-                raise InvalidTransitionError(
-                    f"Actor '{actor}' does not have required role(s): "
-                    f"{transition.allowed_role_codes}."
-                )
-
-        # 7. Update instance state
+        # 4. Update instance state
         old_state = instance.current_state
         new_state = transition.to_state
         instance.current_state = new_state
@@ -294,7 +276,6 @@ class WorkflowEngineService:
         )
         if not instance:
             raise WorkflowEngineError(f"Instance {instance_id} not found.")
-        instance.current_state  # touch lazy load
         if instance.status != Instance.Status.RUNNING:
             raise InstanceNotRunningError(
                 f"Instance {instance_id} is '{instance.status}', cannot cancel."
@@ -332,6 +313,69 @@ class WorkflowEngineService:
         )
 
         return instance
+
+    # ------------------------------------------------------------------
+    # Entity Linking
+    # ------------------------------------------------------------------
+
+    @transaction.atomic
+    def link_entity(
+        self,
+        instance_id: uuid.UUID,
+        entity: object,
+    ) -> object:
+        """
+        Link a domain entity (CourseOffering, Lead, …) to a workflow Instance
+        via EntityWorkflow. Each entity can be linked to at most one Instance
+        (enforced by UniqueConstraint on content_type+object_id).
+
+        Returns the EntityWorkflow link.
+        """
+        from apps.workflow.models import EntityWorkflow
+
+        instance = (
+            Instance.objects.select_for_update()
+            .filter(pk=instance_id)
+            .first()
+        )
+        if not instance:
+            raise WorkflowEngineError(f"Instance {instance_id} not found.")
+
+        ct = ContentType.objects.get_for_model(entity)
+        link, created = EntityWorkflow.objects.update_or_create(
+            content_type=ct,
+            object_id=str(entity.pk),
+            defaults={"instance": instance},
+        )
+        logger.info(
+            "Entity %s(%s) %s to instance %s",
+            ct.model,
+            entity.pk,
+            "linked" if created else "re-linked",
+            instance_id,
+        )
+        return link
+
+    def get_linked_entity(
+        self,
+        instance: Instance,
+        model_class=None,
+    ):
+        """
+        Retrieve the domain entity linked to an Instance.
+        If model_class is given, filter by that type.
+        """
+        from apps.workflow.models import EntityWorkflow
+
+        qs = instance.entity_links.select_related("content_type")
+        if model_class:
+            ct = ContentType.objects.get_for_model(model_class)
+            qs = qs.filter(content_type=ct)
+        for link in qs:
+            entity = link.entity
+            if entity is not None:
+                return entity
+        return None
 
     # ------------------------------------------------------------------
     # Helpers
