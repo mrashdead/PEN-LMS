@@ -1,3 +1,8 @@
+"""
+Workflow Serializers — تبدیل مدل‌های گردش کار به JSON و بالعکس
+
+تمام تاریخ‌ها به صورت خودکار به شمسی (Persian/Jalali) نمایش داده می‌شوند.
+"""
 from __future__ import annotations
 
 from rest_framework import serializers
@@ -7,6 +12,8 @@ from apps.workflow.models import ActionLog, EntityWorkflow, Instance, Transition
 
 
 class WorkflowDefinitionSerializer(serializers.ModelSerializer):
+    """سریالایزر تعریف فرآیند — خواندنی"""
+
     created_at = PersianCharField(source="created_at_jalali", read_only=True)
     updated_at = PersianCharField(source="updated_at_jalali", read_only=True)
 
@@ -16,6 +23,8 @@ class WorkflowDefinitionSerializer(serializers.ModelSerializer):
 
 
 class InstanceListSerializer(serializers.ModelSerializer):
+    """سریالایزر خلاصه Instance — برای لیست"""
+
     workflow_definition_code = serializers.SlugRelatedField(
         source="workflow_definition", slug_field="code", read_only=True
     )
@@ -44,6 +53,8 @@ class InstanceListSerializer(serializers.ModelSerializer):
 
 
 class InstanceDetailSerializer(serializers.ModelSerializer):
+    """سریالایزر جزئیات Instance — برای نمایش تکی"""
+
     workflow_definition = WorkflowDefinitionSerializer(read_only=True)
     current_state_code = serializers.SlugRelatedField(
         source="current_state", slug_field="code", read_only=True, allow_null=True
@@ -79,12 +90,21 @@ class InstanceDetailSerializer(serializers.ModelSerializer):
 
 
 class CreateInstanceSerializer(serializers.Serializer):
-    workflow_code = serializers.SlugField()
-    title = serializers.CharField(max_length=512)
-    description = serializers.CharField(required=False, allow_blank=True, default="")
+    """سریالایزر ساخت Instance جدید"""
+
+    workflow_code = serializers.SlugField(
+        help_text="کد WorkflowDefinition — مثلاً leave-request"
+    )
+    title = serializers.CharField(max_length=512, help_text="عنوان درخواست")
+    description = serializers.CharField(
+        required=False, allow_blank=True, default="",
+        help_text="توضیحات (اختیاری)",
+    )
 
 
 class TransitionSerializer(serializers.ModelSerializer):
+    """سریالایزر Transition — برای نمایش اقدامات مجاز"""
+
     from_state_code = serializers.SlugRelatedField(
         source="from_state", slug_field="code", read_only=True
     )
@@ -105,39 +125,58 @@ class TransitionSerializer(serializers.ModelSerializer):
 
 
 class ExecuteTransitionSerializer(serializers.Serializer):
-    transition_id = serializers.UUIDField()
-    comment = serializers.CharField(required=False, allow_blank=True, default="")
-    metadata = serializers.JSONField(required=False, default=dict)
+    """سریالایزر اجرای Transition"""
+
+    transition_id = serializers.UUIDField(help_text="شناسه Transition مورد نظر")
+    comment = serializers.CharField(
+        required=False, allow_blank=True, default="",
+        help_text="کامنت (اختیاری)",
+    )
+    metadata = serializers.JSONField(
+        required=False, default=dict,
+        help_text="داده‌های اضافی (اختیاری)",
+    )
 
 
 class CancelInstanceSerializer(serializers.Serializer):
-    reason = serializers.CharField(required=False, allow_blank=True, default="")
+    """سریالایزر لغو Instance"""
+
+    reason = serializers.CharField(
+        required=False, allow_blank=True, default="",
+        help_text="دلیل لغو (اختیاری)",
+    )
 
 
 class LinkEntitySerializer(serializers.Serializer):
-    """
-    Serializer for linking a domain entity to a workflow instance.
-    """
+    """سریالایزر اتصال موجودیت دامنه به Instance"""
+
     entity_type = serializers.CharField(
-        help_text="Content type app_label.model, e.g. 'education.courseoffering'"
+        help_text="app_label.model — مثلاً education.courseoffering"
     )
     entity_id = serializers.UUIDField(
-        help_text="UUID primary key of the domain entity"
+        help_text="شناسه (PK) موجودیت دامنه"
     )
 
 
 class EntityWorkflowSerializer(serializers.ModelSerializer):
+    """سریالایزر EntityWorkflow — نمایش اتصال موجودیت به Instance"""
+
     content_type_name = serializers.StringRelatedField(
         source="content_type", read_only=True
     )
 
     class Meta:
         model = EntityWorkflow
-        fields = ("id", "instance_id", "content_type", "content_type_name", "object_id", "created_at")
+        fields = (
+            "id", "instance_id", "content_type",
+            "content_type_name", "object_id", "created_at",
+        )
         read_only_fields = ("created_at",)
 
 
 class ActionLogSerializer(serializers.ModelSerializer):
+    """سریالایزر تاریخچه اقدامات"""
+
     from_state_code = serializers.SlugRelatedField(
         source="from_state", slug_field="code", read_only=True, allow_null=True
     )

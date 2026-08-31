@@ -1,3 +1,17 @@
+"""
+Workflow Engine Service — هسته موتور گردش کار
+
+مسئولیت:
+  - create_instance: ایجاد نمونه جدید از یک فرآیند
+  - get_available_transitions: انتقال‌های مجاز برای کاربر در یک Instance
+  - execute_transition: اجرای یک انتقال با قفل تراکنشی
+  - cancel_instance: لغو یک Instance
+  - link_entity / get_linked_entity: اتصال Instance به موجودیت دامنه
+
+Thread-safety:
+  تمام متدهایی که دیتا می‌نویسند داخل @transaction.atomic
+  و با select_for_update روی ردیف‌های مربوطه قفل می‌گیرند.
+"""
 from __future__ import annotations
 
 import logging
@@ -9,7 +23,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 from django.utils import timezone
 
-from apps.workflow.guards import GuardDeniedError
 from apps.workflow.models import ActionLog, Instance, State, Transition, WorkflowDefinition
 from apps.workflow.validators import TransitionValidator
 
@@ -17,15 +30,11 @@ logger = logging.getLogger(__name__)
 
 
 class WorkflowEngineError(Exception):
-    """Base exception for workflow engine errors."""
+    """Base exception for all workflow engine errors."""
 
 
 class InvalidTransitionError(WorkflowEngineError):
-    """Transition not allowed from current state or by this actor."""
-
-
-class GuardDeniedError(InvalidTransitionError):
-    """Transition blocked by a guard condition."""
+    """Transition not allowed — role, state, or guard failure."""
 
 
 class WorkflowNotActiveError(WorkflowEngineError):
@@ -55,25 +64,36 @@ class WorkflowEngineService:
         description: str = "",
     ) -> Instance:
         """
-        Create a new workflow instance and an initial task for the first state.
+        ایجاد یک نمونه جدید از فرآیند.
 
-        Steps:
-          1. Load + lock the WorkflowDefinition
-          2. Find the initial State
-          3. Create the Instance
-          4. Create the first ActionLog
-          5. Create a WorkflowTask for the initial state's assignee pool
+        مراحل:
+          1. قفل و بارگذاری WorkflowDefinition
+          2. یافتن State اولیه (is_initial)
+          3. ساخت Instance
+          4. ثبت ActionLog اولین اقدام
+          5. ساخت WorkflowTask برای کاربران مجاز State اولیه
+
+        Args:
+            workflow_code: کد WorkflowDefinition (مثلاً leave-request)
+            requester: کاربر درخواست‌دهنده
+            title: عنوان درخواست
+            description: توضیحات (اختیاری)
+
+        Returns:
+            Instance ایجادشده
         """
+        # 1. قفل WorkflowDefinition
         wf = (
             WorkflowDefinition.objects.select_for_update()
             .filter(code=workflow_code.strip().lower())
             .first()
         )
         if not wf:
-            raise WorkflowEngineError(f"Workflow '{workflow_code}' not found.")
+            raise WorkflowEngineError(f"فرآیند '{workflow_code}' یافت نشد.")
         if not wf.is_active:
-            raise WorkflowNotActiveError(f"Workflow '{workflow_code}' is not active.")
+            raise WorkflowNotActiveError(f"فرآیند '{workflow_code}' فعال نیست.")
 
+        # 2. یافتن State اولیه
         initial_state = (
             State.objects.select_for_update()
             .filter(workflow_definition=wf, is_initial=True)
@@ -81,9 +101,10 @@ class WorkflowEngineService:
         )
         if not initial_state:
             raise WorkflowEngineError(
-                f"Workflow '{workflow_code}' has no initial state."
+                f"فرآیند '{workflow_code}' State اولیه (is_initial) ندارد."
             )
 
+        # 3. ساخت Instance
         instance = Instance.objects.create(
             workflow_definition=wf,
             current_state=initial_state,
@@ -93,24 +114,22 @@ class WorkflowEngineService:
             status=Instance.Status.RUNNING,
         )
 
-        # Log the creation action
+        # 4. ثبت ActionLog
         ActionLog.objects.create(
             instance=instance,
             from_state=None,
             to_state=initial_state,
             action="create",
             actor=requester,
-            comment="Instance created",
+            comment="ایجاد درخواست",
         )
 
-        # Create the first task for the initial state
+        # 5. ساخت تسک‌های اولیه
         self._create_tasks_for_state(instance, initial_state, assigned_by=requester)
 
         logger.info(
-            "Instance %s created for workflow '%s' by %s",
-            instance.id,
-            workflow_code,
-            requester,
+            "Instance %s created for workflow '%s' by user %s",
+            instance.id, workflow_code, requester,
         )
         return instance
 
@@ -124,12 +143,20 @@ class WorkflowEngineService:
         actor: settings.AUTH_USER_MODEL,  # type: ignore[valid-type]
     ) -> list[Transition]:
         """
-        Return transitions the actor can perform on this instance.
-        Checks:
-          - Instance is running
-          - Transition from current state
-          - Actor has required role (via role_codes)
-          - Guard condition passes (if any)
+        بازگرداندن Transition‌های مجاز برای یک کاربر در یک Instance.
+
+        فیلترها:
+          - Instance باید RUNNING باشد
+          - Transition باید از State فعلی Instance باشد
+          - کاربر باید نقش مجاز داشته باشد
+          - Guard condition (در صورت وجود) باید پاس شود
+
+        Args:
+            instance: Instance مورد نظر
+            actor: کاربر درخواست‌کننده
+
+        Returns:
+            لیست Transitionهای مجاز (می‌تواند خالی باشد)
         """
         if instance.status != Instance.Status.RUNNING:
             return []
@@ -137,6 +164,7 @@ class WorkflowEngineService:
         if not instance.current_state_id:
             return []
 
+        # دریافت همه Transitionهای ممکن از State فعلی
         transitions = list(
             Transition.objects.filter(
                 workflow_definition=instance.workflow_definition,
@@ -144,6 +172,7 @@ class WorkflowEngineService:
             ).select_related("to_state")
         )
 
+        # اعتبارسنجی هر Transition با TransitionValidator
         validator = TransitionValidator()
         allowed: list[Transition] = []
         for t in transitions:
@@ -167,51 +196,55 @@ class WorkflowEngineService:
         metadata: Optional[dict] = None,
     ) -> Instance:
         """
-        Execute a transition atomically.
+        اجرای یک Transition روی یک Instance.
+        این متد کل عملیات را در یک تراکنش اتمی انجام می‌دهد.
 
-        Steps:
-          1. Lock the Instance row (select_for_update)
-          2. Load the Transition
-          3. Validate instance is running
-          4. Validate transition belongs to the same workflow
-          5. Validate transition is from current state
-          6. Validate actor has required role
-          7. Update instance state
-          8. Create ActionLog
-          9. Mark pending tasks for the old state as completed
-          10. Create tasks for the new state (if not final)
-          11. If final state -> mark instance completed/rejected
+        مراحل:
+          1. قفل Instance
+          2. بارگذاری Transition
+          3. اعتبارسنجی با TransitionValidator
+          4. به‌روزرسانی State Instance
+          5. ثبت ActionLog
+          6. بستن تسک‌های قدیمی
+          7. ساخت تسک‌های جدید (اگر State نهایی نباشد)
+
+        Args:
+            instance_id: PK Instance
+            transition_id: PK Transition
+            actor: کاربر اجراکننده
+            comment: کامنت (اختیاری)
+            metadata: دیتای اضافی (اختیاری)
+
+        Returns:
+            Instance به‌روزرسانی‌شده
         """
-        # 1. Lock instance + transition (sorted PK order to prevent deadlocks)
-        # Lock instance first; then lock transition by PK
+        # 1. قفل Instance
         instance = (
             Instance.objects.select_for_update()
             .filter(pk=instance_id)
             .first()
         )
         if not instance:
-            raise WorkflowEngineError(f"Instance {instance_id} not found.")
+            raise WorkflowEngineError(f"Instance {instance_id} یافت نشد.")
 
-        # 2. Load transition
+        # 2. بارگذاری Transition
         try:
             transition = Transition.objects.select_for_update().get(pk=transition_id)
         except Transition.DoesNotExist:
-            raise WorkflowEngineError(f"Transition {transition_id} not found.")
+            raise WorkflowEngineError(f"Transition {transition_id} یافت نشد.")
 
-        # 3. Validate using TransitionValidator (pure, testable)
+        # 3. اعتبارسنجی با TransitionValidator (pure)
         validator = TransitionValidator()
         result = validator.validate(instance, transition, actor)
         if not result.is_valid:
-            raise InvalidTransitionError(
-                "; ".join(result.errors)
-            )
+            raise InvalidTransitionError("; ".join(result.errors))
 
-        # 4. Update instance state
+        # 4. به‌روزرسانی State
         old_state = instance.current_state
         new_state = transition.to_state
         instance.current_state = new_state
 
-        # 8. Determine next status
+        # تعیین وضعیت نهایی
         if new_state.is_final:
             if transition.name.lower() in ("reject", "rejected", "cancel", "cancelled"):
                 instance.status = Instance.Status.REJECTED
@@ -220,7 +253,7 @@ class WorkflowEngineService:
 
         instance.save(update_fields=["current_state", "status", "updated_at"])
 
-        # 9. Create ActionLog
+        # 5. ثبت ActionLog
         ActionLog.objects.create(
             instance=instance,
             from_state=old_state,
@@ -231,7 +264,7 @@ class WorkflowEngineService:
             metadata=metadata or {},
         )
 
-        # 10. Mark pending tasks for old state as completed
+        # 6. بستن تسک‌های PENDING وضعیت قبلی
         from apps.tasks.models import WorkflowTask
 
         WorkflowTask.objects.filter(
@@ -244,16 +277,13 @@ class WorkflowEngineService:
             updated_at=timezone.now(),
         )
 
-        # 11. Create tasks for new state (if not final)
+        # 7. ساخت تسک برای وضعیت جدید (اگر نهایی نباشد)
         if not new_state.is_final:
             self._create_tasks_for_state(instance, new_state, assigned_by=actor)
 
         logger.info(
-            "Instance %s: transition '%s' by %s -> %s",
-            instance_id,
-            transition.name,
-            actor,
-            instance.status,
+            "Instance %s: transition '%s' by user %s -> %s",
+            instance_id, transition.name, actor, instance.status,
         )
         return instance
 
@@ -268,40 +298,57 @@ class WorkflowEngineService:
         actor: settings.AUTH_USER_MODEL,  # type: ignore[valid-type]
         reason: str = "",
     ) -> Instance:
-        """Cancel a running instance (only the requester or workflow_admin)."""
+        """
+        لغو یک Instance در حال اجرا.
+
+        فقط درخواست‌دهنده یا کاربر با نقش workflow_admin مجاز به لغو هستند.
+
+        Args:
+            instance_id: PK Instance
+            actor: کاربر درخواست‌دهنده
+            reason: دلیل لغو (اختیاری)
+
+        Returns:
+            Instance به‌روزرسانی‌شده
+        """
         instance = (
             Instance.objects.select_for_update()
             .filter(pk=instance_id)
             .first()
         )
         if not instance:
-            raise WorkflowEngineError(f"Instance {instance_id} not found.")
+            raise WorkflowEngineError(f"Instance {instance_id} یافت نشد.")
         if instance.status != Instance.Status.RUNNING:
             raise InstanceNotRunningError(
-                f"Instance {instance_id} is '{instance.status}', cannot cancel."
+                f"Instance {instance_id} در وضعیت '{instance.status}' است، "
+                f"فقط Instanceهای RUNNING قابل لغو هستند."
             )
 
+        # بررسی دسترسی
         actor_roles = actor.role_codes()
         is_requester = instance.requester_id == actor.pk
         is_admin = "workflow_admin" in actor_roles
 
         if not (is_requester or is_admin):
             raise InvalidTransitionError(
-                "Only the requester or workflow_admin can cancel an instance."
+                "فقط درخواست‌دهنده یا کاربر با نقش workflow_admin "
+                "می‌تواند یک Instance را لغو کند."
             )
 
         instance.status = Instance.Status.CANCELLED
         instance.save(update_fields=["status", "updated_at"])
 
+        # ثبت ActionLog
         ActionLog.objects.create(
             instance=instance,
             from_state=instance.current_state,
             to_state=None,
             action="cancel",
             actor=actor,
-            comment=reason or "Cancelled",
+            comment=reason or "لغو توسط کاربر",
         )
 
+        # بستن تسک‌های PENDING
         from apps.tasks.models import WorkflowTask
 
         WorkflowTask.objects.filter(
@@ -325,11 +372,18 @@ class WorkflowEngineService:
         entity: object,
     ) -> object:
         """
-        Link a domain entity (CourseOffering, Lead, …) to a workflow Instance
-        via EntityWorkflow. Each entity can be linked to at most one Instance
-        (enforced by UniqueConstraint on content_type+object_id).
+        اتصال یک موجودیت دامنه (CourseOffering, Lead, ...) به Instance
+        از طریق EntityWorkflow.
 
-        Returns the EntityWorkflow link.
+        هر موجودیت فقط به یک Instance می‌تواند متصل شود
+        (اجرا توسط UniqueConstraint).
+
+        Args:
+            instance_id: PK Instance
+            entity: شیء موجودیت دامنه
+
+        Returns:
+            شیء EntityWorkflow ایجاد/به‌روزرسانی‌شده
         """
         from apps.workflow.models import EntityWorkflow
 
@@ -339,7 +393,7 @@ class WorkflowEngineService:
             .first()
         )
         if not instance:
-            raise WorkflowEngineError(f"Instance {instance_id} not found.")
+            raise WorkflowEngineError(f"Instance {instance_id} یافت نشد.")
 
         ct = ContentType.objects.get_for_model(entity)
         link, created = EntityWorkflow.objects.update_or_create(
@@ -347,11 +401,11 @@ class WorkflowEngineService:
             object_id=str(entity.pk),
             defaults={"instance": instance},
         )
+
         logger.info(
-            "Entity %s(%s) %s to instance %s",
-            ct.model,
-            entity.pk,
-            "linked" if created else "re-linked",
+            "%s %s به Instance %s",
+            "متصل شد" if created else "اتصال به‌روزرسانی شد",
+            f"{ct.model}({entity.pk})",
             instance_id,
         )
         return link
@@ -362,8 +416,14 @@ class WorkflowEngineService:
         model_class=None,
     ):
         """
-        Retrieve the domain entity linked to an Instance.
-        If model_class is given, filter by that type.
+        دریافت موجودیت دامنه متصل به یک Instance.
+
+        Args:
+            instance: Instance
+            model_class: (اختیاری) کلاس موجودیت برای فیلتر کردن
+
+        Returns:
+            اولین موجودیت متصل، یا None
         """
         from apps.workflow.models import EntityWorkflow
 
@@ -388,19 +448,24 @@ class WorkflowEngineService:
         assigned_by: Optional[settings.AUTH_USER_MODEL] = None,  # type: ignore[valid-type]
     ) -> None:
         """
-        Create WorkflowTask for each user who has the role(s) required
-        to perform outgoing transitions from this state.
+        ساخت WorkflowTask برای همه کاربرانی که نقش مجاز برای
+        Transitionهای خروجی از این State را دارند.
+
+        Args:
+            instance: Instance
+            state: State فعلی
+            assigned_by: کاربری که تسک را ارجاع می‌دهد (اختیاری)
         """
         from apps.accounts.models import UserRole
         from apps.tasks.models import WorkflowTask
 
-        # Find all outgoing transitions from this state
+        # یافتن همه Transitionهای خروجی از این State
         outgoing = Transition.objects.filter(
             workflow_definition=instance.workflow_definition,
             from_state=state,
         )
 
-        # Collect all unique role codes allowed
+        # جمع‌آوری نقش‌های مجاز یکتا
         role_codes: set[str] = set()
         for t in outgoing:
             if t.allowed_role_codes:
@@ -408,13 +473,13 @@ class WorkflowEngineService:
 
         if not role_codes:
             logger.warning(
-                "No role codes defined for transitions from state %s; "
-                "no tasks created.",
+                "هیچ نقش مجازی برای Transitionهای State '%s' تعریف نشده؛ "
+                "تسکی ساخته نشد.",
                 state.code,
             )
             return
 
-        # Find users with valid assignments for any of these roles
+        # یافتن کاربران دارای این نقش‌ها (با اعتبارسنجی تاریخ)
         now = timezone.now()
         user_ids = list(
             UserRole.objects.filter(
@@ -448,14 +513,11 @@ class WorkflowEngineService:
         if tasks:
             WorkflowTask.objects.bulk_create(tasks)
             logger.info(
-                "Created %d task(s) for instance %s at state %s",
-                len(tasks),
-                instance.id,
-                state.code,
+                "%d تسک برای Instance %s در State '%s' ساخته شد.",
+                len(tasks), instance.id, state.code,
             )
         else:
             logger.warning(
-                "No eligible users found for roles %s at state %s",
-                role_codes,
-                state.code,
+                "هیچ کاربری برای نقش‌های %s در State '%s' یافت نشد.",
+                role_codes, state.code,
             )

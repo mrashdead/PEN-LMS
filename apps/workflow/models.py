@@ -1,3 +1,16 @@
+"""
+Workflow Engine Models
+
+مدل‌های هسته موتور گردش کار:
+  - WorkflowDefinition: قالب یک فرآیند (مثلاً «مرخصی»، «ثبت نمره»)
+  - State: یک وضعیت در فرآیند (draft, pending-manager, approved, ...)
+  - Transition: قانون جابه‌جایی بین دو وضعیت + شرط نقش + شرط پیشرفته (guard)
+  - Instance: یک اجرای زنده از یک فرآیند
+  - ActionLog: تاریخچه قطعی هر اقدام
+  - EntityWorkflow: پل GenericForeignKey بین Instance و هر موجودیت دامنه
+
+تمامی مدل‌ها از DomainModel ارث‌بری می‌کنند که = UUID PK + TimeStamped + SoftDelete.
+"""
 from __future__ import annotations
 
 from django.conf import settings
@@ -11,24 +24,35 @@ from apps.core.models import DomainModel
 
 class WorkflowDefinition(DomainModel):
     """
-    قالب یک فرآیند — مثلاً «مرخصی»، «ماموریت»، «درخواست خرید».
+    قالب یک فرآیند — مثل «درخواست مرخصی»، «ثبت نمره»، «تعیین سطح».
+
+    Each definition has:
+      - States (وضعیت‌ها): multiple State records
+      - Transitions (انتقال‌ها): multiple Transition records between states
+      - Instances (نمونه‌ها): multiple running/completed instances
     """
 
     code = models.SlugField(
         max_length=64,
         unique=True,
-        help_text="Business key, e.g. leave-request, mission-order",
+        help_text="Business key / شناسه یکتای فرآیند — مثلاً leave-request, grade-submission",
     )
-    name = models.CharField(max_length=256)
+    name = models.CharField(
+        max_length=256,
+        help_text="نام نمایشی فرآیند — مثلاً «درخواست مرخصی»",
+    )
     description = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True, db_index=True)
-    version = models.PositiveIntegerField(default=1)
+    version = models.PositiveIntegerField(
+        default=1,
+        help_text="نسخه — برای به‌روزرسانی تعریف بدون شکستن نمونه‌های در حال اجرا",
+    )
 
     class Meta:
         app_label = "workflow"
         db_table = "workflow_definition"
-        verbose_name = "Workflow Definition"
-        verbose_name_plural = "Workflow Definitions"
+        verbose_name = "Workflow Definition (تعریف فرآیند)"
+        verbose_name_plural = "Workflow Definitions (تعاریف فرآیند)"
         ordering = ("code", "version")
         permissions = [
             ("manage_workflow_definition", "مدیریت تعاریف فرآیند"),
@@ -44,7 +68,7 @@ class WorkflowDefinition(DomainModel):
     def clean(self) -> None:
         self.code = (self.code or "").strip().lower()
         if not self.code:
-            raise ValidationError({"code": "code is required"})
+            raise ValidationError({"code": "وارد کردن code الزامی است."})
 
     def save(self, *args, **kwargs) -> None:
         self.code = (self.code or "").strip().lower()
@@ -55,6 +79,9 @@ class State(DomainModel):
     """
     یک وضعیت در تعریف فرآیند.
     مثال: draft, pending-manager, pending-hr, approved, rejected
+
+    هر State متعلق به یک WorkflowDefinition است.
+    یک State می‌تواند is_initial (وضعیت شروع) یا is_final (وضعیت پایان) باشد.
     """
 
     workflow_definition = models.ForeignKey(
@@ -62,16 +89,30 @@ class State(DomainModel):
         on_delete=models.CASCADE,
         related_name="states",
     )
-    code = models.SlugField(max_length=64, help_text="e.g. pending-manager")
-    name = models.CharField(max_length=256)
-    is_initial = models.BooleanField(default=False, db_index=True)
-    is_final = models.BooleanField(default=False, db_index=True)
+    code = models.SlugField(
+        max_length=64,
+        help_text="شناسه وضعیت — مثلاً pending-manager, approved",
+    )
+    name = models.CharField(
+        max_length=256,
+        help_text="نام نمایشی وضعیت — مثلاً «در انتظار تأیید مدیر»",
+    )
+    is_initial = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="آیا این وضعیت شروع فرآیند است؟",
+    )
+    is_final = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="آیا این وضعیت پایان فرآیند است؟",
+    )
 
     class Meta:
         app_label = "workflow"
         db_table = "workflow_state"
-        verbose_name = "State"
-        verbose_name_plural = "States"
+        verbose_name = "State (وضعیت)"
+        verbose_name_plural = "States (وضعیت‌ها)"
         ordering = ("workflow_definition", "code")
         constraints = [
             models.UniqueConstraint(
@@ -90,9 +131,9 @@ class State(DomainModel):
     def clean(self) -> None:
         self.code = (self.code or "").strip().lower()
         if not self.code:
-            raise ValidationError({"code": "code is required"})
+            raise ValidationError({"code": "وارد کردن code الزامی است."})
         if self.is_initial and self.is_final:
-            raise ValidationError("A state cannot be both initial and final.")
+            raise ValidationError("یک State نمی‌تواند هم initial باشد هم final.")
 
     def save(self, *args, **kwargs) -> None:
         self.code = (self.code or "").strip().lower()
@@ -102,7 +143,14 @@ class State(DomainModel):
 class Transition(DomainModel):
     """
     قانون جابه‌جایی از یک State به State دیگر.
-    مشخص می‌کند چه نقشی می‌تواند این انتقال را انجام دهد.
+
+    هر Transition مشخص می‌کند:
+      - از چه وضعیتی به چه وضعیتی می‌رود
+      - چه نقش‌هایی مجاز به انجام آن هستند (allowed_role_codes)
+      - آیا حتماً کامنت لازم است (requires_comment)
+      - چه شرط پیشرفته‌ای دارد (guard_expression)
+
+    guard_expression به صورت JSON تعریف می‌شود و توسط GuardEvaluator ارزیابی می‌گردد.
     """
 
     workflow_definition = models.ForeignKey(
@@ -120,32 +168,43 @@ class Transition(DomainModel):
         on_delete=models.CASCADE,
         related_name="incoming_transitions",
     )
-    name = models.CharField(max_length=256, help_text="e.g. approve, reject, submit")
+    name = models.CharField(
+        max_length=256,
+        help_text="نام اقدام — مثلاً submit, approve, reject",
+    )
     allowed_role_codes = models.JSONField(
         default=list,
         blank=True,
-        help_text='List of role codes allowed to perform this transition, e.g. ["manager"]',
+        help_text=(
+            'نقش‌های مجاز برای انجام این انتقال. مثال: ["manager"], ["hr", "admin"].\n'
+            "خالی = همه می‌توانند (فقط با داشتن Instance و State مناسب)."
+        ),
     )
-    requires_comment = models.BooleanField(default=False)
+    requires_comment = models.BooleanField(
+        default=False,
+        help_text="آیا کاربر حتماً باید کامنت وارد کند؟",
+    )
     guard_expression = models.JSONField(
         default=dict,
         blank=True,
         help_text=(
-            "Optional guard conditions as JSON. Examples:\n"
-            '{"type": "always_true"}\n'
-            '{"type": "role_not_in", "roles": ["manager"], "field": "requester"}\n'
+            "شرط پیشرفته برای این انتقال (JSON). مثال:\n"
+            '{"type": "always_true"} — همیشه مجاز\n'
+            '{"type": "field_not_equals", "field": "requester_id", "source": "actor.id"}\n'
+            '    — مدیر نتواند درخواست خودش را تأیید کند\n'
             '{"type": "entity_field_lt", "field": "enrolled_count", "other_field": "capacity"}\n'
-            '{"type": "all", "guards": [...]}\n'
-            '{"type": "any", "guards": [...]}\n'
-            "Empty/{} = always true (allow). Unknown type = deny (fail closed)."
+            '    — اگر ظرفیت پر است، اجازه تأیید نده\n'
+            '{"type": "all", "guards": [...]} — همه زیرشرط‌ها باید درست باشند\n'
+            '{"type": "any", "guards": [...]} — حداقل یکی از زیرشرط‌ها باید درست باشد\n'
+            "خالی/{} = همیشه مجاز. نوع ناشناخته = مسدود (fail-closed)."
         ),
     )
 
     class Meta:
         app_label = "workflow"
         db_table = "workflow_transition"
-        verbose_name = "Transition"
-        verbose_name_plural = "Transitions"
+        verbose_name = "Transition (انتقال)"
+        verbose_name_plural = "Transitions (انتقال‌ها)"
         ordering = ("workflow_definition", "from_state", "to_state")
         indexes = [
             models.Index(fields=["workflow_definition", "from_state"]),
@@ -159,25 +218,34 @@ class Transition(DomainModel):
         )
 
     def clean(self) -> None:
+        # جلوگیری از Transition به خودش
         if self.from_state_id and self.to_state_id and self.from_state_id == self.to_state_id:
-            raise ValidationError("from_state and to_state cannot be the same.")
+            raise ValidationError("from_state و to_state نمی‌توانند یکی باشند.")
+        # اطمینان از اینکه هر دو State متعلق به همین WorkflowDefinition هستند
         if self.from_state and self.to_state:
             if self.from_state.workflow_definition_id != self.workflow_definition_id:
-                raise ValidationError("from_state must belong to the same workflow definition.")
+                raise ValidationError("from_state باید متعلق به همین WorkflowDefinition باشد.")
             if self.to_state.workflow_definition_id != self.workflow_definition_id:
-                raise ValidationError("to_state must belong to the same workflow definition.")
+                raise ValidationError("to_state باید متعلق به همین WorkflowDefinition باشد.")
 
 
 class Instance(DomainModel):
     """
-    یک اجرای زنده (یا تمام‌شده) از یک WorkflowDefinition.
+    یک نمونه اجرایی (زنده یا تمام‌شده) از یک WorkflowDefinition.
+
+    Instance مسیر خود را طی می‌کند:
+      RUNNING → COMPLETED / REJECTED / CANCELLED
+
+    هر Instance می‌تواند به یک موجودیت دامنه متصل شود
+    (از طریق EntityWorkflow) تا Transitionها بتوانند
+    فیلدهای آن موجودیت را بررسی کنند.
     """
 
     class Status(models.TextChoices):
-        RUNNING = "running", "Running"
-        COMPLETED = "completed", "Completed"
-        REJECTED = "rejected", "Rejected"
-        CANCELLED = "cancelled", "Cancelled"
+        RUNNING = "running", "Running (در حال اجرا)"
+        COMPLETED = "completed", "Completed (تکمیل)"
+        REJECTED = "rejected", "Rejected (رد شده)"
+        CANCELLED = "cancelled", "Cancelled (لغو شده)"
 
     workflow_definition = models.ForeignKey(
         WorkflowDefinition,
@@ -196,8 +264,15 @@ class Instance(DomainModel):
         on_delete=models.PROTECT,
         related_name="workflow_instances",
     )
-    title = models.CharField(max_length=512)
-    description = models.TextField(blank=True, default="")
+    title = models.CharField(
+        max_length=512,
+        help_text="عنوان درخواست — مثلاً «مرخصی ۳ روزه از ۱۵ تا ۱۷ مهر»",
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="توضیحات تکمیلی درخواست",
+    )
     status = models.CharField(
         max_length=32,
         choices=Status.choices,
@@ -208,8 +283,8 @@ class Instance(DomainModel):
     class Meta:
         app_label = "workflow"
         db_table = "workflow_instance"
-        verbose_name = "Instance"
-        verbose_name_plural = "Instances"
+        verbose_name = "Instance (نمونه فرآیند)"
+        verbose_name_plural = "Instances (نمونه‌های فرآیند)"
         ordering = ("-created_at",)
         permissions = [
             ("view_all_instances", "مشاهده همه درخواست‌ها"),
@@ -228,7 +303,14 @@ class Instance(DomainModel):
 
 class ActionLog(DomainModel):
     """
-    تاریخچهٔ قطعی هر اقدام روی یک Instance.
+    تاریخچه قطعی هر اقدام روی یک Instance.
+
+    تمام تغییرات وضعیت در این جدول ثبت می‌شوند:
+      - ایجاد Instance (action="create")
+      - اجرای Transition (action=transition.name)
+      - لغو (action="cancel")
+
+    این جدول فقط Append-Only است — هیچوقت ویرایش یا حذف نمی‌شود.
     """
 
     instance = models.ForeignKey(
@@ -253,21 +335,29 @@ class ActionLog(DomainModel):
     action = models.CharField(
         max_length=64,
         db_index=True,
-        help_text="e.g. submit, approve, reject, cancel",
+        help_text="نام اقدام — create, submit, approve, reject, cancel",
     )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="action_logs",
     )
-    comment = models.TextField(blank=True, default="")
-    metadata = models.JSONField(default=dict, blank=True)
+    comment = models.TextField(
+        blank=True,
+        default="",
+        help_text="کامنت کاربر در زمان انجام اقدام",
+    )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="داده‌های اضافی (مثلاً مقادیر فرم در زمان ثبت)",
+    )
 
     class Meta:
         app_label = "workflow"
         db_table = "workflow_action_log"
-        verbose_name = "Action Log"
-        verbose_name_plural = "Action Logs"
+        verbose_name = "Action Log (تاریخچه)"
+        verbose_name_plural = "Action Logs (تاریخچه‌ها)"
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=["instance", "created_at"]),
@@ -280,9 +370,15 @@ class ActionLog(DomainModel):
 
 class EntityWorkflow(DomainModel):
     """
-    GenericForeignKey bridge: connects a Workflow Instance to any domain entity
-    (CourseOffering, Lead, GradeForm, …) so transitions can inspect the entity's
-    state without a direct FK on Instance.
+    پل GenericForeignKey: Instance را به هر موجودیت دامنه متصل می‌کند.
+
+    چرا به جای FK مستقیم؟
+      - هر Instance ممکن است به انواع مختلفی از موجودیت‌ها وصل شود
+        (CourseOffering, Lead, GradeForm, ...)
+      - GenericForeignKey این تنوع را بدون چندین FK تهی ممکن می‌کند
+
+    هر موجودیت حداکثر می‌تواند به یک Instance متصل شود
+    (اجرا توسط UniqueConstraint روی content_type + object_id).
     """
 
     instance = models.ForeignKey(
@@ -294,18 +390,22 @@ class EntityWorkflow(DomainModel):
         ContentType,
         on_delete=models.CASCADE,
     )
-    object_id = models.UUIDField(db_index=True)
+    object_id = models.UUIDField(
+        db_index=True,
+        help_text="PK موجودیت دامنه (UUID)",
+    )
     entity = GenericForeignKey("content_type", "object_id")
 
     class Meta:
         app_label = "workflow"
         db_table = "workflow_entity_link"
-        verbose_name = "Entity Workflow Link"
-        verbose_name_plural = "Entity Workflow Links"
+        verbose_name = "Entity Workflow Link (اتصال موجودیت)"
+        verbose_name_plural = "Entity Workflow Links (اتصالات موجودیت)"
         constraints = [
             models.UniqueConstraint(
                 fields=["content_type", "object_id"],
                 name="uniq_workflow_entity_link",
+                violation_error_message="این موجودیت قبلاً به یک Instance دیگر متصل شده است.",
             ),
         ]
         indexes = [

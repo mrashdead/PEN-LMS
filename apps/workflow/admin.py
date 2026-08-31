@@ -1,3 +1,8 @@
+"""
+Workflow Admin Configuration — پنل مدیریت برای گردش کار
+
+از JalaliAdminMixin برای نمایش تاریخ‌های شمسی استفاده می‌کند.
+"""
 from __future__ import annotations
 
 from django.contrib import admin
@@ -7,17 +12,18 @@ from apps.workflow.models import ActionLog, EntityWorkflow, Instance, State, Tra
 
 
 class StateInline(admin.TabularInline):
+    """ویرایش Stateها در صفحه WorkflowDefinition"""
     model = State
     extra = 0
     fields = ("code", "name", "is_initial", "is_final")
-    autocomplete_fields = ()
 
 
 class TransitionInline(admin.TabularInline):
+    """ویرایش Transitionها در صفحه WorkflowDefinition"""
     model = Transition
     extra = 0
     fk_name = "workflow_definition"
-    fields = ("from_state", "to_state", "name", "allowed_role_codes", "requires_comment")
+    fields = ("from_state", "to_state", "name", "allowed_role_codes", "requires_comment", "guard_expression")
     autocomplete_fields = ("from_state", "to_state")
 
 
