@@ -210,8 +210,15 @@ function togglePersonFields() {
 
   studentFields.style.display = type === 'student' ? '' : 'none';
   employeeFields.style.display = (type === 'employee' || type === 'teacher') ? '' : 'none';
-  if (studentCode) studentCode.required = type === 'student';
-  if (employeeCode) employeeCode.required = type === 'employee' || type === 'teacher';
+  if (studentCode) {
+    studentCode.required = type === "student";
+    studentCode.disabled = type !== "student";
+  }
+
+  if (employeeCode) {
+    employeeCode.required = type === "employee" || type === "teacher";
+    employeeCode.disabled = !(type === "employee" || type === "teacher");
+  }
 }
 
 async function savePerson(e) {
@@ -621,6 +628,16 @@ function showClassGroupForm() {
     d.results?.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t.id; opt.textContent = t.title;
+      sel.appendChild(opt);
+    });
+  });
+  // Populate teacher dropdown
+  API.persons.list({person_type:'teacher'}).then(d => {
+    const sel = document.querySelector('#cg-form select[name="teacher"]');
+    d.results?.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.first_name} ${p.last_name}`;
       sel.appendChild(opt);
     });
   });

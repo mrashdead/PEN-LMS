@@ -92,7 +92,7 @@ class InstanceDetailView(generics.RetrieveAPIView):
         user = self.request.user
         return Instance.objects.filter(
             models.Q(requester=user) | models.Q(tasks__assignee=user)
-        ).select_related("workflow_definition", "current_state", "requester")
+        ).select_related("workflow_definition", "current_state", "requester").distinct()
 
 
 class AvailableTransitionsView(views.APIView):

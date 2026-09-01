@@ -172,11 +172,16 @@ class Person(DomainModel):
         if errors:
             raise ValidationError(errors)
 
-    def save(self, *args, **kwargs) -> None:
+    def save(self, *args, **kwargs):
         self.national_code = (self.national_code or "").strip()
         self.first_name = (self.first_name or "").strip()
         self.last_name = (self.last_name or "").strip()
         self.mobile = (self.mobile or "").strip()
+
+        # فیلدهای یکتا و اختیاری باید به جای "" مقدار NULL بگیرند
+        self.student_code = (self.student_code or "").strip() or None
+        self.employee_code = (self.employee_code or "").strip() or None
+
         super().save(*args, **kwargs)
 
 
