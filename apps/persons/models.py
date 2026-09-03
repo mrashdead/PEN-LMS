@@ -189,6 +189,11 @@ class StudentParent(models.Model):
     """
     رابطهٔ والدین با فرزند (دانش‌آموز).
     هر دانش‌آموز می‌تواند چند والد داشته باشد و هر والد می‌تواند چند فرزند.
+
+    این مدل از DomainModel ارث نمی‌برد تا migration داده‌ای PK فعلی
+    (BigAutoField) باعث از دست رفتن رابطه‌های موجود نشود. فیلدهای audit و
+    soft-delete به‌صورت سازگار اضافه شده‌اند؛ تبدیل PK در migration جداگانه
+    و با backfill کنترل‌شده انجام خواهد شد.
     """
 
     parent = models.ForeignKey(
@@ -209,8 +214,11 @@ class StudentParent(models.Model):
         default="",
         help_text="نسبت: پدر، مادر، قیم، ...",
     )
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(default=timezone.now)
+    is_active = models.BooleanField(default=True, db_index=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         app_label = "persons"
@@ -226,6 +234,7 @@ class StudentParent(models.Model):
         indexes = [
             models.Index(fields=["parent", "is_active"]),
             models.Index(fields=["student", "is_active"]),
+            models.Index(fields=["is_deleted", "is_active"]),
         ]
 
     def __str__(self) -> str:
@@ -234,3 +243,17 @@ class StudentParent(models.Model):
     @property
     def created_at_jalali(self) -> str:
         return persian_date(self.created_at)
+
+    @property
+    def updated_at_jalali(self) -> str:
+        return persian_date(self.updated_at)
+
+    def soft_delete(self) -> None:
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["is_deleted", "deleted_at", "updated_at"])
+
+    def restore(self) -> None:
+        self.is_deleted = False
+        self.deleted_at = None
+        self.save(update_fields=["is_deleted", "deleted_at", "updated_at"])

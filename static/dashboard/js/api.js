@@ -7,7 +7,10 @@ const API = {
     };
     if (body && method !== 'GET') opts.body = JSON.stringify(body);
     const res = await fetch(url, opts);
-    if (res.status === 403) { window.location.href = '/dashboard/login/'; return; }
+    if (res.status === 401 || res.status === 403) {
+      window.location.href = '/dashboard/login/?logged_out=1';
+      return;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
       throw new Error(formatApiError(err, res.statusText));
@@ -86,8 +89,8 @@ function persianNumbers(s) {
 }
 
 function formatDate(s) {
-  if (!s) return '—';
-  return s.replace(/[0-9]/g, c => '۰۱۲۳۴۵۶۷۸۹'[c]);
+  if (s == null || s === false || s === '') return '—';
+  return String(s).replace(/[0-9]/g, c => '۰۱۲۳۴۵۶۷۸۹'[c]);
 }
 
 function htmlEscape(s) {

@@ -30,6 +30,7 @@ INSTALLED_APPS: list[str] = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     "rest_framework",
+    "rest_framework.authtoken",
     "django_filters",
     "corsheaders",
     "apps.core",
@@ -38,7 +39,6 @@ INSTALLED_APPS: list[str] = [
     "apps.persons",
     "apps.tasks",
     "apps.academics",
-    
 ]
 
 MIDDLEWARE: list[str] = [
@@ -83,9 +83,9 @@ DATABASES: dict[str, Any] = {
         "CONN_MAX_AGE": env.int("DB_CONN_MAX_AGE", default=60),
         "OPTIONS": {
             "connect_timeout": 10,
-            "options": "-c statement_timeout=30000",  # 30s
+            "options": "-c statement_timeout=30000",
         },
-        "ATOMIC_REQUESTS": False,  # کنترل تراکنش دستی در Engine
+        "ATOMIC_REQUESTS": False,
     }
 }
 
@@ -113,10 +113,10 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.TokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -128,7 +128,7 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 20,
 }
 
-# Logging (minimal production-ready)
+# Logging
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -154,24 +154,11 @@ LOGGING = {
     },
 }
 
-# ─────────────────────────────────────────────────────────
-#  Persian / Jalali Configuration
-# ─────────────────────────────────────────────────────────
-
-# Format localization (numbers, dates)
+# Persian / Jalali Configuration
 USE_L10N = True
 USE_THOUSAND_SEPARATOR = True
-
-# Django admin: force Persian locale for admin interface
-# (already set: LANGUAGE_CODE = "fa-ir")
-
-# Number formatting: use Persian digits in admin
 FORMAT_MODULE_PATH = "pen.formats"
-
-# First day of week: Saturday (0) for Persian calendar
-FIRST_DAY_OF_WEEK = 6  # Saturday = 6, Sunday = 0, Monday = 1
-
-# Date formats (used as fallback)
+FIRST_DAY_OF_WEEK = 6
 DATE_FORMAT = "Y/m/d"
 DATETIME_FORMAT = "Y/m/d H:i"
 TIME_FORMAT = "H:i"
@@ -180,41 +167,25 @@ MONTH_DAY_FORMAT = "m/d"
 SHORT_DATE_FORMAT = "Y/m/d"
 SHORT_DATETIME_FORMAT = "Y/m/d H:i"
 DATE_INPUT_FORMATS = [
-    "%Y/%m/%d",
-    "%Y-%m-%d",
-    "%y/%m/%d",
-    "%y-%m-%d",
+    "%Y/%m/%d", "%Y-%m-%d", "%y/%m/%d", "%y-%m-%d",
 ]
-TIME_INPUT_FORMATS = [
-    "%H:%M",
-    "%H:%M:%S",
-]
+TIME_INPUT_FORMATS = ["%H:%M", "%H:%M:%S"]
 DATETIME_INPUT_FORMATS = [
-    "%Y/%m/%d %H:%M",
-    "%Y-%m-%d %H:%M",
-    "%Y/%m/%d %H:%M:%S",
-    "%Y-%m-%d %H:%M:%S",
-    "%Y-%m-%d %H:%M:%S.%f",
-    "%Y/%m/%d %H:%M:%S.%f",
+    "%Y/%m/%d %H:%M", "%Y-%m-%d %H:%M",
+    "%Y/%m/%d %H:%M:%S", "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d %H:%M:%S.%f", "%Y/%m/%d %H:%M:%S.%f",
 ]
-
-# Decimal / Thousand separators
 THOUSAND_SEPARATOR = ","
 DECIMAL_SEPARATOR = "."
 NUMBER_GROUPING = 3
-
-# Locale paths (for custom translations)
-LOCALE_PATHS = [
-    BASE_DIR / "locale",
-]
-
-# Django admin extras
-if DEBUG:
-    # Show admin in Persian (RTL) - already enabled via LANGUAGE_CODE
-    pass
-
-# Persian names for months (used in admin)
+LOCALE_PATHS = [BASE_DIR / "locale"]
 JALALI_MONTH_NAMES = [
     "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
     "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند",
 ]
+
+# ────────────────────────────────────────
+#  API Auth: Token expiry (optional)
+#  Set TOKEN_EXPIRY_DAYS=0 to disable expiry
+# ────────────────────────────────────────
+TOKEN_EXPIRY_DAYS = env.int("TOKEN_EXPIRY_DAYS", default=90)

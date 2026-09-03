@@ -4,6 +4,13 @@ from django.db import models
 from rest_framework import generics, permissions, status, views
 from rest_framework.response import Response
 
+from apps.core.permissions import (
+    IsActiveUser,
+    CanAccessPersons,
+    IsPersonOwnerOrManager,
+    CanCreateUserForPerson,
+    CanManageStudentParent,
+)
 from apps.persons.models import Person, StudentParent
 from apps.persons.serializers import (
     CreateUserForPersonSerializer,
@@ -19,11 +26,11 @@ person_service = PersonService()
 
 class PersonListCreateView(generics.ListCreateAPIView):
     """
-    GET  /api/persons/       — لیست اشخاص
-    POST /api/persons/       — ثبت شخص جدید (فرم اشخاص)
+    GET  /api/persons/       — لیست اشخاص (مدیران: همه؛ کارمندان: محدود)
+    POST /api/persons/       — ثبت شخص جدید (فقط manager/hr/workflow_admin)
     """
 
-    permission_classes = (permissions.IsAuthenticated,)
+    permission_classes = (IsActiveUser, CanAccessPersons)
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -31,7 +38,15 @@ class PersonListCreateView(generics.ListCreateAPIView):
         return PersonListSerializer
 
     def get_queryset(self):
-        qs = Person.objects.select_related("user").all()
+        user = self.request.user
+        roles = user.role_codes()
+
+        # مدیران و منابع انسانی همه اشخاص را می‌بینند
+        if roles & {"manager", "hr", "workflow_admin"}:
+            qs = Person.objects.select_related("user").all()
+        else:
+            # کارمندان و معلمان فقط اشخاص فعال و عمومی (student, parent) را ببینند
+            qs = Person.objects.select_related("user").filter(is_active=True)
 
         # فیلتر بر اساس نوع شخص
         person_type = self.request.query_params.get("person_type")
@@ -75,23 +90,29 @@ class PersonListCreateView(generics.ListCreateAPIView):
 class PersonDetailView(generics.RetrieveUpdateAPIView):
     """
     GET    /api/persons/{id}/    — جزئیات شخص
-    PATCH  /api/persons/{id}/    — ویرایش اطلاعات شخص
+    PATCH  /api/persons/{id}/    — ویرایش (فرد یا manager)
     """
 
-    permission_classes = (permissions.IsAuthenticated,)
+    permission_classes = (IsActiveUser, IsPersonOwnerOrManager)
     serializer_class = PersonDetailSerializer
 
     def get_queryset(self):
-        return Person.objects.select_related("user").all()
+        user = self.request.user
+        roles = user.role_codes()
+        if roles & {"manager", "hr", "workflow_admin"}:
+            return Person.objects.select_related("user").all()
+        return Person.objects.select_related("user").filter(
+            models.Q(user=user) | models.Q(is_active=True)
+        )
 
 
 class CreateUserForPersonView(views.APIView):
     """
     POST /api/persons/{id}/create-user/
-    ساخت User برای شخص (مدیریت دسترسی).
+    ساخت User برای شخص — فقط manager/hr/workflow_admin
     """
 
-    permission_classes = (permissions.IsAuthenticated,)
+    permission_classes = (IsActiveUser, CanCreateUserForPerson)
 
     def post(self, request, person_id):
         serializer = CreateUserForPersonSerializer(data=request.data)
@@ -113,10 +134,10 @@ class CreateUserForPersonView(views.APIView):
 
 class StudentParentListCreateView(generics.ListCreateAPIView):
     """
-    GET  /api/student-parents/       — لیست روابط والد-فرزند
-    POST /api/student-parents/       — ثبت رابطه جدید
+    GET  /api/student-parents/       — لیست روابط والد-فرزند (فقط مدیران)
+    POST /api/student-parents/       — ثبت رابطه جدید (فقط مدیران)
     """
 
-    permission_classes = (permissions.IsAuthenticated,)
+    permission_classes = (IsActiveUser, CanManageStudentParent)
     serializer_class = StudentParentSerializer
     queryset = StudentParent.objects.select_related("parent", "student").all()

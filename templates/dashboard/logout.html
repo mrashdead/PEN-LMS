@@ -1,0 +1,27 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>خروج — Pen LMS</title>
+<link rel="stylesheet" href="{% static 'dashboard/css/style.css' %}">
+</head>
+<body class="login-page">
+<div class="login-shell logout-shell">
+  <section class="login-intro" aria-label="Pen LMS">
+    <div class="login-mark">P</div>
+    <p class="eyebrow">Pen LMS</p>
+    <h1>تا دیدار<br><em>بعدی.</em></h1>
+    <p class="intro-copy">جلسه شما با موفقیت بسته شد. اطلاعات حساب در این مرورگر باقی نمانده است.</p>
+    <div class="intro-line"></div>
+    <p class="intro-meta">فضای کاری امن آموزشگاه</p>
+  </section>
+  <section class="login-card logout-card" aria-labelledby="logout-title">
+    <div class="logout-icon" aria-hidden="true">✓</div>
+    <h2 id="logout-title">با موفقیت خارج شدید</h2>
+    <p class="login-subtitle">برای ورود دوباره، به صفحه ورود بروید.</p>
+    <a href="{% url 'dashboard-login' %}" class="btn btn-primary login-submit">بازگشت به صفحه ورود <span aria-hidden="true">←</span></a>
+  </section>
+</div>
+</body>
+</html>

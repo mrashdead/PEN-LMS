@@ -7,24 +7,49 @@
 <link rel="stylesheet" href="{% static 'dashboard/css/style.css' %}">
 </head>
 <body class="login-page">
-<div class="login-card">
-  <h1>📘 Pen LMS</h1>
-  <p>سامانه مدیریت فرآیندها و آموزش</p>
-  {% if form.errors %}
-    <div class="error">نام کاربری یا رمز عبور اشتباه است.</div>
-  {% endif %}
-  <form method="post" action="{% url 'dashboard-login' %}">
-    {% csrf_token %}
-    <div class="form-group">
-      <label>نام کاربری</label>
-      <input type="text" name="username" required autofocus>
+<div class="login-shell">
+  <section class="login-intro" aria-label="معرفی سامانه">
+    <div class="login-mark">P</div>
+    <p class="eyebrow">سامانه مدیریت آموزشگاه</p>
+    <h1>هر کلاس،<br><em>در جای درست.</em></h1>
+    <p class="intro-copy">فرآیندها، کلاس‌ها و ارتباط با خانواده‌ها را از یک مسیر روشن مدیریت کنید.</p>
+    <div class="intro-line"></div>
+    <p class="intro-meta">Pen LMS <span>·</span> فضای کاری امن شما</p>
+  </section>
+
+  <section class="login-card" aria-labelledby="login-title">
+    <div class="card-topline">
+      <span class="status-dot"></span>
+      <span>ورود به پنل</span>
     </div>
-    <div class="form-group">
-      <label>رمز عبور</label>
-      <input type="password" name="password" required>
-    </div>
-    <button type="submit" class="btn btn-primary" style="width:100%">ورود</button>
-  </form>
+    <h2 id="login-title">خوش آمدید</h2>
+    <p class="login-subtitle">برای ادامه، اطلاعات حساب خود را وارد کنید.</p>
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="flash flash-{{ message.tags|default:'info' }}" role="status">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    {% if form.errors %}
+      <div class="flash flash-error" role="alert">نام کاربری یا رمز عبور اشتباه است.</div>
+    {% endif %}
+
+    <form method="post" action="{% url 'dashboard-login' %}" class="login-form">
+      {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      <div class="form-group">
+        <label for="id_username">نام کاربری</label>
+        <input id="id_username" type="text" name="username" autocomplete="username" required autofocus placeholder="نام کاربری خود را وارد کنید">
+      </div>
+      <div class="form-group">
+        <div class="label-row"><label for="id_password">رمز عبور</label></div>
+        <input id="id_password" type="password" name="password" autocomplete="current-password" required placeholder="رمز عبور خود را وارد کنید">
+      </div>
+      <button type="submit" class="btn btn-primary login-submit">ورود به پنل <span aria-hidden="true">←</span></button>
+    </form>
+    <p class="login-help">در صورت مشکل ورود، با مدیر سامانه تماس بگیرید.</p>
+  </section>
 </div>
 </body>
 </html>

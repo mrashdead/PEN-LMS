@@ -132,11 +132,14 @@ class PersonCreateSerializer(serializers.ModelSerializer):
         )
 
     def validate_national_code(self, value: str) -> str:
-        if not value or not value.strip().isdigit():
-            raise serializers.ValidationError("کد ملی باید فقط شامل ارقام باشد.")
-        if len(value.strip()) != 10:
+        from apps.core.utils import english_numbers
+
+        normalized = english_numbers(value).strip()
+        if not normalized or not normalized.isdigit():
+            raise serializers.ValidationError("کد ملی باید فقط شامل ارقام باشد (انگلیسی یا فارسی).")
+        if len(normalized) != 10:
             raise serializers.ValidationError("کد ملی باید ۱۰ رقمی باشد.")
-        return value.strip()
+        return normalized
 
     def validate(self, attrs):
         person_type = attrs.get("person_type")

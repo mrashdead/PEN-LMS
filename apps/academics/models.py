@@ -46,6 +46,11 @@ class AcademicTerm(DomainModel):
                 condition=models.Q(end_date__gte=models.F("start_date")),
                 name="chk_academics_term_dates",
             ),
+            models.UniqueConstraint(
+                fields=["is_current"],
+                condition=models.Q(is_current=True),
+                name="uniq_academics_current_term",
+            ),
         ]
         indexes = [
             models.Index(fields=["is_current", "is_active"]),
@@ -198,7 +203,7 @@ class ClassEnrollment(DomainModel):
         help_text="دانش‌آموز",
     )
     enrollment_date = models.DateField(
-        default=timezone.now,
+        default=timezone.localdate,
         help_text="تاریخ ثبت‌نام",
     )
     is_active = models.BooleanField(default=True, db_index=True)

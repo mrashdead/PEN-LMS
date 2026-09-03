@@ -18,15 +18,18 @@
       <a href="#" data-page="academics"> <span>آموزش</span></a>
     </nav>
     <div class="user-info">
-      <div>{{ request.user.get_full_name|default:request.user.username }}</div>
-      <div><a href="{% url 'dashboard-logout' %}" style="color:var(--gray-400);font-size:.75rem">خروج</a></div>
+      <div class="user-name">{{ request.user.get_full_name|default:request.user.username }}</div>
+      <form id="logout-form" method="post" action="{% url 'dashboard-logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="logout-btn">خروج</button>
+      </form>
     </div>
   </aside>
   <main class="main" id="page-content">
     {% block content %}{% endblock %}
   </main>
 </div>
-<script src="{% static 'dashboard/js/api.js' %}"></script>
-<script src="{% static 'dashboard/js/app.js' %}"></script>
+<script src="{% static 'dashboard/js/api.js' %}?v=2"></script>
+<script src="{% static 'dashboard/js/app.js' %}?v=2"></script>
 </body>
 </html>
