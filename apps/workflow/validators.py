@@ -48,7 +48,10 @@ class TransitionValidator:
         errors: list[str] = []
 
         # --- 1. Instance در حال اجراست؟ ---
-        if instance.status != instance.Status.RUNNING:
+        # نکته: مقدار "running" به‌صورت literal نگه داشته شده چون Instance
+        # فقط در TYPE_CHECKING ایمپورت شده و ارجاع به Instance.Status.RUNNING
+        # در runtime باعث NameError می‌شود.
+        if str(instance.status) != "running":
             errors.append(
                 f"Instance در وضعیت '{instance.status}' است، "
                 f"وضعیت باید 'running' باشد."

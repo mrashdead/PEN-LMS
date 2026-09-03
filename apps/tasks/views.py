@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from rest_framework import generics
 
+from apps.core.group_permissions import StrictDjangoModelPermissions
 from apps.core.permissions import IsActiveUser
 from apps.tasks.models import WorkflowTask
 from apps.tasks.serializers import (
@@ -13,7 +14,7 @@ from apps.tasks.serializers import (
 class WorkflowTaskListView(generics.ListAPIView):
     """GET /api/tasks/ — current user's inbox only."""
 
-    permission_classes = (IsActiveUser,)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions)
     serializer_class = WorkflowTaskListSerializer
 
     def get_queryset(self):
@@ -33,7 +34,7 @@ class WorkflowTaskListView(generics.ListAPIView):
 class WorkflowTaskDetailView(generics.RetrieveAPIView):
     """GET /api/tasks/{id}/ — current user's task only."""
 
-    permission_classes = (IsActiveUser,)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions)
     serializer_class = WorkflowTaskDetailSerializer
 
     def get_queryset(self):

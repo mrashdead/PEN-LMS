@@ -1,60 +1,80 @@
 """
-Seed default Django Groups with appropriate permissions.
-Idempotent — safe to run multiple times.
+Seed Django Groups with model permissions.
 
-Run: python manage.py seed_groups
+Run after migrations:
+    python manage.py seed_groups
+
+Business roles are checked by apps.core.permissions. These groups provide the
+second, model-level authorization layer used by API views.
 """
-
 from __future__ import annotations
 
 from django.contrib.auth.models import Group, Permission
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-# ─── Group definitions ──────────────────────────────────────────
-# Each group has a list of permission codenames to grant.
-# Format: "app_label.codename" — e.g. "persons.view_person"
+
+COMMON = [
+    "accounts.view_user",
+    "persons.view_person",
+    "tasks.view_workflowtask",
+]
 
 GROUPS: dict[str, dict[str, object]] = {
     "مدیر سیستم": {
         "codename": "admin",
         "priority": 0,
-        "perms": "*",  # full access via is_superuser
+        "perms": "*",
     },
     "مدیر مؤسسه": {
         "codename": "manager",
         "priority": 10,
-        "perms": [
-            "persons.view_person",
+        "perms": COMMON + [
+            "accounts.add_user",
             "persons.view_person_detail",
             "persons.view_person_list",
             "persons.add_person",
             "persons.change_person",
-            "persons.create_user_for_person",
+            "persons.view_studentparent",
+            "persons.add_studentparent",
+            "persons.change_studentparent",
+            "persons.delete_studentparent",
             "persons.view_grades_report",
             "persons.view_attendance_report",
             "persons.view_financial_report",
-            "workflow.view_workflow_definition",
-            "workflow.manage_workflow_definition",
+            "workflow.view_workflowdefinition",
             "workflow.view_instance",
-            "workflow.view_all_instances",
             "workflow.add_instance",
+            "workflow.change_instance",
+            "workflow.view_actionlog",
+            "workflow.manage_workflow_definition",
+            "workflow.view_all_instances",
             "workflow.approve_instance",
             "workflow.cancel_any_instance",
-            "academics.manage_term",
-            "academics.manage_class_group",
+            "academics.view_academicterm",
+            "academics.add_academicterm",
+            "academics.change_academicterm",
+            "academics.view_classgroup",
+            "academics.add_classgroup",
+            "academics.change_classgroup",
             "academics.view_all_class_groups",
+            "academics.manage_class_group",
+            "academics.view_classenrollment",
+            "academics.add_classenrollment",
+            "academics.change_classenrollment",
+            "academics.delete_classenrollment",
+            "academics.manage_term",
             "academics.manage_enrollment",
         ],
     },
     "کارمند": {
         "codename": "employee",
         "priority": 100,
-        "perms": [
-            "persons.view_person",
+        "perms": COMMON + [
             "persons.view_person_list",
             "workflow.view_instance",
             "workflow.add_instance",
+            "academics.view_academicterm",
             "academics.view_classgroup",
             "academics.view_classenrollment",
         ],
@@ -62,14 +82,14 @@ GROUPS: dict[str, dict[str, object]] = {
     "معلم / مدرس": {
         "codename": "teacher",
         "priority": 40,
-        "perms": [
-            "persons.view_person",
+        "perms": COMMON + [
             "persons.view_person_detail",
             "persons.view_person_list",
             "persons.view_grades_report",
             "persons.view_attendance_report",
             "workflow.view_instance",
             "workflow.add_instance",
+            "academics.view_academicterm",
             "academics.view_classgroup",
             "academics.view_classenrollment",
         ],
@@ -77,9 +97,9 @@ GROUPS: dict[str, dict[str, object]] = {
     "دانش‌آموز": {
         "codename": "student",
         "priority": 90,
-        "perms": [
-            "persons.view_person",
+        "perms": COMMON + [
             "workflow.view_instance",
+            "academics.view_academicterm",
             "academics.view_classgroup",
             "academics.view_classenrollment",
         ],
@@ -87,9 +107,11 @@ GROUPS: dict[str, dict[str, object]] = {
     "والدین": {
         "codename": "parent",
         "priority": 80,
-        "perms": [
-            "persons.view_person",
+        "perms": COMMON + [
+            "persons.view_person_detail",
             "persons.view_attendance_report",
+            "workflow.view_instance",
+            "academics.view_academicterm",
             "academics.view_classgroup",
             "academics.view_classenrollment",
         ],
@@ -98,45 +120,44 @@ GROUPS: dict[str, dict[str, object]] = {
 
 
 class Command(BaseCommand):
-    help = "Seed default Django Groups with permissions (idempotent)"
+    help = "Seed default Django Groups with model permissions (idempotent)"
 
     @transaction.atomic
     def handle(self, *args, **options) -> None:
         for group_name, config in GROUPS.items():
             group, created = Group.objects.get_or_create(name=group_name)
+            perms_config = config["perms"]
 
-            if config["perms"] == "*":
-                # Admin: mark as superuser group — permissions are irrelevant
-                self.stdout.write(f"[{'created' if created else 'updated'}] {group_name} (full access)")
+            if perms_config == "*":
+                group.permissions.set(Permission.objects.all())
+                self.stdout.write(
+                    f"[{'created' if created else 'updated'}] {group_name} (all permissions)"
+                )
                 continue
 
-            # Resolve permission objects
             perms_to_add: list[Permission] = []
             missing: list[str] = []
-            for perm_str in config["perms"]:
+            for perm_str in perms_config:
                 try:
-                    app_label, codename = perm_str.strip().split(".")
-                    perm = Permission.objects.get(
+                    app_label, codename = perm_str.strip().split(".", 1)
+                    permission = Permission.objects.get(
                         content_type__app_label=app_label,
                         codename=codename,
                     )
-                    perms_to_add.append(perm)
-                except Permission.DoesNotExist:
-                    missing.append(perm_str)
-                except ValueError:
+                    perms_to_add.append(permission)
+                except (Permission.DoesNotExist, ValueError):
                     missing.append(perm_str)
 
+            group.permissions.set(perms_to_add)
             if missing:
                 self.stdout.write(
                     self.style.WARNING(
-                        f"  [{group_name}] Permissions not found (will be available after migrate): {missing}"
+                        f"[{group_name}] permissions not found: {missing}"
                     )
                 )
-
-            group.permissions.set(perms_to_add)
-            state = "created" if created else "updated"
             self.stdout.write(
-                f"[{state}] {group_name} — {len(perms_to_add)} permission(s)"
+                f"[{'created' if created else 'updated'}] "
+                f"{group_name} — {len(perms_to_add)} permission(s)"
             )
 
         self.stdout.write(self.style.SUCCESS("groups ready"))

@@ -4,11 +4,11 @@ from django.db import models
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 
+from apps.core.group_permissions import HasGroupPermission, StrictDjangoModelPermissions
 from apps.core.permissions import (
     IsActiveUser,
     IsAcademicManager,
     IsManagerOrAdmin,
-    CanManageStudentParent,
 )
 from apps.academics.models import AcademicTerm, ClassEnrollment, ClassGroup
 from apps.academics.serializers import (
@@ -30,7 +30,7 @@ from apps.academics.serializers import (
 class AcademicTermListCreateView(generics.ListCreateAPIView):
     """Terms: readable by academic staff; writable by managers."""
 
-    permission_classes = (IsActiveUser, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
 
     def get_serializer_class(self):
         return AcademicTermCreateSerializer if self.request.method == "POST" else AcademicTermListSerializer
@@ -47,7 +47,7 @@ class AcademicTermListCreateView(generics.ListCreateAPIView):
 
 
 class AcademicTermDetailView(generics.RetrieveUpdateAPIView):
-    permission_classes = (IsActiveUser, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
     serializer_class = AcademicTermDetailSerializer
     queryset = AcademicTerm.objects.all()
 
@@ -74,7 +74,7 @@ class AcademicTermActivateView(generics.GenericAPIView):
 
 
 class ClassGroupListCreateView(generics.ListCreateAPIView):
-    permission_classes = (IsActiveUser, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
 
     def get_serializer_class(self):
         return ClassGroupCreateSerializer if self.request.method == "POST" else ClassGroupListSerializer
@@ -102,7 +102,7 @@ class ClassGroupListCreateView(generics.ListCreateAPIView):
 
 
 class ClassGroupDetailView(generics.RetrieveUpdateAPIView):
-    permission_classes = (IsActiveUser, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
     serializer_class = ClassGroupDetailSerializer
     queryset = ClassGroup.objects.select_related("term", "teacher").all()
 
@@ -113,7 +113,7 @@ class ClassGroupDetailView(generics.RetrieveUpdateAPIView):
 
 
 class ClassEnrollmentListCreateView(generics.ListCreateAPIView):
-    permission_classes = (IsActiveUser, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
 
     def get_serializer_class(self):
         return ClassEnrollmentCreateSerializer if self.request.method == "POST" else ClassEnrollmentListSerializer
@@ -139,6 +139,6 @@ class ClassEnrollmentListCreateView(generics.ListCreateAPIView):
 
 
 class ClassEnrollmentDetailView(generics.RetrieveDestroyAPIView):
-    permission_classes = (IsActiveUser, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
     serializer_class = ClassEnrollmentListSerializer
     queryset = ClassEnrollment.objects.select_related("class_group", "student").all()

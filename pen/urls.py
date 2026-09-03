@@ -2,6 +2,7 @@
 URL configuration for pen project.
 """
 from django.contrib import admin
+from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.views.generic import RedirectView
 from rest_framework.authtoken.views import obtain_auth_token
@@ -9,16 +10,26 @@ from rest_framework.authtoken.views import obtain_auth_token
 from apps.core import views as core_views
 
 urlpatterns = [
-    # Admin
     path('admin/', admin.site.urls),
 
-    # API
+    # API Auth
     path('api/', include('rest_framework.urls')),
     path('api/auth/token/', obtain_auth_token, name='api-token-auth'),
+
+    # Workflow / core API
     path('api/workflow/', include('apps.workflow.urls')),
     path('api/tasks/', include('apps.tasks.urls')),
     path('api/persons/', include('apps.persons.urls')),
     path('api/academics/', include('apps.academics.urls')),
+
+    # Password management
+    path('api/auth/password/change/', auth_views.PasswordChangeView.as_view(
+        template_name='registration/password_change_form.html',
+        success_url='/api/auth/password/done/',
+    ), name='password-change'),
+    path('api/auth/password/done/', auth_views.PasswordChangeDoneView.as_view(
+        template_name='registration/password_change_done.html',
+    ), name='password-change-done'),
 
     # Dashboard
     path('dashboard/login/', core_views.DashboardLoginView.as_view(), name='dashboard-login'),

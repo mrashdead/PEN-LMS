@@ -56,7 +56,7 @@ class GuardEvaluatorTestCase(TestCase):
     def test_unknown_type_denies(self):
         ok, msg = self.evaluator.evaluate({"type": "banana"}, self.instance, self.actor)
         self.assertFalse(ok)
-        self.assertIn("denied by policy", msg)
+        self.assertIn("طبق سیاست", msg)
 
     # ─── role_not_in ───
 
@@ -72,7 +72,7 @@ class GuardEvaluatorTestCase(TestCase):
         guard = {"type": "role_not_in", "roles": ["manager"], "field": "requester"}
         ok, msg = self.evaluator.evaluate(guard, self.instance, self.actor)
         self.assertFalse(ok)
-        self.assertIn("has role 'manager'", msg)
+        self.assertIn("نقش 'manager'", msg)
 
     def test_role_not_in_missing_field(self):
         guard = {"type": "role_not_in", "roles": ["manager"], "field": "nonexistent"}
@@ -128,7 +128,7 @@ class GuardEvaluatorTestCase(TestCase):
             guard = {"type": "entity_field_lt", "field": "enrolled_count", "other_field": "capacity"}
             ok, msg = self.evaluator.evaluate(guard, self.instance, self.actor)
             self.assertFalse(ok)
-            self.assertIn("no linked entity", msg)
+            self.assertIn("موجودیت دامنه", msg)
 
     # ─── all (AND) ───
 

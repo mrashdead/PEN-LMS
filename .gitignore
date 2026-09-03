@@ -192,6 +192,10 @@ docker-compose.override.yml
 *.tmp
 *.temp
 *.sh
+
+# Secrets committed accidentally to the index; refresh after-unstage.
+.env.swp
+.env.bak
 # =========================================================
 # OS / Editor leftovers
 # =========================================================

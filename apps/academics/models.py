@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import time
+
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -79,7 +81,6 @@ class AcademicTerm(DomainModel):
             raise ValidationError("تاریخ پایان باید بعد از تاریخ شروع باشد.")
 
     def save(self, *args, **kwargs) -> None:
-        # اگر این ترم current=True است، بقیه ترم‌ها current=False شوند
         if self.is_current:
             AcademicTerm.objects.filter(is_current=True).exclude(pk=self.pk).update(
                 is_current=False, updated_at=timezone.now()
@@ -88,10 +89,10 @@ class AcademicTerm(DomainModel):
 
 
 class ClassGroup(DomainModel):
-    """
-    کلاس / گروه آموزشی در یک ترم مشخص.
-    مثال: «ریاضی ۱ — گروه A»، «فیزیک پایه — گروه B»، «کلاس ۷-الف»
-    """
+    """کلاس / گروه آموزشی در یک ترم مشخص."""
+
+    class WEEK_DAYS:
+        VALUES = {"شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"}
 
     term = models.ForeignKey(
         AcademicTerm,
@@ -178,6 +179,31 @@ class ClassGroup(DomainModel):
 
     def clean(self) -> None:
         self.code = (self.code or "").strip().lower()
+        if not isinstance(self.schedule, dict):
+            raise ValidationError({"schedule": "زمان‌بندی باید یک شیء JSON باشد."})
+        if not self.schedule:
+            return
+
+        errors: dict[str, str] = {}
+        days = self.schedule.get("days")
+        start_time = self.schedule.get("start_time")
+        end_time = self.schedule.get("end_time")
+        if not isinstance(days, list) or not days:
+            errors["schedule"] = "فیلد days باید لیستی غیرخالی از روزهای هفته باشد."
+        elif any(day not in self.WEEK_DAYS.VALUES for day in days):
+            errors["schedule"] = "یکی از روزهای هفته در schedule نامعتبر است."
+        if not isinstance(start_time, str) or not isinstance(end_time, str):
+            errors["schedule"] = "start_time و end_time باید به صورت HH:MM باشند."
+        else:
+            try:
+                start = time.fromisoformat(start_time)
+                end = time.fromisoformat(end_time)
+                if start >= end:
+                    errors["schedule"] = "ساعت پایان باید بعد از ساعت شروع باشد."
+            except ValueError:
+                errors["schedule"] = "قالب ساعت باید HH:MM یا HH:MM:SS باشد."
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs) -> None:
         self.code = (self.code or "").strip().lower()
@@ -185,10 +211,7 @@ class ClassGroup(DomainModel):
 
 
 class ClassEnrollment(DomainModel):
-    """
-    ثبت‌نام / عضویت یک دانش‌آموز در یک کلاس.
-    هر دانش‌آموز می‌تواند در چند کلاس (در یک ترم) ثبت‌نام کند.
-    """
+    """ثبت‌نام / عضویت یک دانش‌آموز در یک کلاس."""
 
     class_group = models.ForeignKey(
         ClassGroup,

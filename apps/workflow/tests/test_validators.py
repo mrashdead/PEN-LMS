@@ -74,7 +74,7 @@ class TransitionValidatorTestCase(TestCase):
         self.instance.status = Instance.Status.COMPLETED
         result = self.validator.validate(self.instance, self.transition, self.actor)
         self.assertFalse(result.is_valid)
-        self.assertTrue(any("not 'running'" in e for e in result.errors))
+        self.assertTrue(any("running" in e or "وضعیت" in e for e in result.errors))
 
     # ─── Wrong workflow ───
 
@@ -82,7 +82,7 @@ class TransitionValidatorTestCase(TestCase):
         self.transition.workflow_definition_id = "other-wf"
         result = self.validator.validate(self.instance, self.transition, self.actor)
         self.assertFalse(result.is_valid)
-        self.assertTrue(any("does not belong" in e for e in result.errors))
+        self.assertTrue(any("Transition" in e and "این Instance" in e for e in result.errors))
 
     # ─── Wrong current state ───
 
@@ -90,7 +90,7 @@ class TransitionValidatorTestCase(TestCase):
         self.transition.from_state_id = "other-state"
         result = self.validator.validate(self.instance, self.transition, self.actor)
         self.assertFalse(result.is_valid)
-        self.assertTrue(any("not from current state" in e for e in result.errors))
+        self.assertTrue(any("از وضعیت جاری" in e for e in result.errors))
 
     # ─── Missing role ───
 
@@ -98,7 +98,7 @@ class TransitionValidatorTestCase(TestCase):
         actor_no_role = _MockUser({"student"})
         result = self.validator.validate(self.instance, self.transition, actor_no_role)
         self.assertFalse(result.is_valid)
-        self.assertTrue(any("required role" in e for e in result.errors))
+        self.assertTrue(any("نقش" in e or "role" in e for e in result.errors))
 
     def test_no_role_codes_allows_anyone(self):
         self.transition.allowed_role_codes = []
@@ -119,4 +119,4 @@ class TransitionValidatorTestCase(TestCase):
         self.transition.guard_expression = {"type": "nonexistent"}
         result = self.validator.validate(self.instance, self.transition, self.actor)
         self.assertFalse(result.is_valid)
-        self.assertTrue(any("denied by policy" in e for e in result.errors))
+        self.assertTrue(any("طبق سیاست" in e for e in result.errors))

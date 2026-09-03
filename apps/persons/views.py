@@ -4,6 +4,7 @@ from django.db import models
 from rest_framework import generics, permissions, status, views
 from rest_framework.response import Response
 
+from apps.core.group_permissions import HasGroupPermission, StrictDjangoModelPermissions
 from apps.core.permissions import (
     IsActiveUser,
     CanAccessPersons,
@@ -30,7 +31,7 @@ class PersonListCreateView(generics.ListCreateAPIView):
     POST /api/persons/       — ثبت شخص جدید (فقط manager/hr/workflow_admin)
     """
 
-    permission_classes = (IsActiveUser, CanAccessPersons)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, CanAccessPersons)
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -93,7 +94,7 @@ class PersonDetailView(generics.RetrieveUpdateAPIView):
     PATCH  /api/persons/{id}/    — ویرایش (فرد یا manager)
     """
 
-    permission_classes = (IsActiveUser, IsPersonOwnerOrManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsPersonOwnerOrManager)
     serializer_class = PersonDetailSerializer
 
     def get_queryset(self):
@@ -112,7 +113,10 @@ class CreateUserForPersonView(views.APIView):
     ساخت User برای شخص — فقط manager/hr/workflow_admin
     """
 
-    permission_classes = (IsActiveUser, CanCreateUserForPerson)
+    permission_classes = (IsActiveUser, HasGroupPermission, CanCreateUserForPerson)
+    required_permissions = {
+        "POST": ["persons.change_person"],
+    }
 
     def post(self, request, person_id):
         serializer = CreateUserForPersonSerializer(data=request.data)
@@ -138,6 +142,6 @@ class StudentParentListCreateView(generics.ListCreateAPIView):
     POST /api/student-parents/       — ثبت رابطه جدید (فقط مدیران)
     """
 
-    permission_classes = (IsActiveUser, CanManageStudentParent)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, CanManageStudentParent)
     serializer_class = StudentParentSerializer
     queryset = StudentParent.objects.select_related("parent", "student").all()
