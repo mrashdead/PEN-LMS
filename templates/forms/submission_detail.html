@@ -1,0 +1,135 @@
+{% extends "forms/base_forms.html" %}
+{% load forms_extras %}
+{% block title %}{{ submission.submission_number }}{% endblock %}
+{% block heading %}{{ submission.form_schema.title }} — {{ submission.submission_number|default:'پیش‌نویس' }}{% endblock %}
+
+{% block content %}
+<div class="forms-card">
+  <p>
+    وضعیت: <span class="forms-badge {{ submission.status }}">{{ submission.get_status_display }}</span>
+    {% if submission.submitted_at %} — ارسال: {{ submission.submitted_at|date:"Y/m/d H:i" }}{% endif %}
+    {% if submission.reviewed_by %} — بررسی: {{ submission.reviewed_by.username }} ({{ submission.reviewed_at|date:"Y/m/d H:i" }}){% endif %}
+  </p>
+
+  <table class="forms-table">
+    <tbody>
+      {% for f in rendered_fields %}
+        <tr>
+          <th scope="row">{{ f.label }}</th>
+          <td>
+            {% if f.is_rich %}{{ f.display|safe }}{% elif f.is_file %}
+              {{ f.display }}
+            {% elif f.is_table %}
+              <ul class="plain-list">
+              {% for row in f.display %}
+                <li>{{ row.student_id|default:'' }} — {{ row.status|default:row.result|default:'' }}{% if row.note or row.teacher_note %} ({{ row.note|default:row.teacher_note }}){% endif %}</li>
+              {% endfor %}
+              </ul>
+            {% else %}{{ f.display }}{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if can_edit %}
+    <div class="forms-actions" style="margin-top:.8rem;">
+      <a class="btn-secondary" href="{% url 'forms:submission-edit-page' submission.id %}">ویرایش پیش‌نویس</a>
+      <button class="btn-primary" id="do-submit">ارسال نهایی</button>
+    </div>
+  {% endif %}
+</div>
+
+{% if attachments %}
+<div class="forms-card">
+  <h2 style="font-size:1rem;margin-bottom:.5rem;">پیوست‌ها</h2>
+  <ul class="plain-list">
+    {% for a in attachments %}
+      <li>
+        <a href="{% url 'form-attachment-download' a.id %}">{{ a.original_filename }}</a>
+        — {{ a.mime_type }} ({{ a.file_size }} بایت)
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="forms-card">
+  <h2 style="font-size:1rem;margin-bottom:.5rem;">گردش کار و تاریخچه</h2>
+  {% if submission.workflow_instance %}
+    <p>
+      فرآیند: {{ submission.workflow_instance.workflow_definition.name }}
+      — وضعیت: <span class="forms-badge">{{ submission.workflow_instance.get_status_display }}</span>
+      {% if workflow_state %} — مرحله فعلی: {{ workflow_state.name }}{% endif %}
+    </p>
+    <ol class="workflow-timeline">
+      {% for log in action_logs %}
+        <li>{{ log.created_at|date:"Y/m/d H:i" }} — {{ log.action }} ({{ log.actor.username }})</li>
+      {% endfor %}
+    </ol>
+    {% if available_transitions %}
+      <form id="transition-form" style="display:flex;gap:.5rem;margin-top:.6rem;">
+        {% csrf_token %}
+        <select id="transition-id" aria-label="انتقال مجاز">
+          {% for t in available_transitions %}
+            <option value="{{ t.id }}">{{ t.name }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" id="transition-comment" placeholder="توضیح (اختیاری)">
+        <button type="button" class="btn-primary" id="do-transition">انجام انتقال</button>
+      </form>
+    {% endif %}
+  {% else %}
+    <p class="help">این فرم به گردش کاری متصل نیست.</p>
+  {% endif %}
+</div>
+
+<div class="forms-card">
+  <h2 style="font-size:1rem;margin-bottom:.5rem;">نظرات</h2>
+  <ul class="comment-thread plain-list">
+    {% for c in comments %}
+      <li>
+        <strong>{{ c.author.username }}</strong>
+        {% if c.is_internal %}<span class="forms-badge">داخلی</span>{% endif %}
+        — {{ c.created_at|date:"Y/m/d H:i" }}
+        <div>{{ c.body }}</div>
+      </li>
+    {% empty %}
+      <li class="forms-empty">نظری ثبت نشده است.</li>
+    {% endfor %}
+  </ul>
+  <form id="comment-form" style="display:flex;gap:.5rem;margin-top:.6rem;">
+    {% csrf_token %}
+    <input type="text" id="comment-body" placeholder="نظر جدید…" aria-label="متن نظر" style="flex:1;">
+    <button type="button" class="btn-secondary" id="do-comment">ثبت نظر</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const token = document.querySelector('[name=csrfmiddlewaretoken]')?.value || (document.cookie.match(/csrftoken=([^;]+)/) || [])[1];
+  async function api(url, body) {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token },
+      body: JSON.stringify(body || {}),
+    });
+    if (!resp.ok) { const b = await resp.json().catch(() => ({})); alert(b.error || JSON.stringify(b)); return; }
+    window.location.reload();
+  }
+  document.getElementById('do-submit')?.addEventListener('click', () =>
+    api('/api/forms/submissions/{{ submission.id }}/submit/'));
+  document.getElementById('do-transition')?.addEventListener('click', () =>
+    api('/api/forms/submissions/{{ submission.id }}/transition/', {
+      transition_id: document.getElementById('transition-id').value,
+      comment: document.getElementById('transition-comment').value,
+    }));
+  document.getElementById('do-comment')?.addEventListener('click', () =>
+    api('/api/forms/submissions/{{ submission.id }}/comments/', {
+      body: document.getElementById('comment-body').value,
+    }));
+})();
+</script>
+{% endblock %}

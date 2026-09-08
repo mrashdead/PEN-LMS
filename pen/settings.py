@@ -39,6 +39,7 @@ INSTALLED_APPS: list[str] = [
     "apps.persons",
     "apps.tasks",
     "apps.academics",
+    "apps.forms",
 ]
 
 MIDDLEWARE: list[str] = [
@@ -73,7 +74,10 @@ TEMPLATES: list[dict[str, Any]] = [
 ]
 
 DATABASES: dict[str, Any]
-_db_engine = env("DB_ENGINE", default="django.db.backends.sqlite3")
+# The project's real backend is PostgreSQL; defaulting to sqlite here silently
+# created a stray sqlite file when DB_ENGINE was missing from .env. Keep the
+# explicit sqlite opt-in for throwaway local runs, but default to postgres.
+_db_engine = env("DB_ENGINE", default="django.db.backends.postgresql")
 if _db_engine == "django.db.backends.sqlite3":
     DATABASES = {
         "default": {
@@ -146,6 +150,7 @@ REST_FRAMEWORK = {
         "user": "300/minute",
         "login": "5/minute",
         "password": "5/minute",
+        "form_write": "30/minute",
     },
 }
 
@@ -235,3 +240,8 @@ JALALI_MONTH_NAMES = [
 #  Set TOKEN_EXPIRY_DAYS=0 to disable expiry
 # ────────────────────────────────────────
 TOKEN_EXPIRY_DAYS = env.int("TOKEN_EXPIRY_DAYS", default=90)
+
+# Forms app security. bleach + python-magic are the production path; when they
+# are missing, rich-text and MIME validation fail closed unless this explicit
+# development/test opt-in is set. DEBUG alone never enables the fallback.
+FORMS_ALLOW_SECURITY_FALLBACKS = env.bool("FORMS_ALLOW_SECURITY_FALLBACKS", default=False)

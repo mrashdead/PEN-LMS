@@ -43,3 +43,9 @@ uritemplate==4.2.0
 vine==5.1.0
 wcwidth==0.8.2
 jdatetime==6.1.0
+
+# Forms app: rich-text sanitization + content-based MIME detection.
+# python-magic needs the libmagic shared library (debian: libmagic1,
+# alpine: file, windows: use python-magic-bin instead).
+bleach==6.2.0
+python-magic==0.4.27

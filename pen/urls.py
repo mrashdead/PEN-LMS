@@ -21,6 +21,10 @@ urlpatterns = [
     path('api/tasks/', include('apps.tasks.urls')),
     path('api/persons/', include('apps.persons.urls')),
     path('api/academics/', include('apps.academics.urls')),
+    path('api/forms/', include('apps.forms.urls')),
+
+    # Forms UI pages (session auth, dashboard-style)
+    path('forms/', include('apps.forms.page_urls')),
 
     # Password management
     path('api/auth/password/change/', auth_views.PasswordChangeView.as_view(

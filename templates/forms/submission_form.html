@@ -1,0 +1,99 @@
+{% extends "forms/base_forms.html" %}
+{% load forms_extras %}
+{% block title %}فرم جدید — {{ schema.title }}{% endblock %}
+{% block heading %}{{ schema.title }} (نسخه {{ schema.version }}){% endblock %}
+
+{% block content %}
+<div class="forms-card">
+  {% if errors.non_field_errors %}
+    <div class="forms-error-summary" role="alert">
+      <strong>خطا در ثبت فرم:</strong>
+      <ul>{% for e in errors.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+
+  <form id="dynamic-form" method="post" enctype="multipart/form-data" dir="rtl">
+    {% csrf_token %}
+    <input type="hidden" name="schema_slug" value="{{ schema.slug }}">
+
+    {% regroup fields by section as sections %}
+    {% for section in sections %}
+      <section class="form-section" data-section="{{ section.grouper|default:'اطلاعات' }}">
+        <h2 style="font-size:1rem;margin:1rem 0 .5rem;">{{ section.grouper|default:'اطلاعات' }}</h2>
+        {% for field in section.list %}
+          {% with value=form_data|get_item:field.key err=errors|get_item:field.key %}
+            {% include "forms/partials/_field.html" with field=field value=value errors=err relation_options=relation_options|get_item:field.key %}
+          {% endwith %}
+        {% endfor %}
+      </section>
+    {% endfor %}
+
+    <div class="forms-actions" style="margin-top:1rem;">
+      <button type="button" class="btn-secondary" id="save-draft">ذخیره پیش‌نویس</button>
+      <button type="submit" class="btn-primary" id="submit-form">ارسال فرم</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js" defer></script>
+<script>
+// Conditional visibility is a UI convenience only; the server re-validates
+// every rule on submit. No authorization logic lives here.
+(function () {
+  const form = document.getElementById('dynamic-form');
+  function applyConditionals() {
+    document.querySelectorAll('[data-conditional]').forEach(el => {
+      const [ref, op, expected] = el.dataset.conditional.split('|');
+      const src = form.elements[ref];
+      let actual = src ? src.value : '';
+      let visible = true;
+      if (op === 'exists') visible = actual !== '';
+      else if (op === 'eq') visible = actual === expected;
+      else if (op === 'neq') visible = actual !== expected;
+      el.hidden = !visible;
+    });
+  }
+  form.addEventListener('input', applyConditionals);
+  applyConditionals();
+
+  function collect() {
+    const data = {};
+    new FormData(form).forEach((v, k) => {
+      if (k === 'csrfmiddlewaretoken' || k === 'schema_slug') return;
+      if (/\.\d+\./.test(k)) {
+        // table rows: key.<idx>.<col>
+        const parts = k.split('.');
+        const fk = parts[0], idx = parseInt(parts[1], 10), col = parts.slice(2).join('.');
+        data[fk] = data[fk] || [];
+        data[fk][idx] = Object.assign(data[fk][idx] || {}, { [col]: v });
+      } else if (k in data) {
+        data[k] = Array.isArray(data[k]) ? data[k].concat(v) : [data[k], v];
+      } else {
+        data[k] = v;
+      }
+    });
+    return data;
+  }
+
+  async function post(url, extra) {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': form.csrfmiddlewaretoken.value },
+      body: JSON.stringify(Object.assign({ schema_slug: '{{ schema.slug }}', data: collect() }, extra || {})),
+    });
+    const body = await resp.json();
+    if (!resp.ok) {
+      window.__formsErrors = body;
+      alert('خطای اعتبارسنجی: ' + JSON.stringify(body, null, 2));
+      return;
+    }
+    window.location.href = '/forms/submissions/' + body.id + '/';
+  }
+
+  document.getElementById('save-draft').addEventListener('click', () => post('/api/forms/submissions/'));
+  form.addEventListener('submit', (e) => { e.preventDefault(); post('/api/forms/submissions/'); });
+})();
+</script>
+{% endblock %}

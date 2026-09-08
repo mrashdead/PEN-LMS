@@ -203,3 +203,5 @@ docker-compose.override.yml
 .fseventsd
 .Trashes
 
+ /frontend/Admin
+
