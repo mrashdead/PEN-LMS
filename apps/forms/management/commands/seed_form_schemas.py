@@ -9,10 +9,12 @@ Contract (fail-closed, all-or-nothing):
   1. Every selected schema definition is structurally pre-validated
      (``validate_form_fields``) BEFORE any database write.
   2. Every relation key used by the selection is resolved through the fixed
-     server-side registry. Required targets that are not installed (e.g. the
-     planned ``education`` app models Lesson/Course/CourseOffering/Department)
-     abort the whole run with ONE actionable error listing every affected
-     schema and relation — zero database changes.
+     server-side registry. Required targets that are not installed abort the
+     whole run with ONE actionable error listing every affected schema and
+     relation — zero database changes. (Since the education app landed, the
+     full catalog seeds: Lesson/Course/CourseOffering/Department/Location
+     all resolve; ``academic.venue`` keeps its text-fallback declaration as
+     a safety net.)
   3. Optional targets that are not installed may only be replaced by their
      explicitly declared fallback (currently ``academic.venue`` → text), and
      the substitution is recorded in ``FormSchema.metadata``.
@@ -20,10 +22,19 @@ Contract (fail-closed, all-or-nothing):
   5. Idempotent: an existing (slug, version) row is skipped unless --force.
      --deactivate-old marks every other version of the slug inactive.
 
-In the current repository state the full catalog cannot seed (the education
-app does not exist yet); ``seed_form_workflows`` followed by
-``seed_form_schemas attendance grade-report`` works today because those schemas
-only reference installed models.
+Catalog v2 (2026-09): rebuilt from the owner's field list. Notable changes
+from v1: lesson.syllabus is a rich_text EDITOR field (no mandatory file
+upload — the owner asked to type it in-place); course-offering gained
+``offering_lessons`` («مشخصات برگزاری: چه درس‌هایی») and course/lead
+wording aligned with the owner's spec. attendance/grade keys stay untouched
+— they are projection contracts (services._project_into_education, the
+education unique (group,date,number) constraint and the test suite).
+
+RESEEDING from v1-(old) to v2 fields on a DB that already has v1 rows:
+the (slug, version) row is skipped without --force. To pick up the new
+field definitions run:
+
+    python manage.py seed_form_schemas --force --deactivate-old
 """
 from __future__ import annotations
 
@@ -51,118 +62,138 @@ def _f(key: str, ftype: str, order: int, label: str, **extra: Any) -> dict:
 
 
 SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
-    # ── 3.1 lesson (needs education.Lesson for prerequisites → fails closed) ──
+    # ═════════════════════════════════════════════════════════════════════
+    # Catalog v2 — rebuilt from the OWNER'S field list verbatim (2026-09).
+    # Slugs/workflow codes/attendance & grade field keys are CONTRACTS used
+    # by the projection layer (apps/forms/services._project_into_education),
+    # the education tables (unique (group,date,number)) and the test suite —
+    # they must not be renamed. syllabus is now a rich_text EDITOR field:
+    # the owner asked for typing it in-place instead of a mandatory upload.
+    # ═════════════════════════════════════════════════════════════════════
+
+    # ── فرم درس (lesson) ─────────────────────────────────────────────────
     "lesson": {
         "title": "تعریف درس",
-        "description": "فرم تعریف درس و سرفصل آن.",
+        "description": "فرم تعریف درس، سرفصل و مشخصات آموزشی آن.",
         "version": 1,
         "allowed_roles": ["manager", "hr", "workflow_admin"],
         "workflow_code": "form-approval",
         "fields": [
             _f("lesson_title", "text", 1, "عنوان درس", required=True,
                validators={"min_length": 3, "max_length": 200}),
-            _f("syllabus_file", "file", 2, "فایل سرفصل", required=True,
-               validators={"allowed_extensions": ["pdf", "docx"],
-                           "max_file_size": 10485760}),
-            _f("duration_hours", "number", 3, "ساعات تدریس", required=True,
+            # سرفصل: ویرایش مستقیم در ادیتور (rich_text) — آپلود فایل اجباری نیست.
+            _f("syllabus", "rich_text", 2, "سرفصل", required=True,
+               max_length=50000),
+            _f("duration_hours", "number", 3, "مدت زمان (ساعت)", required=True,
                validators={"min_value": 1, "max_value": 1000}),
-            _f("description", "textarea", 4, "توضیحات", max_length=5000),
-            _f("target_audience", "multi_select", 5, "مخاطبان", required=True, options=[
+            _f("description", "textarea", 4, "توضیحات درس", max_length=5000),
+            _f("target_audience", "multi_select", 5, "مخاطبان درس", required=True, options=[
                 {"value": "student", "label": "دانش‌آموز"},
                 {"value": "employee", "label": "کارمند"},
                 {"value": "teacher", "label": "معلم"},
                 {"value": "parent", "label": "والدین"},
             ]),
-            _f("prerequisites", "multi_relation", 6, "پیش‌نیازها",
+            _f("prerequisites", "multi_relation", 6, "پیش‌نیاز",
                relation={"registry_key": "academic.lesson", "lookup": "id",
                          "required": False}),
-            _f("assessment_method", "select", 7, "نحوه ارزشیابی", required=True, options=[
+            _f("assessment_method", "select", 7, "نحوه آزمون", required=True, options=[
                 {"value": "written", "label": "کتبی"},
                 {"value": "oral", "label": "شفاهی"},
+                {"value": "practical", "label": "عملی"},
                 {"value": "project", "label": "پروژه"},
-                {"value": "none", "label": "بدون ارزشیابی"},
+                {"value": "none", "label": "بدون آزمون"},
             ]),
-            _f("required_equipment", "textarea", 8, "تجهیزات مورد نیاز", max_length=2000),
-            _f("venue_type", "select", 9, "نوع مکان", required=True, options=[
+            _f("required_equipment", "textarea", 8, "تجهیزات مورد نیاز (سیستم و نرم‌افزار و غیره)",
+               max_length=2000),
+            _f("venue_type", "select", 9, "فضای آموزش", required=True, options=[
                 {"value": "classroom", "label": "کلاس"},
                 {"value": "lab", "label": "آزمایشگاه"},
+                {"value": "workshop", "label": "کارگاه"},
                 {"value": "online", "label": "آنلاین"},
                 {"value": "hybrid", "label": "ترکیبی"},
             ]),
-            _f("learning_resources", "textarea", 10, "منابع یادگیری", max_length=2000),
-            _f("topics", "textarea", 11, "مباحث", required=True, max_length=5000),
-            _f("tuition_amount", "number", 12, "هزینه",
+            _f("learning_resources", "textarea", 10, "منابع آموزش", max_length=5000),
+            _f("topics", "textarea", 11, "سرفصل‌ها", required=True, max_length=5000),
+            _f("tuition_amount", "number", 12, "شهریه",
                validators={"min_value": 0, "max_value": 1000000000}),
         ],
     },
-    # ── 3.2 course (needs education.Course/Department/Lesson) ──
+    # ── فرم دوره (course) ────────────────────────────────────────────────
     "course": {
         "title": "تعریف دوره",
-        "description": "فرم تعریف دوره آموزشی.",
+        "description": "فرم تعریف دوره آموزشی و دروس آن.",
         "version": 1,
         "allowed_roles": ["manager", "hr", "workflow_admin"],
         "workflow_code": "form-approval",
         "fields": [
             _f("course_title", "text", 1, "عنوان دوره", required=True,
                validators={"min_length": 3, "max_length": 200}),
-            _f("department", "relation", 2, "گروه آموزشی", required=True,
+            _f("department", "relation", 2, "دپارتمان", required=True,
                relation={"registry_key": "academic.department", "lookup": "id"}),
-            _f("description", "textarea", 3, "توضیحات", max_length=5000),
-            _f("lessons", "multi_relation", 4, "دروس دوره", required=True,
+            _f("description", "textarea", 3, "توضیحات دوره", max_length=5000),
+            _f("lessons", "multi_relation", 4, "دروس", required=True,
                relation={"registry_key": "academic.lesson", "lookup": "id"}),
-            _f("objectives", "textarea", 5, "اهداف یادگیری", required=True, max_length=5000),
+            _f("objectives", "textarea", 5, "اهداف", required=True, max_length=5000),
         ],
     },
-    # ── 3.3 course-offering (needs education.Course; venue has text fallback) ──
+    # ── فرم برگزاری دوره (course-offering) ───────────────────────────────
     "course-offering": {
         "title": "برگزاری دوره",
-        "description": "فرم پیشنهاد برگزاری دوره.",
+        "description": "فرم برگزاری یک دوره: ظرفیت، تاریخ، محل، استاد و زمان‌بندی.",
         "version": 1,
         "allowed_roles": ["manager", "hr", "workflow_admin", "employee"],
         "workflow_code": "form-approval",
         "fields": [
-            _f("course", "relation", 1, "دوره", required=True,
+            _f("course", "relation", 1, "انتخاب دوره", required=True,
                relation={"registry_key": "academic.course", "lookup": "id"}),
             _f("capacity", "number", 2, "ظرفیت", required=True,
                validators={"min_value": 1, "max_value": 500}),
             _f("start_date", "date", 3, "تاریخ شروع", required=True),
-            _f("session_details", "textarea", 4, "جزئیات جلسات", required=True, max_length=5000),
-            _f("venue", "relation", 5, "مکان برگزاری",
+            # مشخصات برگزاری: چه درس‌هایی در این برگزاری قرار دارد
+            _f("offering_lessons", "multi_relation", 4, "درس‌های این برگزاری",
+               required=True,
+               relation={"registry_key": "academic.lesson", "lookup": "id"}),
+            _f("venue", "relation", 5, "محل برگزاری",
                relation={"registry_key": "academic.venue", "lookup": "id",
                          "required": False}),
-            _f("instructor", "relation", 6, "مدرس", required=True,
+            _f("instructor", "relation", 6, "استاد", required=True,
                relation={"registry_key": "persons.person", "lookup": "id",
                          "filter": {"person_type": "teacher", "is_active": True}}),
-            _f("schedule", "textarea", 7, "زمان‌بندی", required=True, max_length=2000),
+            # زمان برگزاری: روز و ساعت (متن آزاد مثلا «شنبه و دوشنبه 16-14»)
+            _f("schedule", "text", 7, "زمان برگزاری (روز و ساعت)", required=True,
+               validators={"max_length": 300},
+               placeholder="شنبه و دوشنبه ۱۴ تا ۱۶"),
         ],
     },
-    # ── 3.4 class-session-setup (needs education.CourseOffering/Lesson) ──
+    # ── فرم تشکیل کلاس (class-session-setup) ─────────────────────────────
     "class-session-setup": {
-        "title": "نهایی‌سازی جلسات کلاس",
-        "description": "فرم تایید زمان و مکان جلسات یک دوره در حال برگزاری.",
+        "title": "تشکیل کلاس",
+        "description": "نهایی‌سازی کلاس: برگزاری، درس، استاد، محل و زمان قطعی.",
         "version": 1,
         "allowed_roles": ["manager", "hr", "workflow_admin"],
         "workflow_code": "form-approval",
         "fields": [
-            _f("course_offering", "relation", 1, "دوره در حال برگزاری", required=True,
+            _f("course_offering", "relation", 1, "برگزاری دوره", required=True,
                relation={"registry_key": "academic.course_offering", "lookup": "id"}),
             _f("lesson", "relation", 2, "درس", required=True,
                relation={"registry_key": "academic.lesson", "lookup": "id"}),
-            _f("instructor", "relation", 3, "مدرس", required=True,
+            _f("instructor", "relation", 3, "استاد", required=True,
                relation={"registry_key": "persons.person", "lookup": "id",
                          "filter": {"person_type": "teacher", "is_active": True}}),
-            _f("venue", "relation", 4, "مکان",
+            _f("venue", "relation", 4, "محل برگزاری کلاس",
                relation={"registry_key": "academic.venue", "lookup": "id",
                          "required": False}),
             _f("confirmed_start_date", "date", 5, "تاریخ شروع قطعی", required=True),
-            _f("confirmed_schedule", "textarea", 6, "زمان‌بندی قطعی", required=True,
-               max_length=2000),
+            # روز و ساعت قطعی کلاس
+            _f("confirmed_schedule", "text", 6, "روز و ساعت قطعی", required=True,
+               validators={"max_length": 300},
+               placeholder="دوشنبه‌ها ۱۶ تا ۱۷:۳۰"),
         ],
     },
-    # ── 3.5 attendance (installed models only — seeds today) ──
+    # ── فرم حضور و غیاب (attendance) — keys are projection CONTRACTS ─────
     "attendance": {
         "title": "ثبت حضور و غیاب",
-        "description": "فرم ثبت گروهی حضور/غیاب دانش‌آموزان یک کلاس در یک جلسه.",
+        "description": "ثبت گروهی حضور/غیاب دانش‌آموزان یک کلاس در یک جلسه.",
         "version": 1,
         "allowed_roles": ["teacher", "manager"],
         "workflow_code": "form-review",
@@ -170,20 +201,30 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
             _f("class_group", "relation", 1, "کلاس", required=True,
                relation={"registry_key": "academic.class_group", "lookup": "id",
                          "filter": {"is_active": True}}),
-            _f("session_number", "number", 2, "شماره جلسه", required=True,
+            # A session is identified by (class, date, number) — the date is
+            # required for the daily/weekly/monthly session reports and for
+            # the projection's unique constraint (B4). session_number alone
+            # would conflate the same number across different days.
+            _f("session_date", "date", 2, "تاریخ جلسه", required=True),
+            _f("session_number", "number", 3, "جلسه (شماره)", required=True,
                validators={"min_value": 1, "max_value": 500}),
-            _f("attendance_list", "attendance_table", 3, "حضور دانش‌آموزان",
+            _f("attendance_list", "attendance_table", 4, "لیست اسامی کلاس",
                required=True, statuses=["present", "absent", "late", "excused"],
                max_rows=200),
-            _f("session_start", "time", 4, "ساعت شروع", required=True),
-            _f("session_end", "time", 5, "ساعت پایان", required=True,
+            _f("session_start", "time", 5, "ساعت شروع جلسه", required=True),
+            _f("session_end", "time", 6, "ساعت پایان جلسه", required=True,
                after="session_start"),
         ],
     },
-    # ── 3.6 grade-report — descriptive evaluation, no numeric grades ──
+    # ── فرم نمره و کارنامه (grade-report) — توصیفی و انتقادی، بدون عدد ──
+    # Per-student verdict + mandatory reason live INSIDE grade_list rows
+    # (result = قبول/مردود, teacher_note = «چرایی» that the teacher must
+    # write). A form-level final grade would be wrong here: this form covers
+    # a whole class, so the verdict is necessarily per student.
     "grade-report": {
-        "title": "کارنامه توصیفی",
-        "description": "ارزشیابی توصیفی (قبول/مردود) با یادداشت معلم.",
+        "title": "نمره و کارنامه (توصیفی)",
+        "description": "کارنامه توصیفی و انتقادی: قبول/مردود هر دانش‌آموز همراه با "
+                       "چرایی که استاد باید بنویسد.",
         "version": 1,
         "allowed_roles": ["teacher", "manager"],
         "workflow_code": "form-review",
@@ -191,17 +232,17 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
             _f("class_group", "relation", 1, "کلاس", required=True,
                relation={"registry_key": "academic.class_group", "lookup": "id",
                          "filter": {"is_active": True}}),
-            _f("instructor", "relation", 2, "مدرس", required=True,
+            _f("instructor", "relation", 2, "استاد", required=True,
                relation={"registry_key": "persons.person", "lookup": "id",
                          "filter": {"person_type": "teacher", "is_active": True}}),
-            _f("grade_list", "grade_table", 3, "ارزشیابی دانش‌آموزان", required=True,
+            _f("grade_list", "grade_table", 3, "لیست نمره و نتیجه نهایی", required=True,
                results=["passed", "failed"], max_rows=200),
         ],
     },
-    # ── 3.7 lead-assessment (recommended_course needs education.Course) ──
+    # ── فرم لید / تعیین سطح (lead-assessment) ────────────────────────────
     "lead-assessment": {
-        "title": "ارزیابی تعیین سطح",
-        "description": "فرم لید و ارزیابی تعیین سطح (new → assessed → enrolled/closed).",
+        "title": "لید و تعیین سطح",
+        "description": "ثبت لید، تعیین نوبت و جلسه تعیین سطح، ارزیابی و معرفی دوره.",
         "version": 1,
         "allowed_roles": ["employee", "hr", "manager", "workflow_admin"],
         "workflow_code": "lead-assessment",
@@ -213,18 +254,23 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
             _f("contact_number", "text", 3, "شماره تماس", required=True,
                validators={"regex": "^09[0-9]{9}$"},
                placeholder="09123456789"),
-            _f("home_area", "text", 4, "محله محل سکونت", required=True,
+            _f("home_area", "text", 4, "محدوده آدرس منزل (محله)", required=True,
                max_length=200, placeholder="محله قصردشت"),
             _f("father_job", "text", 5, "شغل پدر", required=True, max_length=120),
             _f("mother_job", "text", 6, "شغل مادر", required=True, max_length=120),
-            _f("allergies", "textarea", 7, "حساسیت‌ها", max_length=1000),
-            _f("assessment_slot", "datetime", 8, "اسلات ارزیابی (تعیین کارمند)"),
-            _f("assessment_day_time", "datetime", 9, "زمان جلسه ارزیابی", required=True),
-            _f("assessor", "relation", 10, "ارزیاب", required=True,
+            _f("allergies", "textarea", 7, "حساسیت یا آلرژی", max_length=1000),
+            # نوبت تعیین سطح: روز و ساعت جلسه
+            _f("assessment_day_time", "datetime", 8,
+               "روز و ساعت جلسه تعیین سطح", required=True),
+            _f("assessor", "relation", 9, "مسئول یا گیرنده تعیین سطح", required=True,
                relation={"registry_key": "persons.person", "lookup": "id",
                          "filter": {"is_active": True}}),
-            _f("recommended_course", "relation", 11, "دوره پیشنهادی",
+            # انتخاب دوره/درس توسط گیرنده تعیین سطح → ثبت‌نام شخص باز می‌شود.
+            _f("recommended_course", "relation", 10, "دوره مورد نظر",
                relation={"registry_key": "academic.course", "lookup": "id",
+                         "required": False}),
+            _f("recommended_lesson", "relation", 11, "درس مورد نظر",
+               relation={"registry_key": "academic.lesson", "lookup": "id",
                          "required": False}),
         ],
     },

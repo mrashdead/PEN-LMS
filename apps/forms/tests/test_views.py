@@ -470,19 +470,45 @@ class SeedCommandTests(TestCase):
         call_command("seed_form_workflows", stdout=io.StringIO())
 
     def test_unavailable_required_relations_abort_before_writing(self):
-        # attendance is fully seedable; lesson needs education.Lesson (planned
-        # app). The all-or-nothing contract must abort the WHOLE run because
-        # ONE schema has an unavailable required relation — and write nothing.
+        # B3 landed (education.Lesson exists), so the old "lesson is missing"
+        # trigger no longer aborts. Keep the all-or-nothing contract under
+        # test by forcing a REQUIRED relation to point at a non-existent
+        # model, then asserting the WHOLE run aborts with zero writes.
+        from unittest import mock
+
+        from apps.forms import relations
         from apps.forms.models import FormSchema
 
+        ghost = relations.RelationSpec(
+            key="academic.lesson", app_label="education",
+            model_name="DefinitelyNotAModel", optional=False,
+        )
         before = FormSchema.objects.count()
-        _, error = self._call("attendance", "lesson")
+        with mock.patch.dict(relations.REGISTRY, {"academic.lesson": ghost}):
+            _, error = self._call("attendance", "lesson")
         self.assertIsNotNone(error)
-        self.assertIn("education.Lesson", str(error))
+        self.assertIn("DefinitelyNotAModel", str(error))
         self.assertIn("lesson", str(error))
         # Zero database changes: the valid `attendance` schema must NOT be
         # partially committed alongside the failed one.
         self.assertEqual(FormSchema.objects.count(), before)
+
+    def test_full_catalog_seeds_now_education_exists(self):
+        # Positive counterpart to the abort test: with the education app
+        # installed, lesson/course/... relations resolve and the full
+        # catalog seeds cleanly.
+        from apps.forms.models import FormSchema
+
+        self._seed_workflows()
+        _, error = self._call()  # no slug = full catalog
+        self.assertIsNone(error)
+        for slug in ("lesson", "course", "course-offering",
+                     "class-session-setup", "attendance", "grade-report",
+                     "lead-assessment"):
+            self.assertTrue(
+                FormSchema.objects.filter(slug=slug).exists(),
+                f"{slug} did not seed",
+            )
 
     def test_attendance_and_grade_report_seed(self):
         from apps.forms.models import FormSchema

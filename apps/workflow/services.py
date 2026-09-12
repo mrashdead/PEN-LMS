@@ -5,8 +5,14 @@ Workflow Engine Service — هسته موتور گردش کار
   - create_instance: ایجاد نمونه جدید از یک فرآیند
   - get_available_transitions: انتقال‌های مجاز برای کاربر در یک Instance
   - execute_transition: اجرای یک انتقال با قفل تراکنشی
+  - عملیات معنایی سطح‌بالا: approve / reject / return_to_previous /
+    complete / send_copy / delegate / assign (همه از execute_transition و
+    اعتبارسنج‌های همان می‌گذرند — هیچ میان‌بری امنیتی وجود ندارد)
   - cancel_instance: لغو یک Instance
   - link_entity / get_linked_entity: اتصال Instance به موجودیت دامنه
+
+Side-effects مجاز در تراکنش انتقال: ActionLog، ApprovalRecord،
+NotificationOutbox (صف اعلان — ارسال واقعی بیرون از تراکنش).
 
 Thread-safety:
   تمام متدهایی که دیتا می‌نویسند داخل @transaction.atomic
@@ -16,17 +22,37 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Optional
+from datetime import timedelta
+from typing import Iterable, Optional
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
-from apps.workflow.models import ActionLog, Instance, State, Transition, WorkflowDefinition
+from apps.workflow.models import (
+    ActionLog,
+    ApprovalRecord,
+    Instance,
+    InstanceCopy,
+    NotificationOutbox,
+    State,
+    Transition,
+    WorkflowDefinition,
+)
 from apps.workflow.validators import TransitionValidator
 
 logger = logging.getLogger(__name__)
+
+ELEVATED_WORKFLOW_ROLES = {"manager", "workflow_admin", "hr"}
+
+#: name-fallback matchers for the semantic ops (kind is the canonical flag).
+_ACTION_NAME_ALIASES: dict[str, set[str]] = {
+    "approve": {"approve", "approved", "accept", "confirm"},
+    "reject": {"reject", "rejected", "deny", "denied"},
+    "return": {"return", "back", "send_back", "return_to_previous"},
+    "complete": {"complete", "done", "finish", "end"},
+}
 
 
 class WorkflowEngineError(Exception):
@@ -194,19 +220,22 @@ class WorkflowEngineService:
         actor: settings.AUTH_USER_MODEL,  # type: ignore[valid-type]
         comment: str = "",
         metadata: Optional[dict] = None,
+        idempotency_key: Optional[str] = None,
     ) -> Instance:
         """
         اجرای یک Transition روی یک Instance.
         این متد کل عملیات را در یک تراکنش اتمی انجام می‌دهد.
 
         مراحل:
+          0. Replay-check روی idempotency_key (§13-3)
           1. قفل Instance
           2. بارگذاری Transition
           3. اعتبارسنجی با TransitionValidator
           4. به‌روزرسانی State Instance
-          5. ثبت ActionLog
+          5. ثبت ActionLog (با کلید)
           6. بستن تسک‌های قدیمی
           7. ساخت تسک‌های جدید (اگر State نهایی نباشد)
+          8. صف اعلان‌ها
 
         Args:
             instance_id: PK Instance
@@ -214,10 +243,31 @@ class WorkflowEngineService:
             actor: کاربر اجراکننده
             comment: کامنت (اختیاری)
             metadata: دیتای اضافی (اختیاری)
+            idempotency_key: کلید یکتای کلاینت (اختیاری) — اجرای دوباره با
+                همان کلید، وضعیت فعلی را بازمی‌گرداند نه خطا.
 
         Returns:
             Instance به‌روزرسانی‌شده
         """
+        # 0. Replay-safety: a recorded key means a retry of a COMMITTED
+        # action — return the current state instead of an error. A key bound
+        # to a DIFFERENT instance is a client bug → hard reject (the DB
+        # unique constraint remains the arbiter for concurrent races).
+        if idempotency_key:
+            existing = ActionLog.objects.filter(
+                idempotency_key=idempotency_key
+            ).select_related("instance").first()
+            if existing is not None:
+                if existing.instance_id != instance_id:
+                    raise WorkflowEngineError(
+                        "این کلید اقدام قبلاً برای درخواست دیگری استفاده شده است."
+                    )
+                logger.info(
+                    "Replayed action for key %s -> instance %s",
+                    idempotency_key, existing.instance_id,
+                )
+                return existing.instance
+
         # 1. قفل Instance
         instance = (
             Instance.objects.select_for_update()
@@ -227,26 +277,51 @@ class WorkflowEngineService:
         if not instance:
             raise WorkflowEngineError(f"Instance {instance_id} یافت نشد.")
 
+        # 1b. Re-check the key AFTER acquiring the instance lock: a concurrent
+        # identical request may have committed while we were waiting. Without
+        # this, the loser of the race would surface a confusing
+        # InvalidTransitionError instead of a clean replay.
+        if idempotency_key:
+            existing = ActionLog.objects.filter(
+                idempotency_key=idempotency_key
+            ).first()
+            if existing is not None:
+                if existing.instance_id != instance_id:
+                    raise WorkflowEngineError(
+                        "این کلید اقدام قبلاً برای درخواست دیگری استفاده شده است."
+                    )
+                logger.info(
+                    "Replayed action for key %s (post-lock) -> instance %s",
+                    idempotency_key, existing.instance_id,
+                )
+                return Instance.objects.get(pk=existing.instance_id)
+
         # 2. بارگذاری Transition
         try:
             transition = Transition.objects.select_for_update().get(pk=transition_id)
         except Transition.DoesNotExist:
             raise WorkflowEngineError(f"Transition {transition_id} یافت نشد.")
 
-        # 3. اعتبارسنجی با TransitionValidator (pure)
+        # 3. اعتبارسنجی با TransitionValidator (pure) + الزام کامنت (B6)
         validator = TransitionValidator()
         result = validator.validate(instance, transition, actor)
         if not result.is_valid:
             raise InvalidTransitionError("; ".join(result.errors))
+        if transition.requires_comment and not (comment or "").strip():
+            raise InvalidTransitionError(
+                "برای این اقدام، وارد کردن توضیح الزامی است."
+            )
 
         # 4. به‌روزرسانی State
         old_state = instance.current_state
         new_state = transition.to_state
         instance.current_state = new_state
 
-        # تعیین وضعیت نهایی
+        # تعیین وضعیت نهایی — kind معنایی انتقال مرجع است، با fallback به نام
+        semantic = (transition.kind or "").strip().lower()
+        action_l = transition.name.strip().lower()
         if new_state.is_final:
-            if transition.name.lower() in ("reject", "rejected", "cancel", "cancelled"):
+            if semantic == "reject" or action_l in ("reject", "rejected", "cancel", "cancelled"):
                 instance.status = Instance.Status.REJECTED
             else:
                 instance.status = Instance.Status.COMPLETED
@@ -254,15 +329,47 @@ class WorkflowEngineService:
         instance.save(update_fields=["current_state", "status", "updated_at"])
 
         # 5. ثبت ActionLog
-        ActionLog.objects.create(
-            instance=instance,
-            from_state=old_state,
-            to_state=new_state,
-            action=transition.name,
-            actor=actor,
-            comment=comment,
-            metadata=metadata or {},
-        )
+        try:
+            with transaction.atomic():
+                ActionLog.objects.create(
+                    instance=instance,
+                    from_state=old_state,
+                    to_state=new_state,
+                    action=transition.name,
+                    actor=actor,
+                    comment=comment,
+                    metadata=metadata or {},
+                    idempotency_key=idempotency_key or None,
+                )
+        except IntegrityError as exc:
+            # The client key was already used by a committed action (possibly
+            # on another instance — a client bug). Abort the WHOLE transition:
+            # the outer @transaction.atomic rolls back the state change too,
+            # so a key can never apply two different transitions.
+            if idempotency_key:
+                raise WorkflowEngineError(
+                    "این کلید اقدام قبلاً استفاده شده است (تلاش مجدد)."
+                ) from exc
+            raise
+
+        # 5b. رکورد تایید مستقل از status (§14.5 / B6): هر انتقالِ تایید یا
+        # رد، یک ApprovalRecord امضاشده تولید می‌کند (نقش، زمان، وضعیت).
+        if semantic in ("approve", "reject") or action_l in ("approve", "reject"):
+            roles = set()
+            if hasattr(actor, "role_codes"):
+                roles = actor.role_codes()
+            ApprovalRecord.objects.create(
+                instance=instance,
+                transition=transition,
+                approver=actor,
+                role_code=", ".join(sorted(roles & set(transition.allowed_role_codes)))
+                if transition.allowed_role_codes else ", ".join(sorted(roles)),
+                action="approve" if (
+                    semantic == "approve" or action_l in ("approve", "accept", "confirmed")
+                ) else "reject",
+                comment=comment,
+                state=old_state,
+            )
 
         # 6. بستن تسک‌های PENDING وضعیت قبلی
         from apps.tasks.models import WorkflowTask
@@ -277,9 +384,15 @@ class WorkflowEngineService:
             updated_at=timezone.now(),
         )
 
-        # 7. ساخت تسک برای وضعیت جدید (اگر نهایی نباشد)
+        # 7. ساخت تسک برای وضعیت جدید (اگر نهایی نباشد) — با due_date از
+        # State.default_due_hours (B6: قبلاً due_date هرگز ست نمی‌شد).
         if not new_state.is_final:
             self._create_tasks_for_state(instance, new_state, assigned_by=actor)
+
+        # 8. صف اعلان‌ها (outbox) — بعد از ساخت تسک‌ها، چون گیرندگانِ
+        # task_created از دارندگان تسک وضعیت جدید خوانده می‌شوند. هیچ ارسال
+        # بیرونی اینجا انجام نمی‌شود.
+        self._enqueue_notifications(instance, transition, actor, comment)
 
         logger.info(
             "Instance %s: transition '%s' by user %s -> %s",
@@ -499,6 +612,13 @@ class WorkflowEngineService:
         )
 
         tasks: list[WorkflowTask] = []
+        # due_date is derived from the State's default_due_hours (B6 — was
+        # never set before). None when the state declares no SLA.
+        due = (
+            timezone.now() + timedelta(hours=state.default_due_hours)
+            if getattr(state, "default_due_hours", None)
+            else None
+        )
         for uid in user_ids:
             tasks.append(
                 WorkflowTask(
@@ -507,6 +627,7 @@ class WorkflowEngineService:
                     assignee_id=uid,
                     assigned_by=assigned_by,
                     status=WorkflowTask.Status.PENDING,
+                    due_date=due,
                 )
             )
 
@@ -521,3 +642,192 @@ class WorkflowEngineService:
                 "هیچ کاربری برای نقش‌های %s در State '%s' یافت نشد.",
                 role_codes, state.code,
             )
+
+    # ------------------------------------------------------------------
+    # Notification outbox (B6)
+    # ------------------------------------------------------------------
+
+    def _enqueue_notifications(
+        self,
+        instance: Instance,
+        transition: Transition,
+        actor,
+        comment: str,
+    ) -> None:
+        """
+        Enqueue IN_APP notifications for the new task holders and the original
+        requester. This writes only outbox rows — the actual email/SMS delivery
+        happens in a worker AFTER the commit, so a broken mailer can never roll
+        back a successful transition (report §6/§13).
+        """
+        from apps.tasks.models import WorkflowTask
+
+        recipients: set = set()
+        new_task_users = WorkflowTask.objects.filter(
+            instance=instance,
+            state=instance.current_state,
+            status=WorkflowTask.Status.PENDING,
+        ).values_list("assignee_id", flat=True)
+        recipients.update(new_task_users)
+        if instance.requester_id:
+            recipients.add(instance.requester_id)
+        recipients.discard(getattr(actor, "pk", None))
+
+        template = "task_created"
+        if (transition.kind or "").strip().lower() in ("approve", "reject"):
+            template = "approved" if (transition.kind or "").lower() == "approve" else "rejected"
+
+        outbox = [
+            NotificationOutbox(
+                instance=instance,
+                recipient_id=uid,
+                channel=NotificationOutbox.Channel.IN_APP,
+                template=template,
+                payload={
+                    "title": instance.title,
+                    "actor": getattr(actor, "username", str(actor)),
+                    "transition": transition.name,
+                    "comment": comment,
+                },
+            )
+            for uid in recipients
+        ]
+        if outbox:
+            NotificationOutbox.objects.bulk_create(outbox)
+
+    # ------------------------------------------------------------------
+    # Semantic operations (report §14.4 / B6)
+    # ------------------------------------------------------------------
+    #
+    # These are thin, named entry points over execute_transition(). They never
+    # bypass validation: each resolves the single matching AVAILABLE transition
+    # for the actor (role + guard + state still enforced by the engine), then
+    # delegates. If the actor lacks permission for that action, no matching
+    # transition exists and InvalidTransitionError is raised.
+
+    def _find_transition_by_kind(
+        self, instance_id, actor, kind: str
+    ) -> Transition:
+        instance = Instance.objects.filter(pk=instance_id).first()
+        if instance is None:
+            raise WorkflowEngineError(f"Instance {instance_id} یافت نشد.")
+        candidates = self.get_available_transitions(instance, actor)
+        wanted_names = _ACTION_NAME_ALIASES.get(kind, set())
+        for t in candidates:
+            if (t.kind or "").strip().lower() == kind or t.name.strip().lower() in wanted_names:
+                return t
+        raise InvalidTransitionError(
+            f"هیچ انتقال مجاز «{kind}» برای شما در وضعیت فعلی وجود ندارد."
+        )
+
+    def approve(self, instance_id, actor, comment="", metadata=None, idempotency_key=None) -> Instance:
+        t = self._find_transition_by_kind(instance_id, actor, "approve")
+        return self.execute_transition(instance_id, t.pk, actor, comment, metadata, idempotency_key)
+
+    def reject(self, instance_id, actor, comment="", metadata=None, idempotency_key=None) -> Instance:
+        t = self._find_transition_by_kind(instance_id, actor, "reject")
+        return self.execute_transition(instance_id, t.pk, actor, comment, metadata, idempotency_key)
+
+    def return_to_previous(self, instance_id, actor, comment="", metadata=None, idempotency_key=None) -> Instance:
+        t = self._find_transition_by_kind(instance_id, actor, "return")
+        return self.execute_transition(instance_id, t.pk, actor, comment, metadata, idempotency_key)
+
+    def complete(self, instance_id, actor, comment="", metadata=None, idempotency_key=None) -> Instance:
+        t = self._find_transition_by_kind(instance_id, actor, "complete")
+        return self.execute_transition(instance_id, t.pk, actor, comment, metadata, idempotency_key)
+
+    def save_draft(self, *args, **kwargs):  # pragma: no cover - forms owns drafts
+        raise NotImplementedError(
+            "Drafts are owned by the forms engine (FormSubmissionService); "
+            "the workflow engine starts on submit."
+        )
+
+    @transaction.atomic
+    def send_copy(
+        self,
+        instance_id,
+        sender,
+        recipient_ids: Iterable,
+        note: str = "",
+    ) -> int:
+        """
+        رونوشت (send_copy): notify recipients for awareness WITHOUT assigning
+        work. Returns the number of new copy rows created.
+        """
+        instance = Instance.objects.select_for_update().filter(pk=instance_id).first()
+        if instance is None:
+            raise WorkflowEngineError(f"Instance {instance_id} یافت نشد.")
+        created = 0
+        for rid in recipient_ids:
+            _copy, was_created = InstanceCopy.objects.get_or_create(
+                instance=instance, recipient_id=rid, sender=sender,
+                defaults={"note": note},
+            )
+            if was_created:
+                created += 1
+                NotificationOutbox.objects.create(
+                    instance=instance,
+                    recipient_id=rid,
+                    channel=NotificationOutbox.Channel.IN_APP,
+                    template="copy_received",
+                    payload={"title": instance.title, "sender": getattr(sender, "username", str(sender)), "note": note},
+                )
+        logger.info("Instance %s: %d copies by %s", instance_id, created, sender)
+        return created
+
+    @transaction.atomic
+    def delegate(
+        self,
+        instance_id,
+        delegator,
+        recipient,
+        comment: str = "",
+    ) -> None:
+        """
+        تفویض/ارجاع (delegate): تسک‌های PENDINGِ واگذارکننده روی وضعیت فعلی
+        به گیرنده منتقل می‌شود (گیرنده جایگزین می‌شود). یک ActionLog ثبت و
+        به گیرنده اعلان صف می‌شود.
+        """
+        from apps.tasks.models import WorkflowTask
+
+        instance = Instance.objects.select_for_update().filter(pk=instance_id).first()
+        if instance is None:
+            raise WorkflowEngineError(f"Instance {instance_id} یافت نشد.")
+        recipient_id = getattr(recipient, "pk", recipient)
+
+        pending = WorkflowTask.objects.filter(
+            instance=instance,
+            state=instance.current_state,
+            assignee=delegator,
+            status=WorkflowTask.Status.PENDING,
+        )
+        if not pending.exists():
+            raise InvalidTransitionError(
+                "تسک فعالی برای واگذاری در وضعیت فعلی ندارید."
+            )
+        updated = pending.update(assignee_id=recipient_id, updated_at=timezone.now())
+
+        ActionLog.objects.create(
+            instance=instance,
+            from_state=instance.current_state,
+            to_state=instance.current_state,
+            action="delegate",
+            actor=delegator,
+            comment=comment or f"ارجاع به {getattr(recipient, 'username', recipient_id)}",
+            metadata={"tasks_moved": updated, "recipient": str(recipient_id)},
+        )
+        NotificationOutbox.objects.create(
+            instance=instance,
+            recipient_id=recipient_id,
+            channel=NotificationOutbox.Channel.IN_APP,
+            template="delegated_to_you",
+            payload={"title": instance.title, "from": getattr(delegator, "username", str(delegator))},
+        )
+        logger.info("Instance %s: %d tasks delegated to %s", instance_id, updated, recipient_id)
+        return updated
+
+    def assign(self, *args, **kwargs):  # pragma: no cover
+        raise NotImplementedError(
+            "Assignment to a specific user is 'delegate'; auto-assignment "
+            "happens on transition via _create_tasks_for_state."
+        )

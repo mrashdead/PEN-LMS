@@ -39,11 +39,11 @@ WORKFLOW_BLUEPRINTS: dict[str, dict[str, Any]] = {
             ("pending-manager", "در انتظار تأیید مدیر", False, False),
             ("done", "پایان", False, True),
         ],
-        # (name, from_state, to_state, allowed_role_codes)
+        # (name, from_state, to_state, allowed_role_codes, kind)
         "transitions": [
-            ("submit", "new", "pending-manager", ["employee", "hr", "manager", "workflow_admin"]),
-            ("approve", "pending-manager", "done", ["manager", "hr"]),
-            ("reject", "pending-manager", "done", ["manager", "hr"]),
+            ("submit", "new", "pending-manager", ["employee", "hr", "manager", "workflow_admin"], "submit"),
+            ("approve", "pending-manager", "done", ["manager", "hr"], "approve"),
+            ("reject", "pending-manager", "done", ["manager", "hr"], "reject"),
         ],
     },
     "form-review": {
@@ -54,9 +54,9 @@ WORKFLOW_BLUEPRINTS: dict[str, dict[str, Any]] = {
             ("done", "پایان", False, True),
         ],
         "transitions": [
-            ("submit", "new", "pending-manager", ["teacher", "manager"]),
-            ("approve", "pending-manager", "done", ["manager"]),
-            ("reject", "pending-manager", "done", ["manager"]),
+            ("submit", "new", "pending-manager", ["teacher", "manager"], "submit"),
+            ("approve", "pending-manager", "done", ["manager"], "approve"),
+            ("reject", "pending-manager", "done", ["manager"], "reject"),
         ],
     },
     "lead-assessment": {
@@ -69,11 +69,11 @@ WORKFLOW_BLUEPRINTS: dict[str, dict[str, Any]] = {
         ],
         "transitions": [
             ("assess", "new", "assessed",
-             ["employee", "hr", "manager", "workflow_admin"]),
+             ["employee", "hr", "manager", "workflow_admin"], ""),
             ("enroll", "assessed", "enrolled",
-             ["employee", "hr", "manager", "workflow_admin"]),
+             ["employee", "hr", "manager", "workflow_admin"], "complete"),
             ("close", "assessed", "closed",
-             ["employee", "hr", "manager", "workflow_admin"]),
+             ["employee", "hr", "manager", "workflow_admin"], "reject"),
         ],
     },
 }
@@ -95,7 +95,7 @@ class Command(BaseCommand):
         role_codes: set[str] = set()
         for code in wanted:
             blueprint = WORKFLOW_BLUEPRINTS[code]
-            for _n, _f, _t, roles in blueprint["transitions"]:
+            for _n, _f, _t, roles, *_rest in blueprint["transitions"]:
                 role_codes.update(roles)
         existing = set(Role.objects.filter(code__in=role_codes).values_list("code", flat=True))
         missing = sorted(role_codes - existing)
@@ -156,7 +156,9 @@ class Command(BaseCommand):
                 )
                 states[state_code] = state
 
-            for name, from_code, to_code, roles in blueprint["transitions"]:
+            for transition_spec in blueprint["transitions"]:
+                name, from_code, to_code, roles = transition_spec[:4]
+                kind = transition_spec[4] if len(transition_spec) > 4 else ""
                 transition, t_created = Transition.objects.get_or_create(
                     workflow_definition=definition,
                     from_state=states[from_code],
@@ -166,11 +168,15 @@ class Command(BaseCommand):
                         "allowed_role_codes": roles,
                         "requires_comment": False,
                         "guard_expression": {},
+                        "kind": kind,
                     },
                 )
                 if not t_created and options["force"]:
                     transition.allowed_role_codes = roles
-                    transition.save(update_fields=["allowed_role_codes", "updated_at"])
+                    transition.kind = kind
+                    transition.save(
+                        update_fields=["allowed_role_codes", "kind", "updated_at"]
+                    )
 
             self.stdout.write(f"[{state}] {code}")
 

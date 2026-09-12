@@ -29,8 +29,9 @@ class Role(TimeStampedModel, SoftDeleteModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.SlugField(
         max_length=64,
-        unique=True,
-        help_text="Immutable business key, e.g. manager, hr, employee",
+        db_index=True,
+        help_text="Immutable business key, e.g. manager, hr, employee "
+                  "(یکتا در میان نقش‌های زنده)",
     )
     name = models.CharField(max_length=128)
     description = models.TextField(blank=True, default="")
@@ -50,6 +51,15 @@ class Role(TimeStampedModel, SoftDeleteModel):
         indexes = [
             models.Index(fields=["code", "is_active"]),
             models.Index(fields=["priority"]),
+        ]
+        constraints = [
+            # کد نقش (business key) فقط در میان نقش‌های «زنده» یکتاست (B5) —
+            # حذف نرم یک نقش نباید ساخت نقش هم‌کد را برای همیشه مسدود کند.
+            models.UniqueConstraint(
+                fields=["code"],
+                condition=models.Q(is_deleted=False),
+                name="uniq_accounts_role_code_alive",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -79,8 +89,7 @@ class User(AbstractUser, TimeStampedModel, SoftDeleteModel):
         max_length=32,
         blank=True,
         null=True,
-        unique=True,
-        help_text="کد پرسنلی — مثال: EMP-10042",
+        help_text="کد پرسنلی — مثال: EMP-10042 (یکتا در میان کاربران زنده)",
     )
     mobile = models.CharField(max_length=20, blank=True, default="")
     department = models.CharField(max_length=128, blank=True, default="", db_index=True)
@@ -159,8 +168,17 @@ class User(AbstractUser, TimeStampedModel, SoftDeleteModel):
         Idempotent assign — برای seed و admin.
         role: instance یا code
         """
+        # role.code is unique only among live rows now (partial unique
+        # index), so the lookup must exclude soft-deleted twins — a bare
+        # .get(code=...) could otherwise raise MultipleObjectsReturned.
         if isinstance(role, str):
-            role_obj = Role.objects.select_for_update().get(code=role.strip().lower())
+            role_obj = (
+                Role.objects.select_for_update()
+                .filter(code=role.strip().lower(), is_deleted=False)
+                .first()
+            )
+            if role_obj is None:
+                raise Role.DoesNotExist(f"role '{role}' not found")
         else:
             role_obj = Role.objects.select_for_update().get(pk=role.pk)
 

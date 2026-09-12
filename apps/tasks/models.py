@@ -46,6 +46,10 @@ class WorkflowTask(DomainModel):
     )
     due_date = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    # SLA liveness flags (anti-rescan): stamped by the SLA scan command so a
+    # reminder/escalation fires at most once per task, never repeatedly.
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    escalated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         app_label = "tasks"
@@ -57,6 +61,8 @@ class WorkflowTask(DomainModel):
             models.Index(fields=["assignee", "status"]),
             models.Index(fields=["instance", "status"]),
             models.Index(fields=["state"]),
+            # SLA scan: pending + due-date window rows.
+            models.Index(fields=["status", "due_date"]),
         ]
 
     def __str__(self) -> str:

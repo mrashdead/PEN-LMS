@@ -2,15 +2,22 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import uuid
 from typing import TYPE_CHECKING, Any, Optional, Tuple, TypeVar
 
 import jdatetime
+from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 
 T = TypeVar("T", bound=models.Model)
+
+logger = logging.getLogger(__name__)
 
 
 class JalaliDateField(models.DateField):
@@ -227,3 +234,121 @@ class DomainModel(UUIDPrimaryKeyModel, TimeStampedModel, SoftDeleteModel):
 
     class Meta:
         abstract = True
+
+
+class AuditEvent(UUIDPrimaryKeyModel, TimeStampedModel):
+    """
+    حسابرسی دیتابیسیِ رخدادهای امنیتی/حساس (معیار §13-4).
+
+    تفاوت با ActionLog گردش‌کار: ActionLog تاریخچه‌ی *فرآیند* است؛ این جدول
+    تاریخچه‌ی *دسترسی و تغییر* است — رد دسترسی (۴۰۳)، دانلود فایل، خواندن
+    PII خام، تغییر فیلدهای حساس. Append-only: هیچ ویرایش/حذفی از طریق ORM
+    ممکن نیست (delete در سطح queryset هم به hard-delete هشدار می‌دهد).
+    """
+
+    class Kind(models.TextChoices):
+        ACCESS_DENIED = "access_denied", "رد دسترسی"
+        DOWNLOAD = "download", "دانلود فایل"
+        SENSITIVE_READ = "sensitive_read", "خواندن داده‌ی حساس"
+        FIELD_CHANGE = "field_change", "تغییر فیلد حساس"
+
+    kind = models.CharField(max_length=32, choices=Kind.choices, db_index=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="audit_events",
+        help_text="کاربر انجام‌دهنده (None = ناشناس/بی‌احراز هویت)",
+    )
+    object = GenericForeignKey("content_type", "object_id")
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    object_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    summary = models.CharField(
+        max_length=512,
+        help_text="خلاصه‌ی انسانی رخداد (فارسی)",
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_audit_event"
+        verbose_name = "Audit Event (رخداد حسابرسی)"
+        verbose_name_plural = "Audit Events (رخدادهای حسابرسی)"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["kind", "created_at"]),
+            models.Index(fields=["content_type", "object_id"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind} — {self.summary[:60]}"
+
+    def delete(self, *args, **kwargs):  # pragma: no cover - guard rail
+        raise ProtectedError("AuditEvent append-only است و حذف نمی‌شود.", [])
+
+    @classmethod
+    def record(
+        cls,
+        *,
+        kind: str,
+        summary: str,
+        actor=None,
+        obj: object | None = None,
+        metadata: dict | None = None,
+        request=None,
+    ) -> "AuditEvent | None":
+        """
+        کمکی برای ثبت امن: هرگز خطای حسابرسی، عملیات اصلی را نمی‌شکند.
+        IP از استاندارد پروژه (X-Forwarded-For / REMOTE_ADDR) خوانده می‌شود.
+        """
+        try:
+            from apps.core.utils import get_client_ip
+
+            ct = None
+            object_id = ""
+            if obj is not None:
+                ct = ContentType.objects.get_for_model(obj, for_concrete_model=False)
+                object_id = str(obj.pk)
+            ip = None
+            if request is not None:
+                ip = get_client_ip(request) or None
+            actor_id = getattr(actor, "pk", None)
+            if actor_id and not getattr(actor, "is_authenticated", True):
+                actor_id = None
+            return cls.objects.create(
+                kind=kind,
+                actor_id=actor_id,
+                content_type=ct,
+                object_id=object_id,
+                summary=(summary or "")[:512],
+                metadata=metadata or {},
+                ip_address=ip,
+            )
+        except Exception:  # noqa: BLE001 — audit must never break the write path
+            logger.exception("AuditEvent.record failed: %s", summary)
+            return None
+
+
+class AuditDeniedMixin:
+    """
+    میکس permission برای ثبت AuditEvent روی ردهای has_permission (۴۰۳).
+    در has_object_permission هم‌زمان هم رد و هم ثبت می‌کند.
+    """
+
+    denial_summary = "دسترسی رد شد."
+
+    def has_permission(self, request, view) -> bool:
+        allowed = super().has_permission(request, view)
+        if not allowed:
+            AuditEvent.record(
+                kind=AuditEvent.Kind.ACCESS_DENIED,
+                summary=self.denial_summary,
+                actor=request.user if request.user.is_authenticated else None,
+                request=request,
+                metadata={"view": type(view).__name__, "method": request.method},
+            )
+        return allowed

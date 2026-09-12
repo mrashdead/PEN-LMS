@@ -180,6 +180,22 @@ def _term_filter(user, qs):
     return qs.filter(is_active=True)
 
 
+def _active_catalog_filter(user, qs):
+    """
+    Education catalog entities (Department/Lesson/Course/Location) are shared
+    reference data: any authenticated user may pick an ACTIVE row; there is no
+    per-person ownership to enforce. Deactivated rows are hidden everywhere.
+    """
+    return qs.filter(is_active=True)
+
+
+def _offering_filter(user, qs):
+    """Course offerings: hide cancelled runs from every picker."""
+    from django.db.models import Q
+
+    return qs.exclude(Q(status="cancelled"))
+
+
 # ── Static allowlist ──────────────────────────────────────────────────────
 
 REGISTRY: dict[str, RelationSpec] = {
@@ -210,45 +226,47 @@ REGISTRY: dict[str, RelationSpec] = {
     # ── Optional targets (model may not exist yet; explicit fallback only) ──
     "academic.venue": RelationSpec(
         key="academic.venue",
-        app_label="academics",
+        app_label="education",
         model_name="Location",
         display_field="name",
         optional=True,
+        permission_filter=_active_catalog_filter,
         fallback={
             "type": "text",
-            "reason": "academics.Location model not installed; venue captured as free text.",
+            "reason": "education.Location model not installed; venue captured as free text.",
         },
     ),
-    # ── Required targets that are NOT yet installed (fail closed at seed) ──
-    # These map to the planned `education` app (PHASE_PLAN.md فاز ۱). Until the
-    # models exist, schemas referencing them cannot be seeded or submitted.
+    # ── Education catalog (apps/education) — real typed models ────────────
     "academic.lesson": RelationSpec(
         key="academic.lesson",
         app_label="education",
         model_name="Lesson",
         display_field="title",
-        optional=False,
+        allowed_lookup_fields=("id", "code"),
+        permission_filter=_active_catalog_filter,
     ),
     "academic.course": RelationSpec(
         key="academic.course",
         app_label="education",
         model_name="Course",
         display_field="title",
-        optional=False,
+        allowed_lookup_fields=("id", "code"),
+        permission_filter=_active_catalog_filter,
     ),
     "academic.course_offering": RelationSpec(
         key="academic.course_offering",
         app_label="education",
         model_name="CourseOffering",
         display_field="title",
-        optional=False,
+        permission_filter=_offering_filter,
     ),
     "academic.department": RelationSpec(
         key="academic.department",
         app_label="education",
         model_name="Department",
         display_field="name",
-        optional=False,
+        allowed_lookup_fields=("id", "code"),
+        permission_filter=_active_catalog_filter,
     ),
 }
 

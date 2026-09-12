@@ -115,3 +115,16 @@ def persian_time(value: Optional[datetime.datetime]) -> str:
     if j is None:
         return ""
     return persian_numbers(j.strftime("%H:%M:%S"))
+
+
+def get_client_ip(request) -> Optional[str]:
+    """
+    IP کاربر از X-Forwarded-For (نخستین پرش) یا REMOTE_ADDR.
+    مقدار خالی/None را برمی‌گرداند (نه رشته‌ی خالی برای ستون nullable).
+    """
+    if request is None:
+        return None
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    if forwarded:
+        return forwarded.split(",")[0].strip() or None
+    return request.META.get("REMOTE_ADDR") or None

@@ -107,6 +107,11 @@ class State(DomainModel):
         db_index=True,
         help_text="آیا این وضعیت پایان فرآیند است؟",
     )
+    default_due_hours = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="مهلت پیش‌فرض تسک‌های این وضعیت (ساعت). خالی = بدون مهلت.",
+    )
 
     class Meta:
         app_label = "workflow"
@@ -171,6 +176,15 @@ class Transition(DomainModel):
     name = models.CharField(
         max_length=256,
         help_text="نام اقدام — مثلاً submit, approve, reject",
+    )
+    kind = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        help_text=(
+            "نوع معنایی انتقال برای سرویس‌های سطح‌بالاتر: approve, reject, "
+            "return, complete, submit. خالی = سفارشی (فقط نام)."
+        ),
     )
     allowed_role_codes = models.JSONField(
         default=list,
@@ -352,6 +366,15 @@ class ActionLog(DomainModel):
         blank=True,
         help_text="داده‌های اضافی (مثلاً مقادیر فرم در زمان ثبت)",
     )
+    idempotency_key = models.CharField(
+        max_length=200,
+        null=True,
+        blank=True,
+        help_text=(
+            "کلید یکتای کلاینت برای جلوگیری از اجرای دوباره (double-click / "
+            "retry). کلید تکراری => همان نتیجه‌ی اول بازگردانده می‌شود نه خطا."
+        ),
+    )
 
     class Meta:
         app_label = "workflow"
@@ -362,6 +385,15 @@ class ActionLog(DomainModel):
         indexes = [
             models.Index(fields=["instance", "created_at"]),
             models.Index(fields=["actor", "created_at"]),
+        ]
+        constraints = [
+            # Replay-safety (§13-3): one transition per client key. NULLs are
+            # unlimited (older logs / logs without a key).
+            models.UniqueConstraint(
+                fields=["idempotency_key"],
+                condition=models.Q(idempotency_key__isnull=False),
+                name="uniq_workflow_actionlog_idempotency_key",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -414,3 +446,176 @@ class EntityWorkflow(DomainModel):
 
     def __str__(self) -> str:
         return f"{self.instance_id} ↔ {self.content_type}.{self.object_id}"
+
+
+class ApprovalRecord(DomainModel):
+    """
+    رکورد تایید مستقل از status (§14.5 گزارش مهندسی / B6).
+
+    «تایید» یک تغییر وضعیت نیست؛ یک رخداد امضاشده است:
+      چه کسی (approver)، با چه نقشی (role_code)، در چه واحدی (unit)،
+      روی کدام وضعیت/انتقال (state/transition)، در چه زمانی، با چه توضیحی —
+      و آیا قابل پس‌گرفتن است (revoked_at).
+    execute_transition هر بار که kind/name انتقال approve باشد یک رکورد
+    می‌سازد؛ sync_status forms هم می‌تواند آخرین رکورد را بخواند.
+    """
+
+    instance = models.ForeignKey(
+        Instance,
+        on_delete=models.CASCADE,
+        related_name="approvals",
+    )
+    transition = models.ForeignKey(
+        Transition,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approval_records",
+    )
+    approver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="workflow_approvals",
+    )
+    role_code = models.CharField(
+        max_length=64, blank=True, default="",
+        help_text="نقش موثر تاییدکننده در لحظه‌ی تایید.",
+    )
+    unit = models.CharField(
+        max_length=128, blank=True, default="",
+        help_text="واحد/دپارتمان تاییدکننده (رشته آزاد تا مدل سازمان ساخته شود).",
+    )
+    action = models.CharField(
+        max_length=64,
+        help_text="approve / reject / return …",
+    )
+    comment = models.TextField(blank=True, default="")
+    state = models.ForeignKey(
+        State, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="approval_records",
+        help_text="وضعیتی که تایید در آن انجام شد.",
+    )
+    is_revoked = models.BooleanField(default=False, db_index=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="revoked_approvals",
+    )
+
+    class Meta:
+        app_label = "workflow"
+        db_table = "workflow_approval_record"
+        verbose_name = "Approval Record (رکورد تایید)"
+        verbose_name_plural = "Approval Records (رکوردهای تایید)"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["instance", "created_at"]),
+            models.Index(fields=["approver", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.instance_id}: {self.action} by {self.approver_id}"
+
+
+class InstanceCopy(DomainModel):
+    """
+    رونوشت (§14.4 send_copy / B6): ارسال یک نمونه برای اطلاع به کاربر دیگر.
+    گیرنده‌ی رونوشت می‌بیند اما مسئول اقدام نیست (تسکی برایش ساخته نمی‌شود).
+    """
+
+    instance = models.ForeignKey(
+        Instance,
+        on_delete=models.CASCADE,
+        related_name="copies",
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="workflow_copies_received",
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="workflow_copies_sent",
+    )
+    note = models.CharField(max_length=500, blank=True, default="")
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        app_label = "workflow"
+        db_table = "workflow_instance_copy"
+        verbose_name = "Instance Copy (رونوشت)"
+        verbose_name_plural = "Instance Copies (رونوشت‌ها)"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["recipient", "read_at"]),
+            models.Index(fields=["instance", "recipient"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.instance_id} → {self.recipient_id}"
+
+
+class NotificationOutbox(DomainModel):
+    """
+    صندوق خروجی اعلان‌ها (B6): هیچ ارسال بیرونی (ایمیل/SMS) داخل تراکنشِ
+    انتقال انجام نمی‌شود؛ رخداد اینجا صف می‌شود و یک worker (یا فراخوانی
+    after-commit) آن را تحویل می‌دهد. خرابی ارسال هرگز تراکنش گردش‌کار را
+    برنمی‌گرداند (§6 گزارش: «ارسال email نباید transaction اصلی را وابسته کند»).
+    """
+
+    class Channel(models.TextChoices):
+        IN_APP = "in_app", "درون‌برنامه"
+        EMAIL = "email", "ایمیل"
+        SMS = "sms", "پیامک"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "در انتظار ارسال"
+        SENT = "sent", "ارسال‌شده"
+        FAILED = "failed", "ناموفق"
+
+    instance = models.ForeignKey(
+        Instance,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="workflow_notifications",
+    )
+    channel = models.CharField(
+        max_length=16, choices=Channel.choices, default=Channel.IN_APP, db_index=True,
+    )
+    template = models.CharField(
+        max_length=64, blank=True, default="",
+        help_text="کلید قالب اعلان — مثلاً task_created, approved, rejected.",
+    )
+    payload = models.JSONField(default=dict, blank=True)
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.PENDING, db_index=True,
+    )
+    attempts = models.PositiveSmallIntegerField(default=0)
+    last_error = models.TextField(blank=True, default="")
+    sent_at = models.DateTimeField(null=True, blank=True)
+    # Read receipt for in-app notifications (delivery status ≠ viewed).
+    is_read = models.BooleanField(default=False, db_index=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        app_label = "workflow"
+        db_table = "workflow_notification_outbox"
+        verbose_name = "Notification Outbox (صندوق خروجی اعلان)"
+        verbose_name_plural = "Notification Outbox (اعلان‌های خروجی)"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["recipient", "status"]),
+            # User inbox queries: "my in-app, unread, newest first".
+            models.Index(fields=["recipient", "channel", "is_read"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.instance_id} → {self.recipient_id} [{self.channel}/{self.status}]"

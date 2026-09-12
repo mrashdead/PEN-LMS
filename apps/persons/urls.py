@@ -6,6 +6,7 @@ from apps.persons.views import (
     CreateUserForPersonView,
     PersonDetailView,
     PersonListCreateView,
+    PersonTypeAssignView,
     StudentParentListCreateView,
 )
 
@@ -16,6 +17,11 @@ urlpatterns = [
         "<uuid:person_id>/create-user/",
         CreateUserForPersonView.as_view(),
         name="person-create-user",
+    ),
+    path(
+        "<uuid:person_id>/types/",
+        PersonTypeAssignView.as_view(),
+        name="person-type-assign",
     ),
     path(
         "student-parents/",

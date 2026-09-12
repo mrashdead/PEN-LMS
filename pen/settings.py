@@ -39,7 +39,10 @@ INSTALLED_APPS: list[str] = [
     "apps.persons",
     "apps.tasks",
     "apps.academics",
+    "apps.education",
     "apps.forms",
+    "apps.messaging",
+    "apps.org",
 ]
 
 MIDDLEWARE: list[str] = [
@@ -60,14 +63,25 @@ ASGI_APPLICATION = "pen.asgi.application"
 TEMPLATES: list[dict[str, Any]] = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
+        # All UI templates live under frontend/Admin/pen-templates (the
+        # purchased Domiex admin theme lives beside it in frontend/Admin/src).
+        # This directory is intentionally OUTSIDE STATICFILES_DIRS so template
+        # source is never served as a static file.
+        "DIRS": [BASE_DIR / "frontend" / "Admin" / "pen-templates"],
         "APP_DIRS": True,
         "OPTIONS": {
+            # Explicit tag-library registration (startup import — immune to
+            # negative-discovery caching when a templatetags package is added
+            # to a running process).
+            "libraries": {
+                "asset_v": "apps.core.templatetags.asset_v",
+            },
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.core.context_processors.user_flags",
             ],
         },
     },
@@ -119,8 +133,12 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# All UI statics live beside the templates: the purchased Domiex theme ships
+# compiled RTL CSS, fonts and UMD libs in frontend/Admin/src/assets, and the
+# Pen-specific layer sits in assets/pen/{css,js}. (frontend/Admin/pen-templates
+# holds Django template SOURCE and is deliberately not a static dir.)
 STATICFILES_DIRS = [
-    BASE_DIR / "static",
+    BASE_DIR / "frontend" / "Admin" / "src",
 ]
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -135,6 +153,8 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "apps.core.permissions.IsActiveUser",
     ],
+    # Audit every API denial (403/404) into core.AuditEvent (§13-4).
+    "EXCEPTION_HANDLER": "apps.core.exceptions.audited_exception_handler",
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
     ],
@@ -153,6 +173,38 @@ REST_FRAMEWORK = {
         "form_write": "30/minute",
     },
 }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Email + notification delivery (B6 / outbox worker).
+# Default to the console backend in DEBUG so a dev box needs no SMTP; in
+# production set EMAIL_BACKEND to django.core.mail.backends.smtp.EmailBackend
+# plus the EMAIL_HOST* vars. flush_notifications / the Celery beat task read
+# these — a failing mailer only marks the outbox row failed, never rolls back
+# a workflow transition (report §6/§13-9).
+# ─────────────────────────────────────────────────────────────────────────────
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend" if DEBUG
+    else "django.core.mail.backends.smtp.EmailBackend",
+)
+EMAIL_HOST = env("EMAIL_HOST", default="localhost")
+EMAIL_PORT = env.int("EMAIL_PORT", default=25)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=False)
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Pen LMS <noreply@example.com>")
+SERVER_EMAIL = env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SLA defaults (report §15-9). The SLA scan command uses these when a State
+# declares no per-state override. reminder_lead_hours = how long BEFORE the
+# due date a "near deadline" nudge fires.
+# ─────────────────────────────────────────────────────────────────────────────
+SLA_REMINDER_LEAD_HOURS = env.int("SLA_REMINDER_LEAD_HOURS", default=4)
+# Escalation target role when a task blows its deadline (empty = no escalate).
+SLA_ESCALATION_ROLE = env("SLA_ESCALATION_ROLE", default="manager")
 
 # CORS: deny cross-origin requests by default. Add trusted frontend origins
 # through the environment variable in deployments.

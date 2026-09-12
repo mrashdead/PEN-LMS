@@ -18,6 +18,7 @@ class WorkflowTaskListSerializer(serializers.ModelSerializer):
     due_date = JalaliDateTimeField(allow_null=True, required=False)
     completed_at = JalaliDateTimeField(allow_null=True, required=False)
     created_at = PersianCharField(source="created_at_jalali", read_only=True)
+    is_overdue = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkflowTask
@@ -29,8 +30,18 @@ class WorkflowTaskListSerializer(serializers.ModelSerializer):
             "state_code",
             "status",
             "due_date",
+            "is_overdue",
             "completed_at",
             "created_at",
+        )
+
+    def get_is_overdue(self, obj) -> bool:
+        from django.utils import timezone
+
+        return bool(
+            obj.status == WorkflowTask.Status.PENDING
+            and obj.due_date is not None
+            and obj.due_date < timezone.now()
         )
 
 

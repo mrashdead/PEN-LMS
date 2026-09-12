@@ -165,30 +165,49 @@ class RelationValidationTests(TestCase):
         self.assertIn("g", _v(self.fields, data, user=self.teacher_user).as_dict())
 
     def test_missing_required_relation_surfaces_actionable_field_error(self):
+        # The real education app IS installed now, so a valid-looking UUID
+        # that does not exist must be rejected with the deliberately vague
+        # access message (existence vs access indistinguishable).
         fields = [{"key": "l", "type": "relation", "order": 1,
                    "relation": {"registry_key": "academic.lesson"}}]
         errors = _v(fields, {"l": "11111111-1111-1111-1111-111111111111"},
                     user=self.teacher_user).as_dict()
         self.assertIn("l", errors)
-        # Reports the expected model — never silently coerced to text.
-        self.assertIn("education.Lesson", errors["l"][0])
+        self.assertIn("not available", errors["l"][0])
 
     def test_ensure_available_raises_for_missing_required(self):
-        spec = relations.resolve("academic.lesson")
-        self.assertFalse(spec.is_available())
+        # Mechanism coverage (kept from when education was absent): a spec
+        # whose target model is genuinely absent must fail closed.
+        from apps.forms.relations import RelationSpec
+
+        ghost = RelationSpec(
+            key="academic.ghost", app_label="education",
+            model_name="DefinitelyNotAModel", optional=False,
+        )
+        self.assertFalse(ghost.is_available())
         with self.assertRaises(MissingRequiredRelation) as ctx:
-            relations.ensure_available(spec, ["lesson"])
-        self.assertIn("academic.lesson", ctx.exception.key)
-        self.assertEqual(ctx.exception.schema_slugs, ["lesson"])
+            relations.ensure_available(ghost, ["ghost-schema"])
+        self.assertIn("academic.ghost", ctx.exception.key)
+        self.assertEqual(ctx.exception.schema_slugs, ["ghost-schema"])
+
+    def test_lesson_relation_resolves_against_education_app(self):
+        # B3 landed: the formerly fail-closed lesson relation now resolves
+        # to the real education.Lesson model.
+        spec = relations.resolve("academic.lesson")
+        self.assertTrue(spec.is_available())
+        self.assertEqual(spec.model_label, "education.Lesson")
 
     def test_optional_relation_fallback_accepts_text(self):
         spec = relations.resolve("academic.venue")
-        self.assertFalse(spec.is_available())
+        self.assertTrue(spec.is_available())
         self.assertTrue(spec.optional)
+        # education.Location now exists — a TEXT value is still not a valid
+        # relation reference; the fallback path only applies when the model
+        # is missing, so a string venue is rejected as an invalid reference.
         fields = [{"key": "v", "type": "relation", "order": 1,
                    "relation": {"registry_key": "academic.venue"}}]
         result = _v(fields, {"v": "سالن اجتماعات"}, user=self.teacher_user)
-        self.assertTrue(result.ok)
+        self.assertFalse(result.ok)
 
     def test_relation_queryset_is_filtered_not_materialized(self):
         qs = relations.resolve("academic.class_group").queryset_for_user(self.teacher_user)

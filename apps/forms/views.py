@@ -322,6 +322,13 @@ class FormSubmissionDetailView(generics.RetrieveUpdateAPIView):
         serializer = FormSubmissionUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
+        # §13-4 field-level diff of the sensitive payload before overwriting.
+        changed_keys: list[str] = []
+        if vd.get("data") is not None and isinstance(vd["data"], dict):
+            before = submission.data if isinstance(submission.data, dict) else {}
+            changed_keys = sorted(
+                k for k, v in vd["data"].items() if before.get(k) != v
+            )
         try:
             submission = service.update_submission(
                 submission=submission,
@@ -335,6 +342,17 @@ class FormSubmissionDetailView(generics.RetrieveUpdateAPIView):
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
         except FormServiceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        if changed_keys:
+            from apps.core.models import AuditEvent
+
+            AuditEvent.record(
+                kind=AuditEvent.Kind.FIELD_CHANGE,
+                summary=f"تغییر فیلدهای {', '.join(changed_keys[:10])} در پیش‌نویس فرم {submission.pk}",
+                actor=request.user,
+                obj=submission,
+                request=request,
+                metadata={"changed_keys": changed_keys},
+            )
         return Response(
             FormSubmissionDetailSerializer(submission, context={"request": request}).data
         )
@@ -357,6 +375,15 @@ class FormSubmissionSubmitView(APIView):
         if submission.submitted_by_id != request.user.pk:
             # Hide existence from non-submitters even if visibility allowed a read.
             return Response({"detail": "یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        # Replay-safe submit (§13-3): a retried POST carrying the same
+        # Idempotency-Key whose submit already completed returns the CURRENT
+        # submission (200) instead of a bare 409. Without a key, behavior is
+        # unchanged (409 immutability).
+        marker = _idem_marker(request, "submission-submit")
+        if marker and cache.get(marker):
+            return Response(
+                FormSubmissionDetailSerializer(submission, context={"request": request}).data
+            )
         try:
             submission = service.submit_submission(
                 submission=submission,
@@ -439,6 +466,9 @@ class FormWorkflowTransitionView(APIView):
                 transition_id=chosen.pk,
                 actor=request.user,
                 comment=str(request.data.get("comment") or ""),
+                idempotency_key=(
+                    str(request.data.get("idempotency_key") or "").strip() or None
+                ),
             )
         except InvalidTransitionError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
@@ -458,11 +488,16 @@ class FormWorkflowTransitionView(APIView):
 class FormWorkflowActionView(FormWorkflowTransitionView):
     """
     POST /approve/ and /reject/ — named sugar over the transition endpoint.
-    Matches an AVAILABLE transition by name (approve/reject); the engine's
-    role/guard checks remain the sole authorization authority.
+    Resolves the matching AVAILABLE transition by its semantic ``kind`` first
+    (canonical, seeded by seed_form_workflows) and falls back to name aliases
+    for transitions created before ``kind`` existed. The engine's role/guard
+    checks remain the sole authorization authority, and the execution path is
+    the shared _execute() so the lead-assessment business rule and the
+    forms-status sync still run (B6).
     """
 
-    action_name = None  # set by subclasses
+    action_kind = None   # e.g. "approve"
+    action_name = None   # e.g. "approve" (legacy matching)
 
     def post(self, request, submission_id):
         from apps.workflow.services import WorkflowEngineService
@@ -478,7 +513,12 @@ class FormWorkflowActionView(FormWorkflowTransitionView):
             instance, request.user
         )
         names = self._acceptable_names()
-        match = next((t for t in candidates if t.name.lower() in names), None)
+        match = next(
+            (t for t in candidates
+             if (t.kind or "").strip().lower() == (self.action_kind or "")
+             or t.name.strip().lower() in names),
+            None,
+        )
         if match is None:
             return Response(
                 {"error": "هیچ انتقالی با این نام برای شما مجاز نیست."},
@@ -494,10 +534,12 @@ class FormWorkflowActionView(FormWorkflowTransitionView):
 
 
 class FormWorkflowApproveView(FormWorkflowActionView):
+    action_kind = "approve"
     action_name = "approve"
 
 
 class FormWorkflowRejectView(FormWorkflowActionView):
+    action_kind = "reject"
     action_name = "reject"
 
 
@@ -694,6 +736,18 @@ class FormAttachmentDownloadView(APIView):
 
         if not attachment.file or not attachment.file.storage.exists(attachment.file.name):
             return Response({"detail": "فایل یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+
+        # §13-4: every private-file download is a queryable audit event.
+        from apps.core.models import AuditEvent
+
+        AuditEvent.record(
+            kind=AuditEvent.Kind.DOWNLOAD,
+            summary=f"دانلود پیوست «{attachment.original_filename}» از فرم {attachment.submission_id}",
+            actor=request.user,
+            obj=attachment,
+            request=request,
+            metadata={"submission": str(attachment.submission_id), "size": attachment.file_size},
+        )
 
         safe_name = (attachment.original_filename or "file").replace('"', "").replace("\n", "")
         response = FileResponse(attachment.file.open("rb"), content_type=attachment.mime_type)

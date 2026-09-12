@@ -9,12 +9,19 @@ from django.urls import path
 
 from apps.workflow.views import (
     ActionLogListView,
+    ApprovalListView,
+    ApproveInstanceView,
     AvailableTransitionsView,
     CancelInstanceView,
+    CompleteInstanceView,
+    DelegateTaskView,
     ExecuteTransitionView,
     InstanceDetailView,
     InstanceListCreateView,
     LinkEntityView,
+    RejectInstanceView,
+    ReturnInstanceView,
+    SendCopyView,
 )
 
 urlpatterns = [
@@ -36,6 +43,43 @@ urlpatterns = [
         "instances/<uuid:instance_id>/execute-transition/",
         ExecuteTransitionView.as_view(),
         name="workflow-instance-execute",
+    ),
+
+    # ── Semantic actions (B6) — named service paths over the engine ──
+    path(
+        "instances/<uuid:instance_id>/approve/",
+        ApproveInstanceView.as_view(),
+        name="workflow-instance-approve",
+    ),
+    path(
+        "instances/<uuid:instance_id>/reject/",
+        RejectInstanceView.as_view(),
+        name="workflow-instance-reject",
+    ),
+    path(
+        "instances/<uuid:instance_id>/return/",
+        ReturnInstanceView.as_view(),
+        name="workflow-instance-return",
+    ),
+    path(
+        "instances/<uuid:instance_id>/complete/",
+        CompleteInstanceView.as_view(),
+        name="workflow-instance-complete",
+    ),
+    path(
+        "instances/<uuid:instance_id>/copies/",
+        SendCopyView.as_view(),
+        name="workflow-instance-copies",
+    ),
+    path(
+        "instances/<uuid:instance_id>/delegate/",
+        DelegateTaskView.as_view(),
+        name="workflow-instance-delegate",
+    ),
+    path(
+        "instances/<uuid:instance_id>/approvals/",
+        ApprovalListView.as_view(),
+        name="workflow-instance-approvals",
     ),
 
     # ── Cancel ───────────────────────────────────────────────

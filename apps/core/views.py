@@ -40,6 +40,7 @@ class DashboardLoginView(LoginView):
 class DashboardLogoutView(LogoutView):
     """فقط POST؛ پاک‌سازی کامل session و انتقال امن به صفحه login."""
 
+    template_name = "dashboard/logout.html"
     next_page = reverse_lazy("dashboard-login")
 
     def post(self, request, *args, **kwargs):
@@ -49,4 +50,4 @@ class DashboardLogoutView(LogoutView):
 
 
 class DashboardHomeView(LoginRequiredMixin, TemplateView):
-    template_name = "dashboard/base.html"
+    template_name = "dashboard/home.html"

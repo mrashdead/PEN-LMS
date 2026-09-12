@@ -404,7 +404,56 @@ class FormSubmissionService:
             ]
         )
         self._log(submission, action="form_submit", actor=user)
+        # Project supported payloads into the typed education tables so the
+        # DB (not the form layer) enforces attendance uniqueness (B4).
+        # Fail-soft: a projection problem is logged for reconciliation and
+        # never loses the submission itself.
+        self._project_into_education(submission, user)
         return submission
+
+    def _project_into_education(self, submission: FormSubmission, user) -> None:
+        """
+        Attendance-form projection (B4). Only runs for the ``attendance``
+        schema and only when the payload carries every required key; any
+        mismatch is logged, never raised — the typed tables are the reporting
+        layer of record, and reconciliation is a logged exception, not a lost
+        submission.
+        """
+        from apps.core.utils import english_numbers
+
+        if submission.form_schema.slug != "attendance":
+            return
+        data = submission.data or {}
+        required = ("class_group", "session_date", "session_number",
+                    "session_start", "session_end", "attendance_list")
+        if any(data.get(k) in (None, "", []) for k in required):
+            logger.warning(
+                "attendance projection skipped (missing keys) submission=%s",
+                submission.pk,
+            )
+            return
+        try:
+            from apps.education.services import project_attendance_submission
+
+            rows = [
+                {"student": row.get("student_id"), "status": row.get("status"),
+                 "note": row.get("note", "")}
+                for row in data["attendance_list"]
+                if isinstance(row, dict) and row.get("student_id")
+            ]
+            project_attendance_submission(
+                class_group_id=data["class_group"],
+                session_date=data["session_date"],
+                session_number=int(english_numbers(str(data["session_number"]))),
+                session_start=data["session_start"],
+                session_end=data["session_end"],
+                rows=rows,
+                actor=user,
+            )
+        except Exception:  # noqa: BLE001 - reporting projection must never break submit
+            logger.exception(
+                "attendance projection failed submission=%s", submission.pk
+            )
 
     # ── workflow integration (uses the real engine service) ──────────────
 
@@ -428,12 +477,17 @@ class FormSubmissionService:
     @staticmethod
     def _status_from_workflow(instance) -> Optional[str]:
         """Map terminal workflow states onto submission status (sync only)."""
+        return FormSubmissionService._status_from_status_value(instance.status)
+
+    @staticmethod
+    def _status_from_status_value(status_value) -> Optional[str]:
+        """Map a raw workflow Instance.status value onto submission status."""
         mapping = {
             "completed": FormSubmission.Status.APPROVED,
             "rejected": FormSubmission.Status.REJECTED,
             "cancelled": FormSubmission.Status.ARCHIVED,
         }
-        return mapping.get(instance.status)
+        return mapping.get(status_value)
 
     @transaction.atomic
     def sync_status_from_workflow(
@@ -447,7 +501,18 @@ class FormSubmissionService:
         """
         if not submission.workflow_instance_id:
             return submission
-        target = self._status_from_workflow(submission.workflow_instance)
+        # The caller often holds a select_related()-prefetched instance that
+        # predates the transition just executed — trusting it syncs the OLD
+        # status (approve returned 200 but the sheet stayed "submitted").
+        # Always read the instance's status fresh from the DB.
+        fresh_status = (
+            type(submission.workflow_instance)._default_manager.filter(
+                pk=submission.workflow_instance_id,
+            )
+            .values_list("status", flat=True)
+            .first()
+        )
+        target = self._status_from_status_value(fresh_status)
         if target and submission.status != target:
             submission.status = target
             submission.last_action_at = timezone.now()

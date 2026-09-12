@@ -11,6 +11,7 @@ from apps.core.permissions import (
     IsManagerOrAdmin,
 )
 from apps.academics.models import AcademicTerm, ClassEnrollment, ClassGroup
+from apps.academics.scoping import class_groups_visible_to, enrollments_visible_to
 from apps.academics.serializers import (
     AcademicTermCreateSerializer,
     AcademicTermDetailSerializer,
@@ -21,6 +22,7 @@ from apps.academics.serializers import (
     ClassGroupDetailSerializer,
     ClassGroupListSerializer,
 )
+from apps.academics.services import EnrollmentError, enrollment_service
 
 # ──────────────────────────────────────────────
 #  Academic Term
@@ -80,7 +82,9 @@ class ClassGroupListCreateView(generics.ListCreateAPIView):
         return ClassGroupCreateSerializer if self.request.method == "POST" else ClassGroupListSerializer
 
     def get_queryset(self):
-        qs = ClassGroup.objects.select_related("term", "teacher").all()
+        # DataScope (criterion §13-2): scoping lives HERE, in one shared
+        # service-level rule, not in ad-hoc view filters.
+        qs = class_groups_visible_to(self.request.user)
         term_id = self.request.query_params.get("term")
         if term_id:
             qs = qs.filter(term_id=term_id)
@@ -104,7 +108,10 @@ class ClassGroupListCreateView(generics.ListCreateAPIView):
 class ClassGroupDetailView(generics.RetrieveUpdateAPIView):
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
     serializer_class = ClassGroupDetailSerializer
-    queryset = ClassGroup.objects.select_related("term", "teacher").all()
+
+    def get_queryset(self):
+        # Scoped so a student/parent cannot fetch a class group by raw UUID.
+        return class_groups_visible_to(self.request.user)
 
 
 # ──────────────────────────────────────────────
@@ -119,7 +126,8 @@ class ClassEnrollmentListCreateView(generics.ListCreateAPIView):
         return ClassEnrollmentCreateSerializer if self.request.method == "POST" else ClassEnrollmentListSerializer
 
     def get_queryset(self):
-        qs = ClassEnrollment.objects.select_related("class_group", "student").all()
+        # DataScope (criterion §13-2): shared service-level scoping.
+        qs = enrollments_visible_to(self.request.user)
         class_group_id = self.request.query_params.get("class_group")
         if class_group_id:
             qs = qs.filter(class_group_id=class_group_id)
@@ -134,11 +142,24 @@ class ClassEnrollmentListCreateView(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        enrollment = serializer.save()
+        vd = serializer.validated_data
+        # Capacity is enforced under a row lock by the service (B4) — a bare
+        # serializer.save() allowed concurrent over-enrollment.
+        try:
+            enrollment = enrollment_service.enroll(
+                class_group_id=vd["class_group"].pk,
+                student_id=vd["student"].pk,
+                enrollment_date=vd.get("enrollment_date"),
+                actor=request.user,
+            )
+        except EnrollmentError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(ClassEnrollmentListSerializer(enrollment, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 class ClassEnrollmentDetailView(generics.RetrieveDestroyAPIView):
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
     serializer_class = ClassEnrollmentListSerializer
-    queryset = ClassEnrollment.objects.select_related("class_group", "student").all()
+
+    def get_queryset(self):
+        return enrollments_visible_to(self.request.user)

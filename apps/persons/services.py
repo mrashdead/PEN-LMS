@@ -4,16 +4,142 @@ import logging
 from typing import Optional
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from apps.core.utils import english_numbers
-from apps.persons.models import Person
+from apps.persons.models import Person, PersonTypeAssignment, StudentParent
 
 logger = logging.getLogger(__name__)
+
+#: Roles that may read the full (unmasked) identity of any person.
+PERSON_DETAIL_ELEVATED_ROLES = {"manager", "hr", "workflow_admin"}
+
+
+def can_view_full_person_detail(user, person, *, check_parent_link: bool = True) -> bool:
+    """
+    بول «حافظ کامل» — آیا این کاربر می‌تواند جزئیات هویتی کامل (کد ملی،
+    آدرس، تماس) شخص هدف را ببیند؟
+
+    مجاز: سوپرایوزر؛ نقش‌های ارتقائی؛ خودِ شخص؛ والدِ دانش‌آموز (رابطه‌ی فعال).
+    هر کس دیگری باید نسخه‌ی ماسک‌شده را ببیند (رفع B1).
+
+    ``check_parent_link=False`` برای لیست‌ها استفاده می‌شود تا یک کوئری به‌ازای
+    ردیف (N+1) ساخته نشود؛ والد در صفحه‌ی جزئیات مقدار کامل می‌گیرد.
+    """
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False):
+        return True
+    # Belt-and-braces: the seeded Django group permission "view_person_detail"
+    # is honoured even if the business role isn't elevated (an HR user added
+    # to the گروه manager without a role code assignment, for example).
+    try:
+        if user.has_perm("persons.view_person_detail"):
+            return True
+    except Exception:  # pragma: no cover
+        pass
+    try:
+        roles = user.role_codes()
+    except Exception:  # pragma: no cover - defensive (AnonymousUser never here)
+        return False
+    if roles & PERSON_DETAIL_ELEVATED_ROLES:
+        return True
+    if person is not None and person.user_id == user.pk:
+        return True
+    if check_parent_link and person is not None:
+        parent_person = getattr(user, "person", None)
+        if parent_person is not None:
+            return StudentParent.objects.filter(
+                parent=parent_person,
+                student=person,
+                is_active=True,
+                is_deleted=False,
+            ).exists()
+    return False
+
+
+def mask_identifier(value: str) -> str:
+    """3 رقم اول + ماسک + 2 رقم آخر (برای کد ملی/موبایل/تلفن)."""
+    v = str(value or "")
+    if not v:
+        return v
+    if len(v) <= 5:
+        return "*" * len(v)
+    return f"{v[:3]}{'*' * (len(v) - 5)}{v[-2:]}"
+
+
+def mask_email(value: str) -> str:
+    v = str(value or "")
+    if not v:
+        return v
+    local, sep, domain = v.partition("@")
+    if not sep:
+        return "***"
+    return f"{local[:1]}***@{domain[:1]}***"
+
+
+def mask_address(value: str) -> str:
+    return "پنهان" if str(value or "").strip() else ""
+
+
+def persons_visible_to(user):
+    """
+    QuerySet of persons this user may address through the persons API (B1).
+
+    Replaces the previous "everyone active" catch-all that let a student or
+    parent enumerate every profile:
+
+      - elevated / superuser      → all persons
+      - teacher                   → themselves + all active students/parents
+                                    (needed for class/enrollment pickers)
+      - employee                  → themselves + all active persons (staff dir)
+      - parent                    → themselves + their linked children
+      - student / other end-users → themselves only
+
+    PII is still masked in the serializers for anyone who is not a full
+    custodian of the specific row, so this scoping and the masking are
+    complementary layers.
+    """
+    from django.db import models as dj_models
+
+    if user is None or not getattr(user, "is_authenticated", False):
+        return Person.objects.none()
+    if getattr(user, "is_superuser", False):
+        return Person.objects.all()
+
+    roles = user.role_codes()
+    self_person = getattr(user, "person", None)
+
+    if roles & PERSON_DETAIL_ELEVATED_ROLES:
+        return Person.objects.all()
+
+    # Everyone's own record, when they have one.
+    own = {"pk": self_person.pk} if self_person is not None else {"pk": None}
+
+    if "teacher" in roles or "employee" in roles:
+        # Staff directory: themselves + the active population they work with.
+        return Person.objects.filter(
+            dj_models.Q(**own) | dj_models.Q(is_active=True)
+        )
+
+    if "parent" in roles and self_person is not None:
+        children_ids = StudentParent.objects.filter(
+            parent=self_person, is_active=True, is_deleted=False
+        ).values_list("student_id", flat=True)
+        return Person.objects.filter(
+            dj_models.Q(pk=self_person.pk) | dj_models.Q(pk__in=children_ids)
+        )
+
+    # student / unknown end-user role → only their own record.
+    return Person.objects.filter(**own)
 
 
 class PersonServiceError(Exception):
     """Base exception for Person service."""
+
+
+class DuplicateNationalCodeError(PersonServiceError):
+    """کد ملی (یا کد دانش‌آموزی/پرسنلی) تکراری در میان اشخاص زنده."""
 
 
 class PersonService:
@@ -50,28 +176,44 @@ class PersonService:
         auto_create_user: bool = False,
     ) -> Person:
         """ثبت شخص جدید و در صورت درخواست، ساخت حساب کاربری."""
-        person = Person.objects.create(
-            national_code=english_numbers(national_code).strip(),
-            first_name=first_name,
-            last_name=last_name,
-            father_name=father_name,
-            birth_date=birth_date,
-            gender=gender,
-            mobile=english_numbers(mobile).strip(),
-            email=email,
-            phone=phone,
-            address=address,
-            postal_code=english_numbers(postal_code).strip(),
-            person_type=person_type,
-            student_code=english_numbers(student_code).strip() if student_code else None,
-            employee_code=english_numbers(employee_code).strip() if employee_code else None,
-            department=department,
-            job_title=job_title,
-            hire_date=hire_date,
-            photo=photo,
-            registered_by=registered_by,
-            is_active=True,
-        )
+        # Soft-deleted twins keep their unique key in the DB only through the
+        # partial (live-only) constraints — a normal create() on a duplicate
+        # would surface as a raw IntegrityError (HTTP 500). Map it to a
+        # caller-friendly 400 first (B5).
+        normalized_nc = english_numbers(national_code).strip()
+        if Person.objects.filter(national_code=normalized_nc, is_deleted=False).exists():
+            raise DuplicateNationalCodeError(
+                "شخصی با این کد ملی از قبل ثبت شده است."
+            )
+        try:
+            person = Person.objects.create(
+                national_code=normalized_nc,
+                first_name=first_name,
+                last_name=last_name,
+                father_name=father_name,
+                birth_date=birth_date,
+                gender=gender,
+                mobile=english_numbers(mobile).strip(),
+                email=email,
+                phone=phone,
+                address=address,
+                postal_code=english_numbers(postal_code).strip(),
+                person_type=person_type,
+                student_code=english_numbers(student_code).strip() if student_code else None,
+                employee_code=english_numbers(employee_code).strip() if employee_code else None,
+                department=department,
+                job_title=job_title,
+                hire_date=hire_date,
+                photo=photo,
+                registered_by=registered_by,
+                is_active=True,
+            )
+        except IntegrityError as exc:
+            # Pre-check passed but another transaction won the race on one of
+            # the live-only unique keys (national/student/employee code).
+            raise DuplicateNationalCodeError(
+                "کد ملی یا کد دانش‌آموزی/پرسنلی تکراری است."
+            ) from exc
         if auto_create_user:
             self._create_user_for_person(person)
         logger.info("Person created: %s %s (%s) by %s", first_name, last_name, person_type, registered_by)
@@ -121,34 +263,84 @@ class PersonService:
             is_active=True,
         )
 
+        # Provision roles/groups for EVERY effective type — primary type plus
+        # time-bound additional assignments (criterion §13-1: a teacher who is
+        # also an employee must get BOTH roles from ONE Person row).
         role_map = {
             Person.Type.STUDENT: "student",
             Person.Type.TEACHER: "teacher",
             Person.Type.EMPLOYEE: "employee",
             Person.Type.PARENT: "parent",
         }
-        role_code = role_map.get(person.person_type)
-        if role_code:
-            user.assign_role(role_code, assigned_by=person.registered_by)
-
         group_map = {
             Person.Type.STUDENT: "دانش‌آموز",
             Person.Type.TEACHER: "معلم / مدرس",
             Person.Type.EMPLOYEE: "کارمند",
             Person.Type.PARENT: "والدین",
         }
-        group_name = group_map.get(person.person_type)
-        if group_name:
-            from django.contrib.auth.models import Group
+        from django.contrib.auth.models import Group
 
-            group = Group.objects.filter(name=group_name).first()
-            if group:
-                user.groups.add(group)
-            else:
-                logger.warning("Group '%s' not found (run `seed_groups` first) for user %s", group_name, user.username)
+        for type_code in sorted(person.type_codes()):
+            role_code = role_map.get(type_code)
+            if role_code:
+                user.assign_role(role_code, assigned_by=person.registered_by)
+            group_name = group_map.get(type_code)
+            if group_name:
+                group = Group.objects.filter(name=group_name).first()
+                if group:
+                    user.groups.add(group)
+                else:
+                    logger.warning(
+                        "Group '%s' not found (run `seed_groups` first) for user %s",
+                        group_name, user.username,
+                    )
 
         person.user = user
         person.save(update_fields=["user", "updated_at"])
+
+    def add_person_type(
+        self,
+        *,
+        person: Person,
+        type_code: str,
+        valid_from=None,
+        valid_to=None,
+        assigned_by=None,
+        provision_user_roles: bool = True,
+    ) -> PersonTypeAssignment:
+        """
+        افزودن نوع دوم به یک شخص (مثلاً مدرسِ کارمند). اگر شخص حساب داشته
+        باشد، نقش/گروه متناظر هم بلافاصله اعطا می‌شود.
+        """
+        type_code = (type_code or "").strip().lower()
+        if type_code not in dict(Person.Type.choices):
+            raise PersonServiceError(f"نوع نامعتبر: {type_code}")
+        assignment, created = PersonTypeAssignment.objects.update_or_create(
+            person=person,
+            type=type_code,
+            is_deleted=False,
+            defaults={
+                "is_active": True,
+                "valid_from": valid_from,
+                "valid_to": valid_to,
+                "assigned_by": assigned_by,
+            },
+        )
+        if provision_user_roles and person.user_id and created:
+            role_map = {
+                Person.Type.STUDENT: "student",
+                Person.Type.TEACHER: "teacher",
+                Person.Type.EMPLOYEE: "employee",
+                Person.Type.PARENT: "parent",
+            }
+            role_code = role_map.get(type_code)
+            if role_code:
+                person.user.assign_role(role_code, assigned_by=assigned_by)
+        logger.info(
+            "person %s += type %s (%s)", person.pk, type_code,
+            "created" if created else "updated",
+        )
+        return assignment
 
     def _generate_temp_password(self) -> str:
         import secrets
@@ -173,3 +365,6 @@ class PersonLoginSupport:
         person.user.set_password(english_numbers(person.national_code).strip())
         person.user.username = english_numbers(person.user.username).strip()
         person.user.save(update_fields=["password", "username", "updated_at"])
+
+#: Module-level singleton — views and tests import this.
+person_service = PersonService()

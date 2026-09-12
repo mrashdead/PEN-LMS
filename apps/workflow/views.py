@@ -11,19 +11,27 @@ from rest_framework.response import Response
 
 from apps.core.group_permissions import HasGroupPermission, StrictDjangoModelPermissions
 from apps.core.permissions import IsActiveUser, IsWorkflowParticipant
-from apps.workflow.models import ActionLog, Instance
+from apps.workflow.models import ActionLog, ApprovalRecord, Instance
 from apps.workflow.serializers import (
     ActionLogSerializer,
+    ApprovalRecordSerializer,
     CancelInstanceSerializer,
+    CommentActionSerializer,
     CreateInstanceSerializer,
+    DelegateSerializer,
     EntityWorkflowSerializer,
     ExecuteTransitionSerializer,
     InstanceDetailSerializer,
     InstanceListSerializer,
     LinkEntitySerializer,
+    SendCopySerializer,
     TransitionSerializer,
 )
-from apps.workflow.services import WorkflowEngineError, WorkflowEngineService
+from apps.workflow.services import (
+    InvalidTransitionError,
+    WorkflowEngineError,
+    WorkflowEngineService,
+)
 
 engine = WorkflowEngineService()
 
@@ -117,7 +125,10 @@ class ExecuteTransitionView(views.APIView):
                 actor=request.user,
                 comment=serializer.validated_data.get("comment", ""),
                 metadata=serializer.validated_data.get("metadata", {}),
+                idempotency_key=serializer.validated_data.get("idempotency_key") or None,
             )
+        except InvalidTransitionError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
         except WorkflowEngineError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(InstanceDetailSerializer(instance, context={"request": request}).data)
@@ -182,3 +193,161 @@ class ActionLogListView(generics.ListAPIView):
             instance_id__in=_visible_instances_for(self.request.user).values("id"),
             instance_id=self.kwargs["instance_id"],
         ).select_related("from_state", "to_state", "actor").order_by("-created_at")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Semantic operations (B6) — named service paths over the engine; validation
+# and authorization remain exclusively in the engine/validator layer.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class _SemanticActionMixin:
+    """Shared plumbing: visibility check + error mapping for named actions."""
+
+    def _check_visible(self, request, instance_id) -> bool:
+        return _visible_instances_for(request.user).filter(pk=instance_id).exists()
+
+    def _run(self, request, instance_id, callable_):
+        if not self._check_visible(request, instance_id):
+            return Response({"detail": "درخواست یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            instance = callable_()
+        except WorkflowEngineError as exc:
+            # InvalidTransition covers permission-gaps; the rest are 400s.
+            if isinstance(exc, InvalidTransitionError):
+                return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            InstanceDetailSerializer(instance, context={"request": request}).data
+        )
+
+
+class ApproveInstanceView(_SemanticActionMixin, views.APIView):
+    permission_classes = (IsActiveUser, HasGroupPermission, IsWorkflowParticipant)
+    required_permissions = {"POST": ["workflow.change_instance"]}
+
+    def post(self, request, instance_id: UUID):
+        serializer = CommentActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._run(
+            request, instance_id,
+            lambda: engine.approve(
+                instance_id, request.user,
+                comment=serializer.validated_data.get("comment", ""),
+                metadata=serializer.validated_data.get("metadata", {}),
+    idempotency_key=serializer.validated_data.get("idempotency_key") or None,
+            ),
+        )
+
+
+class RejectInstanceView(_SemanticActionMixin, views.APIView):
+    permission_classes = (IsActiveUser, HasGroupPermission, IsWorkflowParticipant)
+    required_permissions = {"POST": ["workflow.change_instance"]}
+
+    def post(self, request, instance_id: UUID):
+        serializer = CommentActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._run(
+            request, instance_id,
+            lambda: engine.reject(
+                instance_id, request.user,
+                comment=serializer.validated_data.get("comment", ""),
+                metadata=serializer.validated_data.get("metadata", {}),
+    idempotency_key=serializer.validated_data.get("idempotency_key") or None,
+            ),
+        )
+
+
+class ReturnInstanceView(_SemanticActionMixin, views.APIView):
+    permission_classes = (IsActiveUser, HasGroupPermission, IsWorkflowParticipant)
+    required_permissions = {"POST": ["workflow.change_instance"]}
+
+    def post(self, request, instance_id: UUID):
+        serializer = CommentActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._run(
+            request, instance_id,
+            lambda: engine.return_to_previous(
+                instance_id, request.user,
+                comment=serializer.validated_data.get("comment", ""),
+                metadata=serializer.validated_data.get("metadata", {}),
+    idempotency_key=serializer.validated_data.get("idempotency_key") or None,
+            ),
+        )
+
+
+class CompleteInstanceView(_SemanticActionMixin, views.APIView):
+    permission_classes = (IsActiveUser, HasGroupPermission, IsWorkflowParticipant)
+    required_permissions = {"POST": ["workflow.change_instance"]}
+
+    def post(self, request, instance_id: UUID):
+        serializer = CommentActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self._run(
+            request, instance_id,
+            lambda: engine.complete(
+                instance_id, request.user,
+                comment=serializer.validated_data.get("comment", ""),
+                metadata=serializer.validated_data.get("metadata", {}),
+    idempotency_key=serializer.validated_data.get("idempotency_key") or None,
+            ),
+        )
+
+
+class SendCopyView(_SemanticActionMixin, views.APIView):
+    """POST — رونوشت برای کاربران دیگر (بدون ساختن تسک)."""
+
+    permission_classes = (IsActiveUser, HasGroupPermission, IsWorkflowParticipant)
+    required_permissions = {"POST": ["workflow.view_instance"]}
+
+    def post(self, request, instance_id: UUID):
+        serializer = SendCopySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not self._check_visible(request, instance_id):
+            return Response({"detail": "درخواست یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            created = engine.send_copy(
+                instance_id, request.user,
+                recipient_ids=serializer.validated_data["recipient_ids"],
+                note=serializer.validated_data.get("note", ""),
+            )
+        except WorkflowEngineError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"copies_created": created}, status=status.HTTP_200_OK)
+
+
+class DelegateTaskView(_SemanticActionMixin, views.APIView):
+    """POST — ارجاع تسک‌های فعلی کاربر به کاربر دیگر."""
+
+    permission_classes = (IsActiveUser, HasGroupPermission, IsWorkflowParticipant)
+    required_permissions = {"POST": ["workflow.change_instance"]}
+
+    def post(self, request, instance_id: UUID):
+        serializer = DelegateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not self._check_visible(request, instance_id):
+            return Response({"detail": "درخواست یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            moved = engine.delegate(
+                instance_id, request.user,
+                serializer.validated_data["recipient"],
+                comment=serializer.validated_data.get("comment", ""),
+            )
+        except InvalidTransitionError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        except WorkflowEngineError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"tasks_delegated": moved}, status=status.HTTP_200_OK)
+
+
+class ApprovalListView(generics.ListAPIView):
+    """GET — رکوردهای تایید/رد یک Instance (مستقل از ActionLog)."""
+
+    permission_classes = (IsActiveUser, HasGroupPermission)
+    serializer_class = ApprovalRecordSerializer
+    required_permissions = {"GET": ["workflow.view_instance"]}
+
+    def get_queryset(self):
+        return ApprovalRecord.objects.filter(
+            instance_id__in=_visible_instances_for(self.request.user).values("id"),
+            instance_id=self.kwargs["instance_id"],
+        ).select_related("approver", "state", "transition").order_by("-created_at")

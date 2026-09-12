@@ -19,12 +19,19 @@ urlpatterns = [
     # Workflow / core API
     path('api/workflow/', include('apps.workflow.urls')),
     path('api/tasks/', include('apps.tasks.urls')),
+    path('api/notifications/', include('apps.workflow.notification_urls')),
     path('api/persons/', include('apps.persons.urls')),
     path('api/academics/', include('apps.academics.urls')),
+    path('api/education/', include('apps.education.urls')),
     path('api/forms/', include('apps.forms.urls')),
+    path('api/messaging/', include('apps.messaging.urls')),
+    path('api/org/', include('apps.org.urls')),
 
     # Forms UI pages (session auth, dashboard-style)
     path('forms/', include('apps.forms.page_urls')),
+
+    # Dashboard workspace pages (persons / education / reports)
+    path('workspace/', include('apps.core.page_urls')),
 
     # Password management
     path('api/auth/password/change/', auth_views.PasswordChangeView.as_view(

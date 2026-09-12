@@ -24,9 +24,8 @@ class Person(DomainModel):
     # ─── هویت ───
     national_code = models.CharField(
         max_length=10,
-        unique=True,
         db_index=True,
-        help_text="کد ملی — شناسه یکتای شخص",
+        help_text="کد ملی — شناسه یکتای شخص (یکتا در میان اشخاص زنده)",
     )
     first_name = models.CharField(max_length=128)
     last_name = models.CharField(max_length=128)
@@ -52,6 +51,11 @@ class Person(DomainModel):
     postal_code = models.CharField(max_length=20, blank=True, default="")
 
     # ─── نوع ───
+    # person_type is the PRIMARY type (backward compatible: admin pickers,
+    # limit_choices_to, form relation filters). A person may hold ADDITIONAL
+    # concurrent types via PersonTypeAssignment — e.g. teacher + employee in
+    # ONE row (criterion §13-1). Always check `has_type()`/`type_codes()`
+    # instead of person_type == X for business rules.
     person_type = models.CharField(
         max_length=32,
         choices=Type.choices,
@@ -61,19 +65,17 @@ class Person(DomainModel):
     # ─── مختص دانش‌آموز ───
     student_code = models.CharField(
         max_length=32,
-        unique=True,
         null=True,
         blank=True,
-        help_text="کد دانش‌آموزی (فقط برای student)",
+        help_text="کد دانش‌آموزی (فقط برای student) — یکتا در میان اشخاص زنده",
     )
 
     # ─── مختص کارمند / معلم ───
     employee_code = models.CharField(
         max_length=32,
-        unique=True,
         null=True,
         blank=True,
-        help_text="کد پرسنلی (فقط برای employee/teacher)",
+        help_text="کد پرسنلی (فقط برای employee/teacher) — یکتا در میان اشخاص زنده",
     )
     department = models.CharField(max_length=128, blank=True, default="")
     job_title = models.CharField(max_length=128, blank=True, default="")
@@ -127,6 +129,25 @@ class Person(DomainModel):
             models.Index(fields=["last_name", "first_name"]),
             models.Index(fields=["mobile"]),
         ]
+        constraints = [
+            # کد ملی فقط در میان ردیف‌های «زنده» یکتاست؛ ردیف‌های حذف‌شده‌ی نرم
+            # حق استفاده‌ی مجدد از کد ملی را از شخص جدید نمی‌گیرند (B5).
+            models.UniqueConstraint(
+                fields=["national_code"],
+                condition=models.Q(is_deleted=False),
+                name="uniq_persons_national_code_alive",
+            ),
+            models.UniqueConstraint(
+                fields=["student_code"],
+                condition=models.Q(is_deleted=False, student_code__isnull=False),
+                name="uniq_persons_student_code_alive",
+            ),
+            models.UniqueConstraint(
+                fields=["employee_code"],
+                condition=models.Q(is_deleted=False, employee_code__isnull=False),
+                name="uniq_persons_employee_code_alive",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name} ({self.get_person_type_display()})"
@@ -150,6 +171,48 @@ class Person(DomainModel):
     @property
     def display_mobile(self) -> str:
         return persian_numbers(self.mobile)
+
+    # ─── چند-نوعی (criterion §13-1) ────────────────────────────────────────
+    def type_codes(self) -> set[str]:
+        """
+        همه‌ی نوع‌های فعلی شخص: نوع اصلی + انتساب‌های فعالِ زمانی.
+        (اگر جدول انتساب هنوز ساخته نشده باشد فقط نوع اصلی برمی‌گردد.)
+        """
+        codes = {self.person_type} if self.person_type else set()
+        try:
+            now = timezone.now()
+            codes |= set(
+                self.type_assignments.filter(
+                    is_active=True, is_deleted=False
+                ).filter(
+                    models.Q(valid_from__isnull=True) | models.Q(valid_from__lte=now)
+                ).filter(
+                    models.Q(valid_to__isnull=True) | models.Q(valid_to__gte=now)
+                ).values_list("type", flat=True)
+            )
+        except Exception:  # table not yet migrated in this environment
+            pass
+        return codes
+
+    def has_type(self, code: str) -> bool:
+        return (code or "").strip().lower() in self.type_codes()
+
+    @property
+    def person_types_display(self) -> str:
+        choices = dict(Person.Type.choices)
+        return " / ".join(choices.get(c, c) for c in sorted(self.type_codes()))
+
+    def is_teacher(self) -> bool:
+        return self.has_type(Person.Type.TEACHER)
+
+    def is_student(self) -> bool:
+        return self.has_type(Person.Type.STUDENT)
+
+    def is_parent(self) -> bool:
+        return self.has_type(Person.Type.PARENT)
+
+    def is_employee(self) -> bool:
+        return self.has_type(Person.Type.EMPLOYEE)
 
     def clean(self) -> None:
         errors: dict[str, list[str]] = {}
@@ -183,6 +246,68 @@ class Person(DomainModel):
         self.employee_code = (self.employee_code or "").strip() or None
 
         super().save(*args, **kwargs)
+
+
+class PersonTypeAssignment(DomainModel):
+    """
+    انتساب نوع تخصصی زمان‌دار (criterion §13-1 / گزارش §4):
+
+    یک Person می‌تواند هم‌زمان چند نوع داشته باشد (مثلاً مدرس + کارمند)
+    بدون ساخت دو ردیف Person. نوع اصلی (person_type) سرجایش می‌ماند و
+    سازگاری کامل با همه‌ی selectorهای موجود را حفظ می‌کند؛ این جدول
+    نوع‌های *اضافی* و بازه‌ی اعتبارشان را نگه می‌دارد.
+    """
+
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="type_assignments",
+    )
+    type = models.CharField(
+        max_length=32,
+        choices=Person.Type.choices,
+        db_index=True,
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    valid_from = models.DateTimeField(null=True, blank=True)
+    valid_to = models.DateTimeField(null=True, blank=True)
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_person_types",
+    )
+
+    class Meta:
+        app_label = "persons"
+        db_table = "persons_person_type_assignment"
+        verbose_name = "Person Type Assignment (انتساب نوع)"
+        verbose_name_plural = "Person Type Assignments (انتساب‌های نوع)"
+        ordering = ("person", "type")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "type"],
+                condition=models.Q(is_deleted=False),
+                name="uniq_persons_type_assignment_alive",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["person", "is_active"]),
+            models.Index(fields=["type", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.person} [{self.type}]"
+
+    def clean(self) -> None:
+        # Additional type equal to the primary type is redundant, not wrong —
+        # but a REAL conflict (primary parent + assignment student) is blocked.
+        if self.person_id and self.type == Person.Type.PARENT and \
+                self.person.person_type != Person.Type.PARENT:
+            raise ValidationError(
+                "نوع والد فقط به‌عنوان نوع اصلی مجاز است (رابطه‌ی سرپرستی از StudentParent گرفته می‌شود)."
+            )
 
 
 class StudentParent(models.Model):
@@ -226,9 +351,12 @@ class StudentParent(models.Model):
         verbose_name = "Student-Parent relation"
         verbose_name_plural = "Student-Parent relations"
         constraints = [
+            # رابطه‌ی والد/فرزند فقط در میان ردیف‌های «زنده» یکتاست؛ پس از
+            # حذف نرم می‌توان همان رابطه را دوباره ثبت کرد (رفع B5).
             models.UniqueConstraint(
                 fields=["parent", "student"],
-                name="uniq_persons_student_parent",
+                condition=models.Q(is_deleted=False),
+                name="uniq_persons_student_parent_alive",
             ),
         ]
         indexes = [

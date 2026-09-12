@@ -150,7 +150,8 @@ class ClassGroup(DomainModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["term", "code"],
-                name="uniq_academics_class_group_code_per_term",
+                condition=models.Q(is_deleted=False),
+                name="uniq_academics_class_group_code_per_term_alive",
             ),
         ]
         indexes = [
@@ -241,9 +242,12 @@ class ClassEnrollment(DomainModel):
             ("manage_enrollment", "مدیریت ثبت‌نام‌ها"),
         ]
         constraints = [
+            # ثبت‌نام فقط در میان ردیف‌های «زنده» یکتاست؛ پس از حذف نرم یک
+            # ثبت‌نام، ثبت مجدد همان دانش‌آموز نباید IntegrityError بدهد (B5).
             models.UniqueConstraint(
                 fields=["class_group", "student"],
-                name="uniq_academics_enrollment",
+                condition=models.Q(is_deleted=False),
+                name="uniq_academics_enrollment_alive",
             ),
         ]
         indexes = [

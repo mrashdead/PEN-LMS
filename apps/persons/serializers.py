@@ -4,10 +4,98 @@ from rest_framework import serializers
 
 from apps.core.fields import JalaliDateField, PersianCharField
 from apps.persons.models import Person, StudentParent
+from apps.persons.services import (
+    can_view_full_person_detail,
+    mask_address,
+    mask_email,
+    mask_identifier,
+)
+
+#: Fields whose raw values are protected identity/contact data (B1).
+#: These are masked in the SERIALIZED OUTPUT only — input validation on
+#: write paths is untouched, so custodians can still edit real values.
+#: student_code / employee_code are also institution-unique identifiers and
+#: are masked for the same reason.
+PII_FIELDS = (
+    "national_code", "mobile", "email", "phone", "address", "postal_code",
+    "student_code", "employee_code",
+)
 
 
-class PersonListSerializer(serializers.ModelSerializer):
-    """سریالایزر خلاصه برای لیست اشخاص."""
+def _request_user(serializer) -> object | None:
+    request = serializer.context.get("request") if serializer.context else None
+    return getattr(request, "user", None)
+
+
+class PersonPIIMaskingMixin:
+    """
+    Mixin: when the requesting user is not a full custodian of the person,
+    replace protected identity/contact fields with masked forms.
+
+    ``full_detail_resolver`` lets subclasses decide per-row whether the raw
+    value may be shown (elevated / self / parent-of), WITHOUT issuing a
+    parent-link query per row in list views (pass a cheap resolver there).
+    """
+
+    per_row_parent_check = True
+    #: Only the DETAIL serializer audits masked reads (a list would otherwise
+    #: write one event per row — §13-4 keeps the trail meaningful, not noisy).
+    audit_masked_read = False
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        user = _request_user(self)
+        if can_view_full_person_detail(
+            user, instance, check_parent_link=self.per_row_parent_check
+        ):
+            return data
+        # §13-4: a masked read means someone just saw that a person EXISTS
+        # while being denied their raw identifiers — that denial is a
+        # queryable security event (best-effort, never raises).
+        if self.audit_masked_read:
+            from apps.core.models import AuditEvent
+
+            request = self.context.get("request") if self.context else None
+            AuditEvent.record(
+                kind=AuditEvent.Kind.SENSITIVE_READ,
+                summary=f"خواندن ماسک‌شده‌ی PII شخص {instance.pk}",
+                actor=user if getattr(user, "is_authenticated", False) else None,
+                obj=instance,
+                request=request,
+                metadata={"masked_fields": list(PII_FIELDS)},
+            )
+        for field in PII_FIELDS:
+            if field not in data:
+                continue
+            value = data.get(field)
+            if value in (None, ""):
+                continue
+            if field in {"address"}:
+                data[field] = mask_address(value)
+            elif field == "email":
+                data[field] = mask_email(value)
+            elif field == "postal_code":
+                data[field] = mask_identifier(value)
+            else:
+                data[field] = mask_identifier(value)
+        # The Persian display mirrors must not leak the unmasked value either.
+        if "display_national_code" in data and data.get("display_national_code"):
+            data["display_national_code"] = mask_identifier(str(instance.national_code))
+        if "display_mobile" in data and data.get("display_mobile"):
+            data["display_mobile"] = mask_identifier(str(instance.mobile))
+        # username defaults to the national code in provisioning — leaking it
+        # would re-leak the identifier through a side door (B1/B2 pairing).
+        if data.get("username"):
+            data["username"] = mask_identifier(str(data["username"]))
+        return data
+
+
+class PersonListSerializer(PersonPIIMaskingMixin, serializers.ModelSerializer):
+    """سریالایزر خلاصه برای لیست اشخاص (PII ماسک‌شده برای غیرمتولیان)."""
+
+    # Lists must not fire a StudentParent query per row → skip parent check;
+    # a parent opening one person's DETAIL still gets full data there.
+    per_row_parent_check = False
 
     person_type_display = serializers.CharField(
         source="get_person_type_display", read_only=True
@@ -34,12 +122,15 @@ class PersonListSerializer(serializers.ModelSerializer):
         )
 
 
-class PersonDetailSerializer(serializers.ModelSerializer):
-    """سریالایزر کامل برای جزئیات شخص."""
+class PersonDetailSerializer(PersonPIIMaskingMixin, serializers.ModelSerializer):
+    """سریالایزر کامل برای جزئیات شخص (PII ماسک‌شده برای غیرمتولیان)."""
+
+    audit_masked_read = True
 
     person_type_display = serializers.CharField(
         source="get_person_type_display", read_only=True
     )
+    person_types_display = serializers.CharField(read_only=True)
     gender_display = serializers.CharField(
         source="get_gender_display", read_only=True
     )
@@ -76,6 +167,7 @@ class PersonDetailSerializer(serializers.ModelSerializer):
             "postal_code",
             "person_type",
             "person_type_display",
+            "person_types_display",
             "student_code",
             "employee_code",
             "department",

@@ -8,6 +8,7 @@ from apps.core.group_permissions import HasGroupPermission, StrictDjangoModelPer
 from apps.core.permissions import (
     IsActiveUser,
     CanAccessPersons,
+    IsManagerOrAdmin,
     IsPersonOwnerOrManager,
     CanCreateUserForPerson,
     CanManageStudentParent,
@@ -20,7 +21,12 @@ from apps.persons.serializers import (
     PersonListSerializer,
     StudentParentSerializer,
 )
-from apps.persons.services import PersonService, PersonServiceError
+from apps.persons.services import (
+    DuplicateNationalCodeError,
+    PersonService,
+    PersonServiceError,
+    persons_visible_to,
+)
 
 person_service = PersonService()
 
@@ -39,15 +45,10 @@ class PersonListCreateView(generics.ListCreateAPIView):
         return PersonListSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        roles = user.role_codes()
-
-        # مدیران و منابع انسانی همه اشخاص را می‌بینند
-        if roles & {"manager", "hr", "workflow_admin"}:
-            qs = Person.objects.select_related("user").all()
-        else:
-            # کارمندان و معلمان فقط اشخاص فعال و عمومی (student, parent) را ببینند
-            qs = Person.objects.select_related("user").filter(is_active=True)
+        # Central visibility rule (B1): elevated → all; teacher/employee →
+        # self + active directory; parent → self + own children;
+        # student/other end-user → self only.
+        qs = persons_visible_to(self.request.user).select_related("user")
 
         # فیلتر بر اساس نوع شخص
         person_type = self.request.query_params.get("person_type")
@@ -83,14 +84,17 @@ class PersonListCreateView(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        person = self.perform_create(serializer)
+        try:
+            person = self.perform_create(serializer)
+        except DuplicateNationalCodeError as exc:
+            return Response({"national_code": [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
         output = PersonDetailSerializer(person, context={"request": request})
         return Response(output.data, status=status.HTTP_201_CREATED)
 
 
 class PersonDetailView(generics.RetrieveUpdateAPIView):
     """
-    GET    /api/persons/{id}/    — جزئیات شخص
+    GET    /api/persons/{id}/    — جزئیات شخص (PII ماسک‌شده برای غیرمتولیان)
     PATCH  /api/persons/{id}/    — ویرایش (فرد یا manager)
     """
 
@@ -98,13 +102,11 @@ class PersonDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = PersonDetailSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        roles = user.role_codes()
-        if roles & {"manager", "hr", "workflow_admin"}:
-            return Person.objects.select_related("user").all()
-        return Person.objects.select_related("user").filter(
-            models.Q(user=user) | models.Q(is_active=True)
-        )
+        # Same central visibility rule as the list view — a detail route must
+        # never widen what the list hides (B1). Writes stay restricted by
+        # IsPersonOwnerOrManager; reads of RAW PII are gated per-field by the
+        # serializer via can_view_full_person_detail() (view_person_detail).
+        return persons_visible_to(self.request.user).select_related("user")
 
 
 class CreateUserForPersonView(views.APIView):
@@ -134,6 +136,34 @@ class CreateUserForPersonView(views.APIView):
 
         output = PersonDetailSerializer(person, context={"request": request})
         return Response(output.data)
+
+
+class PersonTypeAssignView(views.APIView):
+    """
+    POST /api/persons/{id}/types/ — افزودن نوع دوم به شخص (§13-1).
+    body: {"type": "employee", "valid_from": ..., "valid_to": ...}
+    """
+
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsManagerOrAdmin)
+
+    def post(self, request, person_id):
+        person = Person.objects.filter(pk=person_id, is_deleted=False).first()
+        if person is None:
+            return Response({"error": "شخص یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        type_code = (request.data.get("type") or "").strip().lower()
+        try:
+            person_service.add_person_type(
+                person=person,
+                type_code=type_code,
+                valid_from=request.data.get("valid_from"),
+                valid_to=request.data.get("valid_to"),
+                assigned_by=request.user,
+            )
+        except PersonServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            PersonDetailSerializer(person, context={"request": request}).data
+        )
 
 
 class StudentParentListCreateView(generics.ListCreateAPIView):

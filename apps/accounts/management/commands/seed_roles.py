@@ -23,15 +23,24 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options) -> None:
         for item in DEFAULT_ROLES:
-            obj, created = Role.objects.update_or_create(
-                code=item["code"],
-                defaults={
-                    "name": item["name"],
-                    "priority": item["priority"],
-                    "is_active": True,
-                    "is_deleted": False,
-                },
+            code = str(item["code"]).strip().lower()
+            # The business key is unique only among live rows now (partial
+            # unique index), so an explicit live-then-resurrect lookup is used
+            # instead of update_or_create, which could raise
+            # MultipleObjectsReturned when a soft-deleted twin exists.
+            obj = (
+                Role.objects.filter(code=code, is_deleted=False).first()
+                or Role.all_objects.filter(code=code, is_deleted=True).first()
             )
+            created = obj is None
+            if created:
+                obj = Role(code=code)
+            obj.name = str(item["name"])
+            obj.priority = item["priority"]
+            obj.is_active = True
+            obj.is_deleted = False
+            obj.deleted_at = None
+            obj.save()
             state = "created" if created else "updated"
             self.stdout.write(f"[{state}] {obj.code}")
         self.stdout.write(self.style.SUCCESS("roles ready"))
