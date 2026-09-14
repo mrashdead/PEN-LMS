@@ -19,6 +19,7 @@ Attendance/grade writes: teacher-of-class OR manager (object check on session).
 """
 from __future__ import annotations
 
+from django.db import transaction
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -34,6 +35,7 @@ from apps.education.models import (
     Department,
     Lesson,
     Location,
+    OfferingEnrollment,
 )
 from apps.education.serializers import (
     AttendanceRecordSerializer,
@@ -43,12 +45,14 @@ from apps.education.serializers import (
     DepartmentSerializer,
     LessonSerializer,
     LocationSerializer,
+    OfferingEnrollmentSerializer,
 )
 from apps.education.services import (
     EducationServiceError,
     bulk_attendance,
     create_session,
     enroll_student,
+    generate_sessions,
 )
 
 
@@ -108,6 +112,28 @@ class OfferingDetailView(generics.RetrieveUpdateAPIView):
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
 
 
+class OfferingGenerateSessionsView(APIView):
+    """POST /offerings/{id}/generate-sessions/ — materialize the weekly
+    schedule into real sessions (conflict-checked). Optional {weeks:int}."""
+
+    permission_classes = (IsActiveUser, IsManagerOrAdmin, StrictDjangoModelPermissions)
+
+    def post(self, request, pk):
+        offering = CourseOffering.objects.filter(pk=pk).first()
+        if offering is None:
+            return Response({"error": "برگزاری یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        weeks = request.data.get("weeks")
+        try:
+            weeks = int(weeks) if weeks not in (None, "") else None
+        except (TypeError, ValueError):
+            weeks = None
+        try:
+            result = generate_sessions(offering=offering, actor=request.user, weeks=weeks)
+        except EducationServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK)
+
+
 class OfferingEnrollView(APIView):
     """POST /offerings/{id}/enroll/ — capacity enforced under a row lock (B4)."""
 
@@ -128,6 +154,51 @@ class OfferingEnrollView(APIView):
             CourseOfferingSerializer(offering, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
+
+
+class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
+    """GET/POST /enrollments/ — financial enrollment (amount/discount/payment/cheque).
+
+    Creating an enrollment also bumps the offering's capacity counter through
+    the same row-locked service, so seats and the money record stay consistent.
+    """
+
+    serializer_class = OfferingEnrollmentSerializer
+    permission_classes = (IsActiveUser, IsManagerOrAdmin, StrictDjangoModelPermissions)
+
+    def get_queryset(self):
+        qs = OfferingEnrollment.objects.filter(is_deleted=False).select_related(
+            "offering", "offering__course", "student"
+        )
+        offering = self.request.query_params.get("offering")
+        if offering:
+            qs = qs.filter(offering_id=offering)
+        student = self.request.query_params.get("student")
+        if student:
+            qs = qs.filter(student_id=student)
+        return qs.order_by("-created_at")
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        offering = serializer.validated_data["offering"]
+        student = serializer.validated_data["student"]
+        # capacity first (row lock) — refuse before writing the money record
+        try:
+            enroll_student(offering=offering, student=student, actor=request.user)
+        except EducationServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        enrollment = serializer.save()
+        return Response(self.get_serializer(enrollment).data, status=status.HTTP_201_CREATED)
+
+
+class OfferingEnrollmentDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = OfferingEnrollmentSerializer
+    permission_classes = (IsActiveUser, IsManagerOrAdmin, StrictDjangoModelPermissions)
+    queryset = OfferingEnrollment.objects.filter(is_deleted=False).select_related(
+        "offering", "offering__course", "student"
+    )
 
 
 class SessionListCreateView(generics.ListCreateAPIView):

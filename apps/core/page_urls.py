@@ -4,6 +4,7 @@ from __future__ import annotations
 from django.urls import path
 
 from apps.core.pages import (
+    EnrollmentPage,
     MessagesPage,
     OrgChartPage,
     OrgDelegationsPage,
@@ -19,11 +20,13 @@ from apps.core.pages import (
 urlpatterns = [
     path("work/", WorkQueuePage.as_view(), name="workspace-work"),
     path("requests/", RequestsPage.as_view(), name="workspace-requests"),
+    path("enrollments/", EnrollmentPage.as_view(), name="workspace-enrollments"),
     path("org/chart/", OrgChartPage.as_view(), name="workspace-org-chart"),
     path("org/permissions/", OrgPermissionsPage.as_view(), name="workspace-org-permissions"),
     path("org/responsibilities/", OrgResponsibilitiesPage.as_view(), name="workspace-org-responsibilities"),
     path("org/delegations/", OrgDelegationsPage.as_view(), name="workspace-org-delegations"),
     path("persons/", ResourcePage.as_view(), {"resource": "persons"}, name="workspace-persons"),
+    path("departments/", ResourcePage.as_view(), {"resource": "departments"}, name="workspace-departments"),
     path("lessons/", ResourcePage.as_view(), {"resource": "lessons"}, name="workspace-lessons"),
     path("courses/", ResourcePage.as_view(), {"resource": "courses"}, name="workspace-courses"),
     path("offerings/", ResourcePage.as_view(), {"resource": "offerings"}, name="workspace-offerings"),

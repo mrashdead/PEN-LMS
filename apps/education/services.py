@@ -12,6 +12,7 @@ Education domain services — the transactional core for B4:
 """
 from __future__ import annotations
 
+import datetime as dt
 import logging
 from typing import Iterable, Optional
 
@@ -151,6 +152,102 @@ def create_session(
     logger.info("session %s created for offering %s (by %s)",
                 session.pk, offering.pk, actor)
     return session
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auto session generation (offering schedule → real sessions)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# weekday() Mon=0..Sun=6 → our day keys (Iranian week starts Saturday).
+_DAY_KEYS = {"sat": 5, "sun": 6, "mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4}
+
+
+def _parse_hhmm(text: str) -> dt.time:
+    parts = (text or "").strip().split(":")
+    return dt.time(int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
+
+
+def generate_sessions(
+    *,
+    offering: CourseOffering,
+    actor=None,
+    weeks: Optional[int] = None,
+    max_sessions: int = 60,
+) -> dict:
+    """
+    Materialize a real ClassSession per scheduled slot from the offering's
+    ``schedule`` ({days:[sat..fri], start:"HH:MM", end:"HH:MM"}) + start_date.
+
+    Each session's duration = the schedule window; the offering's total
+    teaching hours (sum of its lessons' duration_hours) is spread across the
+    recurring weekly slots until exhausted (or ``weeks``/``max_sessions`` hit).
+    Every session is created through ``create_session`` so teacher/room/
+    offering double-booking is checked and reported — conflicts are collected,
+    not fatal, so a partial schedule still lands.
+
+    Returns {created, skipped:[{date,reason}], planned_hours, until}.
+    """
+    sched = offering.schedule or {}
+    days = [d for d in (sched.get("days") or []) if d in _DAY_KEYS]
+    if not days or not sched.get("start") or not sched.get("end"):
+        raise EducationServiceError("برای تولید خودکار، روزها و ساعت شروع/پایان را در «زمان برگزاری» تنظیم کنید.")
+    if not offering.start_date:
+        raise EducationServiceError("ابتدا تاریخ شروع برگزاری را مشخص کنید.")
+
+    start_t = _parse_hhmm(sched["start"])
+    end_t = _parse_hhmm(sched["end"])
+    if end_t <= start_t:
+        raise EducationServiceError("ساعت پایان باید بعد از شروع باشد.")
+    slot_minutes = (dt.datetime.combine(dt.date.today(), end_t)
+                    - dt.datetime.combine(dt.date.today(), start_t)).seconds // 60
+    if slot_minutes <= 0:
+        raise EducationServiceError("بازهٔ زمانی جلسه نامعتبر است.")
+
+    # total teaching hours to distribute = sum of the course's lessons' hours
+    total_minutes = sum((l.duration_hours or 0) * 60 for l in offering.course.lessons.all())
+    if total_minutes <= 0:
+        total_minutes = slot_minutes  # at least one session
+
+    day_offsets = sorted(_DAY_KEYS[d] for d in days)
+    cursor = offering.start_date
+    # advance to the first scheduled weekday on/after start_date
+    while cursor.weekday() not in day_offsets:
+        cursor += dt.timedelta(days=1)
+
+    created, skipped = 0, []
+    remaining = total_minutes
+    session_weeks = 0
+    guard = 0
+    last_date = cursor
+    while remaining > 0 and created < max_sessions:
+        guard += 1
+        if guard > 400:  # hard stop for pathological inputs
+            break
+        if cursor.weekday() in day_offsets:
+            try:
+                create_session(
+                    offering=offering, session_date=cursor,
+                    start_time=start_t, end_time=end_t,
+                    teacher=offering.instructor, location=offering.location,
+                    title="", actor=actor,
+                )
+                created += 1
+                remaining -= slot_minutes
+                last_date = cursor
+            except ScheduleConflictError as exc:
+                skipped.append({"date": cursor.isoformat(), "reason": str(exc)})
+            except EducationServiceError as exc:
+                skipped.append({"date": cursor.isoformat(), "reason": str(exc)})
+        cursor += dt.timedelta(days=1)
+        if weeks and (cursor - offering.start_date).days > weeks * 7:
+            break
+
+    return {
+        "created": created,
+        "skipped": skipped,
+        "planned_hours": round(total_minutes / 60, 2),
+        "until": last_date.isoformat(),
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

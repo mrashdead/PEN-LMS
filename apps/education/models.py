@@ -27,11 +27,29 @@ from __future__ import annotations
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from apps.core.models import DomainModel
 from apps.core.utils import persian_numbers
 
 _ALIVE = models.Q(is_deleted=False)
+
+
+def next_sequential_code(model, prefix: str, field: str = "code") -> str:
+    """
+    Generate the next ``<prefix>-0001`` business code for ``model``.
+
+    Scans ALL rows via ``_base_manager`` (including soft-deleted) so a retired
+    code is never reused — codes are unique keys, not display-only. Zero-padded
+    to 4 digits.
+    """
+    last = 0
+    qs = model._base_manager.filter(**{f"{field}__startswith": f"{prefix}-"})
+    for value in qs.values_list(field, flat=True):
+        tail = str(value).split("-", 1)[-1]
+        if tail.isdigit():
+            last = max(last, int(tail))
+    return f"{prefix}-{last + 1:04d}"
 
 
 class Department(DomainModel):
@@ -104,11 +122,26 @@ class Location(DomainModel):
 class Lesson(DomainModel):
     """درس با سرفصل و مشخصات — نسخه‌دار (§5: «سرفصل نسخه‌دار»)."""
 
-    title = models.CharField(max_length=256)
-    code = models.SlugField(max_length=64, db_index=True)
+    class SpaceType(models.TextChoices):
+        UNSPECIFIED = "", "نامشخص"
+        CLASSROOM = "classroom", "کلاس"
+        LAB = "lab", "آزمایشگاه"
+        WORKSHOP = "workshop", "کارگاه"
+        ONLINE = "online", "آنلاین"
+        HALL = "hall", "سالن"
+
+    title = models.CharField(max_length=256, help_text="عنوان فارسی درس")
+    title_en = models.CharField(max_length=256, blank=True, default="", help_text="عنوان انگلیسی درس")
+    code = models.SlugField(max_length=64, db_index=True, help_text="کد درس — خودکار ls-0001")
     description = models.TextField(blank=True, default="")
     syllabus = models.TextField(blank=True, default="", help_text="سرفصل/مباحث")
     duration_hours = models.PositiveIntegerField(default=0)
+    audience_age = models.CharField(
+        max_length=32, blank=True, default="",
+        help_text="محدوده سنی مخاطبان — مثال: 10-15")
+    space_type = models.CharField(
+        max_length=16, choices=SpaceType.choices, blank=True, default="",
+        help_text="نوع فضای آموزشی پیشنهادی")
     department = models.ForeignKey(
         Department, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="lessons",
@@ -116,13 +149,9 @@ class Lesson(DomainModel):
     prerequisites = models.ManyToManyField(
         "self", symmetrical=False, blank=True, related_name="prerequisite_of"
     )
-    assessment_method = models.CharField(
-        max_length=32, blank=True, default="",
-        help_text="written/oral/project/none",
-    )
     required_equipment = models.TextField(blank=True, default="")
     learning_resources = models.TextField(blank=True, default="")
-    tuition = models.PositiveIntegerField(default=0)
+    tuition = models.PositiveIntegerField(default=0, help_text="شهریه به تومان")
     is_active = models.BooleanField(default=True, db_index=True)
     version = models.PositiveIntegerField(default=1)
     legacy_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
@@ -143,6 +172,11 @@ class Lesson(DomainModel):
     def __str__(self) -> str:
         return self.title
 
+    def save(self, *args, **kwargs):
+        if not (self.code or "").strip():
+            self.code = next_sequential_code(Lesson, "ls")
+        super().save(*args, **kwargs)
+
     def clean(self) -> None:
         self.code = (self.code or "").strip().lower()
         if self.duration_hours and self.duration_hours > 1000:
@@ -153,9 +187,10 @@ class Course(DomainModel):
     """دوره = بسته‌ی آموزشیِ متصل به درس‌ها (نه خودِ برگزاری)."""
 
     title = models.CharField(max_length=256)
-    code = models.SlugField(max_length=64, db_index=True)
+    code = models.SlugField(max_length=64, db_index=True, help_text="کد دوره — خودکار cs-0001")
     description = models.TextField(blank=True, default="")
     objectives = models.TextField(blank=True, default="")
+    tuition = models.PositiveIntegerField(default=0, help_text="شهریه دوره به تومان")
     department = models.ForeignKey(
         Department, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="courses",
@@ -250,6 +285,10 @@ class CourseOffering(DomainModel):
     instructor = models.ForeignKey(
         "persons.Person", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="offered_courses", limit_choices_to={"person_type": "teacher"},
+    )
+    schedule = models.JSONField(
+        default=dict, blank=True,
+        help_text="زمان برگزاری پیشنهادی: {days: [\"sat\",\"wed\"], start: \"18:00\", end: \"20:00\"}",
     )
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.DRAFT, db_index=True
@@ -496,3 +535,104 @@ class GradeRecord(DomainModel):
             raise ValidationError(
                 {"teacher_note": "برای نتیجه‌ی مردود، یادداشت مدرس الزامی است."}
             )
+
+
+class OfferingEnrollment(DomainModel):
+    """
+    ثبت‌نام مالی یک دانش‌آموز در یک برگزاری — مبلغ/تخفیف/پرداخت.
+
+    جدا از academics.ClassEnrollment (که فقط عضویت کلاس است): این جدول
+    «تراکنش ثبت‌نام» است — مبلغ دوره، نوع و مقدار تخفیف، مبلغ نهایی، روش
+    پرداخت (نقدی/پوز/چک) و جزئیات چک‌ها. مبالغ به تومان (عدد صحیح) ذخیره
+    می‌شوند؛ جداکنندهٔ سه‌رقمی فقط نمایشی است.
+    """
+
+    class PaymentMethod(models.TextChoices):
+        CASH = "cash", "نقدی"
+        POS = "pos", "کارت‌خوان (POS)"
+        CHEQUE = "cheque", "چک"
+
+    class DiscountType(models.TextChoices):
+        NONE = "none", "بدون تخفیف"
+        PERCENT = "percent", "درصدی"
+        AMOUNT = "amount", "مبلغ ثابت"
+
+    offering = models.ForeignKey(
+        CourseOffering, on_delete=models.PROTECT, related_name="enrollments"
+    )
+    student = models.ForeignKey(
+        "persons.Person", on_delete=models.PROTECT, related_name="offerings_enrolled",
+        limit_choices_to={"person_type": "student"},
+    )
+    # Snapshot of the offering's tuition at enroll time (course bundle price).
+    course_amount = models.PositiveIntegerField(default=0, help_text="مبلغ دوره (تومان)")
+    discount_type = models.CharField(
+        max_length=10, choices=DiscountType.choices, default=DiscountType.NONE
+    )
+    discount_value = models.PositiveIntegerField(
+        default=0, help_text="درصد (۰..۱۰۰) یا مبلغ تومان، بسته به نوع"
+    )
+    final_amount = models.PositiveIntegerField(
+        default=0, help_text="مبلغ قابل‌پرداخت پس از تخفیف (تومان)"
+    )
+    payment_method = models.CharField(
+        max_length=10, choices=PaymentMethod.choices, default=PaymentMethod.CASH
+    )
+    # Cheque details (only meaningful when payment_method == cheque).
+    cheque_count = models.PositiveSmallIntegerField(default=0)
+    cheques = models.JSONField(
+        default=list, blank=True,
+        help_text="فهرست چک‌ها: [{amount, payee, due_date, tracking_no}]",
+    )
+    reference = models.CharField(
+        max_length=128, blank=True, default="",
+        help_text="کد پیگیری/رسید پرداخت (نقدی/پوز).",
+    )
+    enrolled_at = models.DateField(default=timezone.localdate)
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        app_label = "education"
+        db_table = "education_offering_enrollment"
+        verbose_name = "Offering Enrollment (ثبت‌نام)"
+        verbose_name_plural = "Offering Enrollments (ثبت‌نام‌ها)"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["offering", "student"], condition=_ALIVE,
+                name="uniq_edu_offering_enrollment_alive",
+                violation_error_message="این دانش‌آموز قبلاً در این برگزاری ثبت‌نام کرده است.",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["student", "is_active"]),
+            models.Index(fields=["offering", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.student} → {self.offering_id} [{self.final_amount}]"
+
+    def compute_final(self) -> int:
+        """Derive final_amount from course_amount + discount (single rule)."""
+        base = self.course_amount or 0
+        if self.discount_type == self.DiscountType.PERCENT:
+            pct = max(0, min(int(self.discount_value or 0), 100))
+            return base - int(round(base * pct / 100))
+        if self.discount_type == self.DiscountType.AMOUNT:
+            return max(base - int(self.discount_value or 0), 0)
+        return base
+
+    def clean(self) -> None:
+        if self.discount_type == self.DiscountType.PERCENT and (self.discount_value or 0) > 100:
+            raise ValidationError({"discount_value": "درصد تخفیف نمی‌تواند بیش از ۱۰۰ باشد."})
+        if self.payment_method == self.PaymentMethod.CHEQUE:
+            if not (self.cheques or []):
+                raise ValidationError({"cheques": "برای پرداخت چک، حداقل یک چک وارد کنید."})
+            if self.cheque_count and self.cheque_count != len(self.cheques):
+                raise ValidationError({"cheque_count": "تعداد چک با فهرست چک‌ها هم‌خوان نیست."})
+        self.final_amount = self.compute_final()
+
+    @property
+    def final_amount_jalali_date(self) -> str:
+        from apps.core.utils import persian_date
+        return persian_date(self.enrolled_at)

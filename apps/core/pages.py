@@ -28,6 +28,31 @@ _SYS_ADMIN_ROLES = {"manager", "workflow_admin"}
 
 #: Declarative resource configs. `columns`/`form`/`detail` drive the generic UI.
 RESOURCE_CONFIG: dict[str, dict] = {
+    "departments": {
+        "title": "دپارتمان‌ها",
+        "icon": "network",
+        "api": "/api/education/departments/",
+        "canCreate": True,
+        "columns": [
+            {"field": "code", "label": "کد"},
+            {"field": "name", "label": "نام دپارتمان"},
+            {"field": "is_active", "label": "فعال", "type": "bool"},
+        ],
+        "form": [
+            {"name": "code", "label": "کد دپارتمان", "type": "text", "dir": "ltr", "required": True,
+             "hint": "کلید یکتا — مثال: math, language"},
+            {"name": "name", "label": "نام دپارتمان", "type": "text", "required": True},
+            {"name": "parent", "label": "دپارتمان والد", "type": "lookup",
+             "endpoint": "/api/education/departments/", "labelField": "name"},
+            {"name": "description", "label": "توضیحات", "type": "textarea"},
+        ],
+        "detail": [
+            {"field": "code", "label": "کد"},
+            {"field": "name", "label": "نام"},
+            {"field": "description", "label": "توضیحات"},
+            {"field": "is_active", "label": "فعال", "type": "bool"},
+        ],
+    },
     "persons": {
         "title": "اشخاص",
         "icon": "users",
@@ -112,37 +137,45 @@ RESOURCE_CONFIG: dict[str, dict] = {
             {"field": "code", "label": "کد"},
             {"field": "title", "label": "عنوان درس"},
             {"field": "duration_hours", "label": "مدت (ساعت)"},
-            {"field": "assessment_method", "label": "نحوه آزمون"},
-            {"field": "tuition", "label": "شهریه"},
+            {"field": "space_type", "label": "فضا"},
+            {"field": "tuition", "label": "شهریه", "type": "money", "suffix": "ت"},
             {"field": "is_active", "label": "فعال", "type": "bool"},
         ],
         "form": [
-            {"name": "code", "label": "کد درس", "type": "text", "dir": "ltr", "required": True},
-            {"name": "title", "label": "عنوان درس", "type": "text", "required": True},
-            {"name": "syllabus", "label": "سرفصل / مباحث", "type": "textarea"},
-            {"name": "description", "label": "توضیحات", "type": "textarea"},
+            # code is auto-generated (ls-0001) server-side — not shown.
+            {"name": "title", "label": "عنوان درس (فارسی)", "type": "text", "required": True},
+            {"name": "title_en", "label": "عنوان درس (انگلیسی)", "type": "text", "dir": "ltr"},
+            {"name": "syllabus", "label": "سرفصل‌ها", "type": "textarea"},
             {"name": "duration_hours", "label": "مدت زمان (ساعت)", "type": "number"},
-            {"name": "assessment_method", "label": "نحوه آزمون", "type": "select", "options": [
-                {"value": "written", "label": "کتبی"},
-                {"value": "oral", "label": "شفاهی"},
-                {"value": "project", "label": "پروژه"},
-                {"value": "continuous", "label": "مستمر"},
-                {"value": "none", "label": "بدون آزمون"},
+            {"name": "description", "label": "توضیحات درس", "type": "textarea"},
+            {"name": "audience_age", "label": "محدوده سنی", "type": "text", "dir": "ltr",
+             "placeholder": "10-15", "hint": "مثال: 10-15"},
+            {"name": "prerequisites", "label": "پیش‌نیازها", "type": "check-lookup",
+             "endpoint": "/api/education/lessons/", "labelField": "title"},
+            {"name": "space_type", "label": "نوع فضای آموزشی (پیشنهادی)", "type": "select", "options": [
+                {"value": "", "label": "نامشخص"},
+                {"value": "classroom", "label": "کلاس"},
+                {"value": "lab", "label": "آزمایشگاه"},
+                {"value": "workshop", "label": "کارگاه"},
+                {"value": "online", "label": "آنلاین"},
+                {"value": "hall", "label": "سالن"},
             ]},
             {"name": "required_equipment", "label": "تجهیزات مورد نیاز", "type": "textarea"},
-            {"name": "learning_resources", "label": "منابع آموزش", "type": "textarea"},
-            {"name": "tuition", "label": "شهریه (ریال)", "type": "number"},
+            {"name": "learning_resources", "label": "منابع آموزشی", "type": "textarea"},
+            {"name": "tuition", "label": "شهریه", "type": "money", "unit": "تومان"},
         ],
         "detail": [
             {"field": "code", "label": "کد"},
-            {"field": "title", "label": "عنوان"},
-            {"field": "syllabus", "label": "سرفصل"},
-            {"field": "description", "label": "توضیحات"},
+            {"field": "title", "label": "عنوان (فارسی)"},
+            {"field": "title_en", "label": "عنوان (انگلیسی)"},
+            {"field": "syllabus", "label": "سرفصل‌ها"},
             {"field": "duration_hours", "label": "مدت (ساعت)"},
-            {"field": "assessment_method", "label": "نحوه آزمون"},
+            {"field": "description", "label": "توضیحات"},
+            {"field": "audience_age", "label": "محدوده سنی"},
+            {"field": "space_type", "label": "نوع فضا"},
             {"field": "required_equipment", "label": "تجهیزات"},
             {"field": "learning_resources", "label": "منابع"},
-            {"field": "tuition", "label": "شهریه"},
+            {"field": "tuition", "label": "شهریه", "type": "money", "suffix": "تومان"},
             {"field": "is_active", "label": "فعال", "type": "bool"},
         ],
     },
@@ -154,19 +187,26 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "columns": [
             {"field": "code", "label": "کد"},
             {"field": "title", "label": "عنوان دوره"},
+            {"field": "total_tuition", "label": "شهریهٔ کل", "type": "money", "suffix": "ت"},
             {"field": "is_active", "label": "فعال", "type": "bool"},
         ],
         "form": [
-            {"name": "code", "label": "کد دوره", "type": "text", "dir": "ltr", "required": True},
+            # code auto (cs-0001) server-side — not shown.
             {"name": "title", "label": "عنوان دوره", "type": "text", "required": True},
+            {"name": "department", "label": "دپارتمان", "type": "lookup",
+             "endpoint": "/api/education/departments/", "labelField": "name"},
             {"name": "description", "label": "توضیحات دوره", "type": "textarea"},
             {"name": "objectives", "label": "اهداف یادگیری", "type": "textarea"},
+            {"name": "lessons", "label": "درس‌ها", "type": "check-lookup", "required": True,
+             "endpoint": "/api/education/lessons/", "labelField": "title"},
         ],
         "detail": [
             {"field": "code", "label": "کد"},
             {"field": "title", "label": "عنوان"},
             {"field": "description", "label": "توضیحات"},
             {"field": "objectives", "label": "اهداف"},
+            {"field": "lesson_titles", "label": "درس‌ها", "type": "list"},
+            {"field": "total_tuition", "label": "شهریهٔ کل (مجموع درس‌ها)", "type": "money", "suffix": "تومان"},
             {"field": "is_active", "label": "فعال", "type": "bool"},
         ],
     },
@@ -175,8 +215,14 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "icon": "calendar-clock",
         "api": "/api/education/offerings/",
         "canCreate": True,
+        "generateAction": {
+            "label": "تولید خودکار جلسات",
+            "endpoint": "generate-sessions/",
+            "confirm": "جلسات بر اساس زمان‌بندی و مدت درس‌ها ساخته و در تقویم قرار می‌گیرند؛ تداخل‌ها گزارش می‌شوند.",
+        },
         "columns": [
             {"field": "title", "label": "برگزاری"},
+            {"field": "course_title", "label": "دوره"},
             {"field": "capacity", "label": "ظرفیت"},
             {"field": "enrolled_count", "label": "ثبت‌نام"},
             {"field": "start_date", "label": "شروع"},
@@ -186,32 +232,35 @@ RESOURCE_CONFIG: dict[str, dict] = {
             {"name": "course", "label": "دوره", "type": "lookup", "required": True,
              "endpoint": "/api/education/courses/", "labelField": "title"},
             {"name": "title", "label": "عنوان برگزاری", "type": "text"},
-            {"name": "capacity", "label": "ظرفیت", "type": "number"},
-            {"name": "start_date", "label": "تاریخ شروع", "type": "jalali-date"},
-            {"name": "end_date", "label": "تاریخ پایان", "type": "jalali-date"},
+            {"name": "capacity", "label": "ظرفیت (۰ = نامحدود)", "type": "number"},
+            {"name": "start_date", "label": "تاریخ شروع (پیشنهادی)", "type": "jalali-date"},
             {"name": "location", "label": "محل برگزاری", "type": "lookup",
              "endpoint": "/api/education/locations/", "labelField": "name"},
             {"name": "instructor", "label": "استاد", "type": "lookup",
              "endpoint": "/api/persons/?person_type=teacher",
              "labelTemplate": "{first_name} {last_name}"},
-            {"name": "tuition", "label": "شهریه", "type": "number"},
+            {"name": "schedule", "label": "زمان برگزاری (روزها و ساعت)", "type": "schedule"},
+            {"name": "course_tuition", "label": "شهریه دوره (از دوره خوانده می‌شود)", "type": "readonly-money",
+             "source": "course", "endpoint": "/api/education/courses/", "valueField": "total_tuition"},
             {"name": "status", "label": "وضعیت", "type": "select", "options": [
-                {"value": "planned", "label": "برنامه‌ریزی‌شده"},
+                {"value": "draft", "label": "پیش‌نویس"},
                 {"value": "open", "label": "باز (ثبت‌نام)"},
                 {"value": "running", "label": "در حال برگزاری"},
-                {"value": "completed", "label": "تکمیل‌شده"},
+                {"value": "finished", "label": "پایان‌یافته"},
+                {"value": "closed", "label": "بسته"},
                 {"value": "cancelled", "label": "لغوشده"},
             ]},
         ],
         "detail": [
             {"field": "title", "label": "برگزاری"},
+            {"field": "course_title", "label": "دوره"},
             {"field": "capacity", "label": "ظرفیت"},
             {"field": "enrolled_count", "label": "ثبت‌نام‌شدگان"},
             {"field": "seats_left_display", "label": "جای خالی"},
             {"field": "start_date", "label": "شروع"},
-            {"field": "end_date", "label": "پایان"},
+            {"field": "lesson_titles", "label": "درس‌های دوره", "type": "list"},
+            {"field": "course_tuition", "label": "شهریه دوره", "type": "money", "suffix": "تومان"},
             {"field": "status", "label": "وضعیت"},
-            {"field": "tuition", "label": "شهریه"},
         ],
     },
     "sessions": {
@@ -240,8 +289,8 @@ RESOURCE_CONFIG: dict[str, dict] = {
             {"name": "session_number", "label": "شماره جلسه", "type": "number", "required": True},
             {"name": "title", "label": "عنوان جلسه", "type": "text"},
             {"name": "session_date", "label": "تاریخ جلسه", "type": "jalali-date", "required": True},
-            {"name": "start_time", "label": "ساعت شروع (HH:MM)", "type": "text", "dir": "ltr", "required": True},
-            {"name": "end_time", "label": "ساعت پایان (HH:MM)", "type": "text", "dir": "ltr", "required": True},
+            {"name": "start_time", "label": "ساعت شروع", "type": "jalali-time", "required": True},
+            {"name": "end_time", "label": "ساعت پایان", "type": "jalali-time", "required": True},
             {"name": "status", "label": "وضعیت", "type": "select", "options": [
                 {"value": "scheduled", "label": "زمان‌بندی‌شده"},
                 {"value": "held", "label": "برگزارشده"},
@@ -360,6 +409,12 @@ class MessagesPage(StaffRequiredMixin, TemplateView):
     """Internal staff messaging (inbox + compose + thread view)."""
 
     template_name = "messages.html"
+
+
+class EnrollmentPage(StaffRequiredMixin, TemplateView):
+    """Financial enrollment form (student + offering + discount + payment)."""
+
+    template_name = "enrollment.html"
 
 
 class WorkQueuePage(StaffRequiredMixin, TemplateView):

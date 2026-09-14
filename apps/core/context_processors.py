@@ -18,6 +18,7 @@ STAFF_ROLES = {"manager", "workflow_admin", "hr", "employee", "teacher"}
 EDU_URLS = {
     "workspace-lessons", "workspace-courses", "workspace-offerings",
     "workspace-sessions", "workspace-timetable", "workspace-locations",
+    "workspace-enrollments", "workspace-departments",
 }
 REQ_URLS = FORMS_URL_NAMES | {"workspace-requests", "schema-picker", "submission-create"}
 
