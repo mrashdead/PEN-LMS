@@ -68,7 +68,6 @@ RESOURCE_CONFIG: dict[str, dict] = {
                 {"value": "student", "label": "دانش‌آموز"},
                 {"value": "teacher", "label": "معلم / مدرس"},
                 {"value": "employee", "label": "کارمند"},
-                {"value": "parent", "label": "والدین"},
             ]},
             {"param": "is_active", "label": "وضعیت", "type": "select", "options": [
                 {"value": "", "label": "همه"},
@@ -93,8 +92,13 @@ RESOURCE_CONFIG: dict[str, dict] = {
                 {"value": "student", "label": "دانش‌آموز"},
                 {"value": "teacher", "label": "معلم / مدرس"},
                 {"value": "employee", "label": "کارمند"},
-                {"value": "parent", "label": "والدین"},
             ]},
+            {"name": "grant_role", "label": "نقش رهبری (برای کارمند)", "type": "select",
+             "when": {"person_type": ["employee"]}, "options": [
+                {"value": "", "label": "— بدون نقش اضافه (کارمند عادی) —"},
+                {"value": "supervisor", "label": "سرپرست"},
+                {"value": "manager", "label": "مدیر"},
+            ], "hint": "سرپرست فقط توسط مدیر؛ مدیر فقط توسط مدیر سیستم قابل اعطا است."},
             {"name": "birth_date", "label": "تاریخ تولد", "type": "jalali-date"},
             {"name": "gender", "label": "جنسیت", "type": "select", "options": [
                 {"value": "unspecified", "label": "مشخص نشده"},
@@ -464,3 +468,9 @@ class OrgResponsibilitiesPage(OrgManagerMixin, TemplateView):
 
 class OrgDelegationsPage(OrgManagerMixin, TemplateView):
     template_name = "org_delegations.html"
+
+
+class PermissionManagePage(OrgManagerMixin, TemplateView):
+    """Per-user permission editor: search a person → view/edit roles + groups."""
+
+    template_name = "perm_manage.html"

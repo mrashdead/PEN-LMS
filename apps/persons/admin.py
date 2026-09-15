@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.contrib import admin
 
 from apps.core.admin import JalaliAdminMixin
-from apps.persons.models import Person, StudentParent
+from apps.persons.models import Person
 
 
 @admin.register(Person)
@@ -41,12 +41,3 @@ class PersonAdmin(JalaliAdminMixin, admin.ModelAdmin):
     @admin.display(boolean=True, description="User")
     def has_user(self, obj: Person) -> bool:
         return obj.user_id is not None
-
-
-@admin.register(StudentParent)
-class StudentParentAdmin(JalaliAdminMixin, admin.ModelAdmin):
-    list_display = ("parent", "student", "relation", "is_active", "created_at_jalali_display")
-    list_filter = ("is_active",)
-    search_fields = ("parent__first_name", "parent__last_name", "student__first_name", "student__last_name")
-    autocomplete_fields = ("parent", "student")
-    readonly_fields = ("created_at_jalali_display", "created_at")

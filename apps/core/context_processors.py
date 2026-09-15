@@ -46,7 +46,7 @@ def user_flags(request):
         "is_unit_manager": bool(roles & {"manager", "workflow_admin", "hr"}),
         "is_sys_admin": bool(roles & {"manager", "workflow_admin"}),
         "is_teacher": bool(roles & {"teacher"}),
-        "is_learner": bool(roles & {"student", "parent"}),
+        "is_learner": bool(roles & {"student"}),
         "sidebar_urlname": urlname,
         "sidebar_is_forms": urlname in FORMS_URL_NAMES,
         "sidebar_is_edu": urlname in EDU_URLS,

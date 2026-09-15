@@ -19,7 +19,6 @@ class Person(DomainModel):
         STUDENT = "student", "دانش‌آموز"
         TEACHER = "teacher", "معلم / مدرس"
         EMPLOYEE = "employee", "کارمند"
-        PARENT = "parent", "والدین"
 
     # ─── هویت ───
     national_code = models.CharField(
@@ -208,9 +207,6 @@ class Person(DomainModel):
     def is_student(self) -> bool:
         return self.has_type(Person.Type.STUDENT)
 
-    def is_parent(self) -> bool:
-        return self.has_type(Person.Type.PARENT)
-
     def is_employee(self) -> bool:
         return self.has_type(Person.Type.EMPLOYEE)
 
@@ -299,89 +295,3 @@ class PersonTypeAssignment(DomainModel):
 
     def __str__(self) -> str:
         return f"{self.person} [{self.type}]"
-
-    def clean(self) -> None:
-        # Additional type equal to the primary type is redundant, not wrong —
-        # but a REAL conflict (primary parent + assignment student) is blocked.
-        if self.person_id and self.type == Person.Type.PARENT and \
-                self.person.person_type != Person.Type.PARENT:
-            raise ValidationError(
-                "نوع والد فقط به‌عنوان نوع اصلی مجاز است (رابطه‌ی سرپرستی از StudentParent گرفته می‌شود)."
-            )
-
-
-class StudentParent(models.Model):
-    """
-    رابطهٔ والدین با فرزند (دانش‌آموز).
-    هر دانش‌آموز می‌تواند چند والد داشته باشد و هر والد می‌تواند چند فرزند.
-
-    این مدل از DomainModel ارث نمی‌برد تا migration داده‌ای PK فعلی
-    (BigAutoField) باعث از دست رفتن رابطه‌های موجود نشود. فیلدهای audit و
-    soft-delete به‌صورت سازگار اضافه شده‌اند؛ تبدیل PK در migration جداگانه
-    و با backfill کنترل‌شده انجام خواهد شد.
-    """
-
-    parent = models.ForeignKey(
-        Person,
-        on_delete=models.CASCADE,
-        related_name="parent_links",
-        limit_choices_to={"person_type": Person.Type.PARENT},
-    )
-    student = models.ForeignKey(
-        Person,
-        on_delete=models.CASCADE,
-        related_name="parent_of",
-        limit_choices_to={"person_type": Person.Type.STUDENT},
-    )
-    relation = models.CharField(
-        max_length=64,
-        blank=True,
-        default="",
-        help_text="نسبت: پدر، مادر، قیم، ...",
-    )
-    is_active = models.BooleanField(default=True, db_index=True)
-    is_deleted = models.BooleanField(default=False, db_index=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(default=timezone.now, editable=False)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        app_label = "persons"
-        db_table = "persons_student_parent"
-        verbose_name = "Student-Parent relation"
-        verbose_name_plural = "Student-Parent relations"
-        constraints = [
-            # رابطه‌ی والد/فرزند فقط در میان ردیف‌های «زنده» یکتاست؛ پس از
-            # حذف نرم می‌توان همان رابطه را دوباره ثبت کرد (رفع B5).
-            models.UniqueConstraint(
-                fields=["parent", "student"],
-                condition=models.Q(is_deleted=False),
-                name="uniq_persons_student_parent_alive",
-            ),
-        ]
-        indexes = [
-            models.Index(fields=["parent", "is_active"]),
-            models.Index(fields=["student", "is_active"]),
-            models.Index(fields=["is_deleted", "is_active"]),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.parent} → {self.student} [{self.relation}]"
-
-    @property
-    def created_at_jalali(self) -> str:
-        return persian_date(self.created_at)
-
-    @property
-    def updated_at_jalali(self) -> str:
-        return persian_date(self.updated_at)
-
-    def soft_delete(self) -> None:
-        self.is_deleted = True
-        self.deleted_at = timezone.now()
-        self.save(update_fields=["is_deleted", "deleted_at", "updated_at"])
-
-    def restore(self) -> None:
-        self.is_deleted = False
-        self.deleted_at = None
-        self.save(update_fields=["is_deleted", "deleted_at", "updated_at"])

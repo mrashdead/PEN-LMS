@@ -364,3 +364,144 @@ def list_delegations() -> list[dict]:
         }
         for d in rows
     ]
+
+
+# ── permission management (roles + groups + effective model perms) ──────────
+
+# Human-readable labels for the model-permission verbs the UI groups by.
+_PERM_VERB = {"add": "ایجاد", "change": "ویرایش", "delete": "حذف", "view": "مشاهده"}
+
+
+def user_directory(search: str = "") -> list[dict]:
+    """Active users for the permission page's person search (name/username/dept)."""
+    qs = User.objects.filter(is_active=True, is_deleted=False).order_by(
+        "first_name", "last_name", "username"
+    )
+    if search:
+        from django.db.models import Q as _Q
+        qs = qs.filter(
+            _Q(first_name__icontains=search) | _Q(last_name__icontains=search)
+            | _Q(username__icontains=search) | _Q(department__icontains=search)
+        )
+    out = []
+    for u in qs[:50]:
+        out.append({
+            "id": str(u.pk),
+            "name": u.get_full_name() or u.username,
+            "username": u.username,
+            "department": u.department or "",
+            "roles": sorted(u.role_codes()),
+        })
+    return out
+
+
+def user_permissions(user_id) -> dict | None:
+    """
+    Full permission view for one user: roles, groups, and the effective
+    model-permissions (group grants) grouped by app/model — what pages/forms
+    they can see and act on.
+    """
+    u = User.objects.filter(pk=user_id, is_deleted=False).prefetch_related(
+        "user_roles__role", "groups__permissions", "user_permissions"
+    ).first()
+    if u is None:
+        return None
+
+    roles = sorted(u.role_codes())
+    groups = sorted(g.name for g in u.groups.all())
+
+    # Effective model perms grouped by "<app>.<model>" → {verb: bool}
+    codenames = set()
+    for g in u.groups.all():
+        codenames |= {p.codename for p in g.permissions.all()}
+    codenames |= {p.codename for p in u.user_permissions.all()}
+    if u.is_superuser:
+        # superuser → everything; mark all known perms true
+        from django.contrib.auth.models import Permission
+        codenames = {p.codename for p in Permission.objects.all()}
+
+    # Resolve codename → (app_label, model, verb) via content type.
+    from django.contrib.auth.models import Permission
+    perms = Permission.objects.filter(codename__in=codenames).select_related("content_type")
+    by_model: dict[str, dict] = {}
+    for p in perms:
+        model = p.content_type.model
+        app = p.content_type.app_label
+        verb = p.codename.split("_", 1)[0]
+        entry = by_model.setdefault(f"{app}.{model}", {"app": app, "model": model, "verbs": {}})
+        entry["verbs"][verb] = True
+    # normalize verbs present across all models for a tidy grid
+    verbs = ["view", "add", "change", "delete"]
+    grid = []
+    for key in sorted(by_model):
+        row = by_model[key]
+        grid.append({
+            "resource": key,
+            "verbs": {v: bool(row["verbs"].get(v)) for v in verbs},
+        })
+    return {
+        "id": str(u.pk),
+        "name": u.get_full_name() or u.username,
+        "username": u.username,
+        "department": u.department or "",
+        "is_superuser": u.is_superuser,
+        "roles": roles,
+        "groups": groups,
+        "permissions": grid,
+    }
+
+
+def all_roles() -> list[dict]:
+    return [
+        {"code": r.code, "name": r.name}
+        for r in Role.objects.filter(is_active=True, is_deleted=False).order_by("priority", "code")
+    ]
+
+
+def all_groups() -> list[dict]:
+    return [{"name": g.name} for g in Group.objects.order_by("name")]
+
+
+def set_user_roles(*, user_id, role_codes: list[str], actor) -> dict:
+    """
+    Replace a user's roles. Hierarchy: an actor may only grant roles at or
+    below their own tier (a manager can't mint another workflow_admin).
+    Returns the resulting role list.
+    """
+    from apps.persons import hierarchy
+
+    u = User.objects.filter(pk=user_id, is_deleted=False).first()
+    if u is None:
+        raise ValueError("کاربر یافت نشد.")
+    wanted = {c.strip().lower() for c in role_codes if c and c.strip()}
+
+    actor_roles = set(actor.role_codes()) if hasattr(actor, "role_codes") else set()
+    # Roles the actor is allowed to assign = their own creation/grant targets
+    # plus the base learner/staff roles (everyone may hold student/teacher).
+    grantable = hierarchy.allowed_targets(actor_roles, is_superuser=actor.is_superuser) | {
+        "student", "teacher", "employee", "supervisor", "manager", "hr", "workflow_admin"
+    }
+    if not actor.is_superuser:
+        # A manager may not grant the top admin role; only workflow_admin can.
+        if "workflow_admin" in wanted and "workflow_admin" not in actor_roles:
+            raise ValueError("فقط مدیر سیستم می‌تواند نقش مدیر فرآیند بدهد.")
+        if "hr" in wanted and not (actor_roles & {"workflow_admin", "hr"}):
+            raise ValueError("شما مجاز به اعطای نقش منابع انسانی نیستید.")
+
+    # Revoke roles not in wanted; assign missing ones.
+    current = set(u.role_codes())
+    for code in current - wanted:
+        u.revoke_role(code)
+    for code in wanted - current:
+        u.assign_role(code, assigned_by=actor)
+    return {"roles": sorted(u.role_codes())}
+
+
+def set_user_groups(*, user_id, group_names: list[str], actor) -> dict:
+    """Replace a user's Django groups (model-permission grants)."""
+    u = User.objects.filter(pk=user_id, is_deleted=False).first()
+    if u is None:
+        raise ValueError("کاربر یافت نشد.")
+    wanted = Group.objects.filter(name__in=[g for g in group_names if g])
+    u.groups.set(wanted)
+    return {"groups": sorted(g.name for g in u.groups.all())}

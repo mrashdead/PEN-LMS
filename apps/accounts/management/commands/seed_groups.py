@@ -114,18 +114,6 @@ GROUPS: dict[str, dict[str, object]] = {
             "academics.view_classenrollment",
         ],
     },
-    "والدین": {
-        "codename": "parent",
-        "priority": 80,
-        "perms": COMMON + [
-            "persons.view_person_detail",
-            "persons.view_attendance_report",
-            "workflow.view_instance",
-            "academics.view_academicterm",
-            "academics.view_classgroup",
-            "academics.view_classenrollment",
-        ],
-    },
 }
 
 

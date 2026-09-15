@@ -11,15 +11,13 @@ from apps.core.permissions import (
     IsManagerOrAdmin,
     IsPersonOwnerOrManager,
     CanCreateUserForPerson,
-    CanManageStudentParent,
 )
-from apps.persons.models import Person, StudentParent
+from apps.persons.models import Person
 from apps.persons.serializers import (
     CreateUserForPersonSerializer,
     PersonCreateSerializer,
     PersonDetailSerializer,
     PersonListSerializer,
-    StudentParentSerializer,
 )
 from apps.persons.services import (
     DuplicateNationalCodeError,
@@ -164,14 +162,3 @@ class PersonTypeAssignView(views.APIView):
         return Response(
             PersonDetailSerializer(person, context={"request": request}).data
         )
-
-
-class StudentParentListCreateView(generics.ListCreateAPIView):
-    """
-    GET  /api/student-parents/       — لیست روابط والد-فرزند (فقط مدیران)
-    POST /api/student-parents/       — ثبت رابطه جدید (فقط مدیران)
-    """
-
-    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, CanManageStudentParent)
-    serializer_class = StudentParentSerializer
-    queryset = StudentParent.objects.select_related("parent", "student").all()

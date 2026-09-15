@@ -7,7 +7,7 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 
 from apps.core.utils import english_numbers
-from apps.persons.models import Person, PersonTypeAssignment, StudentParent
+from apps.persons.models import Person, PersonTypeAssignment
 
 logger = logging.getLogger(__name__)
 
@@ -15,16 +15,13 @@ logger = logging.getLogger(__name__)
 PERSON_DETAIL_ELEVATED_ROLES = {"manager", "hr", "workflow_admin"}
 
 
-def can_view_full_person_detail(user, person, *, check_parent_link: bool = True) -> bool:
+def can_view_full_person_detail(user, person) -> bool:
     """
     بول «حافظ کامل» — آیا این کاربر می‌تواند جزئیات هویتی کامل (کد ملی،
     آدرس، تماس) شخص هدف را ببیند؟
 
-    مجاز: سوپرایوزر؛ نقش‌های ارتقائی؛ خودِ شخص؛ والدِ دانش‌آموز (رابطه‌ی فعال).
+    مجاز: سوپرایوزر؛ نقش‌های ارتقائی؛ خودِ شخص.
     هر کس دیگری باید نسخه‌ی ماسک‌شده را ببیند (رفع B1).
-
-    ``check_parent_link=False`` برای لیست‌ها استفاده می‌شود تا یک کوئری به‌ازای
-    ردیف (N+1) ساخته نشود؛ والد در صفحه‌ی جزئیات مقدار کامل می‌گیرد.
     """
     if user is None or not getattr(user, "is_authenticated", False):
         return False
@@ -46,15 +43,6 @@ def can_view_full_person_detail(user, person, *, check_parent_link: bool = True)
         return True
     if person is not None and person.user_id == user.pk:
         return True
-    if check_parent_link and person is not None:
-        parent_person = getattr(user, "person", None)
-        if parent_person is not None:
-            return StudentParent.objects.filter(
-                parent=parent_person,
-                student=person,
-                is_active=True,
-                is_deleted=False,
-            ).exists()
     return False
 
 
@@ -86,14 +74,13 @@ def persons_visible_to(user):
     """
     QuerySet of persons this user may address through the persons API (B1).
 
-    Replaces the previous "everyone active" catch-all that let a student or
-    parent enumerate every profile:
+    Replaces the previous "everyone active" catch-all that let a student
+    enumerate every profile:
 
       - elevated / superuser      → all persons
-      - teacher                   → themselves + all active students/parents
+      - teacher                   → themselves + all active students
                                     (needed for class/enrollment pickers)
       - employee                  → themselves + all active persons (staff dir)
-      - parent                    → themselves + their linked children
       - student / other end-users → themselves only
 
     PII is still masked in the serializers for anyone who is not a full
@@ -120,14 +107,6 @@ def persons_visible_to(user):
         # Staff directory: themselves + the active population they work with.
         return Person.objects.filter(
             dj_models.Q(**own) | dj_models.Q(is_active=True)
-        )
-
-    if "parent" in roles and self_person is not None:
-        children_ids = StudentParent.objects.filter(
-            parent=self_person, is_active=True, is_deleted=False
-        ).values_list("student_id", flat=True)
-        return Person.objects.filter(
-            dj_models.Q(pk=self_person.pk) | dj_models.Q(pk__in=children_ids)
         )
 
     # student / unknown end-user role → only their own record.
@@ -174,6 +153,7 @@ class PersonService:
         photo=None,
         registered_by: Optional[settings.AUTH_USER_MODEL] = None,
         auto_create_user: bool = False,
+        grant_role: Optional[str] = None,
     ) -> Person:
         """ثبت شخص جدید و در صورت درخواست، ساخت حساب کاربری."""
         # Soft-deleted twins keep their unique key in the DB only through the
@@ -215,7 +195,7 @@ class PersonService:
                 "کد ملی یا کد دانش‌آموزی/پرسنلی تکراری است."
             ) from exc
         if auto_create_user:
-            self._create_user_for_person(person)
+            self._create_user_for_person(person, grant_role=grant_role)
         logger.info("Person created: %s %s (%s) by %s", first_name, last_name, person_type, registered_by)
         return person
 
@@ -241,6 +221,7 @@ class PersonService:
         person: Person,
         username: Optional[str] = None,
         password: Optional[str] = None,
+        grant_role: Optional[str] = None,
     ) -> None:
         from apps.accounts.models import User
 
@@ -270,13 +251,11 @@ class PersonService:
             Person.Type.STUDENT: "student",
             Person.Type.TEACHER: "teacher",
             Person.Type.EMPLOYEE: "employee",
-            Person.Type.PARENT: "parent",
         }
         group_map = {
             Person.Type.STUDENT: "دانش‌آموز",
             Person.Type.TEACHER: "معلم / مدرس",
             Person.Type.EMPLOYEE: "کارمند",
-            Person.Type.PARENT: "والدین",
         }
         from django.contrib.auth.models import Group
 
@@ -294,6 +273,19 @@ class PersonService:
                         "Group '%s' not found (run `seed_groups` first) for user %s",
                         group_name, user.username,
                     )
+
+        # Optional extra role (e.g. creating a manager/supervisor: person_type
+        # is employee, grant_role adds the leadership role). Validated against
+        # the seeded Role table so a typo can't silently no-op.
+        if grant_role:
+            from apps.accounts.models import Role
+
+            role = Role.objects.filter(
+                code=grant_role.strip().lower(), is_active=True, is_deleted=False
+            ).first()
+            if role is None:
+                raise PersonServiceError(f"نقش نامعتبر: {grant_role}")
+            user.assign_role(role.code, assigned_by=person.registered_by)
 
         person.user = user
         person.save(update_fields=["user", "updated_at"])
@@ -331,7 +323,6 @@ class PersonService:
                 Person.Type.STUDENT: "student",
                 Person.Type.TEACHER: "teacher",
                 Person.Type.EMPLOYEE: "employee",
-                Person.Type.PARENT: "parent",
             }
             role_code = role_map.get(type_code)
             if role_code:

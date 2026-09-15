@@ -160,3 +160,82 @@ class DelegationRevokeView(_StaffGate, APIView):
         if not ok:
             return Response({"detail": "جانشینی یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
         return Response({"ok": True})
+
+
+# ── Permission management (roles + groups + effective model perms) ────────────
+
+class PermissionDirectoryView(_StaffGate, APIView):
+    """GET /api/org/perm/directory/?search= → users to pick (elevated only)."""
+
+    permission_classes = (IsActiveUser,)
+
+    def get(self, request):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        return Response({"results": services.user_directory(request.query_params.get("search", ""))})
+
+
+class PermissionOptionsView(_StaffGate, APIView):
+    """GET /api/org/perm/options/ → all roles + groups for the editor."""
+
+    permission_classes = (IsActiveUser,)
+
+    def get(self, request):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        return Response({"roles": services.all_roles(), "groups": services.all_groups()})
+
+
+class PermissionUserView(_StaffGate, APIView):
+    """GET /api/org/perm/user/<uuid>/ → full permission view for one user."""
+
+    permission_classes = (IsActiveUser,)
+
+    def get(self, request, pk):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        data = services.user_permissions(pk)
+        if data is None:
+            return Response({"detail": "یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(data)
+
+
+class PermissionRolesView(_StaffGate, APIView):
+    """POST /api/org/perm/user/<uuid>/roles/ → replace roles (hierarchy-checked)."""
+
+    permission_classes = (IsActiveUser,)
+
+    def post(self, request, pk):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        codes = (request.data or {}).get("roles") or []
+        if isinstance(codes, str):
+            codes = [codes]
+        try:
+            result = services.set_user_roles(user_id=pk, role_codes=codes, actor=request.user)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
+
+class PermissionGroupsView(_StaffGate, APIView):
+    """POST /api/org/perm/user/<uuid>/groups/ → replace Django groups."""
+
+    permission_classes = (IsActiveUser,)
+
+    def post(self, request, pk):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        names = (request.data or {}).get("groups") or []
+        if isinstance(names, str):
+            names = [names]
+        try:
+            result = services.set_user_groups(user_id=pk, group_names=names, actor=request.user)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)

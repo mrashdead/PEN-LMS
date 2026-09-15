@@ -45,11 +45,6 @@ class SubmissionVisibilityTests(TestCase):
         self.student_person = make_person(self.student, "student")
         make_enrollment(self.group, self.student_person)
 
-        self.parent = UserFactory(username="vis-parent", roles=["parent"])
-        self.parent_person = make_person(self.parent, "parent")
-        from apps.persons.models import StudentParent
-        StudentParent.objects.create(parent=self.parent_person, student=self.student_person, is_active=True)
-
         self.manager = UserFactory(username="vis-manager", roles=["manager"])
         self.employee = UserFactory(username="vis-employee", roles=["employee"])
 
@@ -90,15 +85,6 @@ class SubmissionVisibilityTests(TestCase):
         other_student = make_person(None, "student", first_name="Other")
         sub = self._sub(subject_person=other_student)
         self.assertFalse(visible_submissions_for(self.student).filter(pk=sub.pk).exists())
-
-    def test_parent_sees_child_subject_submission(self):
-        sub = self._sub(subject_person=self.student_person)
-        self.assertTrue(visible_submissions_for(self.parent).filter(pk=sub.pk).exists())
-
-    def test_parent_cannot_see_unrelated_child(self):
-        unrelated = make_person(None, "student", first_name="Unrelated")
-        sub = self._sub(subject_person=unrelated)
-        self.assertFalse(visible_submissions_for(self.parent).filter(pk=sub.pk).exists())
 
     def test_manager_sees_everything(self):
         a = self._sub(class_group=self.group)

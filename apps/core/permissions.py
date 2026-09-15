@@ -142,7 +142,7 @@ class CanAccessPersons(BasePermission):
 
     message = "شما مجوز دسترسی به اطلاعات اشخاص را ندارید."
     elevated_roles = {"manager", "hr", "workflow_admin"}
-    read_roles = elevated_roles | {"employee", "teacher", "student", "parent"}
+    read_roles = elevated_roles | {"employee", "teacher", "student"}
 
     def has_permission(self, request: Request, view: View) -> bool:
         user = request.user
@@ -152,17 +152,3 @@ class CanAccessPersons(BasePermission):
         if request.method in SAFE_METHODS:
             return bool(roles & self.read_roles)
         return bool(roles & self.elevated_roles)
-
-
-class CanManageStudentParent(BasePermission):
-    """Only elevated staff can create or enumerate family relationships."""
-
-    message = "فقط مدیر، منابع انسانی یا مدیر گردش کار مجاز است."
-
-    def has_permission(self, request: Request, view: View) -> bool:
-        user = request.user
-        return bool(
-            user
-            and user.is_authenticated
-            and user.role_codes() & {"manager", "hr", "workflow_admin"}
-        )

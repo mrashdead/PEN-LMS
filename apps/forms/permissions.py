@@ -10,11 +10,10 @@ Two layers, mirroring the rest of the project:
 
 Role codes come from ``User.role_codes()`` (verified: returns ``set[str]``)
 and are the seeded ones: employee, manager, hr, workflow_admin, student,
-teacher, parent. No codes are invented here.
+teacher. No codes are invented here.
 
 Teacher access is NOT granted by the role code alone: the user's linked
 ``persons.Person`` must own the class group via ``ClassGroup.teacher``.
-Parent access requires a real ``persons.StudentParent`` link.
 """
 from __future__ import annotations
 
@@ -56,8 +55,7 @@ def visible_submissions_for(user):
       - the submitter → own submissions (any status);
       - teacher → submissions scoped to class groups THEY teach
         (ClassGroup.teacher == their Person — role code alone is insufficient);
-      - student → submissions about them (subject_person == their Person);
-      - parent → submissions about an enrolled child (StudentParent link).
+      - student → submissions about them (subject_person == their Person).
     """
     roles = user.role_codes()
     if roles & ELEVATED_ROLES:
@@ -71,12 +69,6 @@ def visible_submissions_for(user):
             condition |= Q(class_group__teacher=person)
         if "student" in roles:
             condition |= Q(subject_person=person)
-        if "parent" in roles:
-            condition |= Q(
-                subject_person__parent_of__parent=person,
-                subject_person__parent_of__is_active=True,
-                subject_person__parent_of__is_deleted=False,
-            )
 
     return FormSubmission.objects.filter(condition).distinct()
 

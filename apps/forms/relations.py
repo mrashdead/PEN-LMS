@@ -15,9 +15,6 @@ Verified against the current repository:
   - ``academics.ClassGroup.teacher``  → persons.Person (nullable FK)
   - ``academics.ClassEnrollment.class_group`` / ``.student`` (student → Person)
   - ``persons.Person.user`` OneToOne, reverse accessor ``user.person``
-  - ``persons.StudentParent`` exists: parent → Person, student → Person,
-    with ``is_active`` / ``is_deleted`` flags and related names
-    ``parent_links`` (from parent) / ``parent_of`` (from student).
 """
 from __future__ import annotations
 
@@ -116,7 +113,7 @@ def _person_of(user):
 # ── Permission filters (use real relationship names; subqueries, no lists) ──
 
 def _person_filter(user, qs):
-    """Active persons; students/parents limited to themselves + linked children."""
+    """Active persons; students limited to themselves; staff/elevated → all."""
     qs = qs.filter(is_active=True)
     roles = _roles_of(user)
     if roles & ELEVATED_ROLES or roles & {"teacher", "employee"}:
@@ -126,19 +123,12 @@ def _person_filter(user, qs):
         return qs.none()
     if "student" in roles:
         return qs.filter(pk=person.pk)
-    if "parent" in roles:
-        # Subquery over StudentParent links — never materialize into Python.
-        return qs.filter(
-            parent_of__parent=person,
-            parent_of__is_active=True,
-            parent_of__is_deleted=False,
-        ).distinct()
     return qs.none()
 
 
 def _class_group_filter(user, qs):
     """Teacher → own classes (ClassGroup.teacher); student → enrolled classes;
-    parent → classes their children are enrolled in; elevated → all.
+    elevated → all.
 
     Multiple roles compose with OR (a teacher who is also a student sees both
     sets), never AND — an AND would silently hide legitimate rows.
@@ -159,14 +149,6 @@ def _class_group_filter(user, qs):
     if "student" in roles:
         condition |= Q(
             enrollments__student=person,
-            enrollments__is_active=True,
-            enrollments__is_deleted=False,
-        )
-    if "parent" in roles:
-        condition |= Q(
-            enrollments__student__parent_of__parent=person,
-            enrollments__student__parent_of__is_active=True,
-            enrollments__student__parent_of__is_deleted=False,
             enrollments__is_active=True,
             enrollments__is_deleted=False,
         )

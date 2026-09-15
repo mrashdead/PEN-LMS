@@ -22,7 +22,6 @@ from apps.core.permissions import (
     CanCreateUserForPerson,
     CanManageWorkflow,
     CanAccessPersons,
-    CanManageStudentParent,
 )
 
 User = get_user_model()
@@ -216,16 +215,6 @@ class CanAccessPersonsTest(TestCase):
     def test_manager_write_allowed(self):
         req = MockRequest(user=MockUser(roles={"manager"}), method="POST")
         self.assertTrue(CanAccessPersons().has_permission(req, MockView()))
-
-
-class CanManageStudentParentTest(TestCase):
-    def test_manager_allowed(self):
-        req = MockRequest(user=MockUser(roles={"manager"}))
-        self.assertTrue(CanManageStudentParent().has_permission(req, MockView()))
-
-    def test_teacher_denied(self):
-        req = MockRequest(user=MockUser(roles={"teacher"}))
-        self.assertFalse(CanManageStudentParent().has_permission(req, MockView()))
 
 
 class CanManageWorkflowTest(TestCase):

@@ -10,7 +10,7 @@ import itertools
 
 from django.test import TestCase
 
-from apps.persons.models import Person, StudentParent
+from apps.persons.models import Person
 
 _nc_counter = itertools.count(1)
 
@@ -38,11 +38,6 @@ def grant_persons_model_perms(user):
             codename__in=wanted,
         )
     )
-    perms += list(
-        Permission.objects.filter(
-            content_type=ContentType.objects.get_for_model(StudentParent)
-        )
-    )
     user.user_permissions.set(perms)
     for attr in ("_user_perm_cache", "_group_perm_cache", "_perm_cache"):
         if hasattr(user, attr):
@@ -63,7 +58,6 @@ class _BasePersonsAPITest(TestCase):
 
         self.manager = UserFactory(username="piim-manager", roles=["manager"])
         self.student = UserFactory(username="piim-student", roles=["student"])
-        self.parent = UserFactory(username="piim-parent", roles=["parent"])
         self.teacher = UserFactory(username="piim-teacher", roles=["teacher"])
         self.other_student = UserFactory(username="piim-student2", roles=["student"])
 
@@ -82,7 +76,6 @@ class _BasePersonsAPITest(TestCase):
         # Give every test user a Person of their own (self-visibility path).
         for user, ptype in (
             (self.student, Person.Type.STUDENT),
-            (self.parent, Person.Type.PARENT),
             (self.teacher, Person.Type.TEACHER),
             (self.other_student, Person.Type.STUDENT),
         ):
@@ -129,25 +122,6 @@ class _BasePersonsAPITest(TestCase):
         own_person = self.student.person
         self.assertIn(str(own_person.pk), ids)
         self.assertNotIn(str(self.target.pk), ids)
-
-    def test_parent_sees_own_children_with_full_detail(self):
-        StudentParent.objects.create(
-            parent=self.parent.person, student=self.target, relation="پدر"
-        )
-        self._login(self.parent)
-        response = self.client.get(f"/api/persons/{self.target.pk}/")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        # Parent is a custodian of their child's record.
-        self.assertEqual(data["national_code"], self.target.national_code)
-        self.assertEqual(data["mobile"], self.target.mobile)
-
-    def test_parent_cannot_read_unrelated_child(self):
-        self._login(self.parent)
-        response = self.client.get(f"/api/persons/{self.target.pk}/")
-        # No StudentParent link → row must not even be reachable (404, not
-        # 403, so existence is not leaked).
-        self.assertIn(response.status_code, (403, 404))
 
     def test_masked_output_shape(self):
         # The mask keeps a recognisable prefix/suffix but hides the body.

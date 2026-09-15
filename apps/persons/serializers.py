@@ -3,7 +3,7 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from apps.core.fields import JalaliDateField, PersianCharField
-from apps.persons.models import Person, StudentParent
+from apps.persons.models import Person
 from apps.persons.services import (
     can_view_full_person_detail,
     mask_address,
@@ -31,13 +31,8 @@ class PersonPIIMaskingMixin:
     """
     Mixin: when the requesting user is not a full custodian of the person,
     replace protected identity/contact fields with masked forms.
-
-    ``full_detail_resolver`` lets subclasses decide per-row whether the raw
-    value may be shown (elevated / self / parent-of), WITHOUT issuing a
-    parent-link query per row in list views (pass a cheap resolver there).
     """
 
-    per_row_parent_check = True
     #: Only the DETAIL serializer audits masked reads (a list would otherwise
     #: write one event per row — §13-4 keeps the trail meaningful, not noisy).
     audit_masked_read = False
@@ -45,9 +40,7 @@ class PersonPIIMaskingMixin:
     def to_representation(self, instance):
         data = super().to_representation(instance)
         user = _request_user(self)
-        if can_view_full_person_detail(
-            user, instance, check_parent_link=self.per_row_parent_check
-        ):
+        if can_view_full_person_detail(user, instance):
             return data
         # §13-4: a masked read means someone just saw that a person EXISTS
         # while being denied their raw identifiers — that denial is a
@@ -92,10 +85,6 @@ class PersonPIIMaskingMixin:
 
 class PersonListSerializer(PersonPIIMaskingMixin, serializers.ModelSerializer):
     """سریالایزر خلاصه برای لیست اشخاص (PII ماسک‌شده برای غیرمتولیان)."""
-
-    # Lists must not fire a StudentParent query per row → skip parent check;
-    # a parent opening one person's DETAIL still gets full data there.
-    per_row_parent_check = False
 
     person_type_display = serializers.CharField(
         source="get_person_type_display", read_only=True
@@ -196,6 +185,10 @@ class PersonCreateSerializer(serializers.ModelSerializer):
         default=False,
         help_text="آیا برای این شخص کاربر ساخته شود؟ (پیش‌فرض: خیر)",
     )
+    grant_role = serializers.CharField(
+        required=False, allow_blank=True, max_length=64, write_only=True,
+        help_text="نقش اضافه پس از ساخت کاربر (مثلاً supervisor یا manager) — فقط مدیر/مدیرسیستم.",
+    )
     birth_date = JalaliDateField(allow_null=True, required=False)
     hire_date = JalaliDateField(allow_null=True, required=False)
 
@@ -221,6 +214,7 @@ class PersonCreateSerializer(serializers.ModelSerializer):
             "hire_date",
             "photo",
             "auto_create_user",
+            "grant_role",
         )
 
     def validate_national_code(self, value: str) -> str:
@@ -244,6 +238,25 @@ class PersonCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"employee_code": "برای کارمند/معلم کد پرسنلی الزامی است."}
                 )
+        # Creation hierarchy: the actor may only create the person types their
+        # role tier permits (مدیرسیستم > مدیریت > سرپرست > کارمند عادی).
+        request = self.context.get("request")
+        actor = getattr(request, "user", None)
+        if actor is not None and getattr(actor, "is_authenticated", False) and person_type:
+            from apps.persons import hierarchy
+
+            roles = set(actor.role_codes()) if hasattr(actor, "role_codes") else set()
+            if not hierarchy.can_create(roles, person_type, is_superuser=actor.is_superuser):
+                raise serializers.ValidationError(
+                    {"person_type": "شما مجاز به ثبت این نوع شخص نیستید."}
+                )
+            grant_role = (attrs.get("grant_role") or "").strip().lower()
+            if grant_role and not hierarchy.can_grant_role(
+                roles, grant_role, is_superuser=actor.is_superuser
+            ):
+                raise serializers.ValidationError(
+                    {"grant_role": "شما مجاز به اعطای این نقش نیستید."}
+                )
         return attrs
 
 
@@ -261,27 +274,3 @@ class CreateUserForPersonSerializer(serializers.Serializer):
         write_only=True,
         help_text="رمز عبور (اختیاری — پیش‌فرض کد ملی)",
     )
-
-
-class StudentParentSerializer(serializers.ModelSerializer):
-    parent_name = serializers.CharField(
-        source="parent.__str__", read_only=True
-    )
-    student_name = serializers.CharField(
-        source="student.__str__", read_only=True
-    )
-    created_at = PersianCharField(source="created_at_jalali", read_only=True)
-
-    class Meta:
-        model = StudentParent
-        fields = (
-            "id",
-            "parent",
-            "parent_name",
-            "student",
-            "student_name",
-            "relation",
-            "is_active",
-            "created_at",
-        )
-        read_only_fields = ("created_at",)

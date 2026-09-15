@@ -59,7 +59,7 @@ def _roles(*codes):
 
 class DataScopeTests(TestCase):
     def setUp(self):
-        _roles("manager", "student", "teacher", "parent", "employee")
+        _roles("manager", "student", "teacher", "employee")
         self.student_user = UserFactory(username="sc-student", roles=["student"])
         self.student = make_person(self.student_user, "student", national_code=_nc())
         self.other_group = make_class_group()  # nobody's class
@@ -124,20 +124,6 @@ class DataScopeTests(TestCase):
         self.assertEqual(ok.status_code, 200)
         probe = self.client.get(f"/api/academics/class-groups/{foreign_group.pk}/")
         self.assertEqual(probe.status_code, 404)
-
-    def test_parent_scope_via_child_enrollment(self):
-        parent_user = UserFactory(username="sc-parent", roles=["parent"])
-        parent = make_person(parent_user, "parent", national_code=_nc())
-        from apps.persons.models import StudentParent
-
-        StudentParent.objects.create(parent=parent, student=self.student)
-        from apps.academics.scoping import enrollments_visible_to
-
-        self.assertTrue(
-            enrollments_visible_to(parent_user).filter(
-                class_group=self.my_group
-            ).exists()
-        )
 
     def test_sessions_scoped_for_student(self):
         offering = CourseOffering.objects.create(

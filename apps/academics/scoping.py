@@ -55,14 +55,6 @@ def class_groups_visible_to(user, *, for_write: bool = False):
             enrollments__is_active=True,
             enrollments__is_deleted=False,
         )
-    if "parent" in roles:
-        condition |= Q(
-            enrollments__student__parent_of__parent=person,
-            enrollments__student__parent_of__is_active=True,
-            enrollments__student__parent_of__is_deleted=False,
-            enrollments__is_active=True,
-            enrollments__is_deleted=False,
-        )
     if not condition:
         return qs.none()
     return qs.filter(condition).distinct()
@@ -71,7 +63,7 @@ def class_groups_visible_to(user, *, for_write: bool = False):
 def enrollments_visible_to(user):
     """
     Enrollment rows a user may see: elevated → all; teacher → enrollments of
-    groups they teach; student → own enrollments; parent → children's.
+    groups they teach; student → own enrollments.
     """
     qs = ClassEnrollment.objects.select_related("class_group", "student")
     roles = _roles_of(user)
@@ -86,12 +78,6 @@ def enrollments_visible_to(user):
         condition |= Q(class_group__teacher=person)
     if "student" in roles:
         condition |= Q(student=person)
-    if "parent" in roles:
-        condition |= Q(
-            student__parent_of__parent=person,
-            student__parent_of__is_active=True,
-            student__parent_of__is_deleted=False,
-        )
     if not condition:
         return qs.none()
     return qs.filter(condition).distinct()
@@ -100,8 +86,8 @@ def enrollments_visible_to(user):
 def education_sessions_visible_to(user):
     """
     Real sessions (education.ClassSession) a user may see: elevated → all;
-    teacher → sessions they teach OR groups they own; student/parent →
-    sessions of their (child's) groups.
+    teacher → sessions they teach OR groups they own; student →
+    sessions of their groups.
     """
     from apps.education.models import ClassSession
 
@@ -117,14 +103,6 @@ def education_sessions_visible_to(user):
     if "student" in roles:
         condition |= Q(
             class_group__enrollments__student=person,
-            class_group__enrollments__is_active=True,
-            class_group__enrollments__is_deleted=False,
-        )
-    if "parent" in roles:
-        condition |= Q(
-            class_group__enrollments__student__parent_of__parent=person,
-            class_group__enrollments__student__parent_of__is_active=True,
-            class_group__enrollments__student__parent_of__is_deleted=False,
             class_group__enrollments__is_active=True,
             class_group__enrollments__is_deleted=False,
         )
