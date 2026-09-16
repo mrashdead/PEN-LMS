@@ -11,6 +11,7 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from apps.core.fields import PersianCharField
+from apps.core.serializers import CRUDActionsMixin
 from apps.forms.models import (
     FormAttachment,
     FormComment,
@@ -44,7 +45,8 @@ class FormSchemaSummarySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class FormSubmissionListSerializer(serializers.ModelSerializer):
+class FormSubmissionListSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     schema_slug = serializers.SlugRelatedField(
         source="form_schema", slug_field="slug", read_only=True
     )
@@ -61,12 +63,13 @@ class FormSubmissionListSerializer(serializers.ModelSerializer):
         fields = (
             "id", "submission_number", "schema_slug", "schema_title",
             "submitter_username", "status", "submitted_at",
-            "created_at",
+            "created_at", "actions",
         )
         read_only_fields = fields
 
 
-class FormSubmissionDetailSerializer(serializers.ModelSerializer):
+class FormSubmissionDetailSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     schema_slug = serializers.SlugRelatedField(
         source="form_schema", slug_field="slug", read_only=True
     )
@@ -80,6 +83,12 @@ class FormSubmissionDetailSerializer(serializers.ModelSerializer):
         source="reviewed_by", slug_field="username", read_only=True, allow_null=True
     )
     workflow_instance_id = serializers.UUIDField(read_only=True, allow_null=True)
+    #: The card-table's quote-able code (REQ-2026-000042) — surfaced here so
+    #: "my requests" never needs a second round-trip to /api/workflow/.
+    tracking_number = serializers.SerializerMethodField()
+    #: Live workflow state (running/completed/…) — richer than the synced
+    #: submission.status for pure tracking purposes.
+    workflow_status = serializers.SerializerMethodField()
     attachment_count = serializers.SerializerMethodField()
     created_at = PersianCharField(source="created_at_jalali", read_only=True)
 
@@ -88,10 +97,17 @@ class FormSubmissionDetailSerializer(serializers.ModelSerializer):
         fields = (
             "id", "submission_number", "schema_slug", "schema_version",
             "submitter_username", "data", "status", "notes",
-            "workflow_instance_id", "submitted_at", "reviewed_at",
-            "reviewer_username", "attachment_count", "created_at",
+            "workflow_instance_id", "tracking_number", "workflow_status",
+            "submitted_at", "reviewed_at",
+            "reviewer_username", "attachment_count", "created_at", "actions",
         )
         read_only_fields = fields
+
+    def get_tracking_number(self, obj) -> str:
+        return getattr(obj.workflow_instance, "tracking_number", "") or ""
+
+    def get_workflow_status(self, obj) -> str:
+        return getattr(obj.workflow_instance, "status", "") or ""
 
     def get_attachment_count(self, obj) -> int:
         return obj.attachments.count()

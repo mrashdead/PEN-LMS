@@ -36,6 +36,7 @@ from apps.workflow.models import (
     Instance,
     InstanceCopy,
     NotificationOutbox,
+    RequestSequence,
     State,
     Transition,
     WorkflowDefinition,
@@ -55,7 +56,43 @@ _ACTION_NAME_ALIASES: dict[str, set[str]] = {
 }
 
 
+def _next_tracking_number() -> str:
+    """
+    Reserve the next human Tracking ID: ``REQ-<gregorian-year>-000123``.
+
+    The counter is GLOBAL per year, not per workflow code. The number itself
+    only encodes a year, so a per-code counter hands ``REQ-2026-000001`` to
+    the first instance of EVERY process — and Instance.tracking_number is
+    live-unique (migration 0008 proved it on real data with a UniqueViolation
+    while creating the index). One counter per year makes uniqueness
+    structural; the workflow type is a JOIN away whenever it matters.
+
+    PostgreSQL: the year row is locked with select_for_update. SQLite
+    (tests): row locking is a no-op, so the caller's transaction + the
+    live-unique constraint are the source of truth — a collision raises
+    IntegrityError and the engine never silently reuses a tracking number.
+
+    Year is Gregorian on purpose: the same convention as
+    forms.next_submission_number, so an instance and its linked submission
+    created in the same moment share a year prefix.
+    """
+    year = timezone.now().year
+    try:
+        with transaction.atomic():
+            sequence, _created = RequestSequence.objects.get_or_create(
+                year=year, defaults={"last_value": 0},
+            )
+    except IntegrityError:
+        # Concurrent creation of the year row — take the winner.
+        sequence = RequestSequence.objects.get(year=year)
+    sequence = RequestSequence.objects.select_for_update().get(pk=sequence.pk)
+    sequence.last_value = (sequence.last_value or 0) + 1
+    sequence.save(update_fields=["last_value", "updated_at"])
+    return f"REQ-{year}-{sequence.last_value:06d}"
+
+
 class WorkflowEngineError(Exception):
+
     """Base exception for all workflow engine errors."""
 
 
@@ -130,7 +167,9 @@ class WorkflowEngineService:
                 f"فرآیند '{workflow_code}' State اولیه (is_initial) ندارد."
             )
 
-        # 3. ساخت Instance
+        # 3. ساخت Instance — allocate the human Tracking ID inside the same
+        #    atomic block as the row, so a rolled-back create also rolls back
+        #    the sequence bump (no gap, no reuse).
         instance = Instance.objects.create(
             workflow_definition=wf,
             current_state=initial_state,
@@ -138,6 +177,7 @@ class WorkflowEngineService:
             title=title,
             description=description,
             status=Instance.Status.RUNNING,
+            tracking_number=_next_tracking_number(),
         )
 
         # 4. ثبت ActionLog

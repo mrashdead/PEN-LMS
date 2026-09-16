@@ -19,15 +19,25 @@ Attendance/grade writes: teacher-of-class OR manager (object check on session).
 """
 from __future__ import annotations
 
-from django.db import transaction
+from django.core.exceptions import ValidationError
+from django.db import models, transaction
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.group_permissions import StrictDjangoModelPermissions
-from apps.core.permissions import IsAcademicManager, IsActiveUser, IsManagerOrAdmin
+from apps.core.crud_views import SoftDeleteView, SoftRestoreView
+from apps.core.permissions import (
+    IsAcademicManager,
+    IsActiveUser,
+    IsManagerOrAdmin,
+    IsTeacherPortalUser,
+    ResourceCRUDPermission,
+)
+from apps.core.utils import persian_date
 from apps.academics.scoping import education_sessions_visible_to
 from apps.education.models import (
+    AcademicHoliday,
     AttendanceRecord,
     ClassSession,
     Course,
@@ -38,6 +48,7 @@ from apps.education.models import (
     OfferingEnrollment,
 )
 from apps.education.serializers import (
+    AcademicHolidaySerializer,
     AttendanceRecordSerializer,
     ClassSessionSerializer,
     CourseOfferingSerializer,
@@ -53,6 +64,16 @@ from apps.education.services import (
     create_session,
     enroll_student,
     generate_sessions,
+    update_session,
+    learner_attendance_summary,
+    learner_report_cards,
+    learner_students,
+    record_session_attendance,
+    roster_students,
+    save_report_cards,
+    teacher_classes,
+    teacher_report_cards,
+    _resolve_learner_person,
 )
 
 
@@ -70,10 +91,100 @@ class DepartmentListCreateView(generics.ListCreateAPIView):
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
 
 
+class DepartmentDetailView(generics.RetrieveUpdateAPIView):
+    queryset = Department.objects.all()
+    serializer_class = DepartmentSerializer
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
+
+
+class DepartmentSoftDeleteView(SoftDeleteView):
+    queryset = Department.objects.all()
+    resource_key = "departments"
+
+
+class DepartmentRestoreView(SoftRestoreView):
+    queryset = Department.all_objects.all()
+    resource_key = "departments"
+
+
 class LocationListCreateView(generics.ListCreateAPIView):
     queryset = Location.objects.all()
     serializer_class = LocationSerializer
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+
+
+class LocationDetailView(generics.RetrieveUpdateAPIView):
+    queryset = Location.objects.all()
+    serializer_class = LocationSerializer
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
+
+
+class LocationSoftDeleteView(SoftDeleteView):
+    queryset = Location.objects.all()
+    resource_key = "locations"
+
+
+class LocationRestoreView(SoftRestoreView):
+    queryset = Location.all_objects.all()
+    resource_key = "locations"
+
+
+class HolidayListCreateView(generics.ListCreateAPIView):
+    """
+    GET/POST /api/education/holidays/ — تقویم تعطیلات (منبع پرشِ موتور جلسات).
+
+    GET فیلترهای اختیاری: ?from=YYYY-MM-DD&to=YYYY-MM-DD&scope=official|weekly|
+    institute&location=<id>&active=true. خواندن برای کارکنان آموزشی آزاد است
+    (تقویم باید تعطیلی را نشانشان دهد)، نوشتن فقط مدیر.
+    """
+
+    queryset = AcademicHoliday.objects.select_related("location").all()
+    serializer_class = AcademicHolidaySerializer
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+
+    def get_queryset(self):
+        qs = super().get_queryset().order_by("date_from", "scope")
+        p = self.request.query_params
+        date_from = (p.get("from") or "").strip()
+        date_to = (p.get("to") or "").strip()
+        if date_from:
+            # Overlap: anything whose range reaches into the window, plus all
+            # weekly rules (they repeat regardless of the stored single date).
+            qs = qs.filter(
+                models.Q(scope=AcademicHoliday.Scope.WEEKLY)
+                | models.Q(date_to__gte=date_from)
+            )
+        if date_to:
+            qs = qs.filter(
+                models.Q(scope=AcademicHoliday.Scope.WEEKLY)
+                | models.Q(date_from__lte=date_to)
+            )
+        scope = (p.get("scope") or "").strip()
+        if scope:
+            qs = qs.filter(scope=scope)
+        location = (p.get("location") or "").strip()
+        if location:
+            qs = qs.filter(location_id=location)
+        active = p.get("active")
+        if active is not None:
+            qs = qs.filter(is_active=active.lower() in {"1", "true", "yes"})
+        return qs
+
+
+class HolidayDetailView(generics.RetrieveUpdateAPIView):
+    queryset = AcademicHoliday.objects.select_related("location").all()
+    serializer_class = AcademicHolidaySerializer
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
+
+
+class HolidaySoftDeleteView(SoftDeleteView):
+    queryset = AcademicHoliday.objects.all()
+    resource_key = "holidays"
+
+
+class HolidayRestoreView(SoftRestoreView):
+    queryset = AcademicHoliday.all_objects.all()
+    resource_key = "holidays"
 
 
 class LessonListCreateView(generics.ListCreateAPIView):
@@ -85,7 +196,17 @@ class LessonListCreateView(generics.ListCreateAPIView):
 class LessonDetailView(generics.RetrieveUpdateAPIView):
     queryset = Lesson.objects.all()
     serializer_class = LessonSerializer
-    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
+
+
+class LessonSoftDeleteView(SoftDeleteView):
+    queryset = Lesson.objects.all()
+    resource_key = "lessons"
+
+
+class LessonRestoreView(SoftRestoreView):
+    queryset = Lesson.all_objects.all()
+    resource_key = "lessons"
 
 
 class CourseListCreateView(generics.ListCreateAPIView):
@@ -97,7 +218,17 @@ class CourseListCreateView(generics.ListCreateAPIView):
 class CourseDetailView(generics.RetrieveUpdateAPIView):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
-    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
+
+
+class CourseSoftDeleteView(SoftDeleteView):
+    queryset = Course.objects.all()
+    resource_key = "courses"
+
+
+class CourseRestoreView(SoftRestoreView):
+    queryset = Course.all_objects.all()
+    resource_key = "courses"
 
 
 class OfferingListCreateView(generics.ListCreateAPIView):
@@ -109,26 +240,75 @@ class OfferingListCreateView(generics.ListCreateAPIView):
 class OfferingDetailView(generics.RetrieveUpdateAPIView):
     queryset = CourseOffering.objects.select_related("course", "location", "instructor")
     serializer_class = CourseOfferingSerializer
-    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
+
+
+class OfferingSoftDeleteView(SoftDeleteView):
+    queryset = CourseOffering.objects.all()
+    resource_key = "offerings"
+
+
+class OfferingRestoreView(SoftRestoreView):
+    queryset = CourseOffering.all_objects.all()
+    resource_key = "offerings"
 
 
 class OfferingGenerateSessionsView(APIView):
-    """POST /offerings/{id}/generate-sessions/ — materialize the weekly
-    schedule into real sessions (conflict-checked). Optional {weeks:int}."""
+    """POST /offerings/{id}/generate-sessions/ — materialize the recurrence
+    rule into real sessions (conflict-checked, holiday-aware).
 
-    permission_classes = (IsActiveUser, IsManagerOrAdmin, StrictDjangoModelPermissions)
+    NOTE: kept for the offering-level (no class code) flow. The class-
+    formation form (§2) uses POST /class-formation/ instead, which threads
+    class_code/lesson/teacher/location overrides through the same engine.
+
+    Body (all optional):
+      {"count": 20,        # EXACT number of sessions (else total_sessions,
+                           #   else legacy hours-distribution mode)
+       "weeks": 12,        # hours-mode horizon
+       "regenerate": true, # soft-delete this offering's future SCHEDULED
+                           #   sessions first (idempotent wizard re-run)
+       "strict": false}    # true → any room/teacher collision aborts with 400
+                           #   instead of pushing the slot a week forward
+    """
+
+    # NOTE: NO StrictDjangoModelPermissions — queryset-less APIView makes that
+    # class raise ImproperlyConfigured (→ HTTP 500) inside DRF's
+    # get_required_permissions (the §13-7 reports pitfall, found here too).
+    # The role gate + the offering lookup below are the authority.
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
 
     def post(self, request, pk):
         offering = CourseOffering.objects.filter(pk=pk).first()
         if offering is None:
             return Response({"error": "برگزاری یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
-        weeks = request.data.get("weeks")
+
+        def _int(name):
+            raw = request.data.get(name)
+            try:
+                return int(raw) if raw not in (None, "") else None
+            except (TypeError, ValueError):
+                raise ValueError(name)
+
         try:
-            weeks = int(weeks) if weeks not in (None, "") else None
-        except (TypeError, ValueError):
-            weeks = None
+            weeks = _int("weeks")
+            count = _int("count")
+        except ValueError as exc:
+            return Response(
+                {str(exc): "باید عدد صحیح باشد."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if count is not None and count <= 0:
+            return Response(
+                {"count": "تعداد جلسات باید بزرگ‌تر از صفر باشد."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        regenerate = str(request.data.get("regenerate") or "").lower() in {"1", "true", "yes"}
+        strict = str(request.data.get("strict") or "").lower() in {"1", "true", "yes"}
         try:
-            result = generate_sessions(offering=offering, actor=request.user, weeks=weeks)
+            result = generate_sessions(
+                offering=offering, actor=request.user,
+                weeks=weeks, count=count, regenerate=regenerate, strict=strict,
+            )
         except EducationServiceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(result, status=status.HTTP_200_OK)
@@ -137,7 +317,10 @@ class OfferingGenerateSessionsView(APIView):
 class OfferingEnrollView(APIView):
     """POST /offerings/{id}/enroll/ — capacity enforced under a row lock (B4)."""
 
-    permission_classes = (IsActiveUser, IsManagerOrAdmin, StrictDjangoModelPermissions)
+    # Queryset-less APIView again: StrictDjangoModelPermissions would 500
+    # inside DRF here too. IsManagerOrAdmin is the authority (same trio the
+    # class was already carrying).
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
 
     def post(self, request, pk):
         offering = CourseOffering.objects.filter(pk=pk).first()
@@ -195,10 +378,20 @@ class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
 
 class OfferingEnrollmentDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = OfferingEnrollmentSerializer
-    permission_classes = (IsActiveUser, IsManagerOrAdmin, StrictDjangoModelPermissions)
+    permission_classes = (IsActiveUser, IsManagerOrAdmin, StrictDjangoModelPermissions, ResourceCRUDPermission)
     queryset = OfferingEnrollment.objects.filter(is_deleted=False).select_related(
         "offering", "offering__course", "student"
     )
+
+
+class EnrollmentSoftDeleteView(SoftDeleteView):
+    queryset = OfferingEnrollment.objects.all()
+    resource_key = "enrollments"
+
+
+class EnrollmentRestoreView(SoftRestoreView):
+    queryset = OfferingEnrollment.all_objects.all()
+    resource_key = "enrollments"
 
 
 class SessionListCreateView(generics.ListCreateAPIView):
@@ -231,6 +424,7 @@ class SessionListCreateView(generics.ListCreateAPIView):
                 lesson=vd.get("lesson"),
                 teacher=vd.get("teacher"),
                 location=vd.get("location"),
+                class_code=vd.get("class_code", ""),
                 title=vd.get("title", ""),
                 actor=request.user,
             )
@@ -243,17 +437,72 @@ class SessionListCreateView(generics.ListCreateAPIView):
 
 
 class SessionDetailView(generics.RetrieveUpdateAPIView):
+    """GET/PATCH /sessions/{id}/ — a generated session stays individually
+    editable (task §3.ب: move one session for a closure, retune its hours,
+    shift its room). Every schedule-bearing edit goes through
+    ``update_session`` so the same room/teacher/class conflict rules apply
+    as on create — except the row itself."""
+
     serializer_class = ClassSessionSerializer
-    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
 
     def get_queryset(self):
         return education_sessions_visible_to(self.request.user)
 
 
+class SessionSoftDeleteView(SoftDeleteView):
+    resource_key = "sessions"
+
+    def get_queryset(self):
+        return education_sessions_visible_to(self.request.user)
+
+
+class SessionRestoreView(SoftRestoreView):
+    queryset = ClassSession.all_objects.all()
+    resource_key = "sessions"
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        vd = dict(serializer.validated_data)
+        # re-parenting an existing session is not a manual adjustment —
+        # formation owns that; silently drop these keys.
+        vd.pop("offering", None)
+        vd.pop("session_number", None)
+        schedule_fields = {
+            k: vd.pop(k)
+            for k in ("session_date", "start_time", "end_time",
+                      "teacher", "location", "lesson", "title", "status",
+                      "class_code")
+            if k in vd
+        }
+        if schedule_fields:
+            try:
+                session = update_session(
+                    session=instance, actor=request.user, **schedule_fields
+                )
+            except EducationServiceError as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        else:  # legacy_id or other non-schedule metadata
+            for attr, value in vd.items():
+                setattr(instance, attr, value)
+            session = instance
+            if vd:
+                instance.save()
+        return Response(self.get_serializer(session).data)
+
+
 class SessionBulkAttendanceView(APIView):
     """POST /sessions/{id}/attendance/ — bulk, idempotent roster post (B4)."""
 
-    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+    # Same queryset-less-APIView rule as above: role class is the gate, and
+    # per-object ownership (teacher == session teacher) is checked below.
+    # NOTE: this is deliberately NOT IsAcademicManager — that class refuses
+    # every POST from a plain teacher (its write trio is manager-only), which
+    # made the ownership check below dead code. IsTeacherPortalUser admits the
+    # teacher role; the check below is the row authority.
+    permission_classes = (IsActiveUser, IsTeacherPortalUser)
 
     def post(self, request, pk):
         session = ClassSession.objects.filter(pk=pk).first()
@@ -301,6 +550,346 @@ class SessionAttendanceListView(generics.ListAPIView):
         return AttendanceRecord.objects.filter(
             session_id=self.kwargs["pk"], is_deleted=False
         ).select_related("student")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Teacher portal — roster + descriptive report cards + learner portal
+# ─────────────────────────────────────────────────────────────────────────────
+
+class OfferingRosterView(APIView):
+    """GET /offerings/{id}/roster/ — active students of the offering's class.
+
+    Auto-populates the attendance/report form. Teacher may read only their own
+    offerings; managers any. Returns [{id, name, student_code}].
+    """
+
+    permission_classes = (IsActiveUser, IsTeacherPortalUser)
+
+    def get(self, request, pk):
+        offering = CourseOffering.objects.filter(pk=pk, is_deleted=False).first()
+        if offering is None:
+            return Response({"detail": "برگزاری یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        person = _student_of(request)
+        roles = request.user.role_codes()
+        is_manager = bool(roles & {"manager", "workflow_admin", "hr"})
+        if not is_manager and (person is None or offering.instructor_id != person.pk):
+            return Response({"detail": "دسترسی ندارید."}, status=status.HTTP_403_FORBIDDEN)
+        return Response({"results": roster_students(offering=offering)})
+
+
+class OfferingSessionSheetView(APIView):
+    """GET /offerings/{id}/sheet/?session=<id> — attendance sheet read model.
+
+    Merges the offering roster (task §2.3 auto-population) with the saved
+    AttendanceRecords of one session, so the teacher page renders one row per
+    student with status + note prefilled. ``session`` omitted → fresh sheet
+    (empty statuses) for the picker's "new session" mode. Ownership: the
+    offering's teacher or a manager — the SAME rule as the record write, and
+    deliberately no StrictDjangoModelPermissions here (queryset-less APIView;
+    the teacher portal must not depend on per-model view_* grants).
+    """
+
+    permission_classes = (IsActiveUser, IsTeacherPortalUser)
+
+    def get(self, request, pk):
+        offering = CourseOffering.objects.filter(pk=pk, is_deleted=False).first()
+        if offering is None:
+            return Response({"detail": "برگزاری یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        person = _student_of(request)
+        roles = request.user.role_codes()
+        is_manager = bool(roles & {"manager", "workflow_admin", "hr"})
+        if not is_manager and (person is None or offering.instructor_id != person.pk):
+            return Response({"detail": "دسترسی ندارید."}, status=status.HTTP_403_FORBIDDEN)
+
+        session_id = (request.query_params.get("session") or "").strip()
+        session = None
+        if session_id:
+            session = ClassSession.objects.filter(
+                pk=session_id, offering=offering, is_deleted=False
+            ).first()
+            if session is None:
+                return Response({"detail": "جلسه در این کلاس یافت نشد."},
+                                status=status.HTTP_404_NOT_FOUND)
+
+        saved = {}
+        if session is not None:
+            saved = {
+                str(r.student_id): {"status": r.status, "note": r.note}
+                for r in AttendanceRecord.objects.filter(
+                    session=session, is_deleted=False
+                )
+            }
+        # The class's own session list — powers the sheet's session dropdown
+        # (pick a recorded session to edit, or choose «جلسه جدید»).
+        sessions = [
+            {
+                "id": str(s.pk),
+                "number": s.session_number,
+                "date": s.session_date.isoformat(),
+                "date_jalali": persian_date(s.session_date),
+                "start": s.start_time.strftime("%H:%M"),
+                "end": s.end_time.strftime("%H:%M"),
+                "status": s.status,
+                "recorded": s.recorded,
+            }
+            for s in ClassSession.objects.filter(
+                offering=offering, is_deleted=False
+            ).annotate(
+                recorded=models.Count(
+                    "attendances", filter=models.Q(attendances__is_deleted=False)
+                )
+            ).order_by("session_date", "start_time")[:200]
+        ]
+
+        roster = roster_students(offering=offering)
+        for row in roster:
+            got = saved.pop(row["id"], None)
+            row["status"] = got["status"] if got else ""
+            row["note"] = got["note"] if got else ""
+        # students who had a record but left the roster (withdrawn): keep them
+        # visible so the teacher sees the historical line, flagged.
+        from apps.persons.models import Person
+
+        for sid, vals in saved.items():
+            p = Person.objects.filter(pk=sid).first()
+            if p is None:
+                continue
+            roster.append({
+                "id": sid,
+                "name": (p.first_name + " " + p.last_name).strip(),
+                "student_code": p.student_code or "",
+                "status": vals["status"],
+                "note": vals["note"],
+                "inactive": True,
+            })
+        return Response({
+            "session": None if session is None else {
+                "id": str(session.pk),
+                "session_number": session.session_number,
+                "title": session.title,
+                "lesson": str(session.lesson_id) if session.lesson_id else "",
+                "status": session.status,
+            },
+            "rows": roster,
+            "sessions": sessions,
+            "offering": {
+                "id": str(offering.pk),
+                "title": offering.title or (offering.course.title if offering.course_id else ""),
+                "schedule": offering.schedule or {},
+                "location": offering.location.name if offering.location_id else "",
+            },
+        })
+
+
+class OfferingRecordSessionView(APIView):
+    """POST /offerings/{id}/record-session/ — the teacher-portal attendance write.
+
+    ONE request = the whole session sheet: session metadata (Jalali date,
+    number, start/end) + one row per auto-loaded student. The service runs it
+    in a single ``transaction.atomic`` (find-or-create ClassSession + bulk
+    upsert AttendanceRecord), refuses a second session on the same date or a
+    duplicated session number, and returns the stored sheet's counters.
+
+    body: {session_date (jalali), start_time, end_time,
+           session_number?, session_id?, lesson?, title?,
+           rows: [{student, status: present|absent|late|excused, note?}]}
+    """
+
+    permission_classes = (IsActiveUser, IsTeacherPortalUser)
+
+    def post(self, request, pk):
+        offering = CourseOffering.objects.filter(pk=pk, is_deleted=False).first()
+        if offering is None:
+            return Response({"detail": "برگزاری یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        person = _student_of(request)
+        roles = request.user.role_codes()
+        is_manager = bool(roles & {"manager", "workflow_admin", "hr"})
+        if not is_manager and (person is None or offering.instructor_id != person.pk):
+            return Response(
+                {"detail": "فقط مدرس این کلاس یا مدیر می‌تواند حضور ثبت کند."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        # Parse through the session serializer — Jalali date + HH:MM contract
+        # identical to the manager path (server stays the source of truth).
+        payload = dict(request.data or {})
+        payload["offering"] = str(offering.pk)
+        serializer = ClassSessionSerializer(data=payload, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        rows = payload.get("rows") or []
+        if not isinstance(rows, list) or not rows:
+            return Response({"rows": "فهرست ردیف‌ها الزامی است."}, status=status.HTTP_400_BAD_REQUEST)
+        session_id = payload.get("session_id") or None
+        # Take the number from the RAW payload: the serializer defaults it to
+        # 1 when omitted, but «omitted» here must mean «next available» (the
+        # service derives max+1), not «force session #1».
+        raw_number = payload.get("session_number")
+        try:
+            session_number = int(raw_number) if raw_number not in (None, "") else None
+        except (TypeError, ValueError):
+            return Response({"session_number": "باید عدد صحیح باشد."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if session_number is not None and session_number < 1:
+            return Response({"session_number": "شماره جلسه باید مثبت باشد."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        replace = str(payload.get("replace", True)).lower() in {"1", "true", "yes"}
+        try:
+            result = record_session_attendance(
+                offering=offering,
+                session_date=vd["session_date"],
+                start_time=vd["start_time"],
+                end_time=vd["end_time"],
+                rows=rows,
+                actor=request.user,
+                session_id=session_id,
+                session_number=session_number,
+                lesson=vd.get("lesson"),
+                title=vd.get("title", ""),
+                replace=replace,
+            )
+        except EducationServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class OfferingReportCardsView(APIView):
+    """Descriptive report cards for one offering (teacher-of-class / manager).
+
+    GET  → the offering's roster merged with any saved cards (pre-fill).
+    POST → {"rows": [{student, result: passed|failed, teacher_note}]}
+           Atomic + idempotent (update_or_create); failed ⇒ note required.
+    """
+
+    permission_classes = (IsActiveUser, IsTeacherPortalUser)
+
+    def _offering_or_denied(self, request, pk):
+        offering = CourseOffering.objects.filter(pk=pk, is_deleted=False).first()
+        if offering is None:
+            return None, Response(
+                {"detail": "برگزاری یافت نشد."}, status=status.HTTP_404_NOT_FOUND
+            )
+        person = _student_of(request)
+        roles = request.user.role_codes()
+        is_manager = bool(roles & {"manager", "workflow_admin", "hr"})
+        if not is_manager and (person is None or offering.instructor_id != person.pk):
+            return None, Response(
+                {"detail": "فقط مدرس این برگزاری یا مدیر."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return offering, None
+
+    def get(self, request, pk):
+        offering, denied = self._offering_or_denied(request, pk)
+        if denied is not None:
+            return denied
+        return Response({
+            "roster": roster_students(offering=offering),
+            "cards": teacher_report_cards(offering),
+        })
+
+    def post(self, request, pk):
+        offering, denied = self._offering_or_denied(request, pk)
+        if denied is not None:
+            return denied
+        rows = (request.data or {}).get("rows") or []
+        if not isinstance(rows, list) or not rows:
+            return Response({"rows": "فهرست ردیف‌ها الزامی است."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            result = save_report_cards(offering=offering, rows=rows, actor=request.user)
+        except EducationServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class LearnerPortalView(APIView):
+    """GET /portal/?student=<id> — attendance summary + report cards.
+
+    Student → their own rows (``student`` optional, must match them). Guardian
+    → exactly one of their ACTIVE wards (``student`` required; the switcher
+    list comes back as ``students`` so a parent of two can toggle). Resolution
+    runs through ``_resolve_learner_person`` — there is no path to another
+    student's data, and the role code alone grants nothing.
+    """
+
+    permission_classes = (IsActiveUser,)
+
+    def get(self, request):
+        student_id = (request.query_params.get("student") or "").strip() or None
+        person = _resolve_learner_person(request.user, student_id)
+        students = learner_students(request.user)
+        if person is None:
+            return Response({
+                "detail": "شما دانش‌آموز یا ولیّ ثبت‌شده‌ی این حساب نیستید.",
+                "students": students,
+            }, status=status.HTTP_403_FORBIDDEN)
+        return Response({
+            "student": next((s for s in students if s["id"] == str(person.pk)),
+                            {"id": str(person.pk), "name": person.display_name,
+                             "student_code": person.student_code or "", "relation": "self"}),
+            "students": students,
+            "attendance": learner_attendance_summary(request.user, student=person),
+            "report_cards": learner_report_cards(request.user, student=person),
+        })
+
+
+class TeacherClassesView(APIView):
+    """GET /teacher/classes/ — offerings assigned to this teacher + upcoming
+    sessions. Powers the teacher dashboard and the class pickers.
+
+    Teacher-only read; a manager may also call it (returns their own, which is
+    empty unless they are an instructor) — the scoping is by instructor==person.
+    """
+
+    permission_classes = (IsActiveUser, IsAcademicManager)
+
+    def get(self, request):
+        return Response({"results": teacher_classes(request.user)})
+
+
+class OfferingCreateSessionView(APIView):
+    """POST /offerings/{id}/sessions/ — teacher (or manager) creates a real
+    session for their own offering; conflict-checked via create_session.
+
+    body: {session_date (jalali), start_time, end_time, session_number?, lesson?}
+    """
+
+    permission_classes = (IsActiveUser, IsTeacherPortalUser)
+
+    def post(self, request, pk):
+        offering = CourseOffering.objects.filter(pk=pk, is_deleted=False).first()
+        if offering is None:
+            return Response({"detail": "برگزاری یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        person = _student_of(request)
+        roles = request.user.role_codes()
+        is_manager = bool(roles & {"manager", "workflow_admin", "hr"})
+        if not is_manager and (person is None or offering.instructor_id != person.pk):
+            return Response({"detail": "فقط مدرس این برگزاری یا مدیر."}, status=status.HTTP_403_FORBIDDEN)
+        # Validate through the session serializer so Jalali date + HH:MM times
+        # parse exactly like the manager path (no raw-string coercion).
+        payload = dict(request.data or {})
+        payload["offering"] = str(offering.pk)
+        serializer = ClassSessionSerializer(data=payload, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        try:
+            session = create_session(
+                offering=offering,
+                session_date=vd["session_date"],
+                start_time=vd["start_time"],
+                end_time=vd["end_time"],
+                session_number=vd.get("session_number") or None,
+                lesson=vd.get("lesson"),
+                teacher=offering.instructor,
+                location=offering.location,
+                title=vd.get("title", ""),
+                actor=request.user,
+            )
+        except EducationServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            ClassSessionSerializer(session, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -353,3 +942,147 @@ class CapacityReportView(APIView):
         from apps.education.reports import capacity_report
 
         return Response({"offerings": capacity_report(user=request.user)})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# «تشکیل کلاس» — class formation (form 2): prefill → preview → atomic generate
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _offering_or_404(pk):
+    try:
+        return CourseOffering.objects.filter(pk=pk, is_deleted=False).first()
+    except (ValidationError, TypeError, ValueError):
+        # a garbage path/uuid param is a 404, never a 500
+        return None
+
+
+class OfferingFormationView(APIView):
+    """GET /offerings/{id}/formation/ — everything the class-formation form
+    needs to auto-fill from the offering: proposed place, days+hours, the
+    offering's lesson list (ordered, with hours), instructor, start date,
+    a suggested class code and the already-formed classes.
+
+    The values are SUGGESTIONS — the form posts them back (edited or not) to
+    POST /class-formation/.
+    """
+
+    permission_classes = (IsActiveUser, IsAcademicManager)
+
+    def get(self, request, pk):
+        from apps.education.class_formation import formation_prefill
+        from apps.education.serializers import classes_of_offering
+
+        offering = _offering_or_404(pk)
+        if offering is None:
+            return Response({"detail": "برگزاری یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        payload = formation_prefill(offering).as_dict()
+        payload["classes"] = classes_of_offering(offering)
+        return Response(payload)
+
+
+class ClassFormationPreviewView(APIView):
+    """POST /class-formation/preview/ — dry-run of the generator: exact N
+    numbered sessions with holiday jumps and per-row conflict flags, WITHOUT
+    writing anything. Same validation contract as the real POST, so what the
+    user previews is what the submit will produce."""
+
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
+
+    def post(self, request):
+        from apps.education.class_formation import preview_sessions
+        from apps.education.models import Location
+        from apps.persons.models import Person
+
+        offering = _offering_or_404(request.data.get("offering") or "")
+        if offering is None:
+            return Response({"offering": "برگزاری دوره یافت نشد."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            count = request.data.get("count")
+            # blank/absent → None (meaning "use the offering's proposal");
+            # a bad id → explicit error, not a silent default.
+            location = self._model_or_none(Location, request.data.get("location"),
+                                           "فضای انتخابی یافت نشد.")
+            teacher = self._model_or_none(Person, request.data.get("teacher"),
+                                          "استاد انتخابی یافت نشد.")
+            raw_skip = request.data.get("skip_holidays")
+            skip = (None if raw_skip in (None, "")
+                    else str(raw_skip).lower() in {"1", "true", "yes"})
+            data = preview_sessions(
+                offering=offering,
+                lesson=request.data.get("lesson"),
+                schedule=request.data.get("schedule") or {},
+                start_date=_parse_iso_date(request.data.get("start_date")),
+                count=int(count) if count not in (None, "") else 0,
+                location=location,
+                teacher=teacher,
+                skip_holidays=skip,
+            )
+        except (EducationServiceError, ValueError) as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(data)
+
+    @staticmethod
+    def _model_or_none(model, raw, message):
+        if raw in (None, ""):
+            return None
+        try:
+            obj = model.objects.filter(pk=raw, is_deleted=False).first()
+        except (ValidationError, ValueError, TypeError):
+            obj = None
+        if obj is None:
+            raise EducationServiceError(message)
+        return obj
+
+
+class ClassFormationView(APIView):
+    """POST /class-formation/ — the «تشکیل کلاس» submit.
+
+    Validated through ClassFormationSerializer (offering/lesson existence,
+    teacher active, schedule grammar), then handed to
+    ClassSessionGeneratorService: ONE atomic transaction that produces
+    exactly N ClassSession rows (1..N per class code), jumping holidays and
+    pushing conflicted slots a week forward (or aborting everything under
+    strict=true). Room/teacher double-booking is impossible — the same row-
+    lock protocol as create_session.
+    """
+
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
+
+    def post(self, request):
+        from apps.education.serializers import ClassFormationSerializer
+
+        serializer = ClassFormationSerializer(
+            data=request.data, context={"request": request}
+        )
+        try:
+            serializer.is_valid(raise_exception=True)
+            result = serializer.save()
+        except EducationServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+def _parse_iso_date(value):
+    """accept jalali ۱۴۰۴/۰۷/۰۱ (the form format, dashes too — same
+    ambiguity rule as core.fields.JalaliDateField) or gregorian YYYY-MM-DD."""
+    from apps.core.utils import english_numbers
+    import datetime as dt
+    import jdatetime
+    raw = (str(value).strip() if value not in (None, "") else "")
+    if not raw:
+        return None
+    raw = english_numbers(raw)
+    # JalaliDateField parses BOTH separators as jalali; mirror it unless the
+    # year is unmistakably gregorian (>= 1500 only via ISO dashes with a
+    # 4-digit year that is out of the jalali range in use, e.g. 19xx/20xx
+    # written as ISO). Years 1300–1499 are always treated as jalali.
+    for fmt in ("%Y/%m/%d", "%Y-%m-%d"):
+        try:
+            return jdatetime.datetime.strptime(raw, fmt).date().togregorian()
+        except ValueError:
+            continue
+    try:
+        return dt.date.fromisoformat(raw)
+    except ValueError:
+        raise ValueError("قالب تاریخ باید ۱۴۰۴/۰۷/۰۱ یا YYYY-MM-DD باشد.")

@@ -43,6 +43,7 @@ INSTALLED_APPS: list[str] = [
     "apps.forms",
     "apps.messaging",
     "apps.org",
+    "apps.reports",
 ]
 
 MIDDLEWARE: list[str] = [
@@ -75,6 +76,7 @@ TEMPLATES: list[dict[str, Any]] = [
             # to a running process).
             "libraries": {
                 "asset_v": "apps.core.templatetags.asset_v",
+                "rbac": "apps.core.templatetags.rbac",
             },
             "context_processors": [
                 "django.template.context_processors.debug",

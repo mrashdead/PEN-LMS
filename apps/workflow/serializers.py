@@ -8,6 +8,7 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from apps.core.fields import PersianCharField
+from apps.core.serializers import CRUDActionsMixin
 from apps.workflow.models import (
     ActionLog,
     ApprovalRecord,
@@ -29,7 +30,8 @@ class WorkflowDefinitionSerializer(serializers.ModelSerializer):
         fields = ("id", "code", "name", "description", "is_active", "version", "created_at", "updated_at")
 
 
-class InstanceListSerializer(serializers.ModelSerializer):
+class InstanceListSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     """سریالایزر خلاصه Instance — برای لیست"""
 
     workflow_definition_code = serializers.SlugRelatedField(
@@ -48,6 +50,7 @@ class InstanceListSerializer(serializers.ModelSerializer):
         model = Instance
         fields = (
             "id",
+            "tracking_number",
             "workflow_definition_code",
             "current_state_code",
             "requester_username",
@@ -55,11 +58,13 @@ class InstanceListSerializer(serializers.ModelSerializer):
             "description",
             "status",
             "created_at",
-            "updated_at",
+            "updated_at", "actions",
         )
+        read_only_fields = ("tracking_number",)
 
 
-class InstanceDetailSerializer(serializers.ModelSerializer):
+class InstanceDetailSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     """سریالایزر جزئیات Instance — برای نمایش تکی"""
 
     workflow_definition = WorkflowDefinitionSerializer(read_only=True)
@@ -78,6 +83,7 @@ class InstanceDetailSerializer(serializers.ModelSerializer):
         model = Instance
         fields = (
             "id",
+            "tracking_number",
             "workflow_definition",
             "current_state_code",
             "requester_username",
@@ -87,8 +93,9 @@ class InstanceDetailSerializer(serializers.ModelSerializer):
             "task_count",
             "submission",
             "created_at",
-            "updated_at",
+            "updated_at", "actions",
         )
+        read_only_fields = ("tracking_number",)
 
     def get_task_count(self, obj) -> dict:
         from apps.tasks.models import WorkflowTask

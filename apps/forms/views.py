@@ -29,7 +29,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.group_permissions import HasGroupPermission
-from apps.core.permissions import IsActiveUser
+from apps.core.crud_views import SoftDeleteView, SoftRestoreView
+from apps.core.permissions import IsActiveUser, ResourceCRUDPermission
 from apps.forms.filters import FormSubmissionFilterSet
 from apps.forms.models import (
     FormAttachment,
@@ -356,6 +357,18 @@ class FormSubmissionDetailView(generics.RetrieveUpdateAPIView):
         return Response(
             FormSubmissionDetailSerializer(submission, context={"request": request}).data
         )
+
+
+class FormSubmissionSoftDeleteView(SoftDeleteView):
+    queryset = FormSubmission.objects.all()
+    resource_key = "submissions"
+    lookup_url_kwarg = "submission_id"
+
+
+class FormSubmissionRestoreView(SoftRestoreView):
+    queryset = FormSubmission.all_objects.all()
+    resource_key = "submissions"
+    lookup_url_kwarg = "submission_id"
 
 
 class FormSubmissionSubmitView(APIView):

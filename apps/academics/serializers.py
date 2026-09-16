@@ -4,9 +4,11 @@ from rest_framework import serializers
 
 from apps.academics.models import AcademicTerm, ClassEnrollment, ClassGroup
 from apps.core.fields import JalaliDateField, PersianCharField
+from apps.core.serializers import CRUDActionsMixin
 
 
-class AcademicTermListSerializer(serializers.ModelSerializer):
+class AcademicTermListSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     """سریالایزر خلاصه برای لیست ترم‌ها."""
 
     start_date = JalaliDateField()
@@ -25,10 +27,12 @@ class AcademicTermListSerializer(serializers.ModelSerializer):
             "is_active",
             "created_at",
             "updated_at",
+            "actions",
         )
 
 
-class AcademicTermDetailSerializer(serializers.ModelSerializer):
+class AcademicTermDetailSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     """سریالایزر کامل ترم تحصیلی."""
 
     start_date = JalaliDateField()
@@ -54,6 +58,7 @@ class AcademicTermDetailSerializer(serializers.ModelSerializer):
             "note",
             "created_at",
             "updated_at",
+            "actions",
         )
         read_only_fields = ("created_at", "updated_at")
 
@@ -76,7 +81,8 @@ class AcademicTermCreateSerializer(serializers.ModelSerializer):
         )
 
 
-class ClassGroupListSerializer(serializers.ModelSerializer):
+class ClassGroupListSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     """سریالایزر خلاصه برای لیست کلاس‌ها."""
 
     term_title = serializers.CharField(source="term.title", read_only=True)
@@ -102,10 +108,12 @@ class ClassGroupListSerializer(serializers.ModelSerializer):
             "enrollment_count",
             "is_active",
             "created_at",
+            "actions",
         )
 
 
-class ClassGroupDetailSerializer(serializers.ModelSerializer):
+class ClassGroupDetailSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     """سریالایزر کامل کلاس."""
 
     term_title = serializers.CharField(source="term.title", read_only=True)
@@ -137,6 +145,7 @@ class ClassGroupDetailSerializer(serializers.ModelSerializer):
             "is_active",
             "created_at",
             "updated_at",
+            "actions",
         )
         read_only_fields = ("created_at", "updated_at")
 
@@ -158,7 +167,8 @@ class ClassGroupCreateSerializer(serializers.ModelSerializer):
         )
 
 
-class ClassEnrollmentListSerializer(serializers.ModelSerializer):
+class ClassEnrollmentListSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     """سریالایزر خلاصه ثبت‌نام."""
 
     class_group_name = serializers.CharField(source="class_group.name", read_only=True)
@@ -178,7 +188,7 @@ class ClassEnrollmentListSerializer(serializers.ModelSerializer):
             "student_code",
             "enrollment_date",
             "is_active",
-            "created_at",
+            "created_at", "actions",
         )
 
 

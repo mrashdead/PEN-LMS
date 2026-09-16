@@ -26,6 +26,7 @@ Design notes honoring the migration report:
 from __future__ import annotations
 
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
@@ -33,6 +34,13 @@ from apps.core.models import DomainModel
 from apps.core.utils import persian_numbers
 
 _ALIVE = models.Q(is_deleted=False)
+
+#: Business codes (OFFERING-1403-PY01, CLS-PY-01) keep the user's exact
+#: casing — hence CharField+validator instead of SlugField's lowercase.
+_BUSINESS_CODE_RE = RegexValidator(
+    r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$",
+    "کد باید با حرف یا رقم شروع شود و فقط شامل حروف لاتین، رقم، «-»، «_» یا «.» باشد.",
+)
 
 
 def next_sequential_code(model, prefix: str, field: str = "code") -> str:
@@ -270,6 +278,12 @@ class CourseOffering(DomainModel):
         Course, on_delete=models.PROTECT, related_name="offerings"
     )
     title = models.CharField(max_length=256, blank=True, default="")
+    code = models.CharField(
+        max_length=64, blank=True, default="",
+        validators=[_BUSINESS_CODE_RE],
+        help_text="عنوان/کد برگزاری — یکتا. مثال: OFFERING-1403-PY01؛ "
+                  "اگر خالی بماند به‌صورت خودکار of-0001 ساخته می‌شود.",
+    )
     department = models.ForeignKey(
         Department, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="offerings",
@@ -290,6 +304,14 @@ class CourseOffering(DomainModel):
         default=dict, blank=True,
         help_text="زمان برگزاری پیشنهادی: {days: [\"sat\",\"wed\"], start: \"18:00\", end: \"20:00\"}",
     )
+    total_sessions = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="تعداد کل جلسات دوره (فرم تشکیل کلاس) — ۰ = توزیع بر اساس ساعات تدریس.",
+    )
+    auto_skip_holidays = models.BooleanField(
+        default=True,
+        help_text="در تولید خودکار، روزهای تعطیل رسمی/جمعه‌ها حذف می‌شوند.",
+    )
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.DRAFT, db_index=True
     )
@@ -304,6 +326,10 @@ class CourseOffering(DomainModel):
         verbose_name_plural = "Course Offerings (برگزاری‌های دوره)"
         ordering = ("-created_at",)
         constraints = [
+            models.UniqueConstraint(
+                fields=["code"], condition=_ALIVE & ~models.Q(code=""),
+                name="uniq_edu_offering_code_alive",
+            ),
             models.CheckConstraint(
                 condition=models.Q(end_date__isnull=True)
                 | models.Q(start_date__isnull=True)
@@ -321,7 +347,41 @@ class CourseOffering(DomainModel):
         ]
 
     def __str__(self) -> str:
-        return self.title or f"{self.course} ({self.start_date})"
+        return self.code or self.title or f"{self.course} ({self.start_date})"
+
+    def save(self, *args, **kwargs):
+        # Offering code is a unique business key like lesson/course codes:
+        # auto-filled (of-0001) when the form leaves it empty, never reused
+        # after a soft delete (next_sequential_code scans _base_manager).
+        if not (self.code or "").strip():
+            self.code = next_sequential_code(CourseOffering, "of")
+        super().save(*args, **kwargs)
+
+    def clean(self) -> None:
+        self.code = (self.code or "").strip()
+
+    @property
+    def lesson_links(self):
+        """CourseLesson rows of this offering's course, in curriculum order."""
+        return (
+            self.course.course_lessons.filter(is_deleted=False)
+            .select_related("lesson")
+            .order_by("order")
+        )
+
+    @property
+    def teaching_minutes(self) -> int:
+        """Total scheduled teaching time of the offering, in minutes.
+
+        Per-lesson hours come from the CourseLesson row when it carries one
+        (the curriculum may override the lesson's own duration), otherwise
+        from the lesson itself. Used by the class-formation engine to derive
+        the session count (تعداد جلسات = مدت ÷ طول جلسه).
+        """
+        total = 0
+        for link in self.lesson_links:
+            total += (link.hours or (link.lesson.duration_hours if link.lesson_id else 0) or 0) * 60
+        return total
 
     @property
     def seats_left(self) -> int | None:
@@ -358,6 +418,13 @@ class ClassSession(DomainModel):
         Lesson, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="sessions",
     )
+    # کد قطعی کلاس (فرم «تشکیل کلاس») — جلساتِ یک درسِ همان برگزاری یک کد
+    # مشترک دارند؛ شماره‌گذاری جلسات در هر کدِ کلاس مستقل است (۱..N).
+    class_code = models.CharField(
+        max_length=64, blank=True, default="",
+        validators=[_BUSINESS_CODE_RE],
+        help_text="کد کلاس — مثال CLS-PY-01 (خالی = جلسات قدیمی/بدون کلاس)",
+    )
     session_number = models.PositiveSmallIntegerField(default=1)
     title = models.CharField(max_length=256, blank=True, default="")
     session_date = models.DateField(db_index=True)
@@ -392,12 +459,14 @@ class ClassSession(DomainModel):
                 | models.Q(class_group__isnull=False),
                 name="chk_edu_session_target",
             ),
-            # یک شماره جلسه در هر برگزاری، یکتا در میان جلسات زنده (§5).
-            # جلسه‌های بدون offering (پل فرم حضور/ClassGroup) با NULL مجازند.
+            # یک شماره جلسه در هر «کلاس» از یک برگزاری، یکتا در میان جلسات
+            # زنده (§5 + فرم تشکیل کلاس). class_code خالی = رفتار قبلی
+            # (شماره‌گذاری سراسری در برگزاری). جلسه‌های بدون offering
+            # (پل فرم حضور/ClassGroup) با NULL مجازند.
             models.UniqueConstraint(
-                fields=["offering", "session_number"],
+                fields=["offering", "class_code", "session_number"],
                 condition=_ALIVE & models.Q(offering__isnull=False),
-                name="uniq_edu_session_number_alive",
+                name="uniq_edu_session_class_number_alive",
             ),
             # جلسه‌ی بر‌پایه‌ی ClassGroup (فرم حضور): یک (کلاس، تاریخ، شماره)
             # فقط یک جلسه‌ی واقعی — کلید استخراج‌شدنِ فرم حضور (B4).
@@ -636,3 +705,86 @@ class OfferingEnrollment(DomainModel):
     def final_amount_jalali_date(self) -> str:
         from apps.core.utils import persian_date
         return persian_date(self.enrolled_at)
+
+
+class AcademicHoliday(DomainModel):
+    """
+    تقویم تعطیلات — تنها منبع حقیقت «پرش روز» در موتور زمان‌بندی.
+
+    سه دامنه (scope) با هم OR می‌شوند تا یک ردیف بتواند هم‌زمان چند نوع
+    تعطیلی را پوشش دهد:
+
+      official  تعطیل رسمی سراسری (۲۲ بهمن، عاشورا، ...)
+      weekly    جمعه (و در مؤسسات دخترانه پنجشنبه) — روزهای هفته‌ی تکرارشونده
+      institute تعطیلی خاص مؤسسه (ترمیم، مراسم، عید)
+
+    ``date_from``/``date_to`` بازه‌ای است؛ یک هفته‌ی full-time در یک ردیف
+    می‌نشیند. ``location`` خالی = همه‌ی فضاها؛ پر شده = فقط آن سالن/کلاس
+    (مثلاً «اتاق ۳ پنجشنبه تعطیل است»).
+    """
+
+    class Scope(models.TextChoices):
+        OFFICIAL = "official", "تعطیل رسمی"
+        WEEKLY = "weekly", "تعطیل هفتگی"
+        INSTITUTE = "institute", "تعطیل مؤسسه"
+
+    name = models.CharField(max_length=200)
+    scope = models.CharField(
+        max_length=16, choices=Scope.choices, default=Scope.OFFICIAL, db_index=True
+    )
+    date_from = models.DateField(db_index=True)
+    date_to = models.DateField(db_index=True, help_text="برای تک‌روز = date_from")
+    weekday = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        choices=((5, "شنبه"), (6, "یکشنبه"), (0, "دوشنبه"), (1, "سه‌شنبه"),
+                 (2, "چهارشنبه"), (3, "پنجشنبه"), (4, "جمعه")),
+        help_text="فقط برای scope=weekly: روز هفته‌ی تکرارشونده (Python weekday).",
+    )
+    all_day = models.BooleanField(
+        default=True, help_text="خیر = فقط بخشی از روز (ساعت‌ها را در note قید کنید)."
+    )
+    location = models.ForeignKey(
+        Location, null=True, blank=True, on_delete=models.CASCADE,
+        related_name="holidays",
+        help_text="خالی = کل مؤسسه.",
+    )
+    note = models.CharField(max_length=256, blank=True, default="")
+    is_active = models.BooleanField(default=True, db_index=True)
+    legacy_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+
+    class Meta:
+        app_label = "education"
+        db_table = "education_academic_holiday"
+        verbose_name = "Holiday (تعطیلات)"
+        verbose_name_plural = "Holidays (تعطیلات)"
+        ordering = ("date_from", "scope")
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(date_to__gte=models.F("date_from")),
+                name="chk_edu_holiday_date_range",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["date_from", "is_active"], name="edu_holiday_date_active_idx"),
+            models.Index(fields=["scope", "weekday"], name="edu_holiday_scope_weekday_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.date_from})"
+
+    def clean(self) -> None:
+        if self.scope == self.Scope.WEEKLY and self.weekday is None:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(
+                {"weekday": "برای تعطیل هفتگی، روز هفته را مشخص کنید."}
+            )
+        # A weekly entry is a rule, not an event — collapse its range to avoid
+        # the engine double-counting it across dates.
+        if self.scope == self.Scope.WEEKLY:
+            self.date_from = self.date_to = self.date_from or timezone.localdate()
+
+    def covers(self, day) -> bool:
+        """آیا این ردیف تاریخ ``day`` را تعطیل می‌کند؟"""
+        if self.scope == self.Scope.WEEKLY:
+            return self.weekday is not None and day.weekday() == self.weekday
+        return self.date_from <= day <= (self.date_to or self.date_from)

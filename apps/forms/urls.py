@@ -14,6 +14,8 @@ from apps.forms.views import (
     FormSchemaListView,
     FormSubmissionDetailView,
     FormSubmissionListCreateView,
+    FormSubmissionRestoreView,
+    FormSubmissionSoftDeleteView,
     FormSubmissionSubmitView,
     FormWorkflowApproveView,
     FormWorkflowRejectView,
@@ -32,6 +34,16 @@ urlpatterns = [
         "submissions/<uuid:submission_id>/",
         FormSubmissionDetailView.as_view(),
         name="form-submission-detail",
+    ),
+    path(
+        "submissions/<uuid:submission_id>/delete/",
+        FormSubmissionSoftDeleteView.as_view(),
+        name="form-submission-delete",
+    ),
+    path(
+        "submissions/<uuid:submission_id>/restore/",
+        FormSubmissionRestoreView.as_view(),
+        name="form-submission-restore",
     ),
     path(
         "submissions/<uuid:submission_id>/submit/",

@@ -9,22 +9,29 @@ create/detail modals for every resource. The server stays the source of
 truth: the JS only calls the existing DRF endpoints; it never encodes
 permissions or validation beyond what the API enforces.
 
-Reports page renders charts from /api/education/reports/* (real aggregates).
+Reports page is provided by ``apps.reports`` and consumes its read-only
+reporting API; the education report endpoints remain available for legacy
+consumers.
 """
 from __future__ import annotations
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.views.generic import TemplateView
 
 # Roles that may see the education/admin surfaces (mirrors the read side of
 # apps.core.permissions.IsAcademicManager; writes are gated by the API itself).
-_STAFF_ROLES = {"teacher", "manager", "workflow_admin", "hr", "employee"}
-_WRITE_ROLES = {"manager", "workflow_admin"}
+_STAFF_ROLES = {"teacher", "manager", "workflow_admin", "hr", "employee", "supervisor"}
+_WRITE_ROLES = {"manager", "workflow_admin", "supervisor"}
 # Org-intelligence screens (chart/permissions/responsibilities/delegation).
 _ORG_ROLES = {"manager", "workflow_admin", "hr"}
 # System-admin-only resources (full PII, e.g. persons). Narrower than _ORG_ROLES.
 _SYS_ADMIN_ROLES = {"manager", "workflow_admin"}
+# If a teacher ALSO holds any of these, they are not "teacher-only" and keep
+# full staff access; a pure teacher (none of these) is restricted to the
+# teacher portal. Mirrors context_processors.is_teacher_only.
+_TEACHER_BLOCKED_ROLES = {"manager", "workflow_admin", "hr", "employee", "supervisor"}
 
 #: Declarative resource configs. `columns`/`form`/`detail` drive the generic UI.
 RESOURCE_CONFIG: dict[str, dict] = {
@@ -33,6 +40,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "icon": "network",
         "api": "/api/education/departments/",
         "canCreate": True,
+        "canEdit": True,
         "columns": [
             {"field": "code", "label": "کد"},
             {"field": "name", "label": "نام دپارتمان"},
@@ -112,7 +120,6 @@ RESOURCE_CONFIG: dict[str, dict] = {
             {"name": "employee_code", "label": "کد پرسنلی", "type": "text", "dir": "ltr", "when": {"person_type": ["employee", "teacher"]}},
             {"name": "department", "label": "دپارتمان", "type": "text", "when": {"person_type": ["employee", "teacher"]}},
             {"name": "job_title", "label": "سمت", "type": "text", "when": {"person_type": ["employee", "teacher"]}},
-            {"name": "auto_create_user", "label": "ساخت خودکار کاربر (نام‌کاربری/رمز = کد ملی)", "type": "checkbox"},
         ],
         "detail": [
             {"field": "display_name", "label": "نام کامل"},
@@ -137,6 +144,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "icon": "book-open",
         "api": "/api/education/lessons/",
         "canCreate": True,
+        "canEdit": True,
         "columns": [
             {"field": "code", "label": "کد"},
             {"field": "title", "label": "عنوان درس"},
@@ -188,6 +196,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "icon": "library",
         "api": "/api/education/courses/",
         "canCreate": True,
+        "canEdit": True,
         "columns": [
             {"field": "code", "label": "کد"},
             {"field": "title", "label": "عنوان دوره"},
@@ -219,12 +228,10 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "icon": "calendar-clock",
         "api": "/api/education/offerings/",
         "canCreate": True,
-        "generateAction": {
-            "label": "تولید خودکار جلسات",
-            "endpoint": "generate-sessions/",
-            "confirm": "جلسات بر اساس زمان‌بندی و مدت درس‌ها ساخته و در تقویم قرار می‌گیرند؛ تداخل‌ها گزارش می‌شوند.",
-        },
+        "canEdit": True,
+        "formationAction": True,   # «تشکیل کلاس» در مودال جزئیات
         "columns": [
+            {"field": "code", "label": "کد برگزاری"},
             {"field": "title", "label": "برگزاری"},
             {"field": "course_title", "label": "دوره"},
             {"field": "capacity", "label": "ظرفیت"},
@@ -235,15 +242,22 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "form": [
             {"name": "course", "label": "دوره", "type": "lookup", "required": True,
              "endpoint": "/api/education/courses/", "labelField": "title"},
+            {"name": "code", "label": "کد/عنوان برگزاری", "type": "text", "dir": "ltr",
+             "placeholder": "OFFERING-1403-PY01",
+             "hint": "یکتا؛ خالی بگذارید تا به‌صورت of-0001 خودکار ساخته شود."},
             {"name": "title", "label": "عنوان برگزاری", "type": "text"},
             {"name": "capacity", "label": "ظرفیت (۰ = نامحدود)", "type": "number"},
+            {"name": "total_sessions", "label": "تعداد جلسات دوره (راهنمای تشکیل کلاس؛ ۰ = محاسبه از مدت درس)", "type": "number"},
+            {"name": "lessons_roster", "label": "درس‌های دوره (به‌صورت خودکار از دوره واکشی می‌شود)", "type": "readonly-list",
+             "source": "course", "endpoint": "/api/education/courses/"},
             {"name": "start_date", "label": "تاریخ شروع (پیشنهادی)", "type": "jalali-date"},
-            {"name": "location", "label": "محل برگزاری", "type": "lookup",
+            {"name": "location", "label": "محل برگزاری (پیشنهادی)", "type": "lookup",
              "endpoint": "/api/education/locations/", "labelField": "name"},
-            {"name": "instructor", "label": "استاد", "type": "lookup",
+            {"name": "instructor", "label": "استاد (پیشنهادی)", "type": "lookup",
              "endpoint": "/api/persons/?person_type=teacher",
              "labelTemplate": "{first_name} {last_name}"},
-            {"name": "schedule", "label": "زمان برگزاری (روزها و ساعت)", "type": "schedule"},
+            {"name": "schedule", "label": "زمان برگزاری (پیشنهادی — روزها و ساعت)", "type": "schedule"},
+            {"name": "auto_skip_holidays", "label": "پرش خودکار تعطیلات در تولید جلسات", "type": "checkbox"},
             {"name": "course_tuition", "label": "شهریه دوره (از دوره خوانده می‌شود)", "type": "readonly-money",
              "source": "course", "endpoint": "/api/education/courses/", "valueField": "total_tuition"},
             {"name": "status", "label": "وضعیت", "type": "select", "options": [
@@ -256,6 +270,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
             ]},
         ],
         "detail": [
+            {"field": "code", "label": "کد برگزاری"},
             {"field": "title", "label": "برگزاری"},
             {"field": "course_title", "label": "دوره"},
             {"field": "capacity", "label": "ظرفیت"},
@@ -263,6 +278,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
             {"field": "seats_left_display", "label": "جای خالی"},
             {"field": "start_date", "label": "شروع"},
             {"field": "lesson_titles", "label": "درس‌های دوره", "type": "list"},
+            {"field": "classes", "label": "کلاس‌های تشکیل‌شده", "type": "classes"},
             {"field": "course_tuition", "label": "شهریه دوره", "type": "money", "suffix": "تومان"},
             {"field": "status", "label": "وضعیت"},
         ],
@@ -271,18 +287,25 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "title": "جلسات کلاس",
         "icon": "calendar-days",
         "api": "/api/education/sessions/",
-        "canCreate": True,
+        "canCreate": False,       # sessions come from «تشکیل کلاس» (or the
+        "canEdit": True,          # manual per-session adjustment, task §3.ب
+        "formationLink": True,    # «تشکیل کلاس» button on the page header
         "columns": [
+            {"field": "class_code", "label": "کد کلاس"},
+            {"field": "offering_title", "label": "برگزاری"},
+            {"field": "lesson_title", "label": "درس"},
             {"field": "session_number", "label": "جلسه"},
-            {"field": "title", "label": "عنوان"},
             {"field": "session_date", "label": "تاریخ"},
             {"field": "start_time", "label": "شروع"},
             {"field": "end_time", "label": "پایان"},
+            {"field": "teacher_name", "label": "استاد"},
+            {"field": "location_name", "label": "محل"},
             {"field": "status", "label": "وضعیت", "type": "badge"},
         ],
         "form": [
             {"name": "offering", "label": "برگزاری دوره", "type": "lookup", "required": True,
-             "endpoint": "/api/education/offerings/", "labelField": "title"},
+             "endpoint": "/api/education/offerings/", "labelField": "code"},
+            # class_code is display-only in detail (the generator owns it).
             {"name": "lesson", "label": "درس", "type": "lookup",
              "endpoint": "/api/education/lessons/", "labelField": "title"},
             {"name": "teacher", "label": "استاد", "type": "lookup",
@@ -290,7 +313,6 @@ RESOURCE_CONFIG: dict[str, dict] = {
              "labelTemplate": "{first_name} {last_name}"},
             {"name": "location", "label": "محل برگزاری کلاس", "type": "lookup",
              "endpoint": "/api/education/locations/", "labelField": "name"},
-            {"name": "session_number", "label": "شماره جلسه", "type": "number", "required": True},
             {"name": "title", "label": "عنوان جلسه", "type": "text"},
             {"name": "session_date", "label": "تاریخ جلسه", "type": "jalali-date", "required": True},
             {"name": "start_time", "label": "ساعت شروع", "type": "jalali-time", "required": True},
@@ -302,11 +324,16 @@ RESOURCE_CONFIG: dict[str, dict] = {
             ]},
         ],
         "detail": [
+            {"field": "class_code", "label": "کد کلاس"},
+            {"field": "offering_title", "label": "برگزاری"},
+            {"field": "lesson_title", "label": "درس"},
             {"field": "session_number", "label": "جلسه"},
             {"field": "title", "label": "عنوان"},
             {"field": "session_date", "label": "تاریخ"},
             {"field": "start_time", "label": "شروع"},
             {"field": "end_time", "label": "پایان"},
+            {"field": "teacher_name", "label": "استاد"},
+            {"field": "location_name", "label": "محل"},
             {"field": "status", "label": "وضعیت"},
         ],
     },
@@ -315,6 +342,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "icon": "map-pin",
         "api": "/api/education/locations/",
         "canCreate": True,
+        "canEdit": True,
         "columns": [
             {"field": "code", "label": "کد"},
             {"field": "name", "label": "نام محل"},
@@ -342,7 +370,18 @@ RESOURCE_CONFIG: dict[str, dict] = {
 
 
 class StaffRequiredMixin(LoginRequiredMixin):
-    """Dashboard workspace pages: any staff role may read; writes gated by API."""
+    """Dashboard workspace pages: any staff role may read; writes gated by API.
+
+    A teacher who holds no management role (``is_teacher_only``) is blocked
+    from every management page here (403) — they get only the dedicated
+    teacher portal (pages that set ``teacher_allowed = True``).
+    """
+
+    teacher_allowed = False
+
+    def _is_teacher_only(self, request) -> bool:
+        roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
+        return "teacher" in roles and not (roles & _TEACHER_BLOCKED_ROLES)
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
@@ -350,6 +389,8 @@ class StaffRequiredMixin(LoginRequiredMixin):
         roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
         if not roles & _STAFF_ROLES:
             raise Http404
+        if self._is_teacher_only(request) and not self.teacher_allowed:
+            raise PermissionDenied("این بخش برای پنل مدرس در دسترس نیست.")
         return super().dispatch(request, *args, **kwargs)
 
 
@@ -385,21 +426,8 @@ class ResourcePage(StaffRequiredMixin, TemplateView):
         context["resource_key"] = key
         context["resource_title"] = config["title"]
         context["can_write"] = bool(roles & _WRITE_ROLES)
+        context["config"] = config  # flags for the static header buttons
         context["config_json"] = config  # serialized via json_script in template
-        return context
-
-
-class ReportsPage(StaffRequiredMixin, TemplateView):
-    """Daily/weekly/monthly reports with real charts (ApexCharts)."""
-
-    template_name = "reports.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["report_endpoints"] = {
-            "attendance": "/api/education/reports/attendance/",
-            "capacity": "/api/education/reports/capacity/",
-        }
         return context
 
 
@@ -407,6 +435,34 @@ class TimetablePage(StaffRequiredMixin, TemplateView):
     """Daily timetable grid — rows=locations, cols=hours (timetable.js)."""
 
     template_name = "timetable.html"
+    teacher_allowed = True  # teachers see their own schedule
+
+
+class TeacherDashboardPage(StaffRequiredMixin, TemplateView):
+    """Teacher portal home — assigned offerings + upcoming sessions."""
+
+    template_name = "teacher_dashboard.html"
+    teacher_allowed = True
+
+
+class TeacherAttendancePage(StaffRequiredMixin, TemplateView):
+    """Attendance management — pick class → auto roster → record per session."""
+
+    template_name = "teacher_attendance.html"
+    teacher_allowed = True
+
+
+class TeacherReportCardPage(StaffRequiredMixin, TemplateView):
+    """Descriptive report cards — pick class → per-student passed/failed + note."""
+
+    template_name = "teacher_report_cards.html"
+    teacher_allowed = True
+
+
+class LearnerPortalPage(LoginRequiredMixin, TemplateView):
+    """Student/parent portal — own attendance stats + report cards."""
+
+    template_name = "learner_portal.html"
 
 
 class MessagesPage(StaffRequiredMixin, TemplateView):

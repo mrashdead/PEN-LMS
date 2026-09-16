@@ -21,6 +21,12 @@ from apps.academics.models import ClassEnrollment, ClassGroup
 
 ELEVATED_ROLES = {"manager", "workflow_admin", "hr"}
 
+#: Role code for a guardian/parent account (provisioned by
+#: ``PersonService._create_user_for_person`` when Person.type == guardian).
+#: The code alone grants NOTHING — rows come only through an active
+#: ``StudentGuardian`` link, optionally narrowed by the link's per-link flags.
+GUARDIAN_ROLE = "guardian"
+
 
 def _person_of(user):
     return getattr(user, "person", None)
@@ -30,6 +36,32 @@ def _roles_of(user) -> set:
     if user is None or not getattr(user, "is_authenticated", False):
         return set()
     return set(user.role_codes())
+
+
+def _ward_ids_of(person):
+    """
+    Student PKs this Person is an ACTIVE guardian of (persons.StudentGuardian).
+
+    Materialized as a list, not a subquery: the link table lives in another
+    app (import at call time keeps apps decoupled) and the list is tiny
+    (1-2 wards per guardian). Empty list → callers add nothing to their OR.
+    """
+    if person is None:
+        return []
+    from apps.persons.models import StudentGuardian
+
+    return list(
+        StudentGuardian.objects.filter(
+            guardian=person, is_active=True, is_deleted=False,
+        ).values_list("student_id", flat=True)
+    )
+
+
+def ward_student_ids_for(user):
+    """Public helper (e.g. persons_visible_to, calendars): wards of this user."""
+    if user is None or not getattr(user, "is_authenticated", False):
+        return []
+    return _ward_ids_of(_person_of(user))
 
 
 def class_groups_visible_to(user, *, for_write: bool = False):
@@ -55,6 +87,14 @@ def class_groups_visible_to(user, *, for_write: bool = False):
             enrollments__is_active=True,
             enrollments__is_deleted=False,
         )
+    if GUARDIAN_ROLE in roles:
+        wards = _ward_ids_of(person)
+        if wards:
+            condition |= Q(
+                enrollments__student_id__in=wards,
+                enrollments__is_active=True,
+                enrollments__is_deleted=False,
+            )
     if not condition:
         return qs.none()
     return qs.filter(condition).distinct()
@@ -78,6 +118,10 @@ def enrollments_visible_to(user):
         condition |= Q(class_group__teacher=person)
     if "student" in roles:
         condition |= Q(student=person)
+    if GUARDIAN_ROLE in roles:
+        wards = _ward_ids_of(person)
+        if wards:
+            condition |= Q(student_id__in=wards)
     if not condition:
         return qs.none()
     return qs.filter(condition).distinct()
@@ -91,7 +135,10 @@ def education_sessions_visible_to(user):
     """
     from apps.education.models import ClassSession
 
-    qs = ClassSession.objects.select_related("offering", "class_group", "teacher", "location")
+    qs = ClassSession.objects.select_related(
+        "offering", "offering__course", "class_group", "teacher", "location",
+        "lesson",
+    )
     roles = _roles_of(user)
     if roles & ELEVATED_ROLES:
         return qs
@@ -106,6 +153,25 @@ def education_sessions_visible_to(user):
             class_group__enrollments__is_active=True,
             class_group__enrollments__is_deleted=False,
         )
+        # offering-keyed sessions (course-run world): only ENROLLED students.
+        condition |= Q(
+            offering__enrollments__student=person,
+            offering__enrollments__is_active=True,
+            offering__enrollments__is_deleted=False,
+        )
+    if GUARDIAN_ROLE in roles:
+        wards = _ward_ids_of(person)
+        if wards:
+            condition |= Q(
+                class_group__enrollments__student_id__in=wards,
+                class_group__enrollments__is_active=True,
+                class_group__enrollments__is_deleted=False,
+            )
+            condition |= Q(
+                offering__enrollments__student_id__in=wards,
+                offering__enrollments__is_active=True,
+                offering__enrollments__is_deleted=False,
+            )
     if not condition:
         return qs.none()
     return qs.filter(condition).distinct()

@@ -14,6 +14,11 @@ DEFAULT_ROLES: list[dict[str, object]] = [
     {"code": "workflow_admin", "name": "مدیر فرآیند", "priority": 10},
     {"code": "student", "name": "دانش‌آموز", "priority": 90},
     {"code": "teacher", "name": "معلم / مدرس", "priority": 40},
+    # Guardian/parent accounts. Deliberately the lowest rank (highest number):
+    # the code itself grants no rows — a guardian only ever sees wards reachable
+    # through an active persons.StudentGuardian link, so holding "guardian" can
+    # never enumerate students.
+    {"code": "guardian", "name": "ولی / والدین", "priority": 110},
 ]
 
 

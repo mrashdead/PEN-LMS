@@ -26,6 +26,7 @@ urlpatterns = [
     path('api/forms/', include('apps.forms.urls')),
     path('api/messaging/', include('apps.messaging.urls')),
     path('api/org/', include('apps.org.urls')),
+    path('api/reports/', include('apps.reports.urls')),
 
     # Forms UI pages (session auth, dashboard-style)
     path('forms/', include('apps.forms.page_urls')),

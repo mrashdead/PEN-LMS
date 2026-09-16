@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from apps.forms.permissions import ELEVATED_ROLES
 from apps.forms.templatetags.forms_extras import FORMS_URL_NAMES
+from apps.reports.permissions import REPORT_ACCESS_ROLES
 
 STAFF_ROLES = {"manager", "workflow_admin", "hr", "employee", "teacher"}
 
@@ -29,8 +30,10 @@ def user_flags(request):
         return {
             "is_schema_admin": False, "is_staff_user": False,
             "is_manager": False, "is_unit_manager": False,
-            "is_teacher": False, "is_learner": False,
+            "is_teacher": False, "is_teacher_only": False,
+            "is_learner": False,
             "is_sys_admin": False,
+            "is_reports_user": False,
             "sidebar_urlname": "", "sidebar_is_forms": False,
             "sidebar_is_edu": False, "sidebar_is_req": False,
         }
@@ -39,14 +42,22 @@ def user_flags(request):
     except Exception:
         roles = set()
     urlname = getattr(getattr(request, "resolver_match", None), "url_name", "") or ""
+    is_teacher = bool(roles & {"teacher"})
+    # A teacher who holds NO management/staff-admin role gets the restricted
+    # teacher portal only (dashboard/timetable, attendance, report cards).
+    is_teacher_only = is_teacher and not (roles & (ELEVATED_ROLES | {"employee", "supervisor"}))
     return {
         "is_schema_admin": bool(roles & ELEVATED_ROLES),
         "is_staff_user": bool(roles & STAFF_ROLES),
         "is_manager": bool(roles & {"manager", "workflow_admin"}),
         "is_unit_manager": bool(roles & {"manager", "workflow_admin", "hr"}),
         "is_sys_admin": bool(roles & {"manager", "workflow_admin"}),
-        "is_teacher": bool(roles & {"teacher"}),
-        "is_learner": bool(roles & {"student"}),
+        "is_reports_user": bool(roles & REPORT_ACCESS_ROLES),
+        "is_teacher": is_teacher,
+        "is_teacher_only": is_teacher_only,
+        # A learner-portal account: a student (own data) or a guardian
+        # (their wards' data). Both open /workspace/portal/.
+        "is_learner": bool(roles & {"student", "guardian"}),
         "sidebar_urlname": urlname,
         "sidebar_is_forms": urlname in FORMS_URL_NAMES,
         "sidebar_is_edu": urlname in EDU_URLS,

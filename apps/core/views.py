@@ -50,4 +50,24 @@ class DashboardLogoutView(LogoutView):
 
 
 class DashboardHomeView(LoginRequiredMixin, TemplateView):
+    """Admin/staff dashboard shell.
+
+    A pure teacher (holds ``teacher`` and no management/employee role) is
+    redirected to their dedicated portal instead — the stat cards here count
+    persons/instances/tasks a teacher must not see even in aggregate, so the
+    generic dashboard is not part of the teacher surface (task spec §1).
+    """
+
     template_name = "dashboard/home.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not request.user.is_superuser:
+            from apps.core.pages import _TEACHER_BLOCKED_ROLES
+
+            roles = (
+                set(request.user.role_codes())
+                if hasattr(request.user, "role_codes") else set()
+            )
+            if "teacher" in roles and not (roles & _TEACHER_BLOCKED_ROLES):
+                return redirect("workspace-teacher")
+        return super().dispatch(request, *args, **kwargs)

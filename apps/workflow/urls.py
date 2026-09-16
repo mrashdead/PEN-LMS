@@ -18,6 +18,8 @@ from apps.workflow.views import (
     ExecuteTransitionView,
     InstanceDetailView,
     InstanceListCreateView,
+    InstanceRestoreView,
+    InstanceSoftDeleteView,
     LinkEntityView,
     RejectInstanceView,
     ReturnInstanceView,
@@ -31,6 +33,16 @@ urlpatterns = [
         "instances/<uuid:instance_id>/",
         InstanceDetailView.as_view(),
         name="workflow-instance-detail",
+    ),
+    path(
+        "instances/<uuid:instance_id>/delete/",
+        InstanceSoftDeleteView.as_view(),
+        name="workflow-instance-delete",
+    ),
+    path(
+        "instances/<uuid:instance_id>/restore/",
+        InstanceRestoreView.as_view(),
+        name="workflow-instance-restore",
     ),
 
     # ── Transitions ──────────────────────────────────────────

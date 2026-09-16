@@ -3,6 +3,7 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from apps.core.fields import JalaliDateField, PersianCharField
+from apps.core.serializers import CRUDActionsMixin
 from apps.persons.models import Person
 from apps.persons.services import (
     can_view_full_person_detail,
@@ -83,12 +84,14 @@ class PersonPIIMaskingMixin:
         return data
 
 
-class PersonListSerializer(PersonPIIMaskingMixin, serializers.ModelSerializer):
+class PersonListSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     """سریالایزر خلاصه برای لیست اشخاص (PII ماسک‌شده برای غیرمتولیان)."""
 
     person_type_display = serializers.CharField(
         source="get_person_type_display", read_only=True
     )
+    role_display = serializers.SerializerMethodField()
     has_user = serializers.BooleanField(source="user_id", read_only=True)
     birth_date = JalaliDateField(allow_null=True, required=False)
     created_at = PersianCharField(source="created_at_jalali", read_only=True)
@@ -102,16 +105,30 @@ class PersonListSerializer(PersonPIIMaskingMixin, serializers.ModelSerializer):
             "last_name",
             "person_type",
             "person_type_display",
+            "role_display",
             "birth_date",
             "mobile",
             "email",
             "is_active",
             "has_user",
-            "created_at",
+            "created_at", "actions",
         )
 
+    def get_role_display(self, obj) -> str:
+        leadership_labels = {
+            "manager": "مدیریت",
+            "supervisor": "کارمند سرپرست",
+        }
+        links = getattr(getattr(obj, "user", None), "active_role_links", ())
+        for link in links:
+            label = leadership_labels.get(link.role.code)
+            if label:
+                return label
+        return obj.get_person_type_display()
 
-class PersonDetailSerializer(PersonPIIMaskingMixin, serializers.ModelSerializer):
+
+class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     """سریالایزر کامل برای جزئیات شخص (PII ماسک‌شده برای غیرمتولیان)."""
 
     audit_masked_read = True
@@ -134,6 +151,9 @@ class PersonDetailSerializer(PersonPIIMaskingMixin, serializers.ModelSerializer)
     display_name = serializers.CharField(read_only=True)
     display_national_code = serializers.CharField(read_only=True)
     display_mobile = serializers.CharField(read_only=True)
+    student_profile_summary = serializers.SerializerMethodField()
+    staff_profile_summary = serializers.SerializerMethodField()
+    guardian_profile_summary = serializers.SerializerMethodField()
 
     class Meta:
         model = Person
@@ -167,7 +187,8 @@ class PersonDetailSerializer(PersonPIIMaskingMixin, serializers.ModelSerializer)
             "has_user",
             "username",
             "created_at",
-            "updated_at",
+            "updated_at", "actions",
+            "student_profile_summary", "staff_profile_summary", "guardian_profile_summary",
         )
         read_only_fields = (
             "created_at",
@@ -175,16 +196,66 @@ class PersonDetailSerializer(PersonPIIMaskingMixin, serializers.ModelSerializer)
             "display_name",
             "display_national_code",
             "display_mobile",
+            "national_code",
+            "person_type",
+            "actions",
         )
+
+    def get_student_profile_summary(self, obj):
+        profile = getattr(obj, "student_profile", None)
+        if not profile:
+            return None
+        return {
+            "grade_level": profile.grade_level,
+            "class_section": profile.class_section,
+            "school_year": profile.school_year,
+            "parents": {
+                "father": f"{profile.father_first_name} {profile.father_last_name}".strip(),
+                "mother": f"{profile.mother_first_name} {profile.mother_last_name}".strip(),
+            },
+            "has_special_needs": profile.has_special_needs,
+            "is_custody_case": profile.is_custody_case,
+        }
+
+    def get_staff_profile_summary(self, obj):
+        profile = getattr(obj, "staff_profile", None)
+        if not profile:
+            return None
+        return {
+            "kind": profile.get_kind_display(),
+            "specialization": profile.specialization,
+            "academic_degree": profile.academic_degree,
+            "experience_years": profile.experience_years,
+            "is_verified": profile.is_verified,
+        }
+
+    def get_guardian_profile_summary(self, obj):
+        profile = getattr(obj, "guardian_profile", None)
+        if not profile:
+            return None
+        return {
+            "occupation": profile.occupation,
+            "education_level": profile.education_level,
+            "preferred_contact": profile.preferred_contact,
+            "is_primary": profile.is_primary,
+        }
 
 
 class PersonCreateSerializer(serializers.ModelSerializer):
     """سریالایزر ایجاد شخص جدید."""
 
     auto_create_user = serializers.BooleanField(
-        default=False,
-        help_text="آیا برای این شخص کاربر ساخته شود؟ (پیش‌فرض: خیر)",
+        default=True,
+        write_only=True,
+        help_text="برای سازگاری API نگه داشته شده؛ حساب کاربری به‌صورت پیش‌فرض ساخته می‌شود.",
     )
+    password = serializers.CharField(
+        required=False, allow_blank=True, write_only=True,
+        min_length=8,
+        help_text="برای کارمند/مدیریت الزامی؛ برای دانش‌آموز/استاد خالی = کد ملی.",
+    )
+    mobile = serializers.CharField(max_length=11)
+    email = serializers.EmailField(required=False, allow_blank=True)
     grant_role = serializers.CharField(
         required=False, allow_blank=True, max_length=64, write_only=True,
         help_text="نقش اضافه پس از ساخت کاربر (مثلاً supervisor یا manager) — فقط مدیر/مدیرسیستم.",
@@ -214,8 +285,17 @@ class PersonCreateSerializer(serializers.ModelSerializer):
             "hire_date",
             "photo",
             "auto_create_user",
+            "password",
             "grant_role",
         )
+
+    def validate_mobile(self, value: str) -> str:
+        from apps.core.utils import english_numbers
+
+        normalized = english_numbers(value).strip()
+        if len(normalized) != 11 or not normalized.isdigit() or not normalized.startswith("09"):
+            raise serializers.ValidationError("شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.")
+        return normalized
 
     def validate_national_code(self, value: str) -> str:
         from apps.core.utils import english_numbers
@@ -238,6 +318,10 @@ class PersonCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"employee_code": "برای کارمند/معلم کد پرسنلی الزامی است."}
                 )
+        if person_type == Person.Type.EMPLOYEE and not attrs.get("password"):
+            raise serializers.ValidationError(
+                {"password": "برای کارمند، کلمه عبور اختصاصی الزامی است."}
+            )
         # Creation hierarchy: the actor may only create the person types their
         # role tier permits (مدیرسیستم > مدیریت > سرپرست > کارمند عادی).
         request = self.context.get("request")

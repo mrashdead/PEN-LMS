@@ -10,7 +10,8 @@ from rest_framework import generics, status, views
 from rest_framework.response import Response
 
 from apps.core.group_permissions import HasGroupPermission, StrictDjangoModelPermissions
-from apps.core.permissions import IsActiveUser, IsWorkflowParticipant
+from apps.core.crud_views import SoftDeleteView, SoftRestoreView
+from apps.core.permissions import IsActiveUser, IsWorkflowParticipant, ResourceCRUDPermission
 from apps.workflow.models import ActionLog, ApprovalRecord, Instance
 from apps.workflow.serializers import (
     ActionLogSerializer,
@@ -97,6 +98,20 @@ class InstanceDetailView(generics.RetrieveAPIView):
         return _visible_instances_for(self.request.user).select_related(
             "workflow_definition", "current_state", "requester"
         ).distinct()
+
+
+class InstanceSoftDeleteView(SoftDeleteView):
+    resource_key = "requests"
+    lookup_url_kwarg = "instance_id"
+
+    def get_queryset(self):
+        return _visible_instances_for(self.request.user).distinct()
+
+
+class InstanceRestoreView(SoftRestoreView):
+    queryset = Instance.all_objects.all()
+    resource_key = "requests"
+    lookup_url_kwarg = "instance_id"
 
 
 class AvailableTransitionsView(views.APIView):

@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import re
+
 from django.db import transaction
 from rest_framework import serializers
 
 from apps.core.fields import JalaliDateField, PersianCharField
+from apps.core.serializers import CRUDActionsMixin
+from apps.core.utils import persian_date
+from apps.persons.models import Person
 from apps.education.models import (
+    AcademicHoliday,
     AttendanceRecord,
     ClassSession,
     Course,
@@ -17,21 +23,60 @@ from apps.education.models import (
     OfferingEnrollment,
 )
 
+#: Recurrence-rule validation mirrors apps.education.services._DAY_KEYS.
+_VALID_DAYS = frozenset({"sat", "sun", "mon", "tue", "wed", "thu", "fri"})
+_HHMM_RE = re.compile(r"^([01]?\d|2[0-3]):[0-5]\d$")
+#: Business keys (of-XXXX / CLS-PY-01) — same grammar as models._BUSINESS_CODE_RE.
+_CODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 
-class DepartmentSerializer(serializers.ModelSerializer):
+
+class AcademicHolidaySerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
+    date_from = JalaliDateField()
+    date_to = JalaliDateField()
+
+    class Meta:
+        model = AcademicHoliday
+        fields = ("id", "name", "scope", "date_from", "date_to", "weekday",
+                  "all_day", "location", "note", "is_active", "legacy_id",
+                  "created_at", "updated_at", "actions")
+        read_only_fields = ("id", "created_at", "updated_at")
+
+    def validate(self, attrs):
+        if attrs.get("scope") == AcademicHoliday.Scope.WEEKLY and attrs.get("weekday") is None:
+            raise serializers.ValidationError(
+                {"weekday": "برای تعطیل هفتگی، روز هفته را مشخص کنید."}
+            )
+        start = attrs.get("date_from")
+        end = attrs.get("date_to")
+        if start and end and end < start:
+            raise serializers.ValidationError(
+                {"date_to": "پایان بازه نمی‌تواند پیش از شروع باشد."}
+            )
+        return attrs
+
+
+class DepartmentSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     class Meta:
         model = Department
-        fields = ("id", "code", "name", "description", "parent", "is_active", "legacy_id")
+        fields = ("id", "code", "name", "description", "parent", "is_active", "legacy_id",
+                  "created_at", "updated_at", "actions")
+        read_only_fields = ("created_at", "updated_at")
 
 
-class LocationSerializer(serializers.ModelSerializer):
+class LocationSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     class Meta:
         model = Location
         fields = ("id", "code", "name", "building", "capacity", "equipment",
                   "is_active", "legacy_id")
+        fields = fields + ("created_at", "updated_at", "actions")
+        read_only_fields = ("created_at", "updated_at")
 
 
-class LessonSerializer(serializers.ModelSerializer):
+class LessonSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     prerequisites = serializers.PrimaryKeyRelatedField(
         many=True, queryset=Lesson.objects.all(), required=False
     )
@@ -43,6 +88,7 @@ class LessonSerializer(serializers.ModelSerializer):
                   "space_type", "department", "prerequisites",
                   "required_equipment", "learning_resources", "tuition",
                   "is_active", "version", "legacy_id", "created_at", "updated_at")
+        fields = fields + ("actions",)
         # code is auto-generated (ls-0001) on save — never client-supplied.
         read_only_fields = ("id", "code", "created_at", "updated_at", "version")
 
@@ -53,12 +99,27 @@ class CourseLessonSerializer(serializers.ModelSerializer):
         fields = ("id", "course", "lesson", "order", "required", "hours")
 
 
-class CourseSerializer(serializers.ModelSerializer):
+class CourseLessonsField(serializers.Field):
+    def to_representation(self, value):
+        return [str(lesson.id) for lesson in value.all()]
+
+    def to_internal_value(self, data):
+        if not isinstance(data, list):
+            raise serializers.ValidationError("lessons باید فهرستی از شناسه‌ها باشد.")
+        values = []
+        for item in data:
+            try:
+                values.append(str(item))
+            except Exception as exc:  # pragma: no cover
+                raise serializers.ValidationError("شناسه درس نامعتبر است.") from exc
+        return values
+
+
+class CourseSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     # lessons is the M2M through CourseLesson — DRF can't write a through-M2M
     # directly, so we accept a flat id list and manage rows in create/update.
-    lessons = serializers.ListField(
-        child=serializers.UUIDField(), required=False, write_only=True
-    )
+    lessons = CourseLessonsField(required=False)
     lesson_titles = serializers.SerializerMethodField()
     total_tuition = serializers.SerializerMethodField()
 
@@ -67,6 +128,7 @@ class CourseSerializer(serializers.ModelSerializer):
         fields = ("id", "code", "title", "description", "objectives",
                   "department", "tuition", "lessons", "lesson_titles",
                   "total_tuition", "is_active", "legacy_id", "created_at", "updated_at")
+        fields = fields + ("actions",)
         read_only_fields = ("id", "code", "created_at", "updated_at")
 
     def get_lesson_titles(self, obj) -> list:
@@ -112,7 +174,8 @@ class CourseSerializer(serializers.ModelSerializer):
         return instance
 
 
-class CourseOfferingSerializer(serializers.ModelSerializer):
+class CourseOfferingSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     seats_left = serializers.IntegerField(read_only=True, allow_null=True)
     seats_left_display = serializers.CharField(read_only=True)
     start_date = JalaliDateField(required=False, allow_null=True)
@@ -120,15 +183,26 @@ class CourseOfferingSerializer(serializers.ModelSerializer):
     course_title = serializers.CharField(source="course.title", read_only=True)
     course_tuition = serializers.IntegerField(source="course.tuition", read_only=True)
     lesson_titles = serializers.SerializerMethodField()
+    classes = serializers.SerializerMethodField()
+    location_name = serializers.CharField(source="location.name", read_only=True,
+                                          default="")
+    instructor_name = serializers.SerializerMethodField()
 
     class Meta:
         model = CourseOffering
-        fields = ("id", "course", "course_title", "course_tuition", "title",
+        fields = ("id", "course", "course_title", "course_tuition", "code", "title",
                   "department", "capacity", "enrolled_count", "seats_left",
                   "seats_left_display", "start_date", "end_date", "location",
-                  "instructor", "schedule", "lesson_titles", "status",
-                  "tuition", "is_active", "legacy_id", "created_at", "updated_at")
-        read_only_fields = ("id", "created_at", "updated_at", "enrolled_count")
+                  "location_name", "instructor", "instructor_name", "schedule",
+                  "total_sessions", "auto_skip_holidays",
+                  "lesson_titles", "status", "classes",
+                  "tuition", "is_active", "legacy_id", "created_at", "updated_at", "actions")
+        read_only_fields = ("id", "created_at", "updated_at", "enrolled_count",
+                            "classes")
+
+    def get_instructor_name(self, obj) -> str:
+        t = getattr(obj, "instructor", None)
+        return f"{t.first_name} {t.last_name}".strip() if t else ""
 
     def get_lesson_titles(self, obj) -> list:
         """The offering's course lessons — shown read-only in the offering form."""
@@ -140,16 +214,151 @@ class CourseOfferingSerializer(serializers.ModelSerializer):
             for l in course.lessons.all()
         ]
 
+    def get_classes(self, obj) -> list:
+        """Formed classes under this offering (فرم تشکیل کلاس) — grouped rows."""
+        return classes_of_offering(obj)
 
-class ClassSessionSerializer(serializers.ModelSerializer):
+    def validate_code(self, value: str) -> str:
+        """Alive-unique, exact-cased business key (the DB constraint is the
+        final arbiter; this turns a race into a clean field error)."""
+        code = (value or "").strip()
+        if not code:
+            return ""          # save() auto-fills of-0001
+        clash = CourseOffering.objects.filter(code=code, is_deleted=False)
+        if self.instance is not None:
+            clash = clash.exclude(pk=self.instance.pk)
+        if clash.exists():
+            raise serializers.ValidationError("این کد برگزاری قبلاً استفاده شده است.")
+        return code
+
+    def validate_total_sessions(self, value: int) -> int:
+        if value and value > 200:
+            raise serializers.ValidationError(
+                "تعداد جلسات نمی‌تواند از ۲۰۰ بیشتر باشد."
+            )
+        return value
+
+    def validate_schedule(self, value: dict) -> dict:
+        """Fail fast on a malformed recurrence rule (the engine raises later)."""
+        return validate_schedule_payload(value)
+
+
+#: Shared recurrence-rule validator: the offering form and the class-formation
+#: form both post {days:[sat..fri], start:"HH:MM", end:"HH:MM"}.
+def validate_schedule_payload(value: dict, *, required: bool = False) -> dict:
+    if value in (None, {}):
+        if required:
+            raise serializers.ValidationError(
+                "روزها و ساعت شروع/پایان برگزاری را مشخص کنید."
+            )
+        return value or {}
+    days = value.get("days") or []
+    if not isinstance(days, list) or any(d not in _VALID_DAYS for d in days):
+        raise serializers.ValidationError(
+            "days باید فهرستی از " + "/".join(sorted(_VALID_DAYS)) + " باشد."
+        )
+    for key in ("start", "end"):
+        text = str(value.get(key) or "")
+        if text and not _HHMM_RE.match(text):
+            raise serializers.ValidationError({key: "قالب ساعت باید HH:MM باشد."})
+    if value.get("start") and value.get("end") and value["end"] <= value["start"]:
+        raise serializers.ValidationError("ساعت پایان باید بعد از شروع باشد.")
+    return value
+
+
+def classes_of_offering(offering) -> list:
+    """
+    The classes formed inside one offering (grouped by class_code), newest
+    form first. Powers the offering detail page and the «مدیریت جلسات» table.
+    """
+    from django.db.models import Count, Min, Max
+
+    rows = (
+        ClassSession.objects
+        .filter(offering=offering, is_deleted=False)
+        .values("class_code", "lesson", "lesson__title", "teacher",
+                "location")
+        .annotate(
+            session_count=Count("id"),
+            first_date=Min("session_date"),
+            last_date=Max("session_date"),
+            first_number=Min("session_number"),
+            last_number=Max("session_number"),
+        )
+        .order_by("class_code")
+    )
+    out = []
+    for r in rows:
+        teacher = Person.objects.filter(pk=r["teacher"]).first() if r["teacher"] else None
+        lesson = Lesson.objects.filter(pk=r["lesson"]).first() if r["lesson"] else None
+        out.append({
+            "class_code": r["class_code"] or "—",
+            "lesson_id": r["lesson"],
+            "lesson_title": lesson.title if lesson else (r["lesson__title"] or ""),
+            "teacher_id": r["teacher"],
+            "teacher_name": f"{teacher.first_name} {teacher.last_name}".strip() if teacher else "",
+            "location_id": r["location"],
+            "sessions": r["session_count"],
+            "first_number": r["first_number"],
+            "last_number": r["last_number"],
+            "first_date": persian_date(r["first_date"]),
+            "last_date": persian_date(r["last_date"]),
+        })
+    return out
+
+
+class ClassSessionSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    actions = serializers.SerializerMethodField()
     session_date = JalaliDateField()
+    offering_title = serializers.SerializerMethodField()
+    lesson_title = serializers.CharField(source="lesson.title", read_only=True,
+                                         default="")
+    teacher_name = serializers.SerializerMethodField()
+    location_name = serializers.CharField(source="location.name", read_only=True,
+                                          default="")
 
     class Meta:
         model = ClassSession
-        fields = ("id", "offering", "class_group", "lesson", "session_number",
+        fields = ("id", "offering", "offering_title", "class_group", "class_code",
+                  "lesson", "lesson_title", "session_number",
                   "title", "session_date", "start_time", "end_time", "teacher",
-                  "location", "status", "legacy_id", "created_at", "updated_at")
+                  "teacher_name", "location", "location_name", "status",
+                  "legacy_id", "created_at", "updated_at", "actions")
+        # session_number stays writable (the generator supplies 1..N; a manual
+        # create may pin one) — validate() pre-checks it against the
+        # (offering, class_code, session_number) alive-unique constraint.
         read_only_fields = ("created_at", "updated_at")
+
+    def get_offering_title(self, obj) -> str:
+        off = obj.offering
+        if off is None:
+            return ""
+        code = getattr(off, "code", "") or ""
+        title = off.title or getattr(off.course, "title", "") or ""
+        return f"{code} — {title}".strip(" —") if code else title
+
+    def get_teacher_name(self, obj) -> str:
+        t = obj.teacher
+        return f"{t.first_name} {t.last_name}".strip() if t else ""
+
+    def validate(self, attrs):
+        # Class create/edit paths must not fight the generator's numbering.
+        offering = attrs.get("offering") or (self.instance.offering if self.instance else None)
+        class_code = attrs.get("class_code", getattr(self.instance, "class_code", "") if self.instance else "")
+        number = attrs.get("session_number")
+        if offering is not None and number:
+            clash = ClassSession.objects.filter(
+                offering=offering, class_code=(class_code or "").strip(),
+                session_number=number, is_deleted=False,
+            )
+            if self.instance is not None:
+                clash = clash.exclude(pk=self.instance.pk)
+            if clash.exists():
+                raise serializers.ValidationError(
+                    {"session_number": "این شماره جلسه در این کلاس قبلاً ثبت شده است."}
+                )
+        return attrs
+
 
 
 class AttendanceRecordSerializer(serializers.ModelSerializer):
@@ -217,3 +426,84 @@ class OfferingEnrollmentSerializer(serializers.ModelSerializer):
         if final is not None:
             validated_data["final_amount"] = final
         return super().update(instance, validated_data)
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# «تشکیل کلاس» (class formation) — command serializer over the service layer
+# ═════════════════════════════════════════════════════════════════════════
+
+class ClassFormationSerializer(serializers.Serializer):
+    """
+    Form 2 payload. teacher/location/start_date/schedule may be omitted —
+    the offering's PROPOSED values fill them (client-side auto-fill stays
+    editable; the server re-applies the same defaults so raw API posts
+    behave identically). ``count`` omitted → derived from the lesson's hours
+    ÷ session length (مدت ÷ طول جلسه). ``create`` runs the atomic engine.
+    """
+
+    offering = serializers.UUIDField()
+    class_code = serializers.CharField(max_length=64, required=False, allow_blank=True,
+                                       default="")
+    lesson = serializers.UUIDField()
+    teacher = serializers.UUIDField(required=False, allow_null=True)
+    location = serializers.UUIDField(required=False, allow_null=True)
+    start_date = JalaliDateField(required=False, allow_null=True)
+    schedule = serializers.DictField(required=False)
+    count = serializers.IntegerField(required=False, min_value=1, max_value=200)
+    skip_holidays = serializers.BooleanField(required=False)
+    strict = serializers.BooleanField(required=False, default=False)
+    regenerate = serializers.BooleanField(required=False, default=False)
+
+    def validate_offering(self, value):
+        offering = CourseOffering.objects.filter(pk=value, is_deleted=False).first()
+        if offering is None:
+            raise serializers.ValidationError("برگزاری دوره یافت نشد.")
+        return offering
+
+    def validate_class_code(self, value):
+        code = (value or "").strip()
+        if code and not _CODE_RE.match(code):
+            raise serializers.ValidationError(
+                "کد کلاس فقط می‌تواند شامل حروف لاتین، رقم، «-»، «_» یا «.» باشد."
+            )
+        return code
+
+    def validate_lesson(self, value):
+        lesson = Lesson.objects.filter(pk=value, is_deleted=False).first()
+        if lesson is None:
+            raise serializers.ValidationError("درس یافت نشد.")
+        return lesson
+
+    def validate_teacher(self, value):
+        if value is None:
+            return None
+        person = Person.objects.filter(
+            pk=value, is_deleted=False, is_active=True,
+        ).first()
+        if person is None or not person.has_type("teacher"):
+            raise serializers.ValidationError("استاد انتخابی فعال نیست.")
+        return person
+
+    def validate_location(self, value):
+        if value is None:
+            return None
+        loc = Location.objects.filter(pk=value, is_deleted=False, is_active=True).first()
+        if loc is None:
+            raise serializers.ValidationError("فضای انتخابی یافت نشد یا غیرفعال است.")
+        return loc
+
+    def validate_schedule(self, value):
+        return validate_schedule_payload(value)
+
+    def create(self, validated_data):
+        from apps.education.class_formation import form_class
+
+        offering = validated_data.pop("offering")
+        # schedule={} → explicit "use the offering's proposal" (None override).
+        schedule = validated_data.pop("schedule", None) or None
+        request = self.context.get("request")
+        return form_class(
+            offering=offering, schedule=schedule,
+            actor=getattr(request, "user", None),
+            **validated_data,
+        )

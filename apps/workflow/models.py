@@ -293,6 +293,15 @@ class Instance(DomainModel):
         default=Status.RUNNING,
         db_index=True,
     )
+    # ── شناسه پیگیری (Tracking ID) ─────────────────────────────────────────
+    # The card-table needs a short human-readable code to quote in calls/SMS;
+    # a UUID is not dictatable. Allocated inside create_instance from
+    # ``RequestSequence`` (year-scoped), so it survives soft-delete without
+    # reuse — same rule as FormSubmission.submission_number (B-round).
+    tracking_number = models.CharField(
+        max_length=32, blank=True, default="", db_index=True,
+        help_text="شناسه پیگیری انسانی، مثال REQ-2026-000123 — هنگام ایجاد پر می‌شود.",
+    )
 
     class Meta:
         app_label = "workflow"
@@ -300,6 +309,13 @@ class Instance(DomainModel):
         verbose_name = "Instance (نمونه فرآیند)"
         verbose_name_plural = "Instances (نمونه‌های فرآیند)"
         ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tracking_number"],
+                condition=models.Q(is_deleted=False) & ~models.Q(tracking_number=""),
+                name="uniq_workflow_tracking_number_alive",
+            ),
+        ]
         permissions = [
             ("view_all_instances", "مشاهده همه درخواست‌ها"),
             ("approve_instance", "تأیید درخواست"),
@@ -619,3 +635,39 @@ class NotificationOutbox(DomainModel):
 
     def __str__(self) -> str:
         return f"{self.instance_id} → {self.recipient_id} [{self.channel}/{self.status}]"
+
+
+class RequestSequence(models.Model):
+    """
+    Per-year counter backing the human Tracking ID (``Instance.tracking_number``).
+
+    The sequence is GLOBAL per year — not per workflow code — because
+    ``tracking_number`` carries only ``REQ-<year>-N``: a per-code counter made
+    ``REQ-2026-000001`` collide across ``leave-request`` and every other first
+    request of the year, and the live-unique index rejected it (the exact
+    failure the first migrate produced on real data). A global counter makes
+    uniqueness structural, and the short number stays dictatable over the
+    phone — which is the whole purpose of a tracking ID. The workflow type is
+    one JOIN away whenever it matters.
+
+    Deliberately NOT a DomainModel: pure counter infrastructure with no
+    identity; soft-delete semantics would make "the next number" ambiguous.
+    Mirrors forms.SubmissionSequence — PostgreSQL serialises the bump with
+    ``select_for_update``; SQLite (tests) falls back to the unique constraint.
+    Production concurrency backend is PostgreSQL (per the project's stated
+    architecture).
+    """
+
+    year = models.PositiveIntegerField(unique=True)
+    last_value = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "workflow"
+        db_table = "workflow_request_sequence"
+        verbose_name = "Request Sequence (شمارنده پیگیری)"
+        verbose_name_plural = "Request Sequences (شمارنده‌های پیگیری)"
+        ordering = ("year",)
+
+    def __str__(self) -> str:
+        return f"REQ-{self.year}={self.last_value}"

@@ -7,7 +7,7 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 
 from apps.core.utils import english_numbers
-from apps.persons.models import Person, PersonTypeAssignment
+from apps.persons.models import Person, PersonTypeAssignment, StudentGuardian
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,17 @@ def can_view_full_person_detail(user, person) -> bool:
         return True
     if person is not None and person.user_id == user.pk:
         return True
+    # Custodian-by-law: an ACTIVE guardian link makes the FULL identity of the
+    # ward visible (name, national code, contact) — the intake contract. The
+    # check is per-row, never role-wide, so a guardian still sees strangers
+    # masked.
+    if person is not None and "guardian" in roles:
+        self_person = getattr(user, "person", None)
+        if self_person is not None and StudentGuardian.objects.filter(
+            guardian=self_person, student=person,
+            is_active=True, is_deleted=False,
+        ).exists():
+            return True
     return False
 
 
@@ -109,6 +120,17 @@ def persons_visible_to(user):
             dj_models.Q(**own) | dj_models.Q(is_active=True)
         )
 
+    if "guardian" in roles:
+        # A guardian sees themselves + ONLY their own wards (the docstring's
+        # promise, previously unimplemented). No ward link → no rows beyond
+        # their own record, so a parent account can never enumerate students.
+        from apps.academics.scoping import ward_student_ids_for
+
+        wards = ward_student_ids_for(user)
+        return Person.objects.filter(
+            dj_models.Q(**own) | dj_models.Q(pk__in=wards)
+        )
+
     # student / unknown end-user role → only their own record.
     return Person.objects.filter(**own)
 
@@ -153,6 +175,7 @@ class PersonService:
         photo=None,
         registered_by: Optional[settings.AUTH_USER_MODEL] = None,
         auto_create_user: bool = False,
+        password: Optional[str] = None,
         grant_role: Optional[str] = None,
     ) -> Person:
         """ثبت شخص جدید و در صورت درخواست، ساخت حساب کاربری."""
@@ -195,7 +218,7 @@ class PersonService:
                 "کد ملی یا کد دانش‌آموزی/پرسنلی تکراری است."
             ) from exc
         if auto_create_user:
-            self._create_user_for_person(person, grant_role=grant_role)
+            self._create_user_for_person(person, password=password, grant_role=grant_role)
         logger.info("Person created: %s %s (%s) by %s", first_name, last_name, person_type, registered_by)
         return person
 
@@ -228,12 +251,19 @@ class PersonService:
         final_username = english_numbers(username or person.national_code).strip()
         final_password = english_numbers(password or person.national_code).strip()
 
-        # یگانه‌سازی name کاربری
-        base = final_username
-        suffix = 1
-        while User.objects.filter(username=final_username).exists():
-            final_username = f"{base}_{suffix}"
-            suffix += 1
+        # The national code is the stable default login identifier. Never
+        # silently suffix it: a collision must be reported and the enclosing
+        # transaction must roll back instead of creating a surprising login.
+        if not username and User.objects.filter(username=final_username).exists():
+            raise PersonServiceError(
+                "نام کاربری پیش‌فرض (کد ملی) قبلاً استفاده شده است."
+            )
+        if username:
+            base = final_username
+            suffix = 1
+            while User.objects.filter(username=final_username).exists():
+                final_username = f"{base}_{suffix}"
+                suffix += 1
 
         user = User.objects.create_user(
             username=final_username,
@@ -251,11 +281,16 @@ class PersonService:
             Person.Type.STUDENT: "student",
             Person.Type.TEACHER: "teacher",
             Person.Type.EMPLOYEE: "employee",
+            # A guardian gets the read-mostly parent role. It grants NOTHING by
+            # itself — rows arrive only through an active StudentGuardian link
+            # (see apps.academics.scoping + apps.persons.services).
+            Person.Type.GUARDIAN: "guardian",
         }
         group_map = {
             Person.Type.STUDENT: "دانش‌آموز",
             Person.Type.TEACHER: "معلم / مدرس",
             Person.Type.EMPLOYEE: "کارمند",
+            Person.Type.GUARDIAN: "والدین",
         }
         from django.contrib.auth.models import Group
 
@@ -323,6 +358,7 @@ class PersonService:
                 Person.Type.STUDENT: "student",
                 Person.Type.TEACHER: "teacher",
                 Person.Type.EMPLOYEE: "employee",
+                Person.Type.GUARDIAN: "guardian",
             }
             role_code = role_map.get(type_code)
             if role_code:

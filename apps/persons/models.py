@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import models
 from django.utils import timezone
 
@@ -19,6 +20,7 @@ class Person(DomainModel):
         STUDENT = "student", "دانش‌آموز"
         TEACHER = "teacher", "معلم / مدرس"
         EMPLOYEE = "employee", "کارمند"
+        GUARDIAN = "guardian", "ولی / سرپرست (والدین)"
 
     # ─── هویت ───
     national_code = models.CharField(
@@ -26,8 +28,8 @@ class Person(DomainModel):
         db_index=True,
         help_text="کد ملی — شناسه یکتای شخص (یکتا در میان اشخاص زنده)",
     )
-    first_name = models.CharField(max_length=128)
-    last_name = models.CharField(max_length=128)
+    first_name = models.CharField(max_length=128, db_index=True)
+    last_name = models.CharField(max_length=128, db_index=True)
     father_name = models.CharField(max_length=128, blank=True, default="")
     birth_date = models.DateField(null=True, blank=True)
 
@@ -213,12 +215,27 @@ class Person(DomainModel):
     def clean(self) -> None:
         errors: dict[str, list[str]] = {}
 
-        # کد ملی: فقط ارقام
-        if self.national_code:
-            if not self.national_code.isdigit():
-                errors.setdefault("national_code", []).append("کد ملی باید فقط شامل ارقام باشد.")
-            if len(self.national_code) != 10:
-                errors.setdefault("national_code", []).append("کد ملی باید ۱۰ رقمی باشد.")
+        # کد ملی: فقط ارقام و دقیقاً ۱۰ رقم.
+        if not self.national_code:
+            errors.setdefault("national_code", []).append("کد ملی الزامی است.")
+        elif not self.national_code.isdigit():
+            errors.setdefault("national_code", []).append("کد ملی باید فقط شامل ارقام باشد.")
+        elif len(self.national_code) != 10:
+            errors.setdefault("national_code", []).append("کد ملی باید ۱۰ رقمی باشد.")
+
+        # موبایل حساب اصلی: دقیقاً ۱۱ رقم و با 09 شروع می‌شود.
+        if not self.mobile:
+            errors.setdefault("mobile", []).append("شماره موبایل الزامی است.")
+        elif not self.mobile.isdigit() or len(self.mobile) != 11 or not self.mobile.startswith("09"):
+            errors.setdefault("mobile", []).append(
+                "شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود."
+            )
+
+        if self.email:
+            try:
+                validate_email(self.email)
+            except ValidationError:
+                errors.setdefault("email", []).append("قالب ایمیل معتبر نیست.")
 
         # اعتبارسنجی person_type
         if self.person_type == Person.Type.STUDENT and not self.student_code:
@@ -295,3 +312,287 @@ class PersonTypeAssignment(DomainModel):
 
     def __str__(self) -> str:
         return f"{self.person} [{self.type}]"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# نقشه‌ی مفهومی خواسته‌شده → پیاده‌سازی موجود
+#
+# درخواست «تفکیک مدل‌های ساختار کاربر» به شکل:
+#     UserProfile، StudentProfile، GuardianProfile، TeacherProfile، StaffProfile
+#
+# در این پایگاه‌داده ریشه‌ی هویت یک جدول است (``Person``) و «پروفایل» یعنی
+# *تخصصی‌سازی* همان شخص. دو دلیل فنی برای افزودن جدول توسیعه (extension) به‌جای
+# پنج جدول موازی:
+#
+#   ۱) کد ملی / موبایل / آدرس یک‌بار ذخیره می‌شوند. اگر TeacherProfile و
+#      StaffProfile هر دو ستون‌های هویت داشته باشند، یک مدرسِ کارمند دو ردیف
+#      هویتی با دو کد ملی پیدا می‌کند — همان چیزی که §13-1
+#      (``PersonTypeAssignment``) رد کرد.
+#   ۲) یگانگی «شخص» شرط همه‌ی foreign keyهای دامنه است (ClassSession.teacher،
+#      ClassEnrollment.student، AttendanceRecord.student، Workflow subject).
+#      چند جدول شخص یعنی هر کدام از این کلیدها باید one-of-N را هندل کند.
+#
+# پس: ``Person`` = ریشه‌ی هویت (+ نقش از ``accounts.UserRole``)؛ جداول پایین
+# فیلدهای *اختصاصی* هر نقش را نگه می‌دارند، یکی‌به‌یک و اختیاری. هر داده‌ی
+# تکراری (duplicates) در ``Person`` می‌ماند و این جدول‌ها «اعتباری‌سازی» را از
+# «هویت» جدا می‌کنند.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_ALIVE = models.Q(is_deleted=False)
+
+RELATION_FATHER = "father"
+RELATION_MOTHER = "mother"
+RELATION_GUARDIAN = "legal_guardian"
+RELATION_OTHER = "other"
+
+
+class StudentProfile(DomainModel):
+    """پروفایل دانش‌آموز — فیلدهای تحصیلی/انضباطی که جای их در ``Person`` نیست."""
+
+    person = models.OneToOneField(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="student_profile",
+        limit_choices_to={"person_type": Person.Type.STUDENT},
+    )
+    grade_level = models.CharField(
+        max_length=32, blank=True, default="",
+        help_text="پایه/پادگان تحصیلی (نمایشی؛ ساختار درختی در education.Department).",
+    )
+    father_first_name = models.CharField(max_length=128, blank=True, default="")
+    father_last_name = models.CharField(max_length=128, blank=True, default="")
+    father_phone = models.CharField(max_length=11, blank=True, default="")
+    mother_first_name = models.CharField(max_length=128, blank=True, default="")
+    mother_last_name = models.CharField(max_length=128, blank=True, default="")
+    mother_phone = models.CharField(max_length=11, blank=True, default="")
+    class_section = models.CharField(max_length=32, blank=True, default="", help_text="شعبه کلاس")
+    school_year = models.CharField(max_length=16, blank=True, default="", help_text="سال تحصیلی، مثال 1405-1406")
+    enrollment_date = models.DateField(null=True, blank=True)
+    birth_certificate_no = models.CharField(max_length=32, blank=True, default="")
+    health_notes = models.TextField(
+        blank=True, default="",
+        help_text="محدودیت/بیماری اعلام‌شده — PII پزشکی؛ فقط حافظان کامل می‌بینند.",
+    )
+    has_special_needs = models.BooleanField(default=False)
+    is_custody_case = models.BooleanField(
+        default=False,
+        help_text="وضعیت تکفل: دانش‌آموز تحت تکفل والد غیراز ولایت/قیم خاص است.",
+    )
+    custody_note = models.CharField(max_length=256, blank=True, default="")
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        app_label = "persons"
+        db_table = "persons_student_profile"
+        verbose_name = "Student Profile (پروفایل دانش‌آموز)"
+        verbose_name_plural = "Student Profiles (پروفایل‌های دانش‌آموز)"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["grade_level", "is_active"],
+                         name="persons_stu_grade_active_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"StudentProfile({self.person})"
+
+
+class GuardianProfile(DomainModel):
+    """
+    پروفایل ولی/سرپرست — «کدام والد» و «چه سطح اختیاری».
+
+    نام/کدملی/تماس در ``Person`` است (تکرار هویت ممنوع). این جدول رابطه‌ی
+    خانوادگی و اختیارات را نگه می‌دارد و به یک ``StudentProfile`` راه نمی‌بندد؛
+    پیوند «این والد ← این دانش‌آموز» در ``StudentGuardian`` است تا یک والد
+    بتواند سرپرست چند دانش‌آموز باشد و یک دانش‌آموز چند ولی داشته باشد.
+    """
+
+    class Relation(models.TextChoices):
+        FATHER = RELATION_FATHER, "پدر"
+        MOTHER = RELATION_MOTHER, "مادر"
+        LEGAL_GUARDIAN = RELATION_GUARDIAN, "قیم / سرپرست قانونی"
+        OTHER = RELATION_OTHER, "سایر"
+
+    person = models.OneToOneField(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="guardian_profile",
+        limit_choices_to={"person_type": Person.Type.GUARDIAN},
+    )
+    occupation = models.CharField(max_length=128, blank=True, default="")
+    education_level = models.CharField(max_length=64, blank=True, default="")
+    preferred_contact = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="کانال ترجیحی اطلاع‌رسانی: sms / call / in_app",
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="ولی اصلی — مخاطب رسمی مؤسسه برای اعلان‌ها و صورت‌حساب.",
+    )
+
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        app_label = "persons"
+        db_table = "persons_guardian_profile"
+        verbose_name = "Guardian Profile (پروفایل ولی)"
+        verbose_name_plural = "Guardian Profiles (پروفایل اولیا)"
+        ordering = ("-is_primary", "person__last_name")
+
+    def __str__(self) -> str:
+        return f"GuardianProfile({self.person})"
+
+
+class StudentGuardian(DomainModel):
+    """
+    پیوند دانش‌آموز ↔ ولی با «وضعیت تکفل» و سطح اختیارات.
+
+    ``relation`` نسبت *این* پیوند است (پدر/مادر/قیم) — پس یکPerson ولی می‌تواند
+    برای دو دانش‌آموز دو نسبت متفاوت داشته باشد و بالعکس. ``custody_status``
+    وضعیت حقوقی تکفل را ثبت می‌کند (تحت‌تکفل / ولایت پدر / قیم court-ordered).
+    """
+
+    class Custody(models.TextChoices):
+        UNDER_CUSTODY = "under_custody", "تحت تکفل"
+        CUSTODY_OTHER = "custody_other", "تکفل با والد دیگر"
+        FULL_GUARDIAN = "full_guardian", "ولایت/سرپرستی کامل"
+        VISITATION_ONLY = "visitation", "فقط ملاقات (بدون حق امضا)"
+
+    student = models.ForeignKey(
+        Person, on_delete=models.CASCADE, related_name="guardians",
+        limit_choices_to={"person_type": Person.Type.STUDENT},
+    )
+    guardian = models.ForeignKey(
+        Person, on_delete=models.CASCADE, related_name="ward_links",
+        limit_choices_to={"person_type": Person.Type.GUARDIAN},
+    )
+    relation = models.CharField(
+        max_length=32, choices=GuardianProfile.Relation.choices,
+        default=GuardianProfile.Relation.OTHER,
+    )
+    custody_status = models.CharField(
+        max_length=20, choices=Custody.choices, default=Custody.UNDER_CUSTODY,
+    )
+    # سطح اختیار: امضای درخواست، مشاهده‌ی نمره، دریافت اعلان مالی.
+    can_view_grades = models.BooleanField(default=True)
+    can_view_attendance = models.BooleanField(default=True)
+    can_submit_requests = models.BooleanField(default=True)
+    can_receive_billing = models.BooleanField(default=False)
+    phone_override = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="شماره تماس این رابطه (اگر با Person.mobile متفاوت است).",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    valid_from = models.DateField(null=True, blank=True)
+    valid_to = models.DateField(null=True, blank=True)
+
+    class Meta:
+        app_label = "persons"
+        db_table = "persons_student_guardian"
+        verbose_name = "Student-Guardian link (تکفل)"
+        verbose_name_plural = "Student-Guardian links (تکفلات)"
+        ordering = ("student", "relation")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "guardian"], condition=_ALIVE,
+                name="uniq_persons_student_guardian_alive",
+                violation_error_message="این ولی قبلاً به این دانش‌آموز متصل شده است.",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(student=models.F("guardian")),
+                name="chk_persons_guardian_not_self",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["guardian", "is_active"], name="persons_sg_guardian_active_idx"),
+            models.Index(fields=["student", "is_active"], name="persons_sg_student_active_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.guardian} --{self.get_relation_display()}--> {self.student}"
+
+
+class StaffProfile(DomainModel):
+    """
+    پروفایل کارمند/مدرس — قرارداد، تخصص، سوابق و مدارک.
+
+    ``person_type`` معلم و کارمند هر دو در ``Person`` «کارمند-گونه» هستند
+    (کد پرسنلی الزامی)، پس این جدول با یک ``kind`` تفکیک می‌کند و یک جدول
+    موازیِ دوم برای «مدرس» نمی‌سازد؛ این دقیقاً همان الگویی است که
+    ``PersonTypeAssignment`` برای شخصِ چند-نوع پذیرفته است.
+    """
+
+    class Kind(models.TextChoices):
+        TEACHING = "teaching", "مدرس (تدریس)"
+        ADMINISTRATIVE = "administrative", "کارمند اداری"
+        TECHNICAL = "technical", "کارمند فنی"
+
+    person = models.OneToOneField(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="staff_profile",
+        limit_choices_to={
+            "person_type__in": [Person.Type.TEACHER, Person.Type.EMPLOYEE]
+        },
+    )
+    kind = models.CharField(
+        max_length=20, choices=Kind.choices, default=Kind.ADMINISTRATIVE,
+        db_index=True,
+    )
+    contract_no = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    contract_type = models.CharField(
+        max_length=32, blank=True, default="",
+        help_text="نوع قرارداد: رسمی / پیمانی / حق‌التدریس / پروژه‌ای",
+    )
+    contract_start = models.DateField(null=True, blank=True)
+    contract_end = models.DateField(null=True, blank=True, db_index=True)
+    hourly_rate = models.PositiveIntegerField(
+        default=0, help_text="حق‌التدریس هر ساعت (تومان) — ۰ = نامشخص/پرداخت ماهانه"
+    )
+    weekly_max_hours = models.PositiveSmallIntegerField(
+        default=0, help_text="سقف ساعات هفتگی تدریس — ورودی موتور زمان‌بندی"
+    )
+    specialization = models.CharField(
+        max_length=256, blank=True, default="",
+        help_text="تخصص/حوزه‌ی تدریس (متن آزاد؛ دپارتمان مرجع از education.Department)",
+    )
+    department = models.ForeignKey(
+        "education.Department",
+        null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="staff",
+    )
+    academic_degree = models.CharField(max_length=64, blank=True, default="")
+    experience_years = models.PositiveSmallIntegerField(default=0)
+    bio = models.TextField(blank=True, default="", help_text="سوابق و رزومه (خلاصه).")
+    credentials = models.JSONField(
+        default=list, blank=True,
+        help_text="مدارک/گواهینامه‌ها: [{title, issuer, issued_at, file}]",
+    )
+    is_verified = models.BooleanField(
+        default=False, help_text="مدارک توسط امور اداری بررسی/تأیید شده است."
+    )
+
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        app_label = "persons"
+        db_table = "persons_staff_profile"
+        verbose_name = "Staff/Teacher Profile (پروفایل کارمند/مدرس)"
+        verbose_name_plural = "Staff/Teacher Profiles (پروفایل کارمندان/مدرسان)"
+        ordering = ("kind", "person__last_name")
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(contract_end__isnull=True)
+                    | models.Q(contract_start__isnull=True)
+                    | models.Q(contract_end__gt=models.F("contract_start"))
+                ),
+                name="chk_persons_contract_end_after_start",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["kind", "is_active"], name="persons_sp_kind_active_idx"),
+            models.Index(fields=["department"], name="persons_sp_department_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"StaffProfile({self.person}, {self.get_kind_display()})"

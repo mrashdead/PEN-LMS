@@ -5,10 +5,12 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 
 from apps.core.group_permissions import HasGroupPermission, StrictDjangoModelPermissions
+from apps.core.crud_views import SoftDeleteView, SoftRestoreView
 from apps.core.permissions import (
     IsActiveUser,
     IsAcademicManager,
     IsManagerOrAdmin,
+    ResourceCRUDPermission,
 )
 from apps.academics.models import AcademicTerm, ClassEnrollment, ClassGroup
 from apps.academics.scoping import class_groups_visible_to, enrollments_visible_to
@@ -49,9 +51,19 @@ class AcademicTermListCreateView(generics.ListCreateAPIView):
 
 
 class AcademicTermDetailView(generics.RetrieveUpdateAPIView):
-    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
     serializer_class = AcademicTermDetailSerializer
     queryset = AcademicTerm.objects.all()
+
+
+class AcademicTermSoftDeleteView(SoftDeleteView):
+    queryset = AcademicTerm.objects.all()
+    resource_key = "terms"
+
+
+class AcademicTermRestoreView(SoftRestoreView):
+    queryset = AcademicTerm.all_objects.all()
+    resource_key = "terms"
 
 
 class AcademicTermActivateView(generics.GenericAPIView):
@@ -106,12 +118,24 @@ class ClassGroupListCreateView(generics.ListCreateAPIView):
 
 
 class ClassGroupDetailView(generics.RetrieveUpdateAPIView):
-    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
     serializer_class = ClassGroupDetailSerializer
 
     def get_queryset(self):
         # Scoped so a student/parent cannot fetch a class group by raw UUID.
         return class_groups_visible_to(self.request.user)
+
+
+class ClassGroupSoftDeleteView(SoftDeleteView):
+    resource_key = "class-groups"
+
+    def get_queryset(self):
+        return class_groups_visible_to(self.request.user)
+
+
+class ClassGroupRestoreView(SoftRestoreView):
+    queryset = ClassGroup.all_objects.all()
+    resource_key = "class-groups"
 
 
 # ──────────────────────────────────────────────
@@ -157,9 +181,21 @@ class ClassEnrollmentListCreateView(generics.ListCreateAPIView):
         return Response(ClassEnrollmentListSerializer(enrollment, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
-class ClassEnrollmentDetailView(generics.RetrieveDestroyAPIView):
-    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+class ClassEnrollmentDetailView(generics.RetrieveUpdateAPIView):
+    permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
     serializer_class = ClassEnrollmentListSerializer
 
     def get_queryset(self):
         return enrollments_visible_to(self.request.user)
+
+
+class ClassEnrollmentSoftDeleteView(SoftDeleteView):
+    resource_key = "enrollments"
+
+    def get_queryset(self):
+        return enrollments_visible_to(self.request.user)
+
+
+class ClassEnrollmentRestoreView(SoftRestoreView):
+    queryset = ClassEnrollment.all_objects.all()
+    resource_key = "enrollments"
