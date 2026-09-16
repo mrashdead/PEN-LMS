@@ -1,0 +1,106 @@
+// src/assets/scss/custom/structure/_others.scss
+
+:is([data-layout=modern], [data-layout=semibox]) {
+    .main-sidebar {
+        top: 0;
+
+        .navbar-brand {
+            display: flex;
+
+            .logo-lg {
+                .logo-light {
+                    display: none;
+                }
+            }
+
+            .logo-sm {
+                display: none;
+            }
+        }
+    }
+
+    @include media-breakpoint-up(lg) {
+        .main-topbar {
+            left: var(--#{$prefix}sidebar);
+
+            .navbar-brand {
+                width: auto;
+
+                .logos {
+                    display: none;
+                }
+            }
+        }
+    }
+
+    //sidebar size medium
+    @include media-breakpoint-up(lg) {
+        &[data-sidebar=medium] {
+            .main-topbar {
+                left: var(--#{$prefix}sidebar-md);
+            }
+        }
+    }
+
+    //sidebar size small
+    &[data-sidebar=small] {
+
+        .main-sidebar {
+            .navbar-brand {
+                display: flex;
+
+                .logo-lg {
+                    display: none;
+                }
+
+                .logo-sm {
+                    display: block;
+
+                    .logo-light {
+                        display: none;
+                    }
+                }
+            }
+        }
+
+        .main-topbar {
+            left: var(--#{$prefix}sidebar-sm);
+        }
+    }
+
+    &:is([data-sidebar-colors=dark], [data-sidebar-colors=brand], [data-sidebar-colors=purple], [data-sidebar-colors=sky]) {
+        .navbar-brand {
+            .logo-lg {
+                .logo-light {
+                    display: block;
+                }
+
+                .logo-dark {
+                    display: none;
+                }
+            }
+
+            .logo-sm {
+                display: none;
+            }
+        }
+
+        &[data-sidebar=small] {
+            .navbar-brand {
+                .logo-sm {
+                    .logo-light {
+                        display: block;
+                    }
+
+                    .logo-dark {
+                        display: none;
+                    }
+                }
+            }
+        }
+    }
+}
+
+[data-bs-theme=black-white] {
+    filter: grayscale(100%) !important;
+}

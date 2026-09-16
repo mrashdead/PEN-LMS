@@ -1,0 +1,27 @@
+// src/assets/scss/custom/structure/_footer.scss
+
+.main-footer {
+    @include position(absolute, null, 0, 0, 0);
+    @include flexStyle(center);
+    margin-inline: 0.9375rem;
+    padding-inline: 1rem;
+    height: 3.5rem;
+    border-top: 1px solid var(--#{$prefix}border-color);
+
+    @include media-breakpoint-up(lg) {
+        left: var(--#{$prefix}sidebar);
+    }
+    
+    @include media-breakpoint-up(xl) {
+        padding-inline: 1rem;
+    }
+
+    @include media-breakpoint-up(xxl) {
+        margin-inline: 7rem;
+    }
+
+    //content width=fluid
+    [data-content-width=fluid] & {
+        margin-inline: 1.25rem;
+    }
+}

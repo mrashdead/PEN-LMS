@@ -1,0 +1,127 @@
+// src/assets/scss/custom/forms/_form-select.scss
+
+.vscomp-ele {
+    max-width: 100% !important;
+
+    .vscomp-wrapper {
+        color: var(--#{$prefix}body-color);
+
+        .vscomp-toggle-button {
+            background-color: transparent;
+            border: 1px solid var(--#{$prefix}border-color);
+        }
+
+        &:focus,
+        &.focused {
+            .vscomp-toggle-button {
+                border-color: var(--#{$prefix}primary);
+                box-shadow: var(--#{$prefix}box-shadow) !important;
+            }
+        }
+
+        &:not(.has-value) .vscomp-value {
+            opacity: 1;
+            color: var(--#{$prefix}secondary-color);
+        }
+
+        .vscomp-arrow::after {
+            margin-top: -3px;
+            border-bottom-color: var(--#{$prefix}emphasis-color);
+            border-right-color: var(--#{$prefix}emphasis-color);
+            border-left-color: transparent;
+        }
+
+        .checkbox-icon {
+            margin-right: 10px;
+            margin-left: 0;
+
+            &::after {
+                border: 1px solid var(--#{$prefix}tertiary-bg);
+            }
+        }
+
+        &.multiple .vscomp-option.selected .checkbox-icon::after {
+            border: 1px solid var(--#{$prefix}primary);
+            border-top-color: transparent !important;
+            border-left-color: transparent !important;
+        }
+
+        .vscomp-options,
+        .vscomp-no-search-results {
+            background-color: var(--#{$prefix}secondary-bg);
+
+            .vscomp-option {
+                text-align: left;
+
+                &.selected,
+                &.focused {
+                    background-color: var(--#{$prefix}tertiary-bg) !important;
+                }
+            }
+        }
+
+        .vscomp-search-container {
+            background-color: var(--#{$prefix}secondary-bg);
+            border-bottom: 1px solid var(--#{$prefix}tertiary-bg);
+        }
+
+        .pop-comp-wrapper {
+            box-shadow: 0 10px 15px -3px var(--#{$prefix}tertiary-bg),
+            0 4px 6px -4px var(--#{$prefix}tertiary-bg);
+            color: var(--#{$prefix}emphasis-color);
+        }
+
+        .vscomp-search-wrapper {
+            box-shadow: none !important;
+        }
+
+        &.has-clear-button .vscomp-toggle-button {
+            padding-right: 3.375rem !important;
+        }
+
+        .vscomp-dropbox-container {
+            z-index: 9999 !important;
+        }
+
+        &.show-value-as-tags {
+            .vscomp-arrow {
+                height: 100%;
+            }
+
+            .vscomp-value {
+                min-height: 100%;
+            }
+
+            .vscomp-value-tag {
+                padding: 2px 3px 2px 8px;
+                border: 1px solid var(--#{$prefix}border-color);
+            }
+
+            &.has-value .vscomp-clear-button {
+                right: 2px;
+                left: auto;
+            }
+        }
+    }
+
+    .vscomp-search-input {
+        &::placeholder {
+            color: var(--#{$prefix}secondary-color);
+        }
+    }
+
+    .vscomp-toggle-button {
+        padding: 0.5938rem 1.875rem 0.5938rem 0.625rem !important;
+        border-radius: $border-radius !important;
+    }
+
+    .vscomp-clear-button {
+        right: 30px;
+        left: auto;
+    }
+
+    .vscomp-arrow {
+        right: 0;
+        left: auto;
+    }
+}

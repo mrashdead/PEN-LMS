@@ -1,0 +1,38 @@
+// src/assets/scss/custom/apps/_apps-ecommerce-orders-track.scss
+
+.avatar-dot {
+    bottom: 6px;
+    right: 8px;
+}
+
+.order-track-card {
+    position: relative;
+    height: 8rem;
+
+    .order-truck {
+        @include position(absolute, null, null, null, 23%);
+        
+    }
+    .order-track-point {
+        width: 2px;
+        @include position(absolute, 0, null, 0, null);
+        background-color: var(--#{$prefix}border-color);
+    }
+
+    .order-track-dot {
+        position: absolute;
+        top: 0;
+        right: -5px;
+        height: 12px;
+        width: 12px;
+        @include border-radius($border-radius-pill);
+        border: 4px solid var(--#{$prefix}secondary-bg);
+    }
+
+    .progress {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        left: 0;
+    }
+}

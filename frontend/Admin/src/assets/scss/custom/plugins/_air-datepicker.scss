@@ -1,0 +1,50 @@
+// src/assets/scss/custom/plugins/_air-datepicker.scss
+
+div.air-datepicker {
+    --adp-color: var(--#{$prefix}secondary-color);
+    --adp-font-family: var(--#{$prefix}body-font-family);
+    --adp-background-color: var(--#{$prefix}secondary-bg);
+    --adp-border-color-inline: var(--#{$prefix}border-color);
+    --adp-border-color-inner: var(--#{$prefix}border-color);
+    --adp-border-color: var(--#{$prefix}border-color);
+    --adp-color-current-date: var(--#{$prefix}primary);
+    --adp-accent-color: var(--#{$prefix}primary);
+    --adp-btn-color: var(--#{$prefix}primary);
+    --adp-cell-background-color-selected: var(--#{$prefix}primary);
+    --adp-cell-background-color-selected-hover: var(--#{$prefix}primary);
+    --adp-background-color-chover: var(--#{$prefix}tertiary-bg);
+    --adp-background-color-hover: var(--#{$prefix}tertiary-bg);
+    --adp-background-color-active: var(--#{$prefix}tertiary-bg);
+    --adp-color-secondary: var(--#{$prefix}secondary-color);
+    --adp-color-other-month: var(--#{$prefix}tertiary-color);
+    --adp-day-name-color: var(--#{$prefix}secondary-color);
+    --adp-time-track-color: var(--#{$prefix}secondary-color);
+    --adp-time-track-color-hover: var(--#{$prefix}body-color);
+    --adp-cell-background-color-in-range: var(--#{$prefix}primary-bg-subtle);
+    --adp-cell-background-color-in-range-hover: var(--#{$prefix}primary-bg-subtle);
+
+    direction: ltr;
+}
+
+.air-datepicker {
+    box-shadow: $card-box-shadow !important;
+
+    .air-datepicker-body--day-names {
+        margin: 0 0 3px;
+        padding: 3px 0;
+        background-color: var(--#{$prefix}tertiary-bg);
+        font-weight: $font-weight-semibold;
+    }
+
+    .air-datepicker--pointer:after {
+        background: var(--#{$prefix}secondary-bg);
+    }
+}
+
+.air-datepicker-global-container {
+    z-index: $zindex-modal;
+}
+
+// html * {
+//     unicode-bidi: bidi-override;
+// }

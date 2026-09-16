@@ -1,0 +1,29 @@
+// src/assets/scss/custom/apps/_apps-school-exam-schedule.scss
+
+@media (min-width: 576px) {
+    .exam-schedule {
+        &.row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+
+            .row-span-2 {
+                grid-row: span 2;
+            }
+        }
+    }
+
+}
+
+@media (min-width: 1200px) {
+    .exam-schedule {
+        &.row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+
+            .row-span-2 {
+                grid-row: span 2;
+            }
+        }
+    }
+
+}

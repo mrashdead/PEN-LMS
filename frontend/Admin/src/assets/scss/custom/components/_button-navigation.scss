@@ -1,0 +1,66 @@
+// src/assets/scss/custom/components/_button-navigation.scss
+
+.btn-navigation {
+    box-shadow: var(--#{$prefix}box-shadow);
+    border: 1px solid var(--#{$prefix}border-color);
+    background-color: var(--#{$prefix}secondary-bg);
+    position: relative;
+    display: flex;
+    @include border-radius($border-radius);
+    
+    a {
+        color: var(--#{$prefix}secondary-color);
+        padding: 1.5rem 1rem;
+        position: relative;
+        flex-grow: 1;
+        text-align: center;
+        @include transition;
+    }
+}
+
+// Animation Navigation
+.navigation-bottom-animation {
+    a {
+        &::before {
+            content: '';
+            @include position(absolute, null, null, 0px, 50%);
+            width: 6px;
+            height: 6px;
+            @include border-radius($border-radius-pill);
+            transform: translateX(-50%);
+            @include transition;
+        }
+        
+        &:is(:hover, .active) {
+            &::before {
+                bottom: 10px;
+            }
+        }
+    }
+}
+
+.navigation-border-animation {
+    a {
+        &::before {
+            content: '';
+            @include position(absolute, null, null, 0, 50%);
+            width: 0;
+            height: 0.125rem;
+            transform: translateX(-50%);
+            @include transition;
+        }
+        
+        
+        &:is(:hover, .active) {
+            &::before {
+                width: 100%;
+            }
+        }
+    }
+    
+    &.top-border {
+        a::before {
+            @include position(absolute, 0, null, null, 50%);
+        }
+    }
+}

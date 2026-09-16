@@ -1,0 +1,41 @@
+// src/assets/scss/custom/components/_accordion.scss
+
+.accordion.accordion-boxed {
+    .accordion-item {
+        border: none;
+
+        &:not(:last-child) {
+            margin-bottom: calc($spacer * 0.7);
+        }
+    }
+
+    .accordion-button {
+        border: 1px solid var(--#{$prefix}accordion-border-color);
+        @include border-radius;
+    }
+}
+
+.accordion {
+    .accordion-button {
+        padding-right: calc($accordion-button-padding-x * 2);
+
+        &::after {
+            content: '\ea4e';
+            font-family: "remixicon" !important;
+            position: absolute;
+            top: 50%;
+            right: 0.4rem;
+            background: none;
+            font-size: 22px;
+            transform: translateY(-50%);
+            line-height: 1;
+            font-weight: 300;
+        }
+
+        &[aria-expanded="true"] {
+            &::after {
+                transform: translateY(-50%) $accordion-icon-transform;
+            }
+        }
+    }
+}

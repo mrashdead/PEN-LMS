@@ -1,0 +1,21 @@
+// src/assets/scss/custom/forms/_form-basic-input.scss
+
+.form-label {
+    font-weight: $font-weight-medium;
+}
+
+.form-control {
+    &:focus {
+        box-shadow: none;
+        border-color: var(--#{$prefix}primary);
+    }
+}
+
+.form-control-md {
+    padding: $input-padding-y-md $input-padding-x-md;
+    font-size: $input-font-size-md;
+}
+
+.resize-none {
+    resize: none;
+}

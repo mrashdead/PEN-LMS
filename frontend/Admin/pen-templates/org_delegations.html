@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}جانشینی{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="جانشینی" section="مدیریت سازمان" %}
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex flex-wrap align-items-center gap-2">
+    <div class="flex-grow-1">
+      <h6 class="mb-0 card-title">جانشینی کارتابل</h6>
+      <p class="mb-0 text-muted fs-14">برای مرخصی یا غیبت: کارهای یک نفر موقتاً به جانشین سپرده می‌شود. همه‌چیز ثبت و قابل لغو است.</p>
+    </div>
+    <button id="del-create" class="btn btn-primary flex-shrink-0">
+      <i data-lucide="user-plus" class="size-4 me-1"></i> جانشینی جدید
+    </button>
+  </div>
+  <div class="card-body pt-0">
+    <div class="table-responsive" id="del-wrap" aria-busy="false">
+      <div class="pen-loading">در حال بارگذاری…</div>
+    </div>
+  </div>
+</div>
+
+{# ── Create modal ─────────────────────────────────────────────────── #}
+<div class="modal fade" id="del-modal" tabindex="-1" aria-labelledby="del-label" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title mb-0" id="del-label">جانشینی جدید</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+      </div>
+      <div class="modal-body">
+        <div class="vstack gap-3">
+          <div class="row g-2">
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="del-principal">صاحب کار (معرفی‌کننده) <span class="text-danger">*</span></label>
+              <select id="del-principal" class="form-select" aria-label="صاحب کار"></select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="del-delegate">جانشین <span class="text-danger">*</span></label>
+              <select id="del-delegate" class="form-select" aria-label="جانشین"></select>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="del-department">واحد</label>
+              <input id="del-department" class="form-control" placeholder="مثلاً آموزش">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="del-workflow">فرآیند (اختیاری)</label>
+              <input id="del-workflow" class="form-control" dir="ltr" placeholder="leave-request">
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="del-from">از تاریخ <span class="text-danger">*</span></label>
+              <input id="del-from" type="text" class="form-control" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۶/۱۰">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="del-to">تا تاریخ <span class="text-danger">*</span></label>
+              <input id="del-to" type="text" class="form-control" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۶/۲۰">
+            </div>
+          </div>
+          <div>
+            <label class="form-label" for="del-reason">دلیل</label>
+            <input id="del-reason" class="form-control" placeholder="مرخصی تابستان">
+          </div>
+          <div id="del-error" class="pen-error-summary" role="alert" hidden><ul class="mb-0"></ul></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">انصراف</button>
+        <button type="button" id="del-save" class="btn btn-primary">
+          <i data-lucide="save" class="size-4 me-1"></i> ثبت جانشینی
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/org.js' %}"></script>
+{% endblock %}

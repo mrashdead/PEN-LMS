@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}خروج{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="خروج از سامانه" %}
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <div class="card">
+      <div class="card-body text-center p-7">
+        <div class="avatar bg-success-subtle text-success rounded-circle mx-auto mb-4" style="width:3.5rem;height:3.5rem;">
+          <i data-lucide="check" class="size-6"></i>
+        </div>
+        <h4 class="mb-2">با موفقیت خارج شدید</h4>
+        <p class="text-muted">برای ورود دوباره به صفحهٔ ورود بازگردید.</p>
+        <a href="{% url 'dashboard-login' %}" class="btn btn-primary mt-2">
+          <i data-lucide="log-in" class="size-4 me-2"></i> بازگشت به صفحهٔ ورود
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

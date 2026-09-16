@@ -1,0 +1,407 @@
+/*
+ * Pen LMS — custom layer on top of the Domiex theme (assets/css/app.rtl.css).
+ * The theme names its CSS variables --dx-* (not the stock --bs-*), so all
+ * colors here read from those tokens with sane fallbacks.
+ */
+
+/* ── Theme gap-fill: .fs-14 is used by the theme demo pages but missing
+     from the shipped compiled CSS (fs-13/fs-15 exist). ────────────────── */
+.fs-14 { font-size: 14px !important; }
+
+/* ── Status badges for form submissions ─────────────────────────── */
+.pen-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .25rem .625rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.pen-badge-draft      { background: var(--dx-gray-200); color: var(--dx-gray-700); }
+.pen-badge-submitted  { background: var(--dx-primary-bg-subtle); color: var(--dx-primary); }
+.pen-badge-processing { background: var(--dx-warning-bg-subtle); color: var(--dx-gray-700); }
+.pen-badge-approved   { background: var(--dx-success-bg-subtle); color: var(--dx-success-text-emphasis, var(--dx-success)); }
+.pen-badge-rejected   { background: var(--dx-danger-bg-subtle); color: var(--dx-danger-text-emphasis, var(--dx-danger)); }
+.pen-badge-archived   { background: var(--dx-secondary-bg-subtle); color: var(--dx-secondary-color); }
+
+/* ── Field rendering (dynamic form) ─────────────────────────────── */
+.pen-field { margin-bottom: 1rem; }
+.pen-field > label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: .375rem;
+}
+.pen-field .pen-help {
+  color: var(--dx-secondary-color);
+  font-size: .8125rem;
+  margin-top: .25rem;
+  margin-bottom: 0;
+}
+.pen-field .pen-errors {
+  list-style: none;
+  color: var(--dx-danger-text-emphasis, var(--dx-danger));
+  font-size: .8125rem;
+  margin: .375rem 0 0;
+  padding: 0;
+}
+.pen-field.is-invalid .form-control,
+.pen-field.is-invalid .form-select {
+  border-color: var(--dx-danger);
+}
+.pen-field .option-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-weight: 400;
+  padding: .25rem 0;
+}
+
+/* ── Error summary box ──────────────────────────────────────────── */
+.pen-error-summary {
+  border: 1px solid var(--dx-danger);
+  background: var(--dx-danger-bg-subtle);
+  border-radius: .5rem;
+  padding: .8rem 1rem;
+  margin-bottom: 1rem;
+  color: var(--dx-danger-text-emphasis, var(--dx-danger));
+}
+.pen-error-summary ul { margin: .25rem 0 0; }
+
+/* ── Multi-step section progress ────────────────────────────────── */
+.pen-progress {
+  display: flex;
+  gap: .35rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.pen-progress span {
+  flex: 1 1 40px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--dx-tertiary-bg);
+  min-width: 40px;
+}
+.pen-progress span.done { background: var(--dx-primary); }
+
+/* ── Attachments / drop zone ────────────────────────────────────── */
+.pen-dropzone {
+  border: 2px dashed var(--dx-border-color);
+  border-radius: .5rem;
+  padding: 1.25rem;
+  text-align: center;
+  color: var(--dx-secondary-color);
+  cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+.pen-dropzone:hover,
+.pen-dropzone.is-dragover {
+  border-color: var(--dx-primary);
+  background: var(--dx-primary-bg-subtle);
+}
+.pen-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .625rem;
+  border: 1px solid var(--dx-border-color);
+  border-radius: .5rem;
+  margin-top: .5rem;
+  font-size: .8125rem;
+}
+
+/* ── Detail page ────────────────────────────────────────────────── */
+.pen-definition-list th {
+  width: 220px;
+  vertical-align: top;
+  font-weight: 600;
+  color: var(--dx-secondary-color);
+}
+.pen-rich-content img { max-width: 100%; height: auto; }
+
+/* ── Empty / loading states ─────────────────────────────────────── */
+.pen-empty {
+  text-align: center;
+  color: var(--dx-secondary-color);
+  padding: 3rem 1rem;
+}
+.pen-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  padding: 2rem;
+  color: var(--dx-secondary-color);
+}
+.pen-loading::before {
+  content: '';
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--dx-border-color);
+  border-top-color: var(--dx-primary);
+  border-radius: 50%;
+  animation: pen-spin .6s linear infinite;
+}
+@keyframes pen-spin { to { transform: rotate(360deg); } }
+
+/* ── Jalali datepicker above modals ───────────────────────────────── */
+/* The theme's jalalidatepicker defaults to inline z-index:1000, which is
+   BELOW a Bootstrap modal (1055) — so inside a modal the calendar renders
+   behind the dialog and is unclickable. The popup root element has class
+   "jdp". pen-core.js also passes startWatch({zIndex:2000}); this !important
+   rule is the belt-and-suspenders backstop for any picker instance. */
+.jdp { z-index: 2000 !important; }
+
+/* ── Internal messaging ───────────────────────────────────────────── */
+.msg-list .msg-item:hover { background: var(--dx-primary-bg-subtle); }
+.msg-list .msg-item.active { background: var(--dx-primary-bg-subtle); box-shadow: inset 3px 0 0 var(--dx-primary); }
+.msg-bubble {
+  max-width: 78%;
+  border-radius: .75rem;
+  padding: .5rem .75rem;
+  font-size: .875rem;
+  line-height: 1.6;
+}
+.msg-bubble .msg-head { color: var(--dx-secondary-color); margin-bottom: .125rem; }
+.msg-mine { background: var(--dx-primary); color: #fff; border-bottom-right-radius: .25rem; }
+.msg-mine .msg-head { color: rgba(255, 255, 255, .75); }
+.msg-theirs { background: var(--dx-tertiary-bg); color: var(--dx-body-color); border-bottom-left-radius: .25rem; }
+
+/* unread badge (sidebar/topbar) */
+.msg-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 .3125rem;
+  border-radius: 999px;
+  background: var(--dx-danger);
+  color: #fff;
+  font-size: .6875rem;
+  font-weight: 700;
+  line-height: 1;
+}
+/* icon-overlay variant: only visible when the sidebar is icon-only
+   (mobile drawer or data-sidebar=small), where .content is hidden. */
+.main-sidebar .nav-link .icons { position: relative; }
+.msg-badge-on-icon {
+  display: none;
+  position: absolute;
+  top: -2px;
+  inset-inline-start: calc(100% - 4px);
+  margin: 0;
+  min-width: 1rem;
+  height: 1rem;
+  font-size: .625rem;
+}
+@media (max-width: 991.98px) {
+  html[data-sidebar="small"] .msg-badge-on-icon:not([hidden]),
+  .msg-badge-on-icon:not([hidden]) { display: inline-flex; }
+}
+html[data-sidebar="small"] .msg-badge-on-icon:not([hidden]) { display: inline-flex; }
+
+/* ── Jalali datepicker above Bootstrap modals ─────────────────────── */
+/* jdp-container ships with position:absolute but NO z-index, so inside a
+   modal (z-index 1040) it renders behind the dialog and is unclickable.
+   Raise it above the modal + its backdrop. */
+jdp-container { z-index: 1080 !important; }
+jdp-overlay   { z-index: 1075 !important; }
+
+/* ── Org chart tree ───────────────────────────────────────────────── */
+.org-children { padding-inline-start: 1.25rem; border-inline-start: 2px solid var(--dx-border-color); margin-inline-start: .5rem; }
+.org-node { margin: .25rem 0; }
+.org-node-row { padding: .25rem 0; }
+.org-node-row .org-toggle { padding: 0 .25rem; line-height: 1; }
+.org-node-row .org-person { text-decoration: none; padding: .125rem .25rem; }
+.org-node-row .org-person:hover { color: var(--dx-primary); }
+
+/* ── Work queue / requests cards ──────────────────────────────────── */
+.wq-card { transition: box-shadow .15s, transform .15s; cursor: pointer; }
+.wq-card:hover { box-shadow: 0 .5rem 1rem rgba(2, 6, 23, .12); transform: translateY(-1px); }
+.nav-tabs .nav-link { cursor: pointer; }
+
+/* ── Request detail timeline ──────────────────────────────────────── */
+.pen-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 1rem 0 0; /* RTL: line on the right */
+  position: relative;
+}
+.pen-timeline::before {
+  content: '';
+  position: absolute;
+  top: .25rem; bottom: .25rem;
+  right: .3125rem;
+  width: 2px;
+  background: var(--dx-border-color);
+}
+.pen-timeline-item {
+  position: relative;
+  padding: 0 1.25rem .875rem 0;
+}
+.pen-timeline-item::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: .375rem;
+  width: .625rem;
+  height: .625rem;
+  border-radius: 50%;
+  background: var(--dx-primary);
+  box-shadow: 0 0 0 3px var(--dx-body-bg);
+}
+
+/* ── Timetable grid (rows=locations, cols=1h slots) ─────────────── */
+.timetable-grid th, .timetable-grid td { text-align: center; vertical-align: middle; }
+.timetable-grid .tt-corner { min-width: 160px; width: 180px; font-weight: 600; }
+.timetable-grid .tt-hour { font-size: .8125rem; font-weight: 600; color: var(--dx-secondary-color); min-width: 92px; }
+.timetable-grid .tt-loc { min-width: 160px; text-align: right; font-weight: 600; background: var(--dx-tertiary-bg); }
+.timetable-grid .tt-loc .tt-sub { display: block; font-weight: 400; font-size: .75rem; color: var(--dx-secondary-color); }
+.timetable-grid .tt-empty { height: 64px; }
+.tt-cell { padding: 3px !important; height: 64px; }
+.tt-block {
+  height: 100%;
+  border-radius: .5rem;
+  padding: .375rem .5rem;
+  border-inline-start: 3px solid var(--dx-primary);
+  background: var(--dx-primary-bg-subtle);
+  cursor: default;
+  overflow: hidden;
+  transition: box-shadow .15s, transform .15s;
+}
+.tt-block:hover, .tt-block:focus-visible {
+  box-shadow: 0 .5rem 1rem rgba(2, 6, 23, .15);
+  transform: translateY(-2px);
+  outline: none;
+}
+.tt-block .tt-title {
+  font-size: .8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tt-block .tt-meta {
+  font-size: .71875rem;
+  color: var(--dx-secondary-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tt-block .tt-code {
+  font-family: var(--dx-font-monospace, monospace);
+  font-size: .6875rem;
+  background: rgba(2, 6, 23, .06);
+  border-radius: .25rem;
+  padding: 0 .25rem;
+}
+.tt-block.tt-held { border-inline-start-color: var(--dx-success); background: var(--dx-success-bg-subtle); }
+.tt-block.tt-cancelled { border-inline-start-color: var(--dx-danger); background: var(--dx-danger-bg-subtle); opacity: .7; }
+.tt-tooltip .tooltip-inner { white-space: pre-line; text-align: right; max-width: 280px; }
+.tt-dot { display: inline-block; width: .625rem; height: .625rem; border-radius: 50%; }
+
+/* ── Avatar placeholder in profile dropdown ─────────────────────── */
+.pen-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dx-primary);
+  color: var(--dx-white, #fff);
+  font-weight: 600;
+}
+
+/* ── Mobile-first: full-width fields on xs ──────────────────────── */
+@media (max-width: 575.98px) {
+  .pen-field[data-span="2"] { width: 100%; }
+  .pen-definition-list th { width: auto; }
+}
+
+/* ── Teacher / learner portal (attendance + report cards) ─────────── */
+.pen-seg { display: inline-flex; gap: .25rem; flex-wrap: wrap; }
+.pen-seg .btn { min-width: 2.6rem; }
+
+/* attendance status pill (present/absent/late/excused) */
+.pen-status { display: inline-flex; align-items: center; gap: .375rem; border: 0;
+  border-radius: 999px; padding: .25rem .75rem; font-size: .8125rem; font-weight: 600;
+  background: var(--dx-gray-200); color: var(--dx-gray-700); cursor: pointer; line-height: 1; }
+.pen-status .dot { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; opacity: .8; }
+.pen-status.present  { background: var(--dx-success-bg-subtle);  color: var(--dx-success-text-emphasis, var(--dx-success)); }
+.pen-status.absent   { background: var(--dx-danger-bg-subtle);   color: var(--dx-danger-text-emphasis, var(--dx-danger)); }
+.pen-status.late     { background: var(--dx-warning-bg-subtle);  color: var(--dx-warning-text-emphasis, var(--dx-warning)); }
+.pen-status.excused  { background: var(--dx-info-bg-subtle);     color: var(--dx-info-text-emphasis, var(--dx-info)); }
+.pen-status.unset    { background: var(--dx-gray-200);           color: var(--dx-gray-700); }
+
+/* report-card result pill (passed/failed) */
+.pen-result { display: inline-flex; align-items: center; gap: .375rem; border-radius: 999px;
+  padding: .25rem .75rem; font-size: .8125rem; font-weight: 700; }
+.pen-result.passed { background: var(--dx-success-bg-subtle); color: var(--dx-success-text-emphasis, var(--dx-success)); }
+.pen-result.failed { background: var(--dx-danger-bg-subtle);  color: var(--dx-danger-text-emphasis, var(--dx-danger)); }
+
+/* attendance rate ring on the learner portal */
+.pen-ring { --pen-ring: 0; width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--dx-success) calc(var(--pen-ring) * 1%), var(--dx-gray-200) 0); }
+.pen-ring > span { width: 74px; height: 74px; border-radius: 50%; background: var(--dx-card-bg, #fff);
+  display: grid; place-items: center; font-weight: 800; font-size: 1.125rem; }
+
+/* class picker card on the teacher pages */
+.pen-class-card { border: 1px solid var(--dx-border-color); border-radius: .75rem; transition: border-color .15s, box-shadow .15s; }
+.pen-class-card:hover { border-color: var(--dx-primary); box-shadow: 0 .375rem 1rem rgba(2,6,23,.08); }
+.pen-class-card.selected { border-color: var(--dx-primary); box-shadow: 0 0 0 2px var(--dx-primary-bg-subtle); }
+
+/* roster table row tint when a status is chosen */
+.att-row.marked { background: var(--dx-tertiary-bg); }
+.att-row .row-note { min-width: 200px; }
+
+/* the day the class runs, on the teacher dashboard */
+.pen-week-strip { display: flex; gap: .375rem; flex-wrap: wrap; }
+.pen-week-chip { font-size: .75rem; padding: .125rem .5rem; border-radius: .375rem;
+  background: var(--dx-primary-bg-subtle); color: var(--dx-primary); font-weight: 600; }
+
+/* ── Reports & Analytics Dashboard ────────────────────────────────── */
+.pen-reports { --report-ink: #123b5d; --report-teal: #0f6b67; --report-saffron: #e5a83b;
+  --report-plum: #934b70; --report-paper: #f7f9fb; color: var(--dx-body-color); }
+.report-hero { min-height: 168px; display: flex; align-items: center; justify-content: space-between; gap: 2rem;
+  overflow: hidden; position: relative; padding: 2rem 2.25rem; border-radius: 1rem;
+  color: #fff; background: var(--report-ink); isolation: isolate; }
+.report-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; opacity: .65;
+  background: radial-gradient(circle at 12% 25%, rgba(229,168,59,.55), transparent 25%),
+    linear-gradient(135deg, transparent 38%, rgba(15,107,103,.7) 100%); }
+.report-kicker { display: block; margin-bottom: .65rem; color: #e5d5a7; font-size: .8rem; font-weight: 700; }
+.report-hero-title { margin: 0; font-size: clamp(1.55rem, 3vw, 2.35rem); letter-spacing: -.03em; font-weight: 800; }
+.report-hero-copy { max-width: 38rem; color: rgba(255,255,255,.76); font-size: .95rem; }
+.report-hero-mark { width: 132px; height: 110px; position: relative; flex: 0 0 auto; opacity: .9; }
+.report-mark-bar { position: absolute; bottom: 16px; width: 18px; border-radius: 10px 10px 2px 2px; background: #e5a83b; }
+.report-mark-bar-one { right: 92px; height: 42px; }.report-mark-bar-two { right: 58px; height: 70px; background: #7fc2b4; }.report-mark-bar-three { right: 24px; height: 94px; background: #fff; }
+.report-mark-dot { position: absolute; right: 9px; top: 2px; width: 10px; height: 10px; border-radius: 50%; background: #e5a83b; box-shadow: 0 0 0 8px rgba(229,168,59,.16); }
+.report-toolbar { border: 1px solid rgba(18,59,93,.12); box-shadow: 0 12px 28px rgba(18,59,93,.06); }
+.report-toolbar .form-label { margin-bottom: .4rem; font-size: .78rem; font-weight: 700; color: var(--report-ink); }
+.report-loading { display: flex; align-items: center; gap: .55rem; margin: -1rem 0 1rem; color: var(--report-teal); font-size: .83rem; }
+.pen-reports.is-loading .report-panel, .pen-reports.is-loading .report-kpi { opacity: .68; transition: opacity .2s ease; }
+.report-kpi { min-height: 126px; position: relative; display: flex; align-items: center; gap: .85rem; overflow: hidden;
+  padding: 1.1rem 1.15rem; border-radius: .85rem; color: #fff; box-shadow: 0 10px 24px rgba(18,59,93,.12); }
+.report-kpi::after { content: ""; position: absolute; width: 125px; height: 125px; left: -42px; bottom: -55px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; box-shadow: 0 0 0 14px rgba(255,255,255,.05), 0 0 0 28px rgba(255,255,255,.04); }
+.report-kpi-navy { background: #123b5d; }.report-kpi-teal { background: #0f6b67; }.report-kpi-saffron { background: #b87b16; }.report-kpi-plum { background: #934b70; }
+.report-kpi-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 auto; border-radius: .7rem; background: rgba(255,255,255,.15); }
+.report-kpi-icon svg { width: 22px; height: 22px; }.report-kpi-label { display: block; margin-bottom: .22rem; font-size: .78rem; color: rgba(255,255,255,.78); }
+.report-kpi strong { display: block; font-size: 1.26rem; line-height: 1.2; }.report-kpi-caption { position: absolute; right: 1.15rem; bottom: .8rem; color: rgba(255,255,255,.55); font-size: .69rem; }
+.report-section-title { color: var(--report-ink); font-size: 1.12rem; font-weight: 800; }.report-panel { overflow: hidden; border: 1px solid rgba(18,59,93,.1); box-shadow: 0 8px 22px rgba(18,59,93,.045); }
+.report-panel .card-header { padding: 1rem 1.15rem; border-bottom: 1px solid rgba(18,59,93,.08); background: transparent; }.report-panel .card-body { padding: 1.15rem; }
+.report-chart { min-height: 280px; }.report-chart-small { min-height: 220px; }.report-chart-short { min-height: 230px; }
+.report-table th { padding: .8rem 1rem; color: var(--report-ink); background: #f7f9fb; border-bottom-width: 1px; font-size: .76rem; white-space: nowrap; }.report-table td { padding: .78rem 1rem; font-size: .82rem; border-color: #edf1f4; }.report-table tbody tr:last-child td { border-bottom: 0; }
+.report-finance-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }.report-finance-stats div, .report-inline-metrics div { padding: .7rem .8rem; border-radius: .55rem; background: #f7f9fb; }.report-finance-stats span, .report-inline-metrics span { display: block; color: var(--dx-secondary-color); font-size: .73rem; }.report-finance-stats strong, .report-inline-metrics strong { display: block; margin-top: .15rem; color: var(--report-ink); font-size: 1rem; }
+.report-room-row .progress, .report-form-row .progress { height: 8px; overflow: hidden; background: #edf1f4; border-radius: 99px; }.report-room-row .progress-bar, .report-form-row .progress-bar { border-radius: 99px; background: linear-gradient(90deg, var(--report-teal), #73bcae); }.report-room-row:nth-child(2n) .progress-bar { background: linear-gradient(90deg, var(--report-plum), #c789a8); }
+.report-attendance-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }.report-attendance-summary div { display: flex; align-items: center; gap: .45rem; color: var(--dx-secondary-color); font-size: .85rem; }.report-attendance-summary strong { margin-right: auto; color: var(--report-ink); }.dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; }.dot-success { background: #27a88f; }.dot-danger { background: #ef6a5b; }.dot-warning { background: #e5a83b; }.dot-info { background: #4c8ca8; }
+.report-response-metric { padding: 1rem; border-radius: .7rem; background: #edf7f5; }.report-response-metric strong { display: block; color: var(--report-teal); font-size: 1.8rem; }.report-response-metric span { color: #47736f; font-size: .78rem; }.report-inline-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin-top: .8rem; }.report-footnote { color: var(--dx-secondary-color); font-size: .75rem; }
+.pen-empty { display: grid; place-items: center; min-height: 120px; padding: 1rem; color: var(--dx-secondary-color); font-size: .82rem; text-align: center; }
+.pen-actions-dropdown .dropdown-toggle::after { display: none; }
+.pen-actions-dropdown .dropdown-menu { min-width: 10rem; box-shadow: 0 .5rem 1.25rem rgba(15,23,42,.12); }
+.pen-actions-dropdown .dropdown-item { display: flex; align-items: center; gap: .5rem; }
+.pen-detail-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .65rem; margin-bottom: 1rem; }
+.pen-detail-meta > div { padding: .7rem .8rem; border: 1px solid var(--dx-border-color); border-radius: .65rem; background: var(--dx-tertiary-bg); }
+.pen-detail-meta small { display: block; color: var(--dx-secondary-color); font-size: .72rem; }
+.pen-detail-meta strong { display: block; margin-top: .2rem; font-size: .86rem; }
+@media (max-width: 575.98px) { .report-hero { min-height: 150px; padding: 1.35rem; }.report-hero-mark { display: none; }.report-kpi { min-height: 112px; }.report-kpi strong { font-size: 1.08rem; }.report-attendance-summary { grid-template-columns: 1fr; }.report-inline-metrics { grid-template-columns: 1fr; } }
+@media print { @page { size: A4 landscape; margin: 12mm; } body { background: #fff !important; }.main-sidebar, .main-topbar, .main-footer, .page-heading, .report-toolbar, .report-loading, [data-report-export], #report-print { display: none !important; }.page-wrapper { margin: 0 !important; }.pen-reports { color: #111 !important; }.report-hero { min-height: 110px; padding: 1rem 1.25rem; -webkit-print-color-adjust: exact; print-color-adjust: exact; }.report-panel, .report-kpi { break-inside: avoid; box-shadow: none !important; }.report-section-title { margin-top: .65rem; }.card { border-color: #cbd5e1 !important; } }

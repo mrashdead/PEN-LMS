@@ -1,0 +1,11 @@
+// src/assets/scss/custom/components/_notification.scss
+
+@each $color, $value in $theme-colors {
+    .toast-#{$color} {
+        --#{$prefix}toast-bg: rgba(var(--#{$prefix}#{$color}-rgb));
+    }
+}
+.toast-content{
+    --#{$prefix}toast-max-width: 24rem;
+    --#{$prefix}toast-box-shadow: 0 10px 15px -3px #bdbdbd9f, 0 4px 6px -4px #bbbbbb41;
+}

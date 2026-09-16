@@ -1,0 +1,43 @@
+// src/assets/scss/custom/plugins/_vis-timeline.scss
+
+.vis-timeline {
+    border-color: var(--#{$prefix}border-color);
+}
+
+.vis-panel.vis-bottom,
+.vis-panel.vis-center,
+.vis-panel.vis-left,
+.vis-panel.vis-right,
+.vis-panel.vis-top {
+    border-color: var(--#{$prefix}border-color);
+}
+
+:is(.vis-labelset .vis-label, .vis-foreground .vis-group) {
+    border-color: var(--#{$prefix}border-color);
+}
+
+.vis-item {
+    color: var(--#{$prefix}body-color);
+    background-color: var(--#{$prefix}primary-bg-subtle);
+    border-color: rgba(var(--#{$prefix}primary-rgb), 0.4);
+}
+
+:is(.vis-time-axis .vis-text, .vis-labelset .vis-label) {
+    color: var(--#{$prefix}secondary-color);
+}
+
+#visualization2 {
+    div.vis-readonly,
+    div.vis-readonly.vis-selected {
+        background-color: var(--#{$prefix}danger-bg-subtle);
+        border-color: rgba(var(--#{$prefix}danger-rgb), 0.4);
+    }
+}
+
+.vis-item.vis-selected {
+    background-color: var(--#{$prefix}warning-bg-subtle);
+}
+
+.vis-time-axis .vis-grid.vis-minor {
+    border-color: var(--#{$prefix}border-color);
+}

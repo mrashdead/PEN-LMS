@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}کارنامه توصیفی{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="کارنامه توصیفی" section="پنل مدرس" section_url="/workspace/teacher/" %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1">
+          <span class="badge text-bg-primary rounded-pill ms-2">۱</span>
+          انتخاب کلاس
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-lg-5">
+            <label class="form-label" for="rc-class">کلاس / دوره <span class="text-danger">*</span></label>
+            <select id="rc-class" class="form-select" aria-label="انتخاب کلاس">
+              <option value="">— انتخاب کلاس —</option>
+            </select>
+            <div class="form-text">فقط کلاس‌های فعالی که مدرس آن‌ها هستید.</div>
+          </div>
+          <div class="col-12 col-lg-4">
+            <div class="fs-13 text-muted" id="rc-info"></div>
+          </div>
+          <div class="col-12 col-lg-3 d-flex justify-content-lg-end">
+            <button type="button" id="rc-save" class="btn btn-primary w-100 w-lg-auto" disabled>
+              <i data-lucide="save" class="size-4 me-1"></i> ذخیره کارنامه
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1">
+          <span class="badge text-bg-primary rounded-pill ms-2">۲</span>
+          نتیجه و بازخورد توصیفی
+          <span class="fs-13 text-muted fw-normal" id="rc-count"></span>
+        </h6>
+        <span class="fs-13 text-muted">برای نتیجه «مردود»، نوشتن چرایی الزامی است.</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th scope="col" style="width:3rem">#</th>
+                <th scope="col">دانش‌آموز</th>
+                <th scope="col" style="width:13rem">وضعیت نهایی</th>
+                <th scope="col">چرایی / بازخورد توصیفی (عملکرد، نقاط قوت و ضعف)</th>
+              </tr>
+            </thead>
+            <tbody id="rc-rows">
+              <tr><td colspan="4"><div class="pen-empty">کلاس را انتخاب کنید تا فهرست دانش‌آموزان بارگذاری شود.</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="fs-13 text-muted" id="rc-summary">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/teacher-report-cards.js' %}"></script>
+{% endblock %}

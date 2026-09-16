@@ -1,0 +1,14 @@
+// src/assets/scss/custom/apps/_apps-hospital-appointments-lists.scss
+
+.today-gradient{
+    background: linear-gradient(to right, rgba(var(--#{$prefix}warning-rgb), .15), rgba(var(--#{$prefix}success-rgb), .15));
+}
+.new-gradient{
+    background: linear-gradient(to right, rgba(var(--#{$prefix}info-rgb), .15), rgba(var(--#{$prefix}success-rgb), .15));
+}
+.cancel-gradient{
+    background: linear-gradient(to right, rgba(var(--#{$prefix}danger-rgb), .15), rgba(var(--#{$prefix}pink-rgb), .15));
+}
+.total-gradient{
+    background: linear-gradient(to right, rgba(var(--#{$prefix}secondary-rgb), .15), rgba(var(--#{$prefix}pink-rgb), .15));
+}

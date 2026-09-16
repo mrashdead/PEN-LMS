@@ -1,0 +1,17 @@
+// src/assets/scss/custom/components/_advanced-3d-effect.scss
+
+.basic-square {
+    background: linear-gradient(136deg, var(--#{$prefix}primary), var(--#{$prefix}secondary), var(--#{$prefix}info));
+}
+
+.glare-square {
+    background: linear-gradient(136deg, var(--#{$prefix}success), var(--#{$prefix}indigo), var(--#{$prefix}info));
+}
+
+.reverse-square {
+    background: linear-gradient(136deg, var(--#{$prefix}info), var(--#{$prefix}info));
+}
+
+.floating-square {
+    background: linear-gradient(136deg, var(--#{$prefix}primary), var(--#{$prefix}primary));
+}

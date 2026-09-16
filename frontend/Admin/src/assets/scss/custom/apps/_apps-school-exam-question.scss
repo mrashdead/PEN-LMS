@@ -1,0 +1,9 @@
+// src/assets/scss/custom/apps/_apps-school-exam-question.scss
+
+.exam-question-check {
+    input[type="radio"]:checked + label {
+        color: $white;
+        background-color: var(--#{$prefix}primary);
+        border-color: var(--#{$prefix}primary);
+    }
+}

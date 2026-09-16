@@ -1,0 +1,86 @@
+.treeview-scrollable {
+    max-height: 70vh;
+}
+
+.treeview {
+    user-select: none;
+    ul {
+        @include transition;
+
+        &.list-unstyled {
+            margin-bottom: 0;
+        }
+
+        &:not(.d-none) {
+            animation: slideDown 0.5s ease-in-out;
+        }
+    }
+
+    li {
+        position: relative;
+
+        &::before {
+            content: "";
+            position: absolute;
+            left: calc(1.5rem / -2);
+            top: 0;
+            width: 1px;
+            height: 100%;
+            background-color: var(--#{$prefix}border-color);
+            z-index: 0;
+        }
+
+        &:last-child {
+            &::before {
+                height: 1.5rem;
+            }
+        }
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+
+        &::before, > a::before {
+            display: none;
+        }
+    }
+
+    a {
+        @include transition;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-bottom: 5px;
+
+        &:hover, &:active, &:focus {
+            color: var(--#{$prefix}primary) !important;
+            background-color: var(--#{$prefix}primary-bg-subtle);
+        }
+    }
+
+    i {
+        margin-right: 0.5rem;
+        @include transition;
+    }
+
+    [aria-expanded="true"] {
+        font-weight: 500;
+        color: var(--#{$prefix}primary);
+        background-color: var(--#{$prefix}light);
+    }
+
+    [data-node] {
+        cursor: pointer;
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

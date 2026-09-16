@@ -1,0 +1,290 @@
+{% load static %}
+{% comment %}
+Pen LMS sidebar — task-oriented, role-filtered (v3, UX vision).
+
+All role/section flags come precomputed from apps.core.context_processors
+.user_flags (sidebar_urlname, sidebar_is_forms/edu/req, is_staff_user,
+is_unit_manager, is_schema_admin). This keeps the template free of
+multi-line {% with %} (fragile across Django versions) and of access logic —
+visibility is still enforced by the views/APIs; a hidden link is not a
+security control.
+
+Add a page: one nav-item; add a section: copy a collapse block.
+{% endcomment %}
+
+{% with urlname=sidebar_urlname %}
+<div id="main-sidebar" class="main-sidebar">
+  <div class="sidebar-wrapper">
+
+    {# ── Brand ─────────────────────────────────────────────────────── #}
+    <a href="{% url 'dashboard-home' %}" class="navbar-brand" title="Pen LMS">
+      <div class="logo-lg">
+        <img src="{% static 'assets/images/main-logo.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
+        <img src="{% static 'assets/images/logo-white.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+      </div>
+      <div class="logo-sm">
+        <img src="{% static 'assets/images/logo-sm-dark.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
+        <img src="{% static 'assets/images/logo-sm-white.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+      </div>
+    </a>
+
+    {# ── Profile ───────────────────────────────────────────────────── #}
+    <div class="dropdown profile-dropdown">
+      <a href="#!" data-bs-toggle="dropdown" aria-expanded="false" aria-label="منوی کاربر"
+         class="btn d-flex align-items-center w-100 gap-2 p-4 text-start">
+        <span class="avatar pen-avatar size-10 rounded flex-shrink-0" aria-hidden="true">{{ request.user.username|first|upper }}</span>
+        <div class="flex-grow-1 content overflow-hidden">
+          <h6 class="fw-medium text-truncate mb-0">{{ request.user.get_full_name|default:request.user.username }}</h6>
+          <p class="fs-14 text-truncate mb-0">{{ request.user.username }}</p>
+        </div>
+        <div class="arrow"><i data-lucide="chevron-down" class="size-4"></i></div>
+      </a>
+      <div class="dropdown-menu p-4 profile-dropdown-menu">
+        <div class="d-flex align-items-center gap-2">
+          <span class="avatar pen-avatar rounded-circle size-10 flex-shrink-0" aria-hidden="true">{{ request.user.username|first|upper }}</span>
+          <div class="flex-grow-1 overflow-hidden">
+            <h6 class="mb-0 text-truncate">{{ request.user.get_full_name|default:request.user.username }}</h6>
+            <p class="mb-0 text-truncate fs-14">{{ request.user.username }}</p>
+          </div>
+        </div>
+        <div class="pt-2 mt-3 border-top">
+          <form method="post" action="{% url 'dashboard-logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="profile-link w-100 text-start border-0 bg-transparent py-1">
+              <i data-lucide="log-out" class="d-inline-block me-2 size-4"></i> خروج
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {# ── Navigation ────────────────────────────────────────────────── #}
+    <div class="navbar-menu px-5" id="navbar-menu-list" data-simplebar>
+      <ul class="list-unstyled p-0 navbar-nav-menu">
+
+        <li class="nav-item">
+          <a href="{% url 'dashboard-home' %}" title="داشبورد"
+             class="nav-link{% if urlname == 'dashboard-home' %} active{% endif %}"
+             {% if urlname == 'dashboard-home' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="gauge"></i></span>
+            <span class="content">داشبورد</span>
+          </a>
+        </li>
+
+        {# ══ TEACHER PORTAL (teacher-only: nothing else) ══════════════ #}
+        {% if is_teacher_only %}
+        <li class="nav-menu-title">پنل مدرس</li>
+        <li class="nav-item">
+          <a href="{% url 'workspace-teacher' %}" title="داشبورد مدرس"
+             class="nav-link{% if urlname == 'workspace-teacher' %} active{% endif %}"
+             {% if urlname == 'workspace-teacher' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="layout-dashboard"></i></span>
+            <span class="content">داشبورد و دوره‌های من</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'workspace-timetable' %}" title="تقویم"
+             class="nav-link{% if urlname == 'workspace-timetable' %} active{% endif %}"
+             {% if urlname == 'workspace-timetable' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="calendar-days"></i></span>
+            <span class="content">تقویم و برنامه</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'workspace-teacher-attendance' %}" title="حضور و غیاب"
+             class="nav-link{% if urlname == 'workspace-teacher-attendance' %} active{% endif %}"
+             {% if urlname == 'workspace-teacher-attendance' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="user-check"></i></span>
+            <span class="content">حضور و غیاب</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'workspace-teacher-report-cards' %}" title="کارنامه توصیفی"
+             class="nav-link{% if urlname == 'workspace-teacher-report-cards' %} active{% endif %}"
+             {% if urlname == 'workspace-teacher-report-cards' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="clipboard-check"></i></span>
+            <span class="content">کارنامه توصیفی</span>
+          </a>
+        </li>
+        {% endif %}
+
+        {# ══ LEARNER PORTAL (student/parent) ══════════════════════════ #}
+        {% if is_learner %}
+        <li class="nav-item">
+          <a href="{% url 'workspace-learner-portal' %}" title="پورتال من"
+             class="nav-link{% if urlname == 'workspace-learner-portal' %} active{% endif %}"
+             {% if urlname == 'workspace-learner-portal' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="graduation-cap"></i></span>
+            <span class="content">حضور و کارنامه من</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'workspace-requests' %}" title="درخواست‌های من"
+             class="nav-link{% if urlname == 'workspace-requests' %} active{% endif %}"
+             {% if urlname == 'workspace-requests' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="file-stack"></i></span>
+            <span class="content">درخواست‌های من</span>
+          </a>
+        </li>
+        {% endif %}
+
+        {# ══ FULL STAFF / MANAGEMENT (hidden from teacher-only) ═══════ #}
+        {% if is_staff_user and not is_teacher_only %}
+        <li class="nav-item">
+          <a href="{% url 'workspace-work' %}" title="کارهای من"
+             class="nav-link{% if urlname == 'workspace-work' %} active{% endif %}"
+             {% if urlname == 'workspace-work' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="list-checks"></i></span>
+            <span class="content">کارهای من</span>
+          </a>
+        </li>
+
+        {# ── درخواست‌ها (collapsible) ─────────────────────────────── #}
+        <li class="nav-item">
+          <a href="#collapseRequests" title="درخواست‌ها"
+             class="nav-link{% if sidebar_is_req %} active{% else %} collapsed{% endif %}"
+             data-bs-toggle="collapse" data-position="right-top" role="button"
+             aria-expanded="{% if sidebar_is_req %}true{% else %}false{% endif %}" aria-controls="collapseRequests">
+            <span class="icons"><i data-lucide="file-stack"></i></span>
+            <span class="content">درخواست‌ها</span>
+            <span class="ms-auto menu-arrow"><i data-lucide="chevron-down" class="size-4"></i></span>
+          </a>
+          <div class="collapse{% if sidebar_is_req %} show{% endif %}" id="collapseRequests">
+            <ul class="nav-menu-sub">
+              <li><a href="{% url 'workspace-requests' %}" class="nav-link{% if urlname == 'workspace-requests' %} active{% endif %}"><span>درخواست‌های من</span></a></li>
+              <li><a href="{% url 'submission-picker' %}" class="nav-link{% if urlname == 'schema-picker' or urlname == 'submission-create' %} active{% endif %}"><span>درخواست جدید</span></a></li>
+            </ul>
+          </div>
+        </li>
+
+        {# ── آموزشگاه (collapsible) ───────────────────────────────── #}
+        <li class="nav-item">
+          <a href="#collapseEdu" title="آموزشگاه"
+             class="nav-link{% if sidebar_is_edu %} active{% else %} collapsed{% endif %}"
+             data-bs-toggle="collapse" data-position="right-top" role="button"
+             aria-expanded="{% if sidebar_is_edu %}true{% else %}false{% endif %}" aria-controls="collapseEdu">
+            <span class="icons"><i data-lucide="school"></i></span>
+            <span class="content">آموزشگاه</span>
+            <span class="ms-auto menu-arrow"><i data-lucide="chevron-down" class="size-4"></i></span>
+          </a>
+          <div class="collapse{% if sidebar_is_edu %} show{% endif %}" id="collapseEdu">
+            <ul class="nav-menu-sub">
+              {% if is_sys_admin %}
+              <li><a href="{% url 'workspace-persons' %}" class="nav-link{% if urlname == 'workspace-persons' %} active{% endif %}"><span>اشخاص</span></a></li>
+              {% endif %}
+              <li><a href="{% url 'workspace-departments' %}" class="nav-link{% if urlname == 'workspace-departments' %} active{% endif %}"><span>دپارتمان‌ها</span></a></li>
+              <li><a href="{% url 'workspace-lessons' %}" class="nav-link{% if urlname == 'workspace-lessons' %} active{% endif %}"><span>درس‌ها</span></a></li>
+              <li><a href="{% url 'workspace-courses' %}" class="nav-link{% if urlname == 'workspace-courses' %} active{% endif %}"><span>دوره‌ها</span></a></li>
+              <li><a href="{% url 'workspace-offerings' %}" class="nav-link{% if urlname == 'workspace-offerings' %} active{% endif %}"><span>برگزاری‌ها</span></a></li>
+              <li><a href="{% url 'workspace-sessions' %}" class="nav-link{% if urlname == 'workspace-sessions' %} active{% endif %}"><span>کلاس‌ها و جلسات</span></a></li>
+              <li><a href="{% url 'workspace-locations' %}" class="nav-link{% if urlname == 'workspace-locations' %} active{% endif %}"><span>محل‌های آموزش</span></a></li>
+              <li><a href="{% url 'workspace-enrollments' %}" class="nav-link{% if urlname == 'workspace-enrollments' %} active{% endif %}"><span>ثبت‌نام</span></a></li>
+              <li><a href="{% url 'workspace-timetable' %}" class="nav-link{% if urlname == 'workspace-timetable' %} active{% endif %}"><span>تقویم و برنامه</span></a></li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="nav-item">
+          <a href="{% url 'workspace-messages' %}" title="پیام‌ها"
+             class="nav-link{% if urlname == 'workspace-messages' %} active{% endif %}"
+             {% if urlname == 'workspace-messages' %}aria-current="page"{% endif %}>
+            <span class="icons">
+              <i data-lucide="mail"></i>
+              <span class="msg-badge msg-unread-badge msg-badge-on-icon" hidden></span>
+            </span>
+            <span class="content d-flex align-items-center gap-2">
+              پیام‌ها
+              <span class="msg-badge msg-unread-badge" hidden></span>
+            </span>
+          </a>
+        </li>
+
+        {% if is_reports_user %}
+        <li class="nav-item">
+          <a href="{% url 'workspace-reports' %}" title="گزارش‌ها و تحلیل‌ها"
+             class="nav-link{% if urlname == 'workspace-reports' %} active{% endif %}"
+             {% if urlname == 'workspace-reports' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="bar-chart-3"></i></span>
+            <span class="content">گزارش‌ها و تحلیل‌ها</span>
+          </a>
+        </li>
+        {% endif %}
+        {% endif %}
+
+        {% if is_reports_user and not is_staff_user %}
+        <li class="nav-item">
+          <a href="{% url 'workspace-reports' %}" title="گزارش‌ها و تحلیل‌ها"
+             class="nav-link{% if urlname == 'workspace-reports' %} active{% endif %}"
+             {% if urlname == 'workspace-reports' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="bar-chart-3"></i></span>
+            <span class="content">گزارش‌ها و تحلیل‌ها</span>
+          </a>
+        </li>
+        {% endif %}
+
+        {% if is_unit_manager %}
+        <li class="nav-menu-title">مدیریت سازمان</li>
+
+        <li class="nav-item">
+          <a href="{% url 'workspace-org-chart' %}" title="نمودار سازمانی"
+             class="nav-link{% if urlname == 'workspace-org-chart' %} active{% endif %}"
+             {% if urlname == 'workspace-org-chart' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="network"></i></span>
+            <span class="content">نمودار سازمانی</span>
+          </a>
+        </li>
+
+        <li class="nav-item">
+          <a href="{% url 'workspace-org-permissions' %}" title="مجوزها"
+             class="nav-link{% if urlname == 'workspace-org-permissions' %} active{% endif %}"
+             {% if urlname == 'workspace-org-permissions' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="shield-check"></i></span>
+            <span class="content">ماتریس و شبیه‌ساز</span>
+          </a>
+        </li>
+
+        <li class="nav-item">
+          <a href="{% url 'workspace-perm-manage' %}" title="مدیریت مجوز کاربران"
+             class="nav-link{% if urlname == 'workspace-perm-manage' %} active{% endif %}"
+             {% if urlname == 'workspace-perm-manage' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="user-cog"></i></span>
+            <span class="content">مدیریت مجوز کاربران</span>
+          </a>
+        </li>
+
+        <li class="nav-item">
+          <a href="{% url 'workspace-org-responsibilities' %}" title="مسئولیت‌ها"
+             class="nav-link{% if urlname == 'workspace-org-responsibilities' %} active{% endif %}"
+             {% if urlname == 'workspace-org-responsibilities' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="user-check"></i></span>
+            <span class="content">مسئولیت‌ها و عملکرد</span>
+          </a>
+        </li>
+
+        <li class="nav-item">
+          <a href="{% url 'workspace-org-delegations' %}" title="جانشینی"
+             class="nav-link{% if urlname == 'workspace-org-delegations' %} active{% endif %}"
+             {% if urlname == 'workspace-org-delegations' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="repeat"></i></span>
+            <span class="content">جانشینی</span>
+          </a>
+        </li>
+
+        {% if is_schema_admin %}
+        <li class="nav-item">
+          <a href="{% url 'schema-admin' %}" title="طراح فرم‌ها"
+             class="nav-link{% if urlname == 'schema-admin' or urlname == 'schema-builder' or urlname == 'schema-builder-create' %} active{% endif %}"
+             {% if urlname == 'schema-admin' or urlname == 'schema-builder' or urlname == 'schema-builder-create' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="layout-template"></i></span>
+            <span class="content">طراح فرم‌ها</span>
+          </a>
+        </li>
+        {% endif %}
+        {% endif %}
+
+      </ul>
+    </div>
+  </div>
+</div>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+{% endwith %}

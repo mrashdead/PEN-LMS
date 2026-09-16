@@ -1,0 +1,78 @@
+// Mixin for Generating cards Classes Based on Theme Colors
+@mixin generate-cards-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for cards states (outline, solid, sub)
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        .card-border-#{$state} {
+            --#{$prefix}card-border-color: var(--#{$prefix}#{$state}-border-subtle);
+            box-shadow: 0 10px 15px -3px var(--#{$prefix}#{$state}-bg-subtle),
+            0 4px 6px -4px var(--#{$prefix}#{$state}-bg-subtle);
+            --#{$prefix}link-color-rgb: var(--#{$prefix}#{$state}-rgb);
+            --#{prefix}link-hover-color-rgb: var(--#{$prefix}#{$state}-rgb);
+        }
+
+        .card-#{$state} {
+            --#{$prefix}link-color-rgb: var(--#{$prefix}#{$state}-rgb);
+
+            .icon-bg {
+                background-color: var(--#{$prefix}#{$state});
+                color: #{color-contrast($color)};
+            }
+
+            &:hover {
+                .icon-bg {
+                    background-color: rgba(255, 255, 255, 0.144);
+                }
+
+                .icon-hover-bg {
+                    background-color: var(--#{$prefix}#{$state});
+                }
+
+                --#{$prefix}card-border-color: var(--#{$prefix}#{$state}-border-subtle);
+                color:#{color-contrast($color)};
+                --#{$prefix}link-color-rgb:#{color-contrast($color)};
+            }
+        }
+
+        .card-sub-#{$state} {
+            --#{$prefix}link-color-rgb: var(--#{$prefix}#{$state}-rgb);
+
+            .icon-bg {
+                background-color: var(--#{$prefix}#{$state}-bg-subtle);
+                color: var(--#{$prefix}#{$state});
+            }
+
+            &:hover {
+                .icon-hover-bg {
+                    background-color: rgba(var(--#{$prefix}#{$state}-rgb), .08);
+                }
+
+                color: var(--#{$prefix}#{$state});
+                --#{$prefix}card-border-color: var(--#{$prefix}#{$state}-border-subtle);
+            }
+        }
+
+        .card-hover-#{$state} {
+            --#{$prefix}link-color-rgb: var(--#{$prefix}#{$state}-rgb);
+
+            .icon-bg {
+                background-color: var(--#{$prefix}#{$state}-bg-subtle);
+                color: var(--#{$prefix}#{$state});
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-cards-classes($theme-colors, $prefix);

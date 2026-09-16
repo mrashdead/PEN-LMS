@@ -1,0 +1,99 @@
+{% load static asset_v %}<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ورود | Pen LMS</title>
+  <link href="{% static 'assets/css/bootstrap.rtl.css' %}" rel="stylesheet" type="text/css">
+  <link href="{% static 'assets/css/icons.rtl.css' %}" rel="stylesheet" type="text/css">
+  <link href="{% static 'assets/css/font-face.css' %}" rel="stylesheet" type="text/css">
+  <link href="{% static 'assets/css/app.rtl.css' %}" rel="stylesheet" type="text/css">
+  <link href="{% static 'assets/css/custom.css' %}" rel="stylesheet" type="text/css">
+  <link href="{% asset_v_url 'assets/pen/css/pen.css' %}" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div class="auth-wrapper">
+  <div class="container min-vh-100 py-10 d-flex align-items-center">
+    <div class="w-100">
+      <div class="row justify-content-center">
+        <div class="col-12 col-md-10 col-lg-7 col-xl-6 col-xxl-5">
+          <div class="card mb-0">
+            <div class="p-sm-8 p-md-10 card-body">
+              <div class="text-center mb-4">
+                <a href="{% url 'dashboard-login' %}" class="logos">
+                  <img src="{% static 'assets/images/main-logo.png' %}" loading="lazy" alt="Pen LMS" class="h-8 logo-dark">
+                  <img src="{% static 'assets/images/logo-white.png' %}" loading="lazy" alt="Pen LMS" class="h-8 logo-light">
+                </a>
+              </div>
+
+              <h4 class="mb-2 text-gradient fw-bold text-center">ورود به پنل Pen LMS</h4>
+              <p class="mb-4 text-center text-muted">برای ادامه، اطلاعات حساب کاربری خود را وارد کنید.</p>
+
+              {% if messages %}
+                {% for message in messages %}
+                  <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}" role="status">
+                    {{ message }}
+                  </div>
+                {% endfor %}
+              {% endif %}
+
+              {% if form.errors %}
+                <div class="alert alert-danger" role="alert">
+                  نام کاربری یا رمز عبور اشتباه است.
+                </div>
+              {% endif %}
+
+              <form method="post" action="{% url 'dashboard-login' %}" novalidate>
+                {% csrf_token %}
+                {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+                <div class="mb-3">
+                  <label for="id_username" class="form-label">نام کاربری</label>
+                  <div class="input-group">
+                    <span class="input-group-text bg-transparent"><i data-lucide="user" class="size-4"></i></span>
+                    <input type="text" name="username" id="id_username" class="form-control" required autofocus
+                           autocomplete="username" placeholder="نام کاربری خود را وارد کنید">
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label for="id_password" class="form-label">رمز عبور</label>
+                  <div class="input-group">
+                    <span class="input-group-text bg-transparent"><i data-lucide="lock" class="size-4"></i></span>
+                    <input type="password" name="password" id="id_password" class="form-control" required
+                           autocomplete="current-password" placeholder="رمز عبور خود را وارد کنید">
+                  </div>
+                </div>
+
+                <div class="d-grid mt-4">
+                  <button type="submit" class="btn btn-primary">
+                    <i data-lucide="log-in" class="size-4 me-2"></i> ورود به پنل
+                  </button>
+                </div>
+              </form>
+
+              <p class="login-help text-center text-muted mt-4 mb-0 fs-14">
+                در صورت بروز مشکل در ورود، با مدیر سامانه تماس بگیرید.
+              </p>
+            </div>
+          </div>
+          <div class="text-center mt-4 text-muted fs-13">
+            &copy; <span id="currentYearFooter"></span> Pen LMS — فضای کاری امن آموزشگاه
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{% static 'assets/libs/bootstrap/dist/js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'assets/libs/lucide/dist/umd/lucide.min.js' %}"></script>
+<script>
+  window.addEventListener('load', function () { if (window.lucide) lucide.createIcons(); });
+  window.addEventListener('DOMContentLoaded', function () {
+    var el = document.getElementById('currentYearFooter');
+    if (el) el.textContent = String(new Date().getFullYear());
+  });
+</script>
+</body>
+</html>

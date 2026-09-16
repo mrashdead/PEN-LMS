@@ -1,0 +1,6 @@
+{
+    "watch": ["src/assets/scss" ],
+    "ext": "scss",
+    "exec": "node rtlscss.js",
+    "ignore": ["node_modules", "dist"]
+}

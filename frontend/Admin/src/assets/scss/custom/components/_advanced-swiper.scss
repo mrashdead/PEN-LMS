@@ -1,0 +1,63 @@
+// src/assets/scss/custom/components/_advanced-swiper.scss
+
+@each $state in map-keys($theme-colors) {
+    .swiper-#{$state} {
+        .swiper-pagination-bullet {
+            background: var(--#{$prefix}#{$state});
+            height: 0.75rem;
+            width: 0.75rem;
+        }
+
+        .swiper-pagination-bullet-active {
+            background: var(--#{$prefix}white);
+            border: 3px solid var(--#{$prefix}#{$state});
+        }
+    }
+}
+
+.swiper-button-prev:before {
+    content: '\ea64';
+    font-family: "RemixIcon";
+}
+
+.swiper-button-next:before {
+    content: '\ea6e';
+    font-family: "RemixIcon";
+}
+
+:is(.swiper-button-prev,
+    .swiper-button-next) {
+    &::after {
+        display: none;
+    }
+}
+
+.swiper-navigation-hover {
+
+    :is(.swiper-button-prev,
+        .swiper-button-next) {
+        opacity: 0;
+        visibility: hidden;
+        @include transition;
+
+        &::before {
+            @include transition;
+            opacity: 0;
+            visibility: hidden;
+        }
+    }
+
+    &:hover {
+
+        :is(.swiper-button-prev,
+            .swiper-button-next) {
+            opacity: 1;
+            visibility: visible;
+
+            &::before {
+                opacity: 1;
+                visibility: visible;
+            }
+        }
+    }
+}

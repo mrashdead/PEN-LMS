@@ -1,0 +1,11 @@
+// src/assets/scss/custom/components/_advanced-bot.scss
+
+.chatbot-one{
+    background: linear-gradient(to top right, var(--#{$prefix}primary), var(--#{$prefix}secondary));
+}
+.chatbot-two{
+    background: linear-gradient(to top right, var(--#{$prefix}success), var(--#{$prefix}info));
+}
+.chatbot-three{
+    background: linear-gradient(to bottom right, rgba(var(--#{$prefix}primary-rgb), 0.2), rgba(var(--#{$prefix}success-rgb), 0.2), rgba(var(--#{$prefix}secondary-rgb), 0.2));
+}

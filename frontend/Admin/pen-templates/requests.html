@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load static asset_v rbac %}
+{% block title %}درخواست‌ها{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="درخواست‌ها" %}
+{% endblock %}
+
+{% block content %}
+{# ── LIST view (no ?id=) ──────────────────────────────────────────── #}
+<div id="req-list-view">
+  <div class="card">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2">
+      <div class="flex-grow-1">
+        <h6 class="mb-0 card-title">درخواست‌ها</h6>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <select id="req-status" class="form-select form-select-sm" aria-label="فیلتر وضعیت" style="min-width:140px">
+          <option value="">همه وضعیت‌ها</option>
+          <option value="running">در جریان</option>
+          <option value="completed">تکمیل‌شده</option>
+          <option value="rejected">ردشده</option>
+          <option value="cancelled">لغوشده</option>
+        </select>
+        <div class="position-relative">
+          <input type="search" id="req-search" class="form-control form-control-sm ps-9" placeholder="جستجو…" aria-label="جستجو">
+          <i data-lucide="search" class="size-4 text-muted position-absolute top-50 start-0 ms-3 translate-middle-y"></i>
+        </div>
+        <a href="{% url 'submission-picker' %}" class="btn btn-sm btn-primary">
+          <i data-lucide="plus" class="size-4 me-1"></i> درخواست جدید
+        </a>
+      </div>
+    </div>
+    <div class="card-body pt-0">
+      <div id="req-list" class="vstack gap-2 pt-3" aria-busy="false"></div>
+      <nav aria-label="صفحه‌بندی" class="mt-3"><ul class="pagination justify-content-center mb-0" id="req-pager"></ul></nav>
+    </div>
+  </div>
+</div>
+
+{# ── DETAIL view (?id=) ───────────────────────────────────────────── #}
+<div id="req-detail-view" hidden>
+  <a href="/workspace/requests/" class="btn btn-sm btn-light mb-3">
+    <i data-lucide="arrow-right" class="size-4 me-1"></i> بازگشت به فهرست
+  </a>
+  <div class="row g-4">
+    <div class="col-12 col-lg-8">
+      <div class="card">
+        <div class="card-header">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <h6 class="mb-0 card-title flex-grow-1" id="rd-title">—</h6>
+            <span class="pen-badge pen-badge-processing" id="rd-status">—</span>
+          </div>
+          <p class="mb-0 text-muted fs-14 mt-1" id="rd-meta"></p>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info d-flex align-items-center gap-2" id="rd-whonow" role="status">
+            <i data-lucide="clock" class="size-4 flex-shrink-0"></i>
+            <div id="rd-whonow-text">—</div>
+          </div>
+
+          <h6 class="fw-semibold mt-4 mb-2">اطلاعات درخواست</h6>
+          <div id="rd-info" class="fs-14"></div>
+
+          <h6 class="fw-semibold mt-4 mb-2">تاریخچه گردش</h6>
+          <ol class="pen-timeline" id="rd-timeline"></ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card">
+        <div class="card-header"><h6 class="mb-0 card-title">اقدامات</h6></div>
+        <div class="card-body">
+          <button type="button" class="btn btn-outline-danger w-100 mb-2" id="rd-delete" data-delete-action hidden>
+            <i data-lucide="trash-2" class="size-4 me-1"></i> حذف نرم درخواست
+          </button>
+          <div id="rd-actions" class="vstack gap-2">
+            <p class="text-muted mb-0 fs-14">اقدامی برای شما مجاز نیست.</p>
+          </div>
+        </div>
+      </div>
+      <div class="card mt-4">
+        <div class="card-header"><h6 class="mb-0 card-title">افراد درگیر</h6></div>
+        <div class="card-body"><ul class="list-unstyled mb-0 vstack gap-2" id="rd-people"></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Action modal ─────────────────────────────────────────────────── #}
+<div class="modal fade" id="action-modal" tabindex="-1" aria-labelledby="action-label" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title mb-0" id="action-label">اقدام</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+      </div>
+      <div class="modal-body">
+        <p class="fs-14 text-muted" id="action-hint"></p>
+        <label class="form-label" for="action-comment">توضیح</label>
+        <textarea id="action-comment" class="form-control" rows="3" placeholder="دلیل / توضیح…"></textarea>
+        <div id="action-error" class="pen-error-summary mt-2" role="alert" hidden><ul class="mb-0"></ul></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">انصراف</button>
+        <button type="button" id="action-confirm" class="btn btn-primary">ثبت</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/requests.js' %}"></script>
+{% endblock %}

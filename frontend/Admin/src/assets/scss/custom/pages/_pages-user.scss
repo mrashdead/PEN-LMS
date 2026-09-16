@@ -1,0 +1,9 @@
+// src/assets/scss/custom/pages/_pages-user.scss
+
+.img-scale-skew {
+    @include transition;
+
+    &:hover {
+        transform: scale(1.05) skewX(3deg);
+    }
+}

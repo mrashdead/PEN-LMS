@@ -1,0 +1,35 @@
+// src/assets/scss/custom/apps/_apps-projects-roadmap.scss
+
+.timeline-month {
+    &::before {
+        content: '';
+        width: .5rem;
+        height: calc(100% - 0.3125rem);
+        background-color: var(--#{$prefix}tertiary-bg);
+        @include position(absolute, .5rem, null, null, .875rem);
+        border-radius: .375rem;
+    }
+}
+
+.timeline-section {
+    position: relative;
+
+    &::before {
+        content: '';
+        height: 1px;
+        width: 1.75rem;
+        @include position(absolute, .875rem, null, null, 1.25rem);
+        background-color: var(--#{$prefix}tertiary-bg);
+        z-index: 0;
+    }
+
+    &::after {
+        content: '';
+        width: .75rem;
+        height: .75rem;
+        @include position(absolute, .5rem, null, null, .75rem);
+        background-color: var(--#{$prefix}primary);
+        border: 2px solid var(--#{$prefix}secondary-bg);
+        border-radius: 3.125rem;
+    }
+}

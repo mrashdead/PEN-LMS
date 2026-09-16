@@ -1,0 +1,66 @@
+// src/assets/scss/custom/components/_tabs.scss
+
+//nav underline tabs
+.nav-underline {
+    .nav-link {
+        padding: $nav-link-padding-y $nav-link-padding-x;
+        position: relative;
+        border: 0;
+
+        &::after {
+            content: "";
+            @include position(absolute, null, 0, 0, 0);
+            margin: 0 auto;
+            height: 1px;
+            width: 0px;
+            @include border-radius($border-radius-pill);
+            @include transition;
+            background-color: var(--#{$prefix}nav-underline-link-active-color);
+        }
+
+        &:is(:hover, .active) {
+            &::after {
+                width: 100%;
+            }
+        }
+
+        &.active {
+            font-weight: $font-weight-medium;
+        }
+    }
+}
+
+//tabs animation
+.tabs-animation {
+    .nav-link {
+        position: relative;
+        overflow: hidden;
+        height: 2.75rem;
+        text-align: center;
+        width: 8rem;
+
+        .icon {
+            @include transition;
+            margin-inline: auto;
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .content {
+            @include transition;
+            display: block;
+            transform: translateY(-3.5rem);
+        }
+
+        &:hover {
+            .content {
+                transform: translateY(-1.1rem);
+            }
+
+            .icon {
+                transform: translateY(2.5rem);
+            }
+        }
+    }
+}

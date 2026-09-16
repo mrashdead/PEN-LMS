@@ -1,0 +1,31 @@
+// src/assets/scss/custom/components/_breadcrumb.scss
+
+.breadcrumb-item {
+    font-weight: $font-weight-medium;
+
+    a {
+        color: var(--#{$prefix}secondary-color);;
+    }
+}
+
+:is(.double-arrow, .single-arrow, .dash-arrow) {
+    .breadcrumb-item+.breadcrumb-item {
+        &::before {
+            float: left;
+            font-family: "RemixIcon";
+            color: var(--#{$prefix}breadcrumb-divider-color);
+        }
+    }
+}
+
+.double-arrow .breadcrumb-item+.breadcrumb-item::before {
+    content: "\f2e4";
+}
+
+.single-arrow .breadcrumb-item+.breadcrumb-item::before {
+    content: "\ea6e";
+}
+
+.dash-arrow .breadcrumb-item+.breadcrumb-item::before {
+    content: "\F1AF";
+}

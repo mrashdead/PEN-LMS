@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}نمودار سازمانی{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="نمودار سازمانی" section="مدیریت سازمان" %}
+{% endblock %}
+
+{% block content %}
+{# ── Department cards ─────────────────────────────────────────────── #}
+<div class="row g-3 mb-4" id="org-departments"></div>
+
+<div class="card">
+  <div class="card-header d-flex align-items-center gap-2">
+    <h6 class="mb-0 card-title flex-grow-1">
+      <i data-lucide="network" class="size-4 me-1"></i> سلسله‌مراتب
+    </h6>
+    <button id="org-expand-all" class="btn btn-sm btn-light">بازکردن همه</button>
+    <button id="org-collapse-all" class="btn btn-sm btn-light">بستن همه</button>
+  </div>
+  <div class="card-body">
+    <div id="org-tree" aria-busy="false"></div>
+  </div>
+</div>
+
+{# ── Profile modal ────────────────────────────────────────────────── #}
+<div class="modal fade" id="profile-modal" tabindex="-1" aria-labelledby="profile-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title mb-0" id="profile-label">پروفایل سازمانی</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+      </div>
+      <div class="modal-body" id="profile-body">
+        <div class="pen-loading">در حال بارگذاری…</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/org.js' %}"></script>
+{% endblock %}

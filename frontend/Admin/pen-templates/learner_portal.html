@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}حضور و کارنامه من{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="حضور و کارنامه" %}
+{% endblock %}
+
+{% block content %}
+{# ── ward switcher (only rendered when the account has more than one student) #}
+<div class="row g-4 mb-1" id="lp-switch-row" hidden>
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body d-flex flex-wrap align-items-center gap-2">
+        <span class="fs-14 fw-semibold text-muted"><i data-lucide="users" class="size-4 me-1"></i> مشاهدهٔ:</span>
+        <div id="lp-switch" class="btn-group flex-wrap" role="group" aria-label="انتخاب دانش‌آموز"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  {# ── attendance stats ─────────────────────────────────────────────── #}
+  <div class="col-12 col-lg-4">
+    <div class="card card-h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1"><i data-lucide="user-check" class="size-4 me-1"></i> آمار حضور</h6>
+      </div>
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-4 mb-3">
+          <div class="pen-ring" id="lp-ring" style="--pen-ring:0"><span id="lp-rate">—</span></div>
+          <div>
+            <p class="fs-14 text-muted mb-1">درصد حضور</p>
+            <p class="mb-0 fs-13 text-muted" id="lp-total">—</p>
+          </div>
+        </div>
+        <ul class="list-unstyled mb-0 d-grid gap-2" id="lp-totals">
+          <li class="d-flex align-items-center gap-2"><span class="pen-status present"><span class="dot"></span>حاضر</span><span class="ms-auto fw-semibold" data-tot="present">—</span></li>
+          <li class="d-flex align-items-center gap-2"><span class="pen-status absent"><span class="dot"></span>غایب</span><span class="ms-auto fw-semibold" data-tot="absent">—</span></li>
+          <li class="d-flex align-items-center gap-2"><span class="pen-status late"><span class="dot"></span>تأخیر</span><span class="ms-auto fw-semibold" data-tot="late">—</span></li>
+          <li class="d-flex align-items-center gap-2"><span class="pen-status excused"><span class="dot"></span>موجه</span><span class="ms-auto fw-semibold" data-tot="excused">—</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  {# ── report cards ─────────────────────────────────────────────────── #}
+  <div class="col-12 col-lg-8">
+    <div class="card card-h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1"><i data-lucide="clipboard-check" class="size-4 me-1"></i> کارنامه توصیفی</h6>
+      </div>
+      <div class="card-body p-0">
+        <div id="lp-cards">
+          <div class="pen-loading">در حال بارگذاری…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── sessions table ─────────────────────────────────────────────────── #}
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1"><i data-lucide="calendar-days" class="size-4 me-1"></i> جلسات برگزارشده</h6>
+        <div class="d-flex align-items-center gap-2">
+          <label class="form-label mb-0 fs-13 text-muted" for="lp-filter">وضعیت</label>
+          <select id="lp-filter" class="form-select form-select-sm" style="width:auto" aria-label="فیلتر وضعیت">
+            <option value="">همه</option>
+            <option value="present">حاضر</option>
+            <option value="absent">غایب</option>
+            <option value="late">تأخیر</option>
+            <option value="excused">موجه</option>
+          </select>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th scope="col">تاریخ</th>
+                <th scope="col">جلسه</th>
+                <th scope="col">ساعت</th>
+                <th scope="col">وضعیت</th>
+                <th scope="col">یادداشت مدرس</th>
+              </tr>
+            </thead>
+            <tbody id="lp-sessions">
+              <tr><td colspan="5"><div class="pen-loading">در حال بارگذاری…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/learner-portal.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,12 @@
+// src/assets/scss/custom/components/_links.scss
+
+.link {
+    @include transition;
+    
+    &.link-custom {
+        color: var(--#{$prefix}body-color);
+        &:hover {
+            color: var(--#{$prefix}primary);
+        }
+    }
+}

@@ -1,0 +1,44 @@
+// src/assets/scss/custom/pages/_auth-signin-modern.scss
+
+.auth-modern {
+    background: url('../images/others/auth.jpg');
+    background-position: center;
+    background-size: cover;
+
+    .card {
+        background-color: rgba($white, 0.1);
+        backdrop-filter: blur(10px);
+        box-shadow: none;
+        border: none;
+        color: var(--#{$prefix}gray-300);
+
+        a {
+            color: #ffffffbf;
+        }
+
+        .form-control.pattern-input,
+        .form-control.pattern-input:focus, .form-control {
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            border: none;
+            color: var(--#{$prefix}white);
+            box-shadow: none;
+            
+            &::placeholder {
+                color: var(--#{$prefix}gray-300);
+            }
+        }
+        
+        .form-check-input {
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+
+        .btn-light {
+            background-color: #ffffff0e;
+        }
+
+        .social-link:hover {
+            background-color: #ffffff1a;
+            color: white;
+        }
+    }
+}

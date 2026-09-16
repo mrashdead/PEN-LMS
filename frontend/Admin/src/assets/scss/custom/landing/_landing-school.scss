@@ -1,0 +1,207 @@
+// src/assets/scss/custom/landing/_landing-school.scss
+
+//home section
+.school-home {
+    padding: 192px 0 96px;
+    background: linear-gradient(to bottom, rgba(var(--#{$prefix}orange-rgb), 0.1), rgba(var(--#{$prefix}orange-rgb), 0));
+
+    .student-card {
+        position: relative;
+        max-height: 24rem;
+        background-color: var(--#{$prefix}secondary-bg);
+
+        &::before {
+            content: '';
+            @include position(absolute, null, 0, 0, 0);
+            background-color: rgba(var(--#{$prefix}info-rgb), 0.1);
+            border-top-left-radius: 624.9375rem;
+            border-top-right-radius: 624.9375rem;
+            height: 66.666667%;
+        }
+
+        &.warning {
+            &::before {
+                background-color: rgba(var(--#{$prefix}warning-rgb), 0.1);
+            }
+        }
+
+        &.success {
+            &::before {
+                background-color: rgba(var(--#{$prefix}success-rgb), 0.1);
+            }
+        }
+
+        &.secondary {
+            &::before {
+                background-color: rgba(var(--#{$prefix}secondary-rgb), 0.1);
+            }
+        }
+    }
+}
+
+//about section
+.school-about {
+    .about-img {
+        position: relative;
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 0px;
+            top: 5rem;
+            border-radius: 0.375rem;
+            background-color: rgba(var(--#{$prefix}orange-rgb), 0.1);
+        }
+
+        .title {
+            transform: rotate(-90deg);
+            @include position(absolute, null, null, 3rem, -0.625rem);
+        }
+    }
+
+    .square-wrapper {
+        position: absolute;
+        width: 400px;
+        height: 400px;
+        border: 1px solid var(--#{$prefix}orange);
+        filter: blur(4px);
+        @include border-radius(8px);
+
+        @media (min-width: 992px) {
+            width: 30rem;
+            height: 30rem;
+        }
+
+        @media (min-width: 1200px) {
+            width: 40.625rem;
+            height: 40.625rem;
+        }
+    }
+}
+
+.mentors-section {
+    .mentors-card {
+        .mentors-wrapper {
+            position: relative;
+
+            &::before {
+                content: '';
+                @include position(absolute, null, 0, 0, 0);
+                height: 80% !important;
+                background-color: rgba(var(--#{$prefix}light-rgb), 0.75);
+                border-top-left-radius: 999px;
+                border-top-right-radius: 999px;
+            }
+        }
+    }
+}
+
+//client section
+.client-section {
+    background: linear-gradient(to bottom, var(--#{$prefix}orange-bg-subtle), rgba(var(--#{$prefix}orange-rgb), 0.0));
+}
+
+.courses {
+    .courses-card {
+        background: linear-gradient(to bottom, var(--#{$prefix}orange-bg-subtle), rgba(var(--#{$prefix}orange-rgb), 0.0));
+
+        .course-number {
+            @include position(absolute, 1.25rem, 1.25rem, null, null);
+            color: rgba(var(--#{$prefix}orange-rgb), 0.1);
+        }
+    }
+
+    @include media-breakpoint-up(sm) {
+
+        &:before,
+        &::after {
+            content: '';
+            position: absolute;
+            border: 1px solid var(--#{$prefix}light);
+            z-index: -1;
+            top: 50%;
+        }
+
+        &::after {
+            height: calc(100% + 2rem);
+        }
+
+        &.course-firstCol {
+            &::before {
+                width: 66.66%;
+            }
+
+            &::after {
+                left: 66.66%;
+            }
+        }
+
+        &.course-secondCol {
+            &::before {
+                right: 0;
+                width: 66.66%;
+            }
+
+            &::after {
+                right: 66.66%;
+            }
+        }
+
+        &:last-child {
+            &::before {
+                right: 0;
+                width: 33.3%;
+            }
+
+            &::after {
+                display: none;
+            }
+        }
+    }
+}
+
+.footer-social-toolbar {
+
+    a {
+        position: relative;
+        @include transition;
+        color: var(--#{$prefix}primary);
+
+        &::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-color: var(--#{$prefix}primary-bg-subtle);
+            border-radius: 0.5rem;
+            transform: rotate(-45deg);
+        }
+
+        &.dribbble {
+            color: var(--#{$prefix}pink);
+
+            &::after {
+                background-color: var(--#{$prefix}pink-bg-subtle);
+            }
+        }
+
+        &.twitter {
+            color: var(--#{$prefix}info);
+
+            &::after {
+                background-color: var(--#{$prefix}info-bg-subtle);
+            }
+        }
+
+        &.youtube {
+            color: var(--#{$prefix}danger);
+
+            &::after {
+                background-color: var(--#{$prefix}danger-bg-subtle);
+            }
+        }
+
+        &:hover {
+            transform: translateY(-5px);
+        }
+    }
+}

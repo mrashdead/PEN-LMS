@@ -1,0 +1,105 @@
+// src/assets/scss/custom/landing/_landing-email.scss
+
+.email-home-section {
+    padding: 110px 0 80px;
+
+    @include media-breakpoint-up(xl) {
+        img {
+            top: -25px;
+            transform: scale(1.8);
+            right: -22rem;
+
+            @include media-breakpoint-only(xl) {
+                top: 96px;
+                transform: scale(2.1);
+            }
+        }
+    }
+
+    .title {
+        font-size: 1.875rem;
+
+        @include media-breakpoint-up(lg) {
+            font-size: 3rem;
+        }
+    }
+
+    @include media-breakpoint-only(xl) {
+        padding: 180px 0 138px;
+    }
+
+    @include media-breakpoint-up(xxl) {
+        padding: 320px 0 192px;
+    }
+}
+
+//pricing-section
+.pricing-card {
+    overflow: hidden;
+
+    .pricing-circle {
+        position: absolute;
+        bottom: -4rem;
+        right: -4rem;
+        border: 40px solid var(--#{$prefix}tertiary-bg);
+        @include border-radius($border-radius-pill);
+    }
+}
+
+//cta
+.email-cta-section {
+    padding-top: 5rem;
+    color: var(--#{$prefix}white);
+    background-color: color-mix(in srgb, var(--#{$prefix}primary) 100%, black 75%);
+
+    .title {
+        font-size: 3rem;
+
+        @include media-breakpoint-up(lg) {
+            font-size: 48px;
+        }
+    }
+}
+
+.email-footer {
+    background-color: var(--#{$prefix}gray-900);
+
+    .social-media-list {
+        a {
+            position: relative;
+
+            &::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background-color: rgba(var(--#{$prefix}dark-rgb), 0.1);
+                border-radius: 0.5rem;
+                transform: rotate(-45deg);
+            }
+        }
+    }
+
+    [data-bs-theme="dark"] & {
+        background-color: var(--#{$prefix}secondary-bg);
+    }
+}
+
+.email-img {
+    .img-light {
+        display: block;
+    }
+
+    .img-dark {
+        display: none;
+    }
+
+    [data-bs-theme="dark"] & {
+        .img-light {
+            display: none;
+        }
+
+        .img-dark {
+            display: block;
+        }
+    }
+}

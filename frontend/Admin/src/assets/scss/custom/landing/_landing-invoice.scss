@@ -1,0 +1,113 @@
+// src/assets/scss/custom/landing/_landing-invoice.scss
+
+.invoice-body {
+    [data-bs-theme="dark"] & {
+        --#{$prefix}body-bg: #{$dark-invoice-body};
+        --#{$prefix}secondary-color: #{$dark-invoice-muted};
+        --#{$prefix}border-color: #{rgba($dark-invoice-border, 0.1)};
+    }
+}
+
+.invoice-header {
+    &.fixed {
+        box-shadow: 0 10px 15px -3px var(--#{$prefix}secondary-bg),
+        0 4px 6px -4px var(--#{$prefix}secondary-bg);
+        @include transition;
+    }
+}
+
+//home section
+.invoice-home-section {
+    position: relative;
+    overflow: hidden;
+    padding: 144px 0 80px;
+
+    .title {
+        font-size: 36px;
+
+        @include media-breakpoint-up(xl) {
+            font-size: 60px;
+        }
+    }
+
+    .invoice-input {
+        padding: 0.5625rem 9rem 0.5625rem 1.5rem;
+        background-color: transparent;
+
+        &.form-control:focus {
+            border-color: var(--#{$prefix}secondary);
+        }
+    }
+
+    .form-select:focus {
+        border-color: var(--#{$prefix}secondary);
+        outline: 0;
+        box-shadow: none;
+    }
+}
+
+.invoice-sub-title {
+    font-size: 30px;
+    line-height: 1.5;
+    text-transform: capitalize;
+
+    @media (min-width: 576px) {
+        font-size: 36px;
+    }
+}
+
+//service section
+.invoice-card, .invoice-home-section {
+    [data-bs-theme="dark"] & {
+        background: linear-gradient(to bottom, rgba(var(--#{$prefix}secondary-rgb), 0.04), rgba(var(--#{$prefix}secondary-rgb), 0));
+    }
+}
+
+//invoice-case section
+.invoice-case {
+    .thumbnails {
+        @include position(absolute, null, 0, -6rem, null);
+        z-index: -1;
+
+        @media (min-width: 1441px) {
+            @include position(absolute, null, -6rem, -6rem, null);
+        }
+    }
+
+}
+
+//trial section
+.trial-section {
+    background: url('../images/invoice/cta.jpg');
+    background-size: cover;
+    position: relative;
+
+    .trial-title {
+        position: absolute;
+        inset: 0;
+        top: 6rem;
+        color: rgba(var(--#{$prefix}dark-rgb), 0.2);
+    }
+}
+
+//invoice contact section
+.invoice-contact {
+
+    .form-control {
+        background-color: var(--#{$prefix}body-bg);
+
+        &:focus {
+            border-color: var(--#{$prefix}secondary);
+        }
+    }
+
+    .form-floating> {
+
+        .form-control:focus~label::after,
+        .form-control:not(:placeholder-shown)~label::after,
+        .form-control-plaintext~label::after,
+        .form-select~label::after {
+            background-color: var(--#{$prefix}body-bg);
+        }
+    }
+}

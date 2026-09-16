@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}پنل مدرس{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="پنل مدرس" %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4 mb-4">
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card card-h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="avatar size-14 rounded bg-primary-subtle text-primary flex-shrink-0">
+          <i data-lucide="school" class="size-6"></i>
+        </div>
+        <div>
+          <h6 class="mb-0 fw-semibold" data-td-stat="classes">—</h6>
+          <p class="mb-0 text-muted fs-14">دوره‌های من</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card card-h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="avatar size-14 rounded bg-success-subtle text-success flex-shrink-0">
+          <i data-lucide="calendar-days" class="size-6"></i>
+        </div>
+        <div>
+          <h6 class="mb-0 fw-semibold" data-td-stat="upcoming">—</h6>
+          <p class="mb-0 text-muted fs-14">جلسه پیش‌رو</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card card-h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="avatar size-14 rounded bg-warning-subtle text-warning flex-shrink-0">
+          <i data-lucide="user-check" class="size-6"></i>
+        </div>
+        <div>
+          <h6 class="mb-0 fw-semibold" data-td-stat="pending">—</h6>
+          <p class="mb-0 text-muted fs-14">حضور ثبت‌نشده</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card card-h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="avatar size-14 rounded bg-info-subtle text-info flex-shrink-0">
+          <i data-lucide="users" class="size-6"></i>
+        </div>
+        <div>
+          <h6 class="mb-0 fw-semibold" data-td-stat="students">—</h6>
+          <p class="mb-0 text-muted fs-14">دانش‌آموزان</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  {# ── quick actions ──────────────────────────────────────────────── #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body d-flex flex-wrap gap-2">
+        <a href="{% url 'workspace-teacher-attendance' %}" class="btn btn-primary">
+          <i data-lucide="user-check" class="size-4 me-2"></i> ثبت حضور و غیاب
+        </a>
+        <a href="{% url 'workspace-teacher-report-cards' %}" class="btn btn-outline-primary">
+          <i data-lucide="clipboard-check" class="size-4 me-2"></i> کارنامه توصیفی
+        </a>
+        <a href="{% url 'workspace-timetable' %}" class="btn btn-outline-secondary">
+          <i data-lucide="calendar-days" class="size-4 me-2"></i> تقویم و برنامه
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  {# ── my classes ─────────────────────────────────────────────────── #}
+  <div class="col-12 col-xl-7">
+    <div class="card card-h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1">
+          <i data-lucide="school" class="size-4 me-1"></i> دوره‌ها و کلاس‌های من
+        </h6>
+      </div>
+      <div class="card-body">
+        <div id="td-classes" class="row g-3">
+          <div class="col-12"><div class="pen-loading">در حال بارگذاری…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── week agenda ────────────────────────────────────────────────── #}
+  <div class="col-12 col-xl-5">
+    <div class="card card-h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1">
+          <i data-lucide="calendar-days" class="size-4 me-1"></i> برنامه هفتگی من
+        </h6>
+        <a href="{% url 'workspace-timetable' %}" class="btn btn-sm btn-outline-primary">
+          تقویم کامل <i data-lucide="arrow-left" class="size-4 me-1"></i>
+        </a>
+      </div>
+      <div class="card-body p-0">
+        <div id="td-agenda" style="max-height:60vh;overflow-y:auto">
+          <div class="pen-loading">در حال بارگذاری…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/teacher-dashboard.js' %}"></script>
+{% endblock %}

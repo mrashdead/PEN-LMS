@@ -1,0 +1,17 @@
+$themes-sidebar: (
+    "light": (
+        sidebar-bg:                             #{$sidebar-bg},
+    ),
+    "dark": (
+        sidebar-bg:                             #{$sidebar-dark-bg},
+    ),
+    "brand": (
+        sidebar-bg:                             #{$sidebar-brand-bg},
+    ),
+    "purple": (
+        sidebar-bg:                             #{$sidebar-purple-bg},
+    ),
+    "sky": (
+        sidebar-bg:                             #{$sidebar-sky-bg},
+    )
+);

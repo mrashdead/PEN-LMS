@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}مسئولیت‌ها{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="مسئولیت‌ها و عملکرد واحدها" section="مدیریت سازمان" %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  {# ── Unit performance ───────────────────────────────────────────── #}
+  <div class="col-12 col-xl-6">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0 card-title"><i data-lucide="activity" class="size-4 me-1"></i> عملکرد واحدها</h6>
+        <p class="mb-0 text-muted fs-14">نرخ تکمیل کارتابل + وضعیت SLA هر واحد.</p>
+      </div>
+      <div class="card-body pt-0">
+        <div id="perf-list" class="vstack gap-3 pt-3" aria-busy="false"></div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Responsibilities ───────────────────────────────────────────── #}
+  <div class="col-12 col-xl-6">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0 card-title"><i data-lucide="user-check" class="size-4 me-1"></i> چه کسی مسئول چیست؟</h6>
+        <p class="mb-0 text-muted fs-14">نقش‌های مجاز برای هر اقدام، از تعریف فرآیندها.</p>
+      </div>
+      <div class="card-body pt-0">
+        <div class="table-responsive" id="resp-wrap" aria-busy="false">
+          <div class="pen-loading">در حال بارگذاری…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/org.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,291 @@
+@mixin generate-buttons-classes($colors: $theme-colors, $prefix: '') {
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        .btn-#{$state} {
+            @if $state =='light' {
+                --#{$prefix}btn-color: var(--#{$prefix}secondary-color);
+                --#{$prefix}btn-bg: var(--#{$prefix}light);
+                --#{$prefix}btn-border-color: var(--#{$prefix}light);
+                --#{$prefix}btn-hover-color: var(--#{$prefix}body-color);
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-hover-border-color: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-active-color: var(--#{$prefix}body-color);
+                --#{$prefix}btn-active-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-active-border-color: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}secondary-color);
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}light);
+                --#{$prefix}btn-disabled-border-color: var(--#{$prefix}light);
+            }
+
+            @else {
+                --#{$prefix}btn-color: var(--#{$prefix}white);
+                --#{$prefix}btn-bg: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-color: var(--#{$prefix}white);
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-hover-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-active-color: var(--#{$prefix}white);
+                --#{$prefix}btn-active-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-active-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}white);
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-disabled-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+            }
+        }
+
+        .btn-outline-#{$state} {
+            @if $state =='light' {
+                --#{$prefix}btn-color: var(--#{$prefix}secondary-color);
+                --#{$prefix}btn-bg: transparent;
+                --#{$prefix}btn-border-color: var(--#{$prefix}light);
+                --#{$prefix}btn-hover-color: var(--#{$prefix}body-color);
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-hover-border-color: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-active-color: var(--#{$prefix}body-color);
+                --#{$prefix}btn-active-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-active-border-color: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}secondary-color);
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}light);
+                --#{$prefix}btn-disabled-border-color: var(--#{$prefix}light);
+            }
+
+            @else if $state =='dark' {
+                --#{$prefix}btn-color: var(--#{$prefix}dark);
+                --#{$prefix}btn-bg: transparent;
+                --#{$prefix}btn-border-color: var(--#{$prefix}dark);
+                --#{$prefix}btn-hover-color: var(--#{$prefix}white);
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}dark);
+                --#{$prefix}btn-hover-border-color: var(--#{$prefix}dark);
+                --#{$prefix}btn-active-color: var(--#{$prefix}white);
+                --#{$prefix}btn-active-bg: var(--#{$prefix}dark);
+                --#{$prefix}btn-active-border-color: var(--#{$prefix}dark);
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}secondary-color);
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}dark);
+                --#{$prefix}btn-disabled-border-color: var(--#{$prefix}dark);
+            }
+
+            @else {
+                --#{$prefix}btn-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-bg: transparent;
+                --#{$prefix}btn-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-color: var(--#{$prefix}white);
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-hover-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-active-color: var(--#{$prefix}white);
+                --#{$prefix}btn-active-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-active-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}white);
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-disabled-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+            }
+
+            .btn-#{$state} {
+                @if $state =='light' {
+                    --#{$prefix}btn-color: var(--#{$prefix}secondary-color);
+                    --#{$prefix}btn-bg: var(--#{$prefix}light);
+                    --#{$prefix}btn-border-color: var(--#{$prefix}light);
+                    --#{$prefix}btn-hover-color: var(--#{$prefix}body-color);
+                    --#{$prefix}btn-hover-bg: var(--#{$prefix}tertiary-bg);
+                    --#{$prefix}btn-hover-border-color: var(--#{$prefix}tertiary-bg);
+                    --#{$prefix}btn-active-color: var(--#{$prefix}body-color);
+                    --#{$prefix}btn-active-bg: var(--#{$prefix}tertiary-bg);
+                    --#{$prefix}btn-active-border-color: var(--#{$prefix}tertiary-bg);
+                    --#{$prefix}btn-disabled-color: var(--#{$prefix}secondary-color);
+                    --#{$prefix}btn-disabled-bg: var(--#{$prefix}light);
+                    --#{$prefix}btn-disabled-border-color: var(--#{$prefix}light);
+                }
+
+                @else {
+                    --#{$prefix}btn-color: var(--#{$prefix}white);
+                    --#{$prefix}btn-bg: var(--#{$prefix}#{$state});
+                    --#{$prefix}btn-border-color: var(--#{$prefix}#{$state});
+                    --#{$prefix}btn-hover-color: var(--#{$prefix}white);
+                    --#{$prefix}btn-hover-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                    --#{$prefix}btn-hover-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+                    --#{$prefix}btn-active-color: var(--#{$prefix}white);
+                    --#{$prefix}btn-active-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                    --#{$prefix}btn-active-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+                    --#{$prefix}btn-disabled-color: var(--#{$prefix}white);
+                    --#{$prefix}btn-disabled-bg: var(--#{$prefix}#{$state}-bg-subtle);
+                    --#{$prefix}btn-disabled-border-color: var(--#{$prefix}#{$state}-border-subtle);
+                }
+            }
+        }
+
+        // Sub (light) button styles
+        .btn-sub-#{$state} {
+            @if $state =='dark' {
+                // Styles for 'dark' state
+                --#{$prefix}btn-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-bg: var(--#{$prefix}light);
+                --#{$prefix}btn-border-color: transparent;
+                --#{$prefix}btn-hover-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}#{$state}-border-subtle);
+                --#{$prefix}btn-hover-border-color: transparent;
+                --#{$prefix}btn-active-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-active-bg: var(--#{$prefix}#{$state}-border-subtle);
+                --#{$prefix}btn-active-border-color: transparent;
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}#{$state}-border-subtle);
+                --#{$prefix}btn-disabled-border-color: transparent;
+            }
+
+            @else if $state !='light' {
+                // Styles for all states except 'light'
+                --#{$prefix}btn-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-bg: var(--#{$prefix}#{$state}-bg-subtle);
+                --#{$prefix}btn-border-color: transparent;
+                --#{$prefix}btn-hover-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}#{$state}-border-subtle);
+                --#{$prefix}btn-hover-border-color: transparent;
+                --#{$prefix}btn-active-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-active-bg: var(--#{$prefix}#{$state}-border-subtle);
+                --#{$prefix}btn-active-border-color: transparent;
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}#{$state}-border-subtle);
+                --#{$prefix}btn-disabled-border-color: transparent;
+            }
+        }
+
+        // dashed button styles
+        .btn-dashed-#{$state} {
+            @if $state =='dark' {
+                --#{$prefix}btn-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-bg: transparent;
+                --#{$prefix}btn-border-color: var(--#{$prefix}border-color);
+                --#{$prefix}btn-hover-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-hover-border-color: var(--#{$prefix}border-color);
+                --#{$prefix}btn-active-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-active-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-active-border-color: var(--#{$prefix}border-color);
+                ;
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-disabled-border-color: var(--#{$prefix}border-color);
+            }
+
+            @else if $state !='light' {
+                --#{$prefix}btn-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-bg: transparent;
+                --#{$prefix}btn-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}#{$state}-bg-subtle);
+                --#{$prefix}btn-hover-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-active-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-active-bg: var(--#{$prefix}#{$state}-bg-subtle);
+                --#{$prefix}btn-active-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}#{$state}-bg-subtle);
+                --#{$prefix}btn-disabled-border-color: var(--#{$prefix}#{$state});
+            }
+        }
+
+        // active button styles
+        .btn-active-#{$state} {
+            @if $state =='dark' {
+                --#{$prefix}btn-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-bg: transparent;
+                --#{$prefix}btn-border-color: transparent;
+                --#{$prefix}btn-hover-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-hover-border-color: transparent;
+                --#{$prefix}btn-active-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-active-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-active-border-color: transparent;
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}btn-disabled-border-color: transparent;
+            }
+
+            @else if $state !='light' {
+                --#{$prefix}btn-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-bg: transparent;
+                --#{$prefix}btn-border-color: transparent;
+                --#{$prefix}btn-hover-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}#{$state}-bg-subtle);
+                --#{$prefix}btn-hover-border-color: transparent;
+                --#{$prefix}btn-active-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-active-bg: var(--#{$prefix}#{$state}-bg-subtle);
+                --#{$prefix}btn-active-border-color: transparent;
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}#{$state}-bg-subtle);
+                --#{$prefix}btn-disabled-border-color: transparent;
+            }
+        }
+
+        // 3D button styles
+        .btn-3d-#{$state} {
+            @if $state =='dark' {
+                --#{$prefix}btn-color: var(--#{$prefix}white);
+                --#{$prefix}btn-bg: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-color: var(--#{$prefix}white);
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-active-color: var(--#{$prefix}white);
+                --#{$prefix}btn-active-bg: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-active-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}white);
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-disabled-border-color: var(--#{$prefix}#{$state});
+            }
+
+            @else if $state !='light' {
+                --#{$prefix}btn-color: var(--#{$prefix}white);
+                --#{$prefix}btn-bg: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}btn-hover-color: var(--#{$prefix}white);
+                --#{$prefix}btn-hover-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-hover-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-active-color: var(--#{$prefix}white);
+                --#{$prefix}btn-active-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-active-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-disabled-color: var(--#{$prefix}white);
+                --#{$prefix}btn-disabled-bg: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-disabled-border-color: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}btn-shadow-color: var(--#{$prefix}#{$state}-text-emphasis);
+            }
+        }
+
+        //navigation buttons
+        .navigation-#{$state} {
+            a {
+                &:is(:hover, .active) {
+                    color: var(--#{$prefix}#{$state});
+                }
+            }
+
+            &.navigation-bottom-animation {
+                a {
+                    &:is(:hover, .active) {
+                        &::before {
+                            background-color: var(--#{$prefix}#{$state});
+                        }
+                    }
+                }
+            }
+
+            &.navigation-border-animation {
+                a {
+                    &::before {
+                        background-color: var(--#{$prefix}#{$state});
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Example Usage
+@include generate-buttons-classes($theme-colors, $prefix);

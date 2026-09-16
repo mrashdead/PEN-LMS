@@ -1,0 +1,121 @@
+// src/assets/scss/custom/components/_timeline.scss
+
+.timeline {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    list-style: none;
+}
+
+.timeline.timeline-square>*::after {
+    border-radius: 0.125rem !important;
+}
+
+.timeline-basic {
+    list-style: none;
+    margin-bottom: 0;
+    padding-left: 0;
+
+    .timeline-item {
+        position: relative;
+        padding-left: 1.25rem;
+        padding-bottom: 0.75rem;
+
+        &:not(:last-child)::before {
+            content: '';
+            @include position(absolute, 0.5rem, null, -0.5rem, 0.125rem);
+            width: 2px;
+            background-color: var(--#{$prefix}tertiary-bg);
+        }
+
+        &::after {
+            content: '';
+            @include position(absolute, 0.5rem, null, null, 0);
+            width: 0.375rem;
+            height: 0.375rem;
+            border-radius: 999px;
+            background-color: var(--#{$prefix}tertiary-bg);
+        }
+
+        &:last-child {
+            padding-bottom: 0;
+        }
+    }
+}
+
+@each $state in map-keys($theme-colors) {
+    .timeline-#{$state} {
+
+        .timeline-item {
+            &.active {
+
+                &::after,
+                &::before {
+                    background-color: var(--#{$prefix}#{$state});
+                }
+            }
+        }
+    }
+}
+
+.changelog-timeline {
+    position: relative;
+    list-style: none;
+    margin-bottom: 0;
+    padding-left: 0;
+
+    .timeline-item {
+        position: relative;
+        padding-bottom: 1.5rem;
+        display: flex;
+        justify-content: center;
+
+        &::before {
+            content: '';
+            @include position(absolute, .5rem, null, -.5rem, 1rem);
+            width: .125rem;
+            margin: 1.875rem 0 1rem 0;
+            background-color: var(--#{$prefix}tertiary-bg);
+        }
+
+        &:last-child {
+            padding-bottom: 0;
+
+            &::before {
+                display: none;
+            }
+        }
+
+        .dot {
+            position: absolute;
+            height: 6px;
+            width: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+    }
+}
+
+.timeline-modern {
+    list-style: none;
+    .timeline-item {
+        position: relative;
+
+        &::before {
+            content: '';
+            position: absolute;
+            top: -1.3rem;
+            bottom: -0.5rem;
+            left: 16px;
+            width: 0.0625rem;
+            background-color: var(--#{$prefix}tertiary-bg);
+            z-index: -1;
+        }
+
+        &:last-child {
+            &::before {
+                content: none;
+            }
+        }
+    }
+}

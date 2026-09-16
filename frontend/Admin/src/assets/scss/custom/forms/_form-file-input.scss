@@ -1,0 +1,27 @@
+// src/assets/scss/custom/forms/_form-file-input.scss
+
+.form-control {
+    &.fil-input {
+        &:focus {
+            border-color: var(--#{$prefix}gray-200);
+        }
+    }
+}
+
+#formFile::file-selector-button {
+    background-color: var(--#{$prefix}light-bg-subtle);
+    color: $text-muted;
+}
+#formFileDark::file-selector-button,
+#darkFormFileDark::file-selector-button {
+    background-color: var(--#{$prefix}gray-800);
+    color: var(--#{$prefix}white);
+}
+
+#formFileSecondary::file-selector-button {
+    background-color: var(--#{$prefix}secondary-bg-subtle);
+    color: var(--#{$prefix}secondary);
+    font-weight: $font-weight-medium;
+    border-radius: 6px;
+    border: none;
+}

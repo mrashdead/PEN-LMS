@@ -1,0 +1,9 @@
+// src/assets/scss/custom/apps/_apps-school-students-overview.scss
+
+.excellence-award {
+    background: linear-gradient(to top, rgba(var(--#{$prefix}warning-rgb), .10), rgba(var(--#{$prefix}warning-rgb), .0));
+}
+
+.recognition-award {
+    background: linear-gradient(to top, rgba(var(--#{$prefix}success-rgb), .10), rgba(var(--#{$prefix}success-rgb), .0));
+}

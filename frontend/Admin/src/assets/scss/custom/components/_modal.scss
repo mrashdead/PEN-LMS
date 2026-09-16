@@ -1,0 +1,57 @@
+// src/assets/scss/custom/components/_modal.scss
+
+.modal {
+    --#{$prefix}modal-box-shadow: #{$box-shadow-modal};
+}
+
+.modal-footer {
+    padding: $modal-inner-padding;
+}
+
+.modal-dialog-start {
+    margin-left: $spacer;
+}
+
+.modal-dialog-end {
+    margin-right: $spacer;
+}
+
+.modal-dialog-bottom-end {
+    position: absolute;
+    right: $spacer;
+    bottom: 0;
+}
+
+.modal-dialog-bottom-start {
+    position: absolute;
+    left: $spacer;
+    bottom: 0;
+}
+
+.modal-xs {
+    width: 20rem;
+}
+
+.modal-2xl {
+    max-width: 64rem;
+
+    @media (max-width: 1024px) {
+        max-width: 61.5rem;
+    }
+
+    @media (max-width: 768px) {
+        max-width: 45.5rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+
+    .modal-xs,
+    .modal-sm,
+    .modal-lg,
+    .modal-xl,
+    .modal-2xl {
+        max-width: 24.0625rem;
+        margin-inline: auto;
+    }
+}

@@ -1,0 +1,58 @@
+// src/assets/scss/custom/plugins/_filepond.scss
+
+.filepond--panel-root,
+.filepond--drip-blob {
+    background: var(--#{$prefix}tertiary-bg) !important;
+    border: 1px solid var(--#{$prefix}border-color);
+}
+
+.filepond--drop-label {
+    cursor: pointer;
+    color: var(--#{$prefix}secondary-color) !important;
+}
+
+.filepond--drop-label.filepond--drop-label label {
+    padding: 0.7rem !important;
+}
+
+.filepond--file {
+    color: var(--#{$prefix}body-color) !important;
+
+    .filepond--image-preview {
+        background: var(--#{$prefix}secondary-bg);
+        border: 1px solid var(--#{$prefix}border-color);
+        @include border-radius($border-radius);
+        box-shadow: none;
+    }
+
+    .filepond--image-preview-overlay {
+        display: none;
+    }
+
+    .filepond--file-action-button {
+        background-color: var(--#{$prefix}tertiary-bg);
+        color: var(--#{$prefix}secondary-color);
+    }
+
+}
+
+.filepond--item-panel {
+    background-color: transparent !important;
+}
+
+.filepond--item>.filepond--panel .filepond--panel-bottom {
+    box-shadow: none !important;
+}
+
+.file-upload-invoice {
+
+    .filepond--root,
+    .filepond--root .filepond--drop-label {
+        height: 152px !important;
+    }
+
+    /* Customize the image preview */
+    .filepond--image-preview-wrapper {
+        height: 120px !important;
+    }
+}

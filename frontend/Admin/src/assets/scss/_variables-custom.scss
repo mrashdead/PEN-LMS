@@ -1,0 +1,59 @@
+// src/assets/scss/_variables-custom.scss
+
+//topbar styles
+$topbar-height:   4.6875rem;
+$topbar-bg:       var(--#{$prefix}secondary-bg);
+$topbar-border:   var(--#{$prefix}border-color);
+$topbar-color:    var(--#{$prefix}secondary-color);
+$topbar-hover-color:    var(--#{$prefix}primary);
+
+//topbar dark
+$topbar-dark-bg:               #1e293b;
+
+//topbar brand
+$topbar-brand-bg:              #1b408d;
+
+//topbar purple
+$topbar-purple-bg:             $purple-600;
+
+//topbar sky
+$topbar-sky-bg:                #075985;
+
+//sidebar styles
+$sidebar-width:                 15rem;
+$sidebar-md-width:              10rem;
+$sidebar-sm-width:              4.6875rem;
+$sidebar-padding-y:             .625rem;
+$sidebar-padding-x:             1rem;
+$sidebar-font-size:             15px;
+
+//sidebar light
+$sidebar-bg:                        $white;
+$sidebar-border:                    var(--#{$prefix}border-color);
+$sidebar-menu-title:                var(--#{$prefix}secondary-color);
+$sidebar-link-color:                var(--#{$prefix}secondary-color);
+$sidebar-dropdown-shadow:           0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+$sidebar-link-hover-color:          var(--#{$prefix}primary);
+$sidebar-link-bg-hover-color:       var(--#{$prefix}primary-bg-subtle);
+$sidebar-link-active-color:         var(--#{$prefix}primary);
+$sidebar-link-bg-active-color:      var(--#{$prefix}primary-bg-subtle);
+$sidebar-link-sub-color:            var(--#{$prefix}secondary-color);
+$sidebar-link-sub-hover-color:      var(--#{$prefix}primary);
+$sidebar-link-sub-active-color:     var(--#{$prefix}primary);
+$sidebar-link-sub-effect-color:     var(--#{$prefix}primary-bg-subtle);
+
+//sidebar dark
+$sidebar-dark-bg:                   #0f1d35;
+//sidebar brand
+$sidebar-brand-bg:                  #1b408d;
+//sidebar purple
+$sidebar-purple-bg:                 $purple-600;
+//sidebar sky
+$sidebar-sky-bg:                    #075985;
+
+//boxed layout
+$boxed-bg:                    $primary;
+$boxed-width:                 2rem;
+
+//semibox layout
+$semibox-width:               .75rem;

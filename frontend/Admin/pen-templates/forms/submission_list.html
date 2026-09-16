@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% load forms_extras rbac %}
+{% block title %}فرم‌های من{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="فهرست فرم‌ها" section="فرم‌ها" %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex flex-column flex-md-row gap-3">
+        <div>
+          <h6 class="mb-0 card-title">درخواست‌های ثبت‌شده</h6>
+          <p class="mb-0 text-muted fs-14">فهرست فرم‌هایی که به شما دسترسی دیدن داده شده است.</p>
+        </div>
+        <a href="{% url 'submission-picker' %}" class="btn btn-primary flex-shrink-0 ms-md-auto">
+          <i data-lucide="file-plus-2" class="size-4 me-2"></i> فرم جدید
+        </a>
+      </div>
+
+      <div class="card-body pt-0">
+        {# ── Filters (server-side via GET) ────────────────────────────── #}
+        <form method="get" class="row g-2 align-items-end mb-3" aria-label="فیلتر فهرست">
+          <div class="col-6 col-md-3">
+            <label for="filter-status" class="form-label visually-hidden">وضعیت</label>
+            <select name="status" id="filter-status" class="form-select" aria-label="فیلتر وضعیت">
+              <option value="">همه وضعیت‌ها</option>
+              {% for value, label in statuses %}
+                <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ value|status_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md-3">
+            <label for="filter-number" class="form-label visually-hidden">شماره فرم</label>
+            <input type="text" name="submission_number" id="filter-number" class="form-control"
+                   placeholder="شماره فرم" value="{{ request.GET.submission_number|default:'' }}"
+                   aria-label="شماره فرم">
+          </div>
+          <div class="col-6 col-md-2">
+            <label for="filter-ordering" class="form-label visually-hidden">ترتیب</label>
+            <select name="ordering" id="filter-ordering" class="form-select" aria-label="ترتیب">
+              <option value="-created_at" {% if request.GET.ordering == '-created_at' %}selected{% endif %}>جدیدترین</option>
+              <option value="created_at" {% if request.GET.ordering == 'created_at' %}selected{% endif %}>قدیمی‌ترین</option>
+              <option value="status" {% if request.GET.ordering == 'status' %}selected{% endif %}>وضعیت</option>
+              <option value="-status" {% if request.GET.ordering == '-status' %}selected{% endif %}>وضعیت (نزولی)</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-auto d-flex gap-2">
+            <button type="submit" class="btn btn-outline-primary">اعمال</button>
+            {% if request.GET.status or request.GET.submission_number or request.GET.ordering %}
+              <a href="{% url 'submission-list' %}" class="btn btn-light" aria-label="حذف فیلترها">حذف فیلترها</a>
+            {% endif %}
+          </div>
+        </form>
+
+        {# ── Table ────────────────────────────────────────────────────── #}
+        <div class="table-card table-responsive" id="submission-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th scope="col">شماره</th>
+                <th scope="col">فرم</th>
+                <th scope="col">وضعیت</th>
+                <th scope="col">تاریخ</th>
+                <th scope="col">فرستنده</th>
+                <th scope="col" class="text-end">عملیات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in submission_list %}
+                <tr>
+                  <td>
+                    <a class="fw-medium link link-primary" href="{% url 'submission-detail-page' s.id %}">
+                      {{ s.submission_number|default:'—' }}
+                    </a>
+                  </td>
+                  <td>{{ s.form_schema.title }}</td>
+                  <td><span class="pen-badge pen-badge-{{ s.status }}">{{ s.status|status_label }}</span></td>
+                  <td class="text-nowrap">{{ s.created_at|date:"Y/m/d H:i" }}</td>
+                  <td>{{ s.submitted_by.get_full_name|default:s.submitted_by.username }}</td>
+                  <td class="text-end">
+                    <div class="dropdown pen-actions-dropdown">
+                      <button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown" aria-label="عملیات فرم">
+                        <i data-lucide="more-horizontal" class="size-4"></i>
+                      </button>
+                      <ul class="dropdown-menu dropdown-menu-end">
+                        {% can_crud "view" "submissions" s as can_view_submission %}
+                        {% if can_view_submission %}<li><a class="dropdown-item" href="{% url 'submission-detail-page' s.id %}"><i data-lucide="eye" class="size-4"></i> مشاهده</a></li>{% endif %}
+                        {% can_crud "edit" "submissions" s as can_edit_submission %}
+                        {% if can_edit_submission %}<li><a class="dropdown-item" href="{% url 'submission-edit-page' s.id %}"><i data-lucide="pencil" class="size-4"></i> ویرایش</a></li>{% endif %}
+                        {% can_crud "delete" "submissions" s as can_delete_submission %}
+                        {% if can_delete_submission %}
+                          <li><hr class="dropdown-divider"></li>
+                          <li><button type="button" class="dropdown-item text-danger" data-delete-action
+                            data-delete-url="/api/forms/submissions/{{ s.id }}/delete/"
+                            data-delete-name="{{ s.form_schema.title|escape }}"
+                            data-delete-code="{{ s.submission_number|default:s.id }}"><i data-lucide="trash-2" class="size-4"></i> حذف نرم</button></li>
+                        {% endif %}
+                      </ul>
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="6">
+                    <div class="pen-empty">
+                      <i data-lucide="inbox" class="size-8 opacity-50"></i>
+                      <p class="mb-0 mt-2">فرمی یافت نشد.</p>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {# ── Pagination ───────────────────────────────────────────────── #}
+        {% if page_obj.has_other_pages %}
+          <div class="row align-items-center g-3 mt-2">
+            <div class="col-md-6">
+              <p class="text-muted text-center text-md-start mb-0">
+                صفحه <b>{{ page_obj.number }}</b> از <b>{{ page_obj.paginator.num_pages }}</b>
+              </p>
+            </div>
+            <div class="col-md-6">
+              <nav aria-label="صفحه‌بندی">
+                <ul class="pagination justify-content-center justify-content-md-end mb-0">
+                  {% if page_obj.has_previous %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ page_obj.previous_page_number }}{{ querystring|default:'' }}" aria-label="قبلی">قبلی</a>
+                    </li>
+                  {% else %}
+                    <li class="page-item disabled"><span class="page-link">قبلی</span></li>
+                  {% endif %}
+                  {% if page_obj.has_next %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ page_obj.next_page_number }}{{ querystring|default:'' }}" aria-label="بعدی">بعدی</a>
+                    </li>
+                  {% else %}
+                    <li class="page-item disabled"><span class="page-link">بعدی</span></li>
+                  {% endif %}
+                </ul>
+              </nav>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

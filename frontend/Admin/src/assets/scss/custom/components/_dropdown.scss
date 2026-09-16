@@ -1,0 +1,74 @@
+// src/assets/scss/custom/components/_dropdown.scss
+
+.dropdown-menu {
+    .dropdown-item {
+        @include border-radius();
+        @include transition;
+    }
+}
+
+:is(.dropdown .dropdown-toggle, .dropdown-toggle-split.dropdown-toggle) {
+    &::after {
+        content: '\ea4e';
+        font-family: "remixicon" !important;
+        border: none;
+        font-size: 20px;
+        line-height: 0.8;
+        margin-top: 0;
+        vertical-align: -0.2rem;
+    }
+
+    &.show {
+        &::after {
+            transform: rotate(180deg);
+        }
+    }
+}
+
+.dropend {
+    .dropdown-toggle {
+        &::after {
+            content: '\ea4e';
+            font-family: "remixicon" !important;
+            border: none !important;
+            font-size: 20px;
+            line-height: 0.8;
+            margin-top: 3.2px;
+            transform: rotate(-90deg);
+        }
+
+        &:hover {
+            &::after {
+                transform: rotate(-90deg);
+            }
+        }
+    }
+}
+
+.dropstart {
+    .dropdown-toggle {
+        &::before {
+            content: '\ea4e';
+            font-family: "remixicon" !important;
+            border: none;
+            font-size: 20px;
+            line-height: 0.8;
+            margin-top: 3.2px;
+            transform: rotate(90deg);
+        }
+    }
+}
+
+.dropup {
+    .dropdown-toggle {
+        &::after {
+            content: '\ea4e';
+            font-family: "remixicon" !important;
+            border: none;
+            font-size: 20px;
+            line-height: 0.8;
+            margin-top: 3.2px;
+            transform: rotate(180deg);
+        }
+    }
+}

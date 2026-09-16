@@ -1,0 +1,36 @@
+// Mixin for Generating links Classes Based on Theme Colors
+@mixin generate-links-classes($colors: $theme-colors, $prefix: '') {
+    
+    // Generate contextual modifier classes for links states (outline, solid, sub)
+    @each $state, $color in $colors {
+        
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+        
+        // Warning for empty color
+        @if not $color {
+            @warn "Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+        
+        .link-#{$state} {
+            color: var(--#{$prefix}#{$state}) !important;
+            
+            &:hover {
+                color: var(--#{$prefix}#{$state}-text-emphasis) !important;
+            }
+        }
+
+        .link-custom-#{$state} {
+            color: var(--#{$prefix}secondary-color) !important;
+            
+            &:hover {
+                color: var(--#{$prefix}#{$state}) !important;
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-links-classes($theme-colors, $prefix);

@@ -1,0 +1,29 @@
+// src/assets/scss/custom/dashboard/_index.scss
+
+.welcome-widget {
+    position: relative;
+
+    .welcome-wrapper {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+
+        .welcome-gradient {
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(to right, var(--#{$prefix}secondary-bg), rgba(var(--#{$prefix}body-bg-rgb), 0.2));
+        }
+    }
+
+    @include media-breakpoint-up(md) {
+        .welcome-img {
+            @include position(absolute, null, 1.25rem, 0.5rem, null);
+        }
+    }
+}
+
+@each $state in map-keys($theme-colors) {
+    .stroke-#{$state} {
+        stroke: var(--#{$prefix}#{$state});
+    }
+}

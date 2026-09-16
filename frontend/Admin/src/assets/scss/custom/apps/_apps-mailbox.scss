@@ -1,0 +1,117 @@
+// src/assets/scss/custom/apps/_apps-mailbox.scss
+
+.mailbox-wrapper {
+    display: flex;
+    flex-direction: row;
+
+    //mailbox-left
+    .mailbox-left {
+        width: 20rem;
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+
+        .inbox-message {
+            .inbox-message-list {
+                display: flex;
+                padding-left: 0;
+                flex-direction: column;
+                gap: 0.75rem;
+                list-style-type: none;
+
+                a {
+                    color: var(--#{$prefix}secondary-color);
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    @include transition;
+
+                    &:is(:hover, .active) {
+                        color: var(--#{$prefix}primary);
+                    }
+                }
+            }
+        }
+
+        @include media-breakpoint-down(xxl) {
+            position: fixed;
+            inset-block: 0;
+            right: 0;
+            z-index: $zindex-offcanvas;
+            margin-bottom: 0;
+            border-radius: 0;
+            display: none;
+            overflow-y: auto;
+        }
+    }
+
+    //mailbox-list
+    .mailbox-list {
+        border-inline-start: none;
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+
+        .mailbox-user-list {
+            .mailbox-user-item {
+                @include transition;
+
+                .avatar {
+                    position: relative;
+                    @include border-radius($border-radius-pill);
+
+                    .mailbox-user-noti {
+                        @include position(absolute, null, -0.3125rem, -0.25rem, null);
+                        @include border-radius($border-radius-pill);
+                        font-size: 11px;
+                        border: 2px solid var(--#{$prefix}secondary-bg);
+                    }
+                }
+
+                &:hover {
+                    background-color: rgba(var(--#{$prefix}tertiary-bg-rgb), 0.5);
+                }
+            }
+        }
+
+        .mailbox-list-wrapper {
+            height: 492px;
+        }
+
+        .mailbox-list-item {
+            &:not(:last-child) {
+                border-bottom: 1px solid var(--#{$prefix}border-color);
+            }
+        }
+
+        @include media-breakpoint-down(xxl) {
+            @include border-radius();
+            border-inline-start: 1px solid var(--#{$prefix}border-color);
+        }
+    }
+
+    &.show {
+        .mailbox-list {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+
+            @include media-breakpoint-up(xl) {
+                max-width: 28rem;
+            }
+        }
+    }
+
+    //mail-overview
+    .mail-overview {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+        border-left: none;
+
+        .mail-overview-wrapper {
+            height: 350px;
+        }
+
+        @include media-breakpoint-down(lg) {
+            @include border-radius();
+            border-left: 1px solid var(--#{$prefix}border-color);
+        }
+    }
+}

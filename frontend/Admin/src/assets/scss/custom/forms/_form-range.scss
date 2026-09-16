@@ -1,0 +1,11 @@
+// src/assets/scss/custom/forms/_form-range.scss
+
+@each $state in map-keys($theme-colors) {
+    .form-range {
+        &.range-#{$state} {
+            &::-webkit-slider-thumb {
+                background: var(--#{$prefix}#{$state});
+            }
+        }
+    }
+}

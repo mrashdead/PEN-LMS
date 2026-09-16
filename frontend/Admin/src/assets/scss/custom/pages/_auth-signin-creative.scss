@@ -1,0 +1,49 @@
+// src/assets/scss/custom/pages/_auth-signin-creative.scss
+
+.auth-creative-img {
+    max-width: 100%;
+    height: auto;
+}
+
+.auth-title {
+    font-size: 24px;
+
+    @media (min-width: 576px) {
+        font-size: 2.25rem;
+    }
+
+    @media (min-width: 1200px) {
+        font-size: 2.25rem;
+    }
+}
+
+@include media-breakpoint-up(xl) {
+    .auth-creative-effect {
+        background-color: rgba(var(--#{$prefix}primary-rgb), 0.04);
+        rotate: -45deg;
+        @include position(absolute, -16rem, -2rem, 0px, null);
+    }
+}
+
+.btn-outline-light {
+    &.auth-social-icon {
+        &:hover {
+            background-color: var(--#{$prefix}tertiary-bg);
+        }
+    }
+}
+
+@media (min-width: 1200px) {
+    .auth-creative-img {
+        transform: scale(0.7);
+        @include position(absolute, 25px, null, null, -158px);
+        max-width: none;
+    }
+}
+
+@media (min-width: 576px) {
+    .otp-box {
+        height: 56px;
+        width: 56px;
+    }
+}

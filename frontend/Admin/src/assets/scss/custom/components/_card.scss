@@ -1,0 +1,65 @@
+// src/assets/scss/custom/components/_card.scss
+
+.card {
+    margin-bottom: $spacer;
+
+    &.card-h-100 {
+        height: calc(100% - $spacer);
+    }
+}
+
+.card-hover-animate {
+    transition: transform 0.3s ease-in-out;
+    &:hover {
+        transform: translateY(-0.25rem);
+    }
+}
+
+.basic-card {
+    .card-img-top {
+        height: 8rem;
+        object-fit: cover;
+        width: 100%;
+    }
+
+    .user {
+        height: 120px;
+        width: 120px;
+        margin-top: -4rem;
+    }
+}
+
+.card-hover-effect {
+    @include transition;
+
+    .icon-bg {
+        height: 5rem;
+        width: 5rem;
+        @include flexStyle(center, center);
+    }
+
+    .icon-hover-bg {
+        @include position(absolute, 30px, null, null, 30px);
+        @include transition;
+        height: 5rem;
+        width: 5rem;
+        border-radius: 50%;
+    }
+
+    &:hover {
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, .25);
+        transform: translateY(-6px);
+
+        .icon-hover-bg {
+            transform: scale(10);
+            border-radius: 100%;
+        }
+    }
+}
+
+.bg-overlay {
+    position: absolute;
+    inset: 0;
+    background-color: $gray-900;
+    opacity: .2;
+}

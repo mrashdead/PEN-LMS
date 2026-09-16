@@ -1,0 +1,78 @@
+// src/assets/scss/custom/plugins/_sweetalerts.scss
+
+:root {
+    --swal2-background: var(--#{$prefix}secondary-bg);
+    --swal2-color: var(--#{$prefix}body-color);
+    --swal2-footer-border-color: var(--#{$prefix}border-color);
+    --swal2-close-button-color: var(--#{$prefix}secondary-color);
+}
+
+div:where(.swal2-icon).swal2-success  {
+    border-color: var(--#{$prefix}success-border-subtle);
+    color: var(--#{$prefix}success);
+}
+
+div:where(.swal2-icon).swal2-success .swal2-success-ring {
+    border-color: var(--#{$prefix}success-border-subtle);
+}
+
+div:where(.swal2-icon).swal2-success [class^=swal2-success-line] {
+    background-color: var(--#{$prefix}success);
+}
+
+div:where(.swal2-icon).swal2-error {
+    color: var(--#{$prefix}danger);
+    border-color: var(--#{$prefix}danger-border-subtle);
+}
+
+div:where(.swal2-icon).swal2-error [class^=swal2-x-mark-line] {
+    background-color: var(--#{$prefix}danger);
+}
+
+div:where(.swal2-icon).swal2-warning {
+    color: var(--#{$prefix}warning);
+    border-color: var(--#{$prefix}warning-border-subtle);
+}
+
+div:where(.swal2-icon).swal2-info {
+    color: var(--#{$prefix}info);
+    border-color: var(--#{$prefix}info-border-subtle);
+}
+
+div:where(.swal2-icon).swal2-question {
+    color: var(--#{$prefix}secondary);
+    border-color: var(--#{$prefix}secondary-border-subtle);
+}
+
+div:where(.swal2-container) input:where(.swal2-input), div:where(.swal2-container) input:where(.swal2-file), div:where(.swal2-container) textarea:where(.swal2-textarea) {
+    border-color: var(--#{$prefix}border-color);
+    box-shadow: none;
+    border-radius: $input-border-radius;
+    background: $input-bg;
+    font-size: $input-font-size;
+    color: $input-color;
+}
+
+div:where(.swal2-container) input:where(.swal2-input):focus, div:where(.swal2-container) input:where(.swal2-file):focus, div:where(.swal2-container) textarea:where(.swal2-textarea):focus {
+    border-color: var(--#{$prefix}primary);
+    box-shadow: none;
+}
+
+div:where(.swal2-container) h2:where(.swal2-title) {
+    font-size: $h3-font-size;
+    margin-bottom: 0.5rem;
+}
+
+div:where(.swal2-container).swal2-backdrop-show, div:where(.swal2-container).swal2-noanimation {
+    background-color: $modal-backdrop-bg;
+    backdrop-filter: blur(4px);
+}
+
+div:where(.swal2-container) div:where(.swal2-validation-message) {
+    background-color: var(--#{$prefix}tertiary-bg);
+    color: var(--#{$prefix}secondary-color);
+
+    &::before {
+        background-color: var(--#{$prefix}danger);
+    }
+}

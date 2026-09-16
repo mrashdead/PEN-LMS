@@ -1,0 +1,41 @@
+// Mixin for Generating input-spin Classes Based on Theme Colors
+@mixin generate-input-spin-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for input-spin states
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "input-spin Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "input-spin Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        .input-spin-#{$state} {
+            button:hover {
+                svg {
+                    color: var(--#{$prefix}#{$state});
+                }
+            }
+        }
+
+        .input-solid-#{$state} {
+            .input-spin-plus, 
+            .input-spin-minus {
+                background-color: var(--#{$prefix}#{$state}) !important;
+                color: $white;
+
+                // Special case for 'light' color
+                @if $state == 'light' {
+                    color: var(--#{$prefix}secondary-color);
+                }
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-input-spin-classes($theme-colors, $prefix);

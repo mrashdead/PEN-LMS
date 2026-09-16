@@ -1,0 +1,70 @@
+// src/assets/scss/custom/chart/_maps-vector.scss
+
+.jvm-container path {
+    fill: var(--#{$prefix}border-color);
+}
+
+.jvm-zoom-btn.jvm-zoomin {
+    top: .625rem;
+}
+
+.jvm-zoom-btn:where([dir=ltr], [dir=ltr] *) {
+    left: .625rem;
+}
+
+.jvm-zoom-btn.jvm-zoomout {
+    top: 1.75rem;
+}
+
+.jvm-zoom-btn {
+    position: absolute;
+    box-sizing: border-box;
+    display: flex;
+    width: .875rem;
+    height: .875rem;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    border-radius: .375rem;
+    background-color: var(--#{$prefix}dark);
+    line-height: 10px;
+    color: white;
+}
+
+.jvm-legend {
+    display: inline-block;
+    background-color: var(--#{$prefix}secondary-bg);
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 10px 15px -3px var(--#{$prefix}tertiary-bg),
+    0 4px 6px -4px var(--#{$prefix}tertiary-bg);
+    float: inline-end;
+
+    .jvm-legend-title {
+        margin-bottom: 9px;
+    }
+
+    .jvm-legend-tick {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 10px;
+
+        .jvm-legend-tick-sample {
+            height: 14px;
+            width: 14px;
+            border-radius: 999px;
+        }
+
+        .jvm-legend-tick-text {
+            font-size: 12px;
+        }
+    }
+
+}
+
+#jvm-markers-labels-group {
+    .jvm-element {
+        fill: var(--#{$prefix}secondary-color);
+    }
+}

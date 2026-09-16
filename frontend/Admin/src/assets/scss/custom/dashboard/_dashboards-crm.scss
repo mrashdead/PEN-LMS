@@ -1,0 +1,8 @@
+// src/assets/scss/custom/dashboard/_dashboards-crm.scss
+
+.crm-bg-pattern{
+    background-image: url('../images/dashboards/dashboard-patterm.png');
+}
+[data-bs-theme="dark"] .crm-bg-pattern {
+    background-image: none;
+}

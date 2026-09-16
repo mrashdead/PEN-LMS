@@ -1,0 +1,71 @@
+// Mixin for Generating Alert Classes Based on Theme Colors
+@mixin generate-alert-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for alert states (outline, solid, sub)
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        // Outline alert styles
+        .alert-outline-#{$state} {
+            @if $state =='dark' {
+                --#{$prefix}alert-color: var(--#{$prefix}#{$state});
+                --#{$prefix}alert-bg: var(--#{$prefix}secondary-bg);
+                --#{$prefix}alert-border-color: var(--#{$prefix}border-color);
+                --#{$prefix}alert-link-color: var(--#{$prefix}#{$state});
+            }
+
+            @else if $state !='light' {
+                --#{$prefix}alert-color: var(--#{$prefix}#{$state});
+                --#{$prefix}alert-bg: var(--#{$prefix}secondary-bg);
+                --#{$prefix}alert-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}alert-link-color: var(--#{$prefix}#{$state});
+            }
+        }
+
+        // Subtle alert styles
+        .alert-sub-#{$state} {
+            @if $state =='dark' {
+                --#{$prefix}alert-color: var(--#{$prefix}secondary-color);
+                --#{$prefix}alert-bg: var(--#{$prefix}tertiary-bg);
+                --#{$prefix}alert-link-color: var(--#{$prefix}#{$state});
+            }
+
+            @else if $state !='light' {
+                --#{$prefix}alert-color: var(--#{$prefix}#{$state}-text-emphasis);
+                --#{$prefix}alert-bg: var(--#{$prefix}#{$state}-bg-subtle);
+                --#{$prefix}alert-link-color: var(--#{$prefix}#{$state});
+            }
+        }
+
+        // Solid alert styles
+        .alert-solid-#{$state} {
+            @if $state !='light' {
+                --#{$prefix}alert-color: #{color-contrast($color)};
+                --#{$prefix}alert-bg: var(--#{$prefix}#{$state});
+                --#{$prefix}alert-border-color: var(--#{$prefix}#{$state});
+                --#{$prefix}alert-link-color: var(--#{$prefix}#{$state}-bg-subtle);
+            }
+        }
+
+        //icon-alerts
+        .icon-alert-#{$state} {
+            border-top: 4px solid var(--#{$prefix}#{$state}) !important;
+
+            .icon {
+                border: 1px solid var(--#{$prefix}#{$state}-bg-subtle);
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-alert-classes($theme-colors, $prefix);

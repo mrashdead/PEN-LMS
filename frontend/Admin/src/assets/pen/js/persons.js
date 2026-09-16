@@ -1,0 +1,468 @@
+/* Pen LMS — persons directory + two-step person definition wizard. */
+(function () {
+  'use strict';
+
+  var ctxEl = document.getElementById('pen-persons-ctx');
+  if (!ctxEl) return;
+  var ctx = JSON.parse(ctxEl.textContent);
+  var $table = document.getElementById('person-table');
+  var $tbody = document.getElementById('person-list-body');
+  var $status = document.getElementById('person-list-status');
+  var $pageStatus = document.getElementById('person-page-status');
+  var $pager = document.getElementById('person-pager');
+  var $filters = document.getElementById('person-filter-form');
+  var $modalEl = document.getElementById('person-create-modal');
+  var $createForm = document.getElementById('person-create-form');
+  var modal = $modalEl && window.bootstrap
+    ? window.bootstrap.Modal.getOrCreateInstance($modalEl)
+    : null;
+  var state = { pages: [], index: 0, request: null };
+
+  function esc(value) {
+    if (window.htmlEscape) return window.htmlEscape(value);
+    return value == null ? '' : String(value).replace(/[&<>'"]/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[ch];
+    });
+  }
+
+  function toast(message, kind) {
+    if (window.penToast) window.penToast(message, kind);
+  }
+
+  function errorLines(errors) {
+    var lines = [];
+    Object.keys(errors || {}).forEach(function (key) {
+      (Array.isArray(errors[key]) ? errors[key] : [errors[key]]).forEach(function (message) {
+        lines.push(key === 'non_field_errors' ? String(message) : key + ': ' + message);
+      });
+    });
+    return lines.length ? lines : ['خطای نامشخص'];
+  }
+
+  function apiUrlWithParams() {
+    var url = new URL(ctx.api_url, window.location.href);
+    var params = new URLSearchParams(new FormData($filters));
+    params.forEach(function (value, key) {
+      if (!String(value).trim()) params.delete(key);
+    });
+    params.set('page_size', '50');
+    url.search = params.toString();
+    return url.toString();
+  }
+
+  function renderRows(data) {
+    var rows = data.results || [];
+    if (!rows.length) {
+      $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-empty"><p class="mb-0">موردی یافت نشد.</p></div></td></tr>';
+      return;
+    }
+    $tbody.innerHTML = rows.map(function (row) {
+      var login = row.has_user
+        ? '<span class="badge bg-success-subtle text-success">فعال</span>'
+        : '<span class="badge bg-light text-muted border">—</span>';
+      var actions = row.actions || {view: true, edit: false, delete: false};
+      var label = (row.first_name || '') + ' ' + (row.last_name || '');
+      var menu = '<div class="dropdown pen-actions-dropdown text-end">' +
+        '<button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown" aria-label="عملیات ' + esc(label) + '"><i data-lucide="more-horizontal" class="size-4"></i></button>' +
+        '<ul class="dropdown-menu dropdown-menu-end">' +
+        (actions.view ? '<li><button type="button" class="dropdown-item" data-person-view><i data-lucide="eye" class="size-4"></i> مشاهده</button></li>' : '') +
+        (actions.edit ? '<li><button type="button" class="dropdown-item" data-person-edit><i data-lucide="pencil" class="size-4"></i> ویرایش</button></li>' : '') +
+        (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(ctx.api_url + row.id + '/delete/') + '" data-delete-name="' + esc(label.trim()) + '" data-delete-code="' + esc(row.national_code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف نرم</button></li>' : '') +
+        '</ul></div>';
+      return '<tr>' +
+        '<td>' + esc(row.first_name || '—') + '</td>' +
+        '<td>' + esc(row.last_name || '—') + '</td>' +
+        '<td dir="ltr">' + esc(row.national_code || '—') + '</td>' +
+        '<td><span class="badge bg-primary-subtle text-primary">' + esc(row.role_display || row.person_type_display || row.person_type || '—') + '</span></td>' +
+        '<td dir="ltr">' + esc(row.mobile || '—') + '</td>' +
+        '<td class="text-nowrap">' + esc(row.created_at || '—') + '</td>' +
+        '<td>' + login + '</td>' +
+        '<td class="text-end">' + menu + '</td>' +
+        '</tr>';
+    }).join('');
+    $tbody.querySelectorAll('tr').forEach(function (tr, index) {
+      var row = rows[index];
+      var view = tr.querySelector('[data-person-view]');
+      var edit = tr.querySelector('[data-person-edit]');
+      if (view) view.addEventListener('click', function () { openPersonDetail(row); });
+      if (edit) edit.addEventListener('click', function () { personRequest(row.id).then(openPersonEdit).catch(function (e) { toast(e.message, 'danger'); }); });
+    });
+    if (window.penRenderIcons) window.penRenderIcons();
+  }
+
+  function personRequest(id) {
+    return fetch(ctx.api_url + id + '/?include_history=1', {
+      credentials: 'same-origin',
+      headers: window.penCsrfHeader ? window.penCsrfHeader() : {},
+    }).then(function (response) {
+      return response.json().then(function (body) {
+        if (!response.ok) throw new Error(errorLines(body).join(' — '));
+        return body;
+      });
+    });
+  }
+
+  function openPersonDetail(row) {
+    personRequest(row.id).then(function (person) {
+      var status = person.is_active ? 'فعال' : 'غیرفعال';
+      var history = Array.isArray(person.audit_trail) && person.audit_trail.length
+        ? '<div class="mt-4 pt-3 border-top"><h6 class="fw-semibold mb-2">سوابق تغییرات</h6><ol class="pen-timeline mb-0">' + person.audit_trail.map(function (event) { return '<li class="pen-timeline-item"><div class="fw-semibold fs-14">' + esc(event.summary || event.kind) + '</div><div class="fs-13 text-muted">' + esc(event.actor || 'سامانه') + ' · ' + esc(event.created_at || '—') + '</div></li>'; }).join('') + '</ol></div>' : '';
+      var profile = person.student_profile_summary || person.staff_profile_summary || person.guardian_profile_summary;
+      var profileHtml = profile ? '<div class="mt-4 pt-3 border-top"><h6 class="fw-semibold mb-2">اطلاعات اختصاصی نقش</h6><div class="row g-2">' + Object.keys(profile).filter(function (key) { return typeof profile[key] !== 'object'; }).map(function (key) { return '<div class="col-md-6"><span class="text-muted fs-14">' + esc(key) + ':</span> ' + esc(profile[key] == null || profile[key] === '' ? '—' : profile[key]) + '</div>'; }).join('') + '</div></div>' : '';
+      var body = '<div class="pen-detail-meta">' +
+        '<div><small>وضعیت</small><strong>' + esc(status) + '</strong></div>' +
+        '<div><small>نوع</small><strong>' + esc(person.person_types_display || person.person_type_display || '—') + '</strong></div>' +
+        '<div><small>ایجاد</small><strong dir="ltr">' + esc(person.created_at || '—') + '</strong></div>' +
+        '<div><small>آخرین تغییر</small><strong dir="ltr">' + esc(person.updated_at || '—') + '</strong></div>' +
+        '</div><div class="vstack gap-1">' +
+        [['نام کامل', person.display_name || ((person.first_name || '') + ' ' + (person.last_name || ''))],
+         ['کد ملی', person.display_national_code || person.national_code],
+         ['نام پدر', person.father_name], ['موبایل', person.display_mobile || person.mobile],
+         ['ایمیل', person.email], ['تلفن ثابت', person.phone], ['آدرس', person.address],
+         ['کد دانش‌آموزی', person.student_code], ['کد پرسنلی', person.employee_code],
+         ['دپارتمان', person.department], ['سمت', person.job_title], ['نام کاربری', person.username]]
+        .map(function (item) { return '<div class="row g-2"><div class="col-5 text-muted fs-14">' + esc(item[0]) + '</div><div class="col-7">' + esc(item[1] || '—') + '</div></div>'; }).join('') +
+        '</div>' + profileHtml + history;
+      document.getElementById('person-detail-body').innerHTML = body;
+      var footer = document.getElementById('person-detail-footer');
+      footer.innerHTML = '<button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button>';
+      if (person.actions && person.actions.edit) {
+        var edit = document.createElement('button'); edit.className = 'btn btn-outline-primary'; edit.innerHTML = '<i data-lucide="pencil" class="size-4 me-1"></i> ویرایش';
+        edit.addEventListener('click', function () { openPersonEdit(person); }); footer.appendChild(edit);
+      }
+      if (person.actions && person.actions.delete) {
+        var del = document.createElement('button'); del.className = 'btn btn-outline-danger'; del.innerHTML = '<i data-lucide="trash-2" class="size-4 me-1"></i> حذف نرم';
+        del.addEventListener('click', function () { window.penOpenDeleteModal({url: ctx.api_url + person.id + '/delete/', name: person.display_name || labelForPerson(person), code: person.national_code || person.id, onSuccess: function () { detailModal.hide(); loadList(apiUrlWithParams(), true); }}); }); footer.appendChild(del);
+      }
+      detailModal.show();
+      if (window.penRenderIcons) window.penRenderIcons();
+    }).catch(function (e) { toast(e.message, 'danger'); });
+  }
+
+  function labelForPerson(person) { return ((person.first_name || '') + ' ' + (person.last_name || '')).trim() || 'شخص'; }
+
+  var $detailEl = document.getElementById('person-detail-modal');
+  var detailModal = $detailEl && window.bootstrap ? window.bootstrap.Modal.getOrCreateInstance($detailEl) : null;
+  var $editEl = document.getElementById('person-edit-modal');
+  var editModal = $editEl && window.bootstrap ? window.bootstrap.Modal.getOrCreateInstance($editEl) : null;
+  var editingPerson = null;
+
+  function openPersonEdit(person) {
+    editingPerson = person;
+    if (detailModal) detailModal.hide();
+    [['person-edit-first-name', person.first_name], ['person-edit-last-name', person.last_name],
+     ['person-edit-national-code', person.national_code || person.display_national_code], ['person-edit-person-type', person.person_type_display],
+     ['person-edit-father', person.father_name], ['person-edit-mobile', person.mobile], ['person-edit-email', person.email],
+     ['person-edit-phone', person.phone], ['person-edit-address', person.address], ['person-edit-birth-date', person.birth_date],
+     ['person-edit-department', person.department], ['person-edit-job-title', person.job_title]].forEach(function (item) { var el = document.getElementById(item[0]); if (el) el.value = item[1] || ''; });
+    document.getElementById('person-edit-gender').value = person.gender || 'unspecified';
+    document.getElementById('person-edit-active').checked = person.is_active !== false;
+    document.getElementById('person-edit-errors').hidden = true;
+    if (editModal) editModal.show();
+  }
+
+  function pageLink(label, url, disabled, onClick) {
+    var li = document.createElement('li');
+    li.className = 'page-item' + (disabled ? ' disabled' : '');
+    var a = document.createElement('a');
+    a.className = 'page-link';
+    a.href = url || '#';
+    a.textContent = label;
+    if (disabled) {
+      a.setAttribute('aria-disabled', 'true');
+      a.tabIndex = -1;
+    } else {
+      a.addEventListener('click', function (event) {
+        event.preventDefault();
+        onClick();
+      });
+    }
+    li.appendChild(a);
+    return li;
+  }
+
+  function renderPager(data) {
+    $pager.innerHTML = '';
+    var previous = state.index > 0 ? state.pages[state.index - 1] : null;
+    var next = data.next || null;
+    if (!previous && !next) {
+      $pageStatus.textContent = data.results && data.results.length
+        ? 'یک صفحه نتیجه نمایش داده شد.' : '';
+      return;
+    }
+    $pager.appendChild(pageLink('قبلی', previous, !previous, function () {
+      state.index -= 1;
+      loadList(state.pages[state.index]);
+    }));
+    $pager.appendChild(pageLink('بعدی', next, !next, function () {
+      state.pages[state.index + 1] = next;
+      state.index += 1;
+      loadList(next);
+    }));
+    $pageStatus.textContent = 'صفحهٔ ' + window.persianNumbers(state.index + 1) +
+      (next ? ' — برای ادامه «بعدی» را بزنید.' : ' — آخرین صفحه.');
+  }
+
+  function loadList(url, reset) {
+    if (reset) {
+      state.pages = [url];
+      state.index = 0;
+    }
+    if (state.request) state.request.abort();
+    state.request = new AbortController();
+    $table.setAttribute('aria-busy', 'true');
+    $status.textContent = 'در حال بارگذاری…';
+    $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-loading">در حال بارگذاری…</div></td></tr>';
+    fetch(url, {
+      credentials: 'same-origin',
+      signal: state.request.signal,
+      headers: window.penCsrfHeader ? window.penCsrfHeader() : {},
+    })
+      .then(function (response) {
+        return response.json().then(function (body) {
+          if (!response.ok) throw new Error(errorLines(body).join(' — '));
+          return body;
+        });
+      })
+      .then(function (data) {
+        renderRows(data);
+        renderPager(data);
+        $status.textContent = (data.results || []).length
+          ? window.persianNumbers(data.results.length) + ' رکورد در این صفحه'
+          : 'نتیجه‌ای پیدا نشد.';
+      })
+      .catch(function (error) {
+        if (error.name === 'AbortError') return;
+        $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-empty text-danger">' + esc(error.message) + '</div></td></tr>';
+        $status.textContent = 'بارگذاری فهرست ناموفق بود.';
+      })
+      .finally(function () {
+        $table.setAttribute('aria-busy', 'false');
+      });
+  }
+
+  function clearFormErrors() {
+    var box = document.getElementById('person-form-errors');
+    var list = document.getElementById('person-form-error-list');
+    if (box) box.hidden = true;
+    if (list) list.innerHTML = '';
+    if (!$createForm) return;
+    $createForm.querySelectorAll('.is-invalid').forEach(function (field) {
+      field.classList.remove('is-invalid');
+      field.removeAttribute('aria-invalid');
+      var described = (field.getAttribute('aria-describedby') || '').split(/\s+/).filter(function (id) {
+        return id && !/-error$/.test(id);
+      });
+      if (described.length) field.setAttribute('aria-describedby', described.join(' '));
+      else field.removeAttribute('aria-describedby');
+    });
+    $createForm.querySelectorAll('[data-person-error]').forEach(function (node) { node.remove(); });
+  }
+
+  function showFormErrors(errors) {
+    clearFormErrors();
+    var box = document.getElementById('person-form-errors');
+    var list = document.getElementById('person-form-error-list');
+    var all = errorLines(errors);
+    list.innerHTML = all.map(function (line) { return '<li>' + esc(line) + '</li>'; }).join('');
+    box.hidden = false;
+    Object.keys(errors || {}).forEach(function (key) {
+      if (key === 'non_field_errors') return;
+      var field = document.getElementById('id_' + key);
+      if (!field) return;
+      field.classList.add('is-invalid');
+      field.setAttribute('aria-invalid', 'true');
+      var errorId = 'person-error-' + key;
+      var node = document.createElement('div');
+      node.id = errorId;
+      node.dataset.personError = key;
+      node.className = 'invalid-feedback d-block';
+      node.textContent = (Array.isArray(errors[key]) ? errors[key] : [errors[key]]).join(' ');
+      field.insertAdjacentElement('afterend', node);
+      var described = (field.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+      if (described.indexOf(errorId) === -1) described.push(errorId);
+      field.setAttribute('aria-describedby', described.join(' '));
+    });
+    if (errors.target) showStep(1);
+    box.focus();
+  }
+
+  function roleMatches(value, roles) {
+    return roles.split(/\s+/).indexOf(value) !== -1;
+  }
+
+  function setRequired(name, required) {
+    var field = document.getElementById('id_' + name);
+    if (!field) return;
+    field.required = required;
+  }
+
+  function applyRoleState() {
+    if (!$createForm) return;
+    var target = document.getElementById('id_target').value;
+    $createForm.querySelectorAll('[data-person-role-fields]').forEach(function (wrapper) {
+      var visible = target && roleMatches(target, wrapper.dataset.personRoleFields || '');
+      wrapper.hidden = !visible;
+      wrapper.querySelectorAll('input, select, textarea').forEach(function (field) {
+        field.disabled = !visible;
+      });
+    });
+    setRequired('employee_kind', target === 'employee');
+    setRequired('job_title', target === 'employee' || target === 'manager');
+    setRequired('password', target === 'employee' || target === 'manager');
+    var father = document.getElementById('id_father_phone_number');
+    var mother = document.getElementById('id_mother_phone_number');
+    if (target !== 'student') {
+      if (father) father.setCustomValidity('');
+      if (mother) mother.setCustomValidity('');
+    }
+    if (window.penRenderIcons) window.penRenderIcons();
+  }
+
+  function showStep(step) {
+    if (!$createForm) return;
+    var one = document.getElementById('person-step-one');
+    var two = document.getElementById('person-step-two');
+    var back = document.getElementById('person-step-back');
+    var next = document.getElementById('person-step-next');
+    var submit = document.getElementById('person-submit');
+    one.hidden = step !== 1;
+    two.hidden = step !== 2;
+    back.hidden = step !== 2;
+    next.hidden = step !== 1;
+    submit.hidden = step !== 2;
+    var bars = document.querySelectorAll('#person-progress span');
+    bars.forEach(function (bar, index) { bar.classList.toggle('done', index < step); });
+    if (step === 2) applyRoleState();
+  }
+
+  function validateParents() {
+    var target = document.getElementById('id_target').value;
+    if (target !== 'student') return true;
+    var father = document.getElementById('id_father_phone_number');
+    var mother = document.getElementById('id_mother_phone_number');
+    var fatherValue = father.value.trim();
+    var motherValue = mother.value.trim();
+    if (!fatherValue && !motherValue) {
+      father.setCustomValidity('حداقل یکی از شماره موبایل پدر یا مادر الزامی است.');
+      mother.setCustomValidity('حداقل یکی از شماره موبایل پدر یا مادر الزامی است.');
+      return false;
+    }
+    father.setCustomValidity('');
+    mother.setCustomValidity('');
+    return true;
+  }
+
+  function resetWizard() {
+    if (!$createForm) return;
+    $createForm.reset();
+    clearFormErrors();
+    showStep(1);
+    applyRoleState();
+    $createForm.setAttribute('aria-busy', 'false');
+    document.getElementById('person-submit').disabled = false;
+  }
+
+  function submitWizard(event) {
+    event.preventDefault();
+    if ($createForm.dataset.submitting === 'true') return;
+    clearFormErrors();
+    validateParents();
+    if (!$createForm.checkValidity()) {
+      $createForm.reportValidity();
+      return;
+    }
+    $createForm.dataset.submitting = 'true';
+    var submit = document.getElementById('person-submit');
+    submit.disabled = true;
+    submit.setAttribute('aria-busy', 'true');
+    $createForm.setAttribute('aria-busy', 'true');
+    fetch($createForm.action || ctx.create_url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: Object.assign({ 'X-Requested-With': 'XMLHttpRequest' }, window.penCsrfHeader ? window.penCsrfHeader() : {}),
+      body: new FormData($createForm),
+    })
+      .then(function (response) {
+        return response.json().then(function (body) { return { ok: response.ok, body: body }; });
+      })
+      .then(function (result) {
+        if (!result.ok) {
+          showFormErrors(result.body.errors || result.body);
+          return;
+        }
+        toast(result.body.message || 'شخص با موفقیت ثبت شد ✓', 'success');
+        if (modal) modal.hide();
+        resetWizard();
+        var listUrl = apiUrlWithParams();
+        loadList(listUrl, true);
+      })
+      .catch(function () { showFormErrors({ non_field_errors: ['ارتباط با سرور برقرار نشد.'] }); })
+      .finally(function () {
+        $createForm.dataset.submitting = 'false';
+        submit.disabled = false;
+        submit.removeAttribute('aria-busy');
+        $createForm.setAttribute('aria-busy', 'false');
+      });
+  }
+
+  if ($filters) {
+    $filters.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var url = apiUrlWithParams();
+      var browserUrl = new URL(window.location.href);
+      browserUrl.search = new URL(url).search;
+      browserUrl.searchParams.delete('page_size');
+      browserUrl.searchParams.delete('cursor');
+      window.history.replaceState({}, '', browserUrl.toString());
+      loadList(url, true);
+    });
+  }
+
+  if ($createForm) {
+    var target = document.getElementById('id_target');
+    target.addEventListener('change', function () { clearFormErrors(); applyRoleState(); });
+    document.getElementById('person-step-next').addEventListener('click', function () {
+      if (!target.checkValidity()) { target.reportValidity(); return; }
+      showStep(2);
+    });
+    document.getElementById('person-step-back').addEventListener('click', function () { showStep(1); });
+    $createForm.addEventListener('submit', submitWizard);
+    var add = document.getElementById('person-add');
+    if (add && modal) add.addEventListener('click', function () { resetWizard(); modal.show(); });
+    ['id_father_phone_number', 'id_mother_phone_number'].forEach(function (id) {
+      var field = document.getElementById(id);
+      if (field) field.addEventListener('input', validateParents);
+    });
+    showStep(1);
+    applyRoleState();
+  }
+
+  var $editForm = document.getElementById('person-edit-form');
+  if ($editForm) {
+    $editForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!editingPerson) return;
+      var payload = {};
+      new FormData($editForm).forEach(function (value, key) { payload[key] = value; });
+      payload.is_active = document.getElementById('person-edit-active').checked;
+      fetch(ctx.api_url + editingPerson.id + '/', {
+        method: 'PATCH', credentials: 'same-origin',
+        headers: Object.assign({'Content-Type': 'application/json'}, window.penCsrfHeader ? window.penCsrfHeader() : {}),
+        body: JSON.stringify(payload),
+      }).then(function (response) {
+        return response.json().then(function (body) { if (!response.ok) throw new Error(errorLines(body).join(' — ')); return body; });
+      }).then(function () {
+        if (editModal) editModal.hide();
+        toast('اطلاعات شخص به‌روزرسانی شد ✓', 'success');
+        loadList(apiUrlWithParams(), true);
+      }).catch(function (e) {
+        var box = document.getElementById('person-edit-errors'); box.textContent = e.message; box.hidden = false;
+      });
+    });
+  }
+
+  var initialUrl = apiUrlWithParams();
+  loadList(initialUrl, true);
+  if (window.penRenderIcons) window.penRenderIcons();
+})();

@@ -1,0 +1,280 @@
+// src/assets/scss/custom/landing/_landing-ecommerce.scss
+
+//home section
+.ecommerce-home {
+    padding: 320px 0 192px;
+    background: url('../images/ecommerce/landing/home.jpg');
+    background-size: cover;
+    background-position: center;
+
+    .title {
+        @include position(absolute, null, 0, 8.75rem, 0);
+        line-height: 0;
+        font-size: 36px;
+
+        @include media-breakpoint-up(md) {
+            font-size: 80px;
+        }
+
+        @include media-breakpoint-up(xl) {
+            font-size: 140px;
+        }
+
+        @include media-breakpoint-up(xxl) {
+            font-size: 176px;
+        }
+    }
+}
+
+//products section
+.product-section {
+    .product-toolbar {
+        a {
+            color: var(--#{$prefix}secondary-color);
+            @include transition;
+
+            &:is(:hover, .active) {
+                color: var(--#{$prefix}primary);
+            }
+        }
+    }
+}
+
+.product-card {
+    .product-card-wrapper {
+        position: relative;
+
+        .bookmark {
+            position: absolute;
+            right: 1rem;
+            top: 1rem;
+            opacity: 0;
+            @include transition;
+        }
+
+        &:hover {
+            .bookmark {
+                opacity: 1;
+                top: 20px;
+            }
+        }
+
+        .discount-label {
+            position: absolute;
+            color: var(--#{$prefix}white);
+            text-align: center;
+            background-color: var(--#{$prefix}danger);
+            top: 0.5rem;
+            left: 0;
+
+            &::before {
+                content: '';
+                position: absolute;
+                width: 0;
+                height: 0;
+                border-left: 10px solid transparent;
+                border-right: 10px solid var(--#{$prefix}danger);
+                border-bottom: 10px solid transparent;
+                bottom: -7px;
+                right: 0;
+                margin-top: auto;
+                margin-bottom: auto;
+            }
+        }
+    }
+}
+
+.animate-marquee {
+    white-space: nowrap;
+    animation: marquee 20s linear infinite;
+    color: var(--#{$prefix}body-color);
+    opacity: .1;
+
+    @keyframes marquee {
+        0% {
+            transform: translateX(0%);
+        }
+
+        100% {
+            transform: translateX(-100%);
+        }
+    }
+}
+
+.section-title {
+    position: relative;
+    padding-left: $spacer;
+    text-transform: capitalize;
+    text-shadow: 0 4px 15px rgba(var(--#{$prefix}dark-rgb), 0.5);
+
+    &::before {
+        content: '';
+        width: 0.25rem;
+        height: 50%;
+        position: absolute;
+        left: 0px;
+        background-color: var(--#{$prefix}primary);
+    }
+}
+
+.cta-section {
+    position: relative;
+    display: block;
+    background-image: url('../images/ecommerce/landing/cta-01.jpg');
+    background-position: center;
+    padding-top: 15rem;
+    padding-bottom: 15rem;
+
+    .cta-title-left {
+        left: 16px;
+    }
+
+    .cta-title-right {
+        right: 16px;
+        text-align: end;
+    }
+
+    :is(.cta-title-left, .cta-title-right) {
+        font-size: 96px;
+        position: absolute;
+        top: 50%;
+        text-transform: uppercase;
+        font-weight: $font-weight-bold;
+
+        @include media-breakpoint-down(md) {
+            position: static;
+            text-align: center;
+        }
+
+        @include media-breakpoint-down(lg) {
+            font-size: 4rem;
+        }
+    }
+
+}
+
+.edition-section {
+
+    .edition-dot {
+        position: absolute;
+
+        span {
+            @include position(absolute, 0, 0, null, null);
+            display: block;
+            background-color: var(--#{$prefix}secondary-bg);
+            @include border-radius($border-radius-pill);
+            width: 12px;
+            height: 12px;
+        }
+    }
+
+    .edition-dot-1 {
+        top: 20%;
+        left: 38%;
+    }
+
+    .edition-dot-2 {
+        bottom: 26%;
+        left: 32%;
+    }
+
+    .edition-dot-3 {
+        bottom: 40%;
+        left: 48%;
+    }
+}
+
+.text-shadow {
+    text-shadow: 0 4px 15px rgba(var(--#{$prefix}dark-rgb), 0.5);
+}
+
+//service section
+.service-section {
+    @media (max-width: 576px) {
+        .service-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 1rem;
+
+            .custom-grid-item {
+                grid-column: span 12;
+            }
+
+            .custom-grid-title {
+                grid-column: span 12;
+            }
+        }
+    }
+
+    @media (min-width: 768px) {
+        .service-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 1rem;
+
+            .custom-grid-item {
+                grid-column: span 6;
+            }
+
+            .custom-grid-title {
+                grid-column: span 10;
+            }
+        }
+    }
+
+    @media (min-width: 992px) {
+        .service-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 1rem;
+
+            .custom-grid-item {
+                grid-column: span 3;
+
+                &.row-span-2 {
+                    grid-row: span 2;
+                }
+            }
+
+            .custom-grid-title {
+                grid-column: span 6;
+            }
+        }
+    }
+}
+
+.follow-section {
+    .follow-card {
+        position: relative;
+        display: block;
+
+        :is(.follow-overlay, .instagram-icon) {
+            position: absolute;
+            @include transition;
+            opacity: 0;
+        }
+
+        .follow-overlay {
+            inset: 0;
+            background-color: rgb(3, 7, 18, 0.15);
+        }
+
+        .instagram-icon {
+            top: 45%;
+            left: 50%;
+            transform: translate(-45%, -50%);
+        }
+
+        &:hover {
+            .instagram-icon {
+                top: 50%;
+                opacity: 1;
+            }
+
+            .follow-overlay {
+                opacity: 1;
+            }
+        }
+    }
+
+}

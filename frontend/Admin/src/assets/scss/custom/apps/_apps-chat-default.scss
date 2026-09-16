@@ -1,0 +1,84 @@
+// src/assets/scss/custom/apps/_apps-chat-default.scss
+
+.chat-profile-card {
+    .chat-profile-height {
+        max-height: calc(100vh - 15.3125rem);
+
+        a {
+            @include transition;
+
+            &:is(:hover, :focus, .active) {
+                box-shadow: 0 0 0 2px $primary;
+                outline-offset: 2px;
+                opacity: 1;
+            }
+        }
+    }
+}
+
+.chat-list {
+    .chat-list-item {
+        color: var(--#{$prefix}body-color);
+        padding: .625rem 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        @include transition;
+
+        &:hover {
+            background-color: var(--#{$prefix}tertiary-bg);
+        }
+
+        &.active {
+            background-color: rgba(var(--#{$prefix}primary-rgb), 0.1);
+        }
+
+        .unread {
+            color: var(--#{$prefix}body-color) !important;
+        }
+    }
+
+    .unread {
+        color: var(--#{$prefix}emphasis-color) !important;
+        font-weight: 500;
+    }
+
+    .chat-list-height {
+        max-height: calc(100vh - 22.5rem);
+
+        .simplebar-content {
+            padding: 0 !important;
+        }
+    }
+}
+
+.status-indicator {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    border: 2px solid var(--#{$prefix}secondary-bg);
+    @include border-radius($border-radius-pill);
+}
+
+.meassages {
+    .chat-height {
+        max-height: calc(100vh - 310px);
+    }
+
+    .chat-toolbar {
+        background-color: rgba(var(--#{$prefix}secondary-bg-rgb), 0.3);
+        backdrop-filter: blur(16px);
+        z-index: 50;
+    }
+}
+
+.member-list {
+    max-height: 295px;
+
+    .member-list-item {
+        color: var(--#{$prefix}body-color);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+}

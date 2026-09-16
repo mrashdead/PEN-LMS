@@ -1,0 +1,56 @@
+// src/assets/scss/custom/components/_icons-lucide.scss
+
+.icon-box {
+    height: 2.5rem;
+    width: 2.5rem;
+    @include flexStyle(center, center);
+    border: 1px solid var(--#{$prefix}border-color);
+    border-radius: $border-radius;
+}
+
+.stroke-1 {
+    stroke-width: 1;
+}
+
+.stroke-2 {
+    stroke-width: 2;
+}
+
+.stroke-3 {
+    stroke-width: 3;
+}
+
+.stroke-4 {
+    stroke-width: 4;
+}
+
+.size-2-5 {
+    width: .625rem;
+    height: .625rem;
+}
+
+.size-3-5 {
+    width: .875rem;
+    height: .875rem;
+}
+
+@each $state in map-keys($theme-colors) {
+    .icon-#{$state} {
+        fill: rgba(var(--#{$prefix}#{$state}-rgb), 0.1);
+        color: var(--#{$prefix}#{$state});
+    }
+
+    .icon-hover-#{$state} {
+        color: var(--#{$prefix}#{$state});
+
+        &:hover {
+            fill: var(--#{$prefix}#{$state}-bg-subtle);
+        }
+    }
+}
+
+@each $state in map-keys($theme-colors) {
+    .fill-#{$state}{
+        fill: var(--#{$prefix}#{$state});
+    }
+}

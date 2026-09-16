@@ -1,0 +1,29 @@
+// Mixin for Generating dropdown Classes Based on Theme Colors
+@mixin generate-dropdown-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for dropdown states
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "Dropdown Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "Dropdown Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        .dropdown-#{$state} {
+            .dropdown-item {
+                &:hover {
+                    color: var(--#{$prefix}#{$state});
+                    background-color: rgba(var(--#{$prefix}#{$state}-rgb), 0.1);
+                }
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-dropdown-classes($theme-colors, $prefix);

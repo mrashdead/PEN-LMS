@@ -1,0 +1,39 @@
+// Mixin for Generating Alert Classes Based on Theme Colors
+@mixin generate-alert-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for alert states (outline, solid, sub)
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        // Outline alert styles
+        .toast-#{$state} {
+
+            @if $state != 'light' and $state != 'dark' {
+                --#{$prefix}toast-bg: var(--#{$prefix}#{$state});
+                --#{$prefix}toast-color: var(--#{$prefix}white);
+                --#{$prefix}toast-header-bg: var(--#{$prefix}#{$state});
+                --#{$prefix}toast-border-color: var(--#{$prefix}#{$state});
+                
+                //this is all color to same 
+                --#{$prefix}toast-header-color: rgba(var(--#{$prefix}white-rgb), 0.75);
+                --#{$prefix}toast-header-border-color: rgba(var(--#{$prefix}white-rgb), 0.15);
+
+                .btn-close {
+                    --#{$prefix}btn-close-color: rgba(var(--#{$prefix}white-rgb), 0.75);
+                }
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-alert-classes($theme-colors, $prefix);

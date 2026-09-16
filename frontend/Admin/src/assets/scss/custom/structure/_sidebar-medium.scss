@@ -1,0 +1,81 @@
+// src/assets/scss/custom/structure/_sidebar-medium.scss
+
+[data-sidebar=medium] {
+    .main-sidebar {
+        width: var(--#{$prefix}sidebar-md);
+
+        .navbar-brand { 
+            width: var(--#{$prefix}sidebar-md);
+        }
+    }
+
+    .profile-dropdown {
+        :is(.arrow) {
+            display: none;
+        }
+    }
+
+    .navbar-menu {
+        .nav-menu-title {
+            text-align: center;
+        }
+
+        .nav-item {
+            margin-inline: 0;
+            :is(.menu-arrow) {
+                display: none;
+            }
+
+            .nav-link {
+                flex-direction: column;
+                text-align: center;
+                gap: .75rem;
+                width: calc(var(--#{$prefix}sidebar-md) - 24px);
+                padding-block: .75rem;
+                margin: .5rem .75rem;
+
+                .icons {
+                    svg {
+                        height: 1.25rem;
+                        width: 1.25rem;
+                    }
+                }
+
+                &.active {
+                    background-color: var(--#{$prefix}sidebar-link-bg-active-color);
+                }
+            }
+
+            .nav-menu-sub {
+                margin-left: 0;
+
+                .nav-link {
+                    margin: 0;
+                    padding: .5rem 1.5rem;
+                    width: 100%;
+
+                    &::before {
+                        display: none;
+                    }
+
+                    &.active {
+                        background-color: transparent;
+                    }
+                }
+            }
+        }
+    }
+
+    //page wrapper
+    .page-wrapper {
+        @include media-breakpoint-up(lg) {
+            margin-left: var(--#{$prefix}sidebar-md);
+        }
+    }
+
+    .main-footer {
+        @include media-breakpoint-up(lg) {
+            left: var(--#{$prefix}sidebar-md);
+        }
+    }
+}

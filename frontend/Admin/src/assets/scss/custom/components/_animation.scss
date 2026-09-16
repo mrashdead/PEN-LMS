@@ -1,0 +1,73 @@
+// src/assets/scss/custom/components/_animation.scss
+
+// Modern Spin 
+.modern-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+// Bounce
+:is(.animate-dot, .animate-bounce) {
+    animation: bounce 1s infinite;
+
+    &.delay-150 {
+        animation-delay: -0.3s;
+    }
+
+    &.delay-300 {
+        animation-delay: -.15s;
+    }
+}
+
+@keyframes bounce {
+
+    0%,
+    100% {
+        transform: translateY(-25%);
+        animation-timing-function: cubic-bezier(.8, 0, 1, 1);
+    }
+
+    50% {
+        transform: none;
+        animation-timing-function: cubic-bezier(0, 0, .2, 1);
+    }
+}
+
+// Ping
+.animate-ping {
+    animation: ping 1s cubic-bezier(0, 0, .2, 1) infinite;
+}
+
+@keyframes ping {
+
+    75%,
+    100% {
+        content: var(--tw-content);
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+// Pulse
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(.4, 0, .6, 1) infinite;
+}
+
+@keyframes pulse {
+
+    50% {
+        opacity: .5;
+    }
+}
+
+@keyframes shimmer {
+    100% {
+        transform: translate(0);
+        opacity: 0;
+    }
+}

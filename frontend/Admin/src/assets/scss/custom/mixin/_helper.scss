@@ -1,0 +1,105 @@
+@mixin flexStyle($align: null, $justify: null) {
+    display: flex;
+
+    // Only apply align-items if a value is provided
+    @if $align !=null {
+        align-items: $align;
+    }
+
+    // Only apply justify-content if a value is provided
+    @if $justify !=null {
+        justify-content: $justify;
+    }
+}
+
+
+@mixin position($position: relative, $top: null, $right: null, $bottom: null, $left: null) {
+    position: $position;
+
+    // Only apply top if a value is provided
+    @if $top !=null {
+        top: $top;
+    }
+
+    // Only apply right if a value is provided
+    @if $right !=null {
+        right: $right;
+    }
+
+    // Only apply bottom if a value is provided
+    @if $bottom !=null {
+        bottom: $bottom;
+    }
+
+    // Only apply left if a value is provided
+    @if $left !=null {
+        left: $left;
+    }
+}
+
+.font-base {
+    font-family: "Inter", sans-serif;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.top-24 {
+    top: 6rem;
+}
+
+h6 {
+    line-height: 1.5;
+}
+
+.logos {
+
+    .logo-light {
+        display: none;
+    }
+
+    .logo-dark {
+        display: inline-block;
+    }
+
+    [data-bs-theme="dark"] & {
+        .logo-light {
+            display: inline-block;
+        }
+
+        .logo-dark {
+            display: none;
+        }
+    }
+}
+
+.custom-container {
+    max-width: 1350px;
+}
+
+.opacity-10 {
+    opacity: 0.10;
+}
+
+.profile-active {
+    position: relative;
+    display: inline-block;
+
+    .dot {
+        position: absolute;
+        border: 2px solid var(--#{$prefix}secondary-bg);
+        @include border-radius($border-radius-pill);
+        right: 5px;
+        bottom: 5px;
+    }
+}
+
+.modal-backdrop,
+.offcanvas-backdrop {
+    backdrop-filter: blur(4px);
+}
+
+.jvm-tooltip {
+    display: none;
+}

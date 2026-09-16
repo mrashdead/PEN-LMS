@@ -1,0 +1,67 @@
+// src/assets/scss/custom/dashboard/_dashboards-projects.scss
+
+.task-circle1 {
+    @include position(absolute, 3rem, null, null, 7rem);
+}
+
+.task-circle2 {
+    @include position(absolute, 1.25rem, null, null, 0.5rem);
+}
+
+.task-circle3 {
+    @include position(absolute, null, null, .5rem, 7rem);
+}
+
+.project-timeline {
+    position: relative;
+    padding-left: $spacer;
+    
+    &:not(:last-child) {
+        padding-bottom: 1rem;
+    }
+
+    &::after {
+        content: '';
+        width: .5rem;
+        height: .5rem;
+        @include position(absolute, 1.25rem, null, null, 0);
+        border-radius: .125rem;
+        border: 1px solid var(--#{$prefix}border-color);
+        background-color: var(--#{$prefix}secondary-bg);
+    }
+
+    &::before {
+        content: '';
+        width: .125rem;
+        @include position(absolute, 1.25rem, null, -1.25rem, 0.1875rem);
+        background-color: var(--#{$prefix}border-color);
+    }
+}
+
+.task-list {
+    .task-list-item {
+        position: relative;
+        padding: 0;
+
+        .form-check-label {
+            @include border-radius();
+            padding: 8px 8px 8px 36px;
+            background-color: var(--#{$prefix}tertiary-bg);
+            cursor: pointer;
+            width: 100%;
+            margin-left: 0;
+            float: none;
+            font-weight: $font-weight-medium;
+        }
+
+        .form-check-input {
+            position: absolute;
+            left: 34px;
+            top: 8px;
+        }
+
+        input[type="checkbox"]:checked+label {
+            background-color: var(--#{$prefix}primary-bg-subtle);
+        }
+    }
+}

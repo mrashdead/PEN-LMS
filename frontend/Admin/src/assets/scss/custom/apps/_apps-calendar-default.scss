@@ -1,0 +1,65 @@
+// src/assets/scss/custom/apps/_apps-calendar-default.scss
+
+.fc {
+    --#{$prefix}link-color-rgb: var(--#{$prefix}emphasis-color);
+    --fc-small-font-size: .85em;
+    --fc-page-bg-color: var(--#{$prefix}secondary-bg);
+    --fc-neutral-bg-color: var(--#{$prefix}tertiary-bg);
+    --fc-neutral-text-color: var(--#{$prefix}secondary-color);
+    --fc-border-color: var(--#{$prefix}border-color);
+    --fc-button-text-color: #fff;
+    --fc-button-bg-color: var(--#{$prefix}info);
+    --fc-button-border-color: var(--#{$prefix}info);
+    --fc-button-hover-bg-color: var(--#{$prefix}info);
+    --fc-button-hover-border-color: var(--#{$prefix}info);
+    --fc-button-active-bg-color: var(--#{$prefix}info);
+    --fc-button-active-border-color: var(--#{$prefix}info);
+    --fc-event-bg-color: var(--#{$prefix}info);
+    --fc-event-border-color: var(--#{$prefix}info);
+    --fc-event-text-color: var(--#{$prefix}emphasis-color);
+    --fc-event-selected-overlay-color: rgba(0, 0, 0, .25);
+    --fc-more-link-bg-color: #d0d0d0;
+    --fc-more-link-text-color: var(--#{$prefix}emphasis-color);
+    --fc-event-resizer-thickness: 8px;
+    --fc-event-resizer-dot-total-width: 8px;
+    --fc-event-resizer-dot-border-width: 1px;
+    --fc-non-business-color: hsla(0, 0%, 84%, .3);
+    --fc-bg-event-color: #8fdf82;
+    --fc-bg-event-opacity: 0.3;
+    --fc-highlight-color: rgba(188, 232, 241, .3);
+    --fc-today-bg-color: rgba(var(--#{$prefix}info-rgb), 0.1);
+    --fc-now-indicator-color: red;
+    --fc-list-event-hover-bg-color: var(--#{$prefix}tertiary-bg);
+    --fc-highlight-color: rgba(var(--#{$prefix}primary-rgb), 0.05);
+
+    .fc-col-header-cell-cushion {
+        padding: 10px;
+    }
+
+    .fc-toolbar-title {
+        font-size: 1rem;
+    }
+
+    .fc-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .fc-multimonth-title {
+        background-color: var(--fc-page-bg-color);
+    }
+
+    .fc-header-toolbar {
+        gap: 0.5rem;
+    }
+}
+
+.fc-license-message {
+    display: none;
+}
+
+.fc-daygrid-event {
+    border-radius: .375rem;
+    padding: .375rem 1rem;
+    font-size: .9063rem;
+}

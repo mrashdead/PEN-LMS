@@ -1,0 +1,88 @@
+// src/assets/scss/custom/structure/_sidebar-small.scss
+
+[data-sidebar=small] {
+    .main-sidebar {
+        width: var(--#{$prefix}sidebar-sm);
+
+        .navbar-brand {
+            width: var(--#{$prefix}sidebar-sm);
+        }
+    }
+
+    .profile-dropdown {
+        :is(.content, .arrow) {
+            display: none;
+        }
+    }
+
+    .navbar-menu {
+        .nav-menu-title {
+            display: none;
+        }
+
+        .nav-item {
+            :is(.content, .menu-arrow) {
+                display: none;
+            }
+
+            .nav-link {
+                width: calc(var(--#{$prefix}sidebar-sm) - 24px);
+                margin-inline: auto;
+                padding-block: .75rem;
+
+                .icons {
+                    svg {
+                        height: 1.25rem;
+                        width: 1.25rem;
+                    }
+                }
+
+                &.active {
+                    background-color: var(--#{$prefix}sidebar-link-bg-active-color);
+                }
+            }
+
+            .nav-menu-sub {
+                position: fixed;
+                left: var(--#{$prefix}sidebar-sm);
+                background-color: var(--#{$prefix}sidebar-bg);
+                box-shadow: var(--#{$prefix}sidebar-dropdown-shadow);
+                margin-left: 0;
+                width: 12rem;
+                padding: .5rem 0;
+                
+                .menu-arrow {
+                    display: inline-block !important;
+                }
+
+                .nav-link {
+                    margin: 0;
+                    padding: .5rem 1.5rem;
+                    width: 100%;
+
+
+                    &::before {
+                        display: none;
+                    }
+
+                    &.active {
+                        background-color: transparent;
+                    }
+                }
+            }
+        }
+    }
+
+    //page wrapper
+    @include media-breakpoint-up(lg) {
+        .page-wrapper {
+            margin-left: var(--#{$prefix}sidebar-sm);
+        }
+    }
+
+    @include media-breakpoint-up(lg) {
+        .main-footer {
+            left: var(--#{$prefix}sidebar-sm);
+        }
+    }
+}

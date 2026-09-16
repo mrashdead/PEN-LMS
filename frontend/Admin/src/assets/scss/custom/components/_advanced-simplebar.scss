@@ -1,0 +1,28 @@
+// src/assets/scss/custom/components/_advanced-simplebar.scss
+
+.simplebar-scrollbar:before {
+    background: var(--#{$prefix}border-color) !important;
+}
+
+@each $state in map-keys($theme-colors) {
+    .simplebar-#{$state} {
+        .simplebar-scrollbar:before {
+            background-color: var(--#{$prefix}#{$state}) !important;
+        }
+    }
+}
+
+//default scroll
+::-webkit-scrollbar-track{
+	background-color: var(--#{$prefix}secondary-bg);
+}
+
+::-webkit-scrollbar{
+	width: 10px;
+	background-color: var(--#{$prefix}secondary-bg);
+}
+
+::-webkit-scrollbar-thumb{
+    border-radius: 10px;
+	background-color: var(--#{$prefix}border-color);
+}

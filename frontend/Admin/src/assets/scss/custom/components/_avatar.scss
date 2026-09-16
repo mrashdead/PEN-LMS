@@ -1,0 +1,29 @@
+// src/assets/scss/custom/components/_avatar.scss
+
+.avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-group {
+    display: flex;
+    align-items: center;
+
+    .avatar-group-item {
+        position: relative;
+        transition: z-index 0.3s ease;
+        :is(img, div) {
+            border: 2px solid var(--#{$prefix}secondary-bg);
+            @include border-radius($border-radius-pill);
+        }
+
+        &:not(:first-child) {
+            margin-left: -10px;
+        }
+
+        &:hover { 
+            z-index: 10;
+        }
+    }
+}

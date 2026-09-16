@@ -1,0 +1,14 @@
+// src/assets/scss/custom/structure/_page-heading.scss
+
+.page-heading {
+    @include flexStyle(center);
+
+    @include media-breakpoint-down(md) { 
+        align-items: start;
+    }
+
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: '\EA6E';
+        font-family: remixicon;
+    }
+}

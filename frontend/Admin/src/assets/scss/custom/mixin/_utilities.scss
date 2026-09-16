@@ -1,0 +1,93 @@
+// src/assets/scss/custom/mixin/_utilities.scss
+
+$utilities: ();
+$utilities: map-merge(
+  (
+        "avatar-sizes": (
+            property: height width,
+            class: size,
+            values: $spacing-sizes 
+        ),
+        "width": (
+            property: width,
+            class: w,
+            values: $spacing-sizes 
+        ),
+        "height": (
+            property: height,
+            class: h,
+            values: $spacing-sizes 
+        ),
+        "max-width": (
+            property: max-width,
+            class: max-w,
+            values: $spacing-sizes 
+        ),
+        "max-height": (
+            property: max-height,
+            class: max-h,
+            values: $spacing-sizes 
+        ),
+        "min-width": (
+            property: min-width,
+            class: min-w,
+            values: $spacing-sizes 
+        ),
+        "min-height": (
+            property: min-height,
+            class: min-h,
+            values: $spacing-sizes 
+        ),
+        "bg-gray": (
+            property: background-color,
+            class: bg-gray,
+            values: $grays 
+        ),
+        "border": (
+            property: border,
+            responsive: true,
+            values: (null: var(--#{$prefix}border-width) var(--#{$prefix}border-style) var(--#{$prefix}border-color),
+            0: 0,
+        )),
+        "border-top": (
+            property: border-top,
+            responsive: true,
+            values: (null: var(--#{$prefix}border-width) var(--#{$prefix}border-style) var(--#{$prefix}border-color),
+            0: 0,
+        )),
+
+        "border-end": (
+            property: border-right,
+            class: border-end,
+            responsive: true,
+            values: (null: var(--#{$prefix}border-width) var(--#{$prefix}border-style) var(--#{$prefix}border-color),
+            0: 0,
+        )),
+
+        "border-bottom": (
+            property: border-bottom,
+            responsive: true,
+            values: (null: var(--#{$prefix}border-width) var(--#{$prefix}border-style) var(--#{$prefix}border-color),
+            0: 0,
+        )),
+        "border-start": (
+            property: border-left,
+            class: border-start,
+            responsive: true,
+            values: (null: var(--#{$prefix}border-width) var(--#{$prefix}border-style) var(--#{$prefix}border-color),
+            0: 0,
+        )),
+        "border-style": (
+            css-var: true,
+            css-variable-name: border-style,
+            class: border,
+            values: solid dashed  
+        ),
+        "custom-list-styles": (
+            property: list-style-type,
+            class: list-group,
+            values: $custom-list-styles 
+        ),
+    ),
+    $utilities
+);

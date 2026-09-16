@@ -1,0 +1,20 @@
+{% comment %}
+Page heading + breadcrumb (Domiex .page-heading contract).
+
+Params:
+  title       — current page title (required)
+  section     — parent section name shown in the breadcrumb (optional)
+  section_url — parent section URL (optional; pairs with section)
+{% endcomment %}
+<div class="gap-2 page-heading mb-3 flex-column flex-md-row">
+  <h6 class="flex-grow-1 mb-0">{{ title }}</h6>
+  <ul class="breadcrumb flex-shrink-0 mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'dashboard-home' %}">داشبورد</a></li>
+    {% if section %}
+      <li class="breadcrumb-item">
+        {% if section_url %}<a href="{{ section_url }}">{{ section }}</a>{% else %}{{ section }}{% endif %}
+      </li>
+    {% endif %}
+    <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+  </ul>
+</div>

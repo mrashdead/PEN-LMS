@@ -1,0 +1,66 @@
+// scss-docs-start theme-text-map
+$custom-theme-colors-text: (
+  "indigo": $indigo-text-emphasis,
+  "pink": $pink-text-emphasis,
+  "orange": $orange-text-emphasis,
+);
+// scss-docs-end theme-text-map
+
+// scss-docs-start theme-bg-subtle-map
+$custom-theme-colors-bg-subtle: (
+    "indigo": $indigo-bg-subtle,
+    "pink": $pink-bg-subtle,
+    "orange": $orange-bg-subtle
+);
+// scss-docs-end theme-bg-subtle-map
+
+// scss-docs-start theme-border-subtle-map
+$custom-theme-colors-border-subtle: (
+    "indigo": $indigo-border-subtle,
+    "pink": $pink-border-subtle,
+    "orange": $orange-border-subtle
+);
+// scss-docs-end theme-border-subtle-map
+
+$custom-theme-colors-text-dark: (
+  "indigo": $indigo-text-emphasis-dark,
+  "pink": $pink-text-emphasis-dark,
+  "orange": $orange-text-emphasis-dark,
+);
+
+$custom-theme-colors-bg-subtle-dark: (
+    "indigo": $indigo-bg-subtle-dark,
+    "pink": $pink-bg-subtle-dark,
+    "orange": $orange-bg-subtle-dark
+);
+
+$custom-theme-colors-border-subtle-dark: (
+    "indigo": $indigo-border-subtle-dark,
+    "pink": $pink-border-subtle-dark,
+    "orange": $orange-border-subtle-dark
+);
+
+@mixin background-border-subtle() {
+  $colors: (
+    orange: "orange",
+    indigo: "indigo",
+    pink: "pink"
+  );
+
+  @each $color, $name in $colors {
+    .bg-#{$name}-subtle {
+      background-color: var(--#{$prefix}#{$color}-bg-subtle) !important;
+    }
+
+    .border-#{$name}-subtle {
+      border-color: var(--#{$prefix}#{$color}-border-subtle) !important;
+    }
+
+    .text-#{$name}-emphasis {
+      color: var(--#{$prefix}#{$color}-text-emphasis) !important;
+    }
+  }
+}
+
+// Usage example
+@include background-border-subtle();

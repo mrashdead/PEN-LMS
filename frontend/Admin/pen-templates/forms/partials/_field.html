@@ -1,0 +1,266 @@
+{% load forms_extras %}
+{% comment %}
+Renders ONE field definition (from FormSchema.fields[]) as an accessible
+Bootstrap 5 control inside the Domiex theme.
+
+Context (provided by submission_form.html):
+  field             — dict; the field definition from the schema
+  value             — old value for re-render (may be None)
+  errors            — list of strings or None
+  relation_options  — list of {value,label} dicts (server-supplied)
+
+The definition is normalized with |normalize_field first so both accepted
+shapes (flat min/max/accept OR nested validators{...}) render identically —
+mirroring apps/forms/schema_validation._validators_block.
+
+Non-negotiables honored:
+  - No access-control or business validation lives here.
+  - data-conditional is only a display hint; the server re-validates.
+  - Every input has a matching <label for> and stable id (id_<key>).
+  - file fields render a dropzone placeholder; the two-phase upload UI
+    (dropzone + attachment list) is driven by forms.js.
+{% endcomment %}
+{% with f=field|normalize_field %}
+<div class="pen-field col-12{% if f.column_span == 2 %} col-md-6{% endif %}{% if errors %} is-invalid{% endif %}"
+     id="field-{{ f.key }}"
+     data-field-key="{{ f.key }}"
+     data-field-type="{{ f.type }}"
+     {% if f.required %}data-required="1"{% endif %}
+     {% if f.column_span == 2 %}data-span="2"{% endif %}
+     {% if f.conditional %}data-conditional="{{ f.conditional|to_json }}"{% endif %}>
+
+  <label for="id_{{ f.key }}" class="form-label d-block">
+    {{ f.label }}
+    {% if f.required %}<span class="text-danger" aria-hidden="true">*</span>{% endif %}
+  </label>
+
+  {% if f.type == "text" %}
+    <input type="text" class="form-control" id="id_{{ f.key }}" name="{{ f.key }}"
+           value="{{ value|default_if_none:'' }}"
+           {% if f.required %}aria-required="true"{% endif %}
+           {% if f.placeholder %}placeholder="{{ f.placeholder }}"{% endif %}
+           {% if f.min_length %}minlength="{{ f.min_length }}"{% endif %}
+           {% if f.max_length %}maxlength="{{ f.max_length }}"{% endif %}
+           {% if f.pattern %}pattern="{{ f.pattern }}"{% endif %}
+           aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}">
+
+  {% elif f.type == "textarea" %}
+    <textarea class="form-control" id="id_{{ f.key }}" name="{{ f.key }}" rows="4"
+              {% if f.required %}aria-required="true"{% endif %}
+              {% if f.max_length %}maxlength="{{ f.max_length }}"{% endif %}
+              {% if f.placeholder %}placeholder="{{ f.placeholder }}"{% endif %}
+              aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}">{{ value|default_if_none:'' }}</textarea>
+
+  {% elif f.type == "rich_text" %}
+    {# Lightweight WYSIWYG: a hidden textarea keeps the value (collect() reads
+       it unchanged); the contenteditable div is the editor. The server
+       sanitizes the HTML on save (sanitize_rich_text) — nothing here trusts
+       the markup. No external editor library, no build step. #}
+    <textarea class="d-none" id="id_{{ f.key }}" name="{{ f.key }}"
+              {% if f.required %}aria-required="true"{% endif %}>{{ value|default_if_none:'' }}</textarea>
+    <div class="pen-rich-editor" data-rich-for="{{ f.key }}" role="textbox"
+         {% if f.required %}aria-required="true"{% endif %}
+         aria-multiline="true" aria-label="{{ f.label }}"
+         tabindex="0" contenteditable="true"
+         style="min-height:10rem"
+         aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}"></div>
+    <div class="btn-group btn-group-sm mt-1" role="group" aria-label="ابزار متن"
+         data-rich-toolbar-for="{{ f.key }}">
+      <button type="button" class="btn btn-outline-secondary" data-rich-cmd="bold" title="پررنگ"><b>B</b></button>
+      <button type="button" class="btn btn-outline-secondary" data-rich-cmd="italic" title="کج"><i>I</i></button>
+      <button type="button" class="btn btn-outline-secondary" data-rich-cmd="insertUnorderedList" title="فهرست نقطه‌ای">•</button>
+      <button type="button" class="btn btn-outline-secondary" data-rich-cmd="insertOrderedList" title="فهرست شماره‌ای">1.</button>
+      <button type="button" class="btn btn-outline-secondary" data-rich-cmd="removeFormat" title="پاک‌کردن قالب">⌫</button>
+    </div>
+    <div class="form-text" id="help_{{ f.key }}">متن غنی — سرفصل را همین‌جا بنویسید؛ قالب‌بندی ساده پشتیبانی می‌شود.</div>
+
+  {% elif f.type == "number" or f.type == "integer" or f.type == "decimal" %}
+    <input type="number" class="form-control" id="id_{{ f.key }}" name="{{ f.key }}"
+           value="{{ value|default_if_none:'' }}"
+           step="{% if f.type == 'integer' %}1{% else %}any{% endif %}"
+           {% if f.has_min %}min="{{ f.min }}"{% endif %}
+           {% if f.has_max %}max="{{ f.max }}"{% endif %}
+           {% if f.required %}aria-required="true"{% endif %}
+           aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}">
+
+  {% elif f.type == "date" %}
+    <input type="text" class="form-control" id="id_{{ f.key }}" name="{{ f.key }}"
+           data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۴/۰۷/۰۱"
+           value="{{ value|default_if_none:'' }}"
+           {% if f.after %}data-after="{{ f.after }}"{% endif %}
+           {% if f.required %}aria-required="true"{% endif %}
+           aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}">
+
+  {% elif f.type == "datetime" %}
+    <input type="text" class="form-control" id="id_{{ f.key }}" name="{{ f.key }}"
+           data-jalali data-jalali-dt dir="ltr" autocomplete="off" placeholder="۱۴۰۴/۰۷/۰۱ ۱۴:۳۰"
+           value="{{ value|default_if_none:'' }}"
+           {% if f.after %}data-after="{{ f.after }}"{% endif %}
+           {% if f.required %}aria-required="true"{% endif %}
+           aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}">
+
+  {% elif f.type == "time" %}
+    <input type="text" class="form-control" id="id_{{ f.key }}" name="{{ f.key }}"
+           data-jalali-time dir="ltr" autocomplete="off" placeholder="۱۴:۳۰"
+           value="{{ value|default_if_none:'' }}"
+           {% if f.after %}data-after="{{ f.after }}"{% endif %}
+           {% if f.required %}aria-required="true"{% endif %}
+           aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}">
+
+  {% elif f.type == "boolean" %}
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" role="switch"
+             id="id_{{ f.key }}" data-bool-key="{{ f.key }}"
+             {% if value %}checked{% endif %}
+             aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}">
+      <label class="form-check-label" for="id_{{ f.key }}">{{ f.label }}</label>
+    </div>
+
+  {% elif f.type == "select" %}
+    <select class="form-select" id="id_{{ f.key }}" name="{{ f.key }}"
+            {% if f.required %}aria-required="true"{% endif %}
+            aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}">
+      <option value="">— انتخاب کنید —</option>
+      {% for opt in f.options %}
+        <option value="{{ opt.value }}" {% if value == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+      {% endfor %}
+    </select>
+
+  {% elif f.type == "multi_select" %}
+    <div id="id_{{ f.key }}" class="vstack gap-1">
+      {% for opt in f.options %}
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox"
+                 id="id_{{ f.key }}_{{ forloop.counter0 }}" name="{{ f.key }}" value="{{ opt.value }}"
+                 {% if value and opt.value in value %}checked{% endif %}>
+          <label class="form-check-label" for="id_{{ f.key }}_{{ forloop.counter0 }}">{{ opt.label }}</label>
+        </div>
+      {% endfor %}
+    </div>
+
+  {% elif f.type == "relation" %}
+    <select class="form-select" id="id_{{ f.key }}" name="{{ f.key }}"
+            {% if f.required %}aria-required="true"{% endif %}
+            aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}"
+            data-relation-key="{{ f.relation.registry_key }}">
+      <option value="">— انتخاب کنید —</option>
+      {% for opt in relation_options %}
+        <option value="{{ opt.value }}" {% if value == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+      {% endfor %}
+    </select>
+
+  {% elif f.type == "multi_relation" %}
+    <div id="id_{{ f.key }}" class="vstack gap-1" data-relation-key="{{ f.relation.registry_key }}">
+      {% for opt in relation_options %}
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox"
+                 id="id_{{ f.key }}_{{ forloop.counter0 }}" name="{{ f.key }}" value="{{ opt.value }}"
+                 {% if value and opt.value in value %}checked{% endif %}>
+          <label class="form-check-label" for="id_{{ f.key }}_{{ forloop.counter0 }}">{{ opt.label }}</label>
+        </div>
+      {% empty %}
+        <p class="text-muted mb-0 fs-14">موردی برای انتخاب موجود نیست.</p>
+      {% endfor %}
+    </div>
+
+  {% elif f.type == "file" %}
+    {# Two-phase upload — see forms.js. The hidden input is the picker trigger. #}
+    <div class="pen-dropzone" data-dropzone-for="{{ f.key }}" tabindex="0" role="button"
+         data-accept="{{ f.accept|join:',' }}"
+         data-max-size="{{ f.max_file_size|default_if_none:'' }}"
+         aria-label="انتخاب فایل برای {{ f.label }}">
+      <i data-lucide="upload-cloud" class="size-5 d-block mx-auto mb-1"></i>
+      <p class="mb-0">فایل را اینجا رها کنید یا برای انتخاب کلیک کنید.</p>
+      {% if f.accept %}
+        <p class="mb-0 fs-13 opacity-75">پسوندهای مجاز: {{ f.accept|join:"، " }}</p>
+      {% endif %}
+      <input type="file" class="d-none" id="id_{{ f.key }}" data-file-picker="{{ f.key }}"
+             accept="{{ f.accept|join:',' }}"
+             aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}">
+    </div>
+    <ul class="list-unstyled mt-2 mb-0" data-attachment-list="{{ f.key }}" aria-live="polite"></ul>
+
+  {% elif f.type == "attendance_table" or f.type == "grade_table" or f.type == "table" %}
+    {# Dynamic table — managed by forms.js (add/remove rows). #}
+    <div class="table-responsive" data-table-field="{{ f.key }}"
+         data-table-kind="{{ f.type }}"
+         data-statuses="{{ f.statuses|to_json }}"
+         data-results="{{ f.results|to_json }}"
+         data-columns="{{ f.columns|to_json }}">
+      <table class="table table-bordered align-middle mb-0 pen-dynamic-table">
+        <thead class="table-light">
+          <tr>
+            <th scope="col" style="width:40px">#</th>
+            {% if f.type == "attendance_table" %}
+              <th scope="col">شناسه دانش‌آموز</th>
+              <th scope="col">وضعیت</th>
+              <th scope="col">یادداشت</th>
+            {% elif f.type == "grade_table" %}
+              <th scope="col">شناسه دانش‌آموز</th>
+              <th scope="col">نمره نهایی (قبول/مردود)</th>
+              <th scope="col">چرایی (توسط استاد)</th>
+            {% else %}
+              {% for col in f.columns %}<th scope="col">{{ col.label|default:col.key }}</th>{% endfor %}
+            {% endif %}
+            <th scope="col" style="width:60px"><span class="visually-hidden">حذف</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in value %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              {% if f.type == "attendance_table" %}
+                <td><input class="form-control form-control-sm" name="{{ f.key }}.{{ forloop.counter0 }}.student_id"
+                           value="{{ row.student_id|default_if_none:'' }}" aria-label="شناسه دانش‌آموز"></td>
+                <td>
+                  <select class="form-select form-select-sm" name="{{ f.key }}.{{ forloop.counter0 }}.status" aria-label="وضعیت حضور">
+                    {% for st in f.statuses %}
+                      <option value="{{ st }}" {% if row.status == st %}selected{% endif %}>{{ st }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td><input class="form-control form-control-sm" name="{{ f.key }}.{{ forloop.counter0 }}.note"
+                           value="{{ row.note|default_if_none:'' }}" aria-label="یادداشت"></td>
+              {% elif f.type == "grade_table" %}
+                <td><input class="form-control form-control-sm" name="{{ f.key }}.{{ forloop.counter0 }}.student_id"
+                           value="{{ row.student_id|default_if_none:'' }}" aria-label="شناسه دانش‌آموز"></td>
+                <td>
+                  <select class="form-select form-select-sm" name="{{ f.key }}.{{ forloop.counter0 }}.result" aria-label="نتیجه ارزشیابی">
+                    <option value="passed" {% if row.result == "passed" %}selected{% endif %}>قبول</option>
+                    <option value="failed" {% if row.result == "failed" %}selected{% endif %}>مردود</option>
+                  </select>
+                </td>
+                <td><input class="form-control form-control-sm" name="{{ f.key }}.{{ forloop.counter0 }}.teacher_note"
+                           value="{{ row.teacher_note|default_if_none:'' }}" aria-label="یادداشت معلم"></td>
+              {% else %}
+                {% for col in f.columns %}
+                  <td><input class="form-control form-control-sm" name="{{ f.key }}.{{ forloop.counter0 }}.{{ col.key }}"
+                             value="{{ row|get_item:col.key|default_if_none:'' }}" aria-label="{{ col.key }}"></td>
+                {% endfor %}
+              {% endif %}
+              <td>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-row aria-label="حذف ردیف">
+                  <i data-lucide="trash-2" class="size-4"></i>
+                </button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-add-row>
+        <i data-lucide="plus" class="size-4 me-1"></i> افزودن ردیف
+      </button>
+      {% if f.max_rows %}<p class="text-muted fs-14 mt-1 mb-0">حداکثر {{ f.max_rows }} ردیف</p>{% endif %}
+    </div>
+  {% endif %}
+
+  {% if f.help_text %}
+    <div class="form-text" id="help_{{ f.key }}">{{ f.help_text }}</div>
+  {% endif %}
+  {% if errors %}
+    <ul class="pen-errors" id="error_{{ f.key }}" role="alert">
+      {% for message in errors %}<li>{{ message }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+</div>
+{% endwith %}

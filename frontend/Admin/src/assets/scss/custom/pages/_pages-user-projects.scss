@@ -1,0 +1,16 @@
+// src/assets/scss/custom/pages/_pages-user-projects.scss
+
+.rounded-modern {
+    border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+}
+@each $state in map-keys($theme-colors){
+    .bg-gradient-b-#{$state}{
+        background-image: linear-gradient(to top, rgba(var(--#{$prefix}#{$state}-rgb), 0.1), rgba(var(--#{$prefix}#{$state}-rgb), 0));
+    }
+}
+.line-clamp-5 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical; 
+  }

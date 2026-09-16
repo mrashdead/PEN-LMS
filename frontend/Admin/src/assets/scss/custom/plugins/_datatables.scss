@@ -1,0 +1,49 @@
+// src/assets/scss/custom/forms/_table-datatables-basic.scss
+
+.dt-container {
+    .dt-layout-table {
+        margin-top: 20px !important;
+    }
+
+    .row {
+        gap: 10px;
+    }
+
+    .pagination {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .5rem;
+
+        .page-item:not(:first-child) .page-link {
+            display: flex;
+            width: 2.25rem;
+            height: 2.25rem;
+            align-items: center;
+            justify-content: center;
+            border-radius: .375rem;
+            border-width: 1px;
+        }
+    }
+    .table-light{
+        background-color: var(--#{$prefix}tertiary-bg);
+    }
+    td.dt-type-numeric,
+    table.dataTable td.dt-type-date,
+    table.dataTable th.dt-type-numeric,
+    table.dataTable th.dt-type-date,
+    table.dataTable td.dt-empty {
+        text-align: left !important;
+    }
+
+    table.dataTable thead:hover>tr>th.dt-orderable-asc:hover,
+    table.dataTable thead>tr>th.dt-orderable-desc:hover {
+        outline: none;
+    }
+    .table-striped-even>tbody>tr:nth-child(even)>td {
+        background-color: var(--#{$prefix}tertiary-bg);
+    }
+    .table.hovered tr:hover {
+        background-color: var(--#{$prefix}tertiary-bg);
+    }
+}

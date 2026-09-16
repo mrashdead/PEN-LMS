@@ -1,0 +1,22 @@
+// src/assets/scss/custom/pages/_pages-contact-us.scss
+
+.auth-wrapper {
+    background: linear-gradient(to left, rgba(var(--#{$prefix}info-rgb), 0.1), rgba(var(--#{$prefix}success-rgb), 0.05), rgba(var(--#{$prefix}pink-rgb), 0.05));
+}
+
+@each $state in map-keys($theme-colors) {
+    .contactUs-three {
+        .check-#{$state} {
+            .form-check-input:checked+.form-check-label {
+                background-color: var(--#{$prefix}#{$state}-bg-subtle);
+                border-color: rgba(var(--#{$prefix}#{$state}-rgb), 0.5);
+            }
+        }
+    }
+}
+.contactUs-three {
+    .form-check-label {
+        background-color: var(--#{$prefix}secondary-bg);
+        border: 1px solid var(--#{$prefix}border-color);
+    }
+}

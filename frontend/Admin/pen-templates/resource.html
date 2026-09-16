@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load static asset_v rbac %}
+{% block title %}{{ resource_title }}{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title=resource_title %}
+{% endblock %}
+
+{% block content %}
+{{ config_json|json_script:"pen-resource-ctx" }}
+{% can_crud "create" resource_key as can_resource_create %}
+
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex flex-column flex-md-row gap-3 align-items-md-center">
+        <div class="flex-grow-1">
+          <h6 class="mb-0 card-title">{{ resource_title }}</h6>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <div class="position-relative">
+            <input type="search" id="res-search" class="form-control ps-9" placeholder="جستجو…" aria-label="جستجو">
+            <i data-lucide="search" class="size-4 text-muted position-absolute top-50 start-0 ms-3 translate-middle-y"></i>
+          </div>
+          <div id="res-filters" class="d-flex flex-wrap gap-2"></div>
+          {% if can_write %}
+            {% if config.formationLink %}
+              <button id="res-formation" class="btn btn-success flex-shrink-0">
+                <i data-lucide="graduation-cap" class="size-4 me-1"></i> تشکیل کلاس
+              </button>
+            {% endif %}
+            {% if config.canCreate and can_resource_create %}
+              <button id="res-add" class="btn btn-primary flex-shrink-0">
+                <i data-lucide="plus" class="size-4 me-1"></i> افزودن
+              </button>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card-body pt-0">
+        <div class="table-card table-responsive" id="res-table" aria-busy="false">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr id="res-thead-row"></tr>
+            </thead>
+            <tbody id="res-tbody"></tbody>
+          </table>
+        </div>
+        <div class="row align-items-center g-3 mt-2">
+          <div class="col-md-6">
+            <p class="text-muted text-center text-md-start mb-0" id="res-count"></p>
+          </div>
+          <div class="col-md-6">
+            <nav aria-label="صفحه‌بندی"><ul class="pagination justify-content-center justify-content-md-end mb-0" id="res-pager"></ul></nav>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Create / Detail modal ────────────────────────────────────────── #}
+<div class="modal fade" id="res-modal" tabindex="-1" aria-labelledby="res-modal-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title mb-0" id="res-modal-label">—</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+      </div>
+      <div class="modal-body" id="res-modal-body"></div>
+      <div class="modal-footer" id="res-modal-footer"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>window.__PEN_RES_WRITE__ = {% if can_write %}true{% else %}false{% endif %};</script>
+{% if config.formationAction or config.formationLink %}
+  <script src="{% asset_v_url 'assets/pen/js/formation.js' %}"></script>
+{% endif %}
+<script src="{% asset_v_url 'assets/pen/js/resource.js' %}"></script>
+{% endblock %}

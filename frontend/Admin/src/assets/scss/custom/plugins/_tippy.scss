@@ -1,0 +1,11 @@
+// src/assets/scss/custom/plugins/_tippy.scss
+
+.tippy-box {
+    background-color: $tooltip-bg;
+    font-size: $tooltip-font-size;
+    color: $tooltip-color;
+}
+
+.tippy-arrow {
+    color: $tooltip-bg;
+}

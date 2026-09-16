@@ -1,0 +1,34 @@
+// Mixin for Generating tabs Classes Based on Theme Colors
+@mixin generate-tabs-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for tabs states (outline, solid, sub)
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        .nav-#{$state} {
+            --#{$prefix}nav-pills-link-active-bg: var(--#{$prefix}#{$state});
+            --#{$prefix}nav-link-hover-color: var(--#{$prefix}#{$state});
+            --#{$prefix}nav-underline-link-active-color: var(--#{$prefix}#{$state});
+            --#{$prefix}nav-pills-link-active-color: #fff;
+            
+            // Special case for 'light' color
+            @if $state =='light' {
+                --#{$prefix}nav-pills-link-active-color: var(--#{$prefix}body-color);
+                --#{$prefix}nav-link-hover-color: var(--#{$prefix}body-color);
+            }
+
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-tabs-classes($theme-colors, $prefix);

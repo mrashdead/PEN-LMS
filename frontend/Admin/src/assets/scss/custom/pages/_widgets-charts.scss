@@ -1,0 +1,14 @@
+// src/assets/scss/custom/pages/_widgets-charts.scss
+
+[class*="chart-icon-ring"] { 
+    outline: 1px solid var(--#{$prefix}border-color);
+    outline-offset: 2px;
+    border: 2px solid var(--#{$prefix}border-color);
+}
+
+@each $state in map-keys($theme-colors) {
+    .chart-icon-ring-#{$state}{
+        outline-color:  rgba(var(--#{$prefix}#{$state}-rgb), 0.2);
+        border-color:  var(--#{$prefix}#{$state});
+    }
+}

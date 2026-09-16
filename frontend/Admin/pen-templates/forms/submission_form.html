@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static forms_extras asset_v %}
+{% block title %}{% if submission %}ویرایش فرم{% else %}فرم جدید{% endif %} — {{ schema.title }}{% endblock %}
+{% block page_heading %}
+  {% url 'submission-list' as forms_list_url %}
+  {% include "partials/page-heading.html" with title=schema.title section="فرم‌ها" section_url=forms_list_url %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12 col-xl-10">
+    <div class="card">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <div class="flex-grow-1">
+          <h6 class="mb-0 card-title">
+            {% if submission %}ویرایش پیش‌نویس {{ submission.submission_number|default:'' }}{% else %}تکمیل فرم{% endif %}
+          </h6>
+          <p class="mb-0 text-muted fs-14">{% if schema.description %}{{ schema.description }}{% endif %}</p>
+        </div>
+        <span class="badge bg-primary-subtle text-primary">نسخه {{ schema.version }}</span>
+        {% if submission %}<span class="pen-badge pen-badge-draft">پیش‌نویس</span>{% endif %}
+      </div>
+
+      <div class="card-body">
+        {% if errors.non_field_errors %}
+          <div class="pen-error-summary" role="alert">
+            <strong><i data-lucide="alert-triangle" class="size-4 me-1"></i> خطا در ثبت فرم:</strong>
+            <ul class="mb-0">
+              {% for e in errors.non_field_errors %}<li>{{ e }}</li>{% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        <div id="pen-error-box" class="pen-error-summary" role="alert" hidden>
+          <strong><i data-lucide="alert-triangle" class="size-4 me-1"></i> خطاها را برطرف کنید:</strong>
+          <ul id="pen-error-list" class="mb-0"></ul>
+        </div>
+
+        <div class="pen-progress" id="pen-progress" hidden></div>
+
+        <form id="dynamic-form" dir="rtl" novalidate>
+          {% regroup fields by section as sections %}
+          <div id="pen-steps">
+            {% for section in sections %}
+              <fieldset class="pen-section mb-4" data-step="{{ forloop.counter0 }}" data-step-title="{{ section.grouper|default:'اطلاعات کلی' }}">
+                {% if section.grouper %}
+                  <legend class="fs-15 fw-semibold mb-3">{{ section.grouper }}</legend>
+                {% endif %}
+                <div class="row g-3">
+                  {% for field in section.list %}
+                    {% with value=form_data|get_item:field.key err=errors|get_item:field.key %}
+                      {% include "forms/partials/_field.html" with field=field value=value errors=err relation_options=relation_options|get_item:field.key %}
+                    {% endwith %}
+                  {% endfor %}
+                </div>
+              </fieldset>
+            {% endfor %}
+          </div>
+
+          <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top">
+            <button type="button" class="btn btn-outline-secondary" id="save-draft">
+              <i data-lucide="save" class="size-4 me-2"></i> ذخیره پیش‌نویس
+            </button>
+            <button type="submit" class="btn btn-primary" id="submit-form">
+              <i data-lucide="send" class="size-4 me-2"></i> ارسال نهایی
+            </button>
+            <a href="{% if submission %}{% url 'submission-detail-page' submission.id %}{% else %}{% url 'submission-list' %}{% endif %}"
+               class="btn btn-light">انصراف</a>
+          </div>
+          <p class="text-muted fs-13 mt-2 mb-0">
+            «ذخیره پیش‌نویس» فیلدهای ناقص را می‌پذیرد؛ «ارسال نهایی» همه الزامات را اعتبارسنجی می‌کند.
+          </p>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>window.__PEN_FORM_CTX__ = {
+  schemaSlug: "{{ schema.slug|escapejs }}",
+  submissionId: "{% if submission %}{{ submission.id }}{% endif %}",
+};</script>
+<script src="{% asset_v_url 'assets/pen/js/forms.js' %}"></script>
+{% endblock %}

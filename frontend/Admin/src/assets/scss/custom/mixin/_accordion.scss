@@ -1,0 +1,59 @@
+// Mixin for Generating accordion Classes Based on Theme Colors
+@mixin generate-accordion-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for accordion states (outline, solid, sub)
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        .accordion-#{$state} {
+            @if $state =='light' {
+                --#{$prefix}accordion-active-color: var(--#{$prefix}secondary-color);
+                --#{$prefix}accordion-active-bg: var(--#{$prefix}light);
+
+                &.accordion-boxed {
+                    --#{$prefix}accordion-active-color: var(--#{$prefix}secondary-color);
+                    --#{$prefix}accordion-active-bg: var(--#{$prefix}light);
+
+                    [aria-expanded="true"] {
+                        --#{$prefix}accordion-border-color: var(--#{$prefix}border-color);
+                    }
+                }
+            }
+
+            @else {
+                --#{$prefix}accordion-active-color: var(--#{$prefix}#{$state});
+                --#{$prefix}accordion-active-bg: var(--#{$prefix}#{$state}-bg-subtle);
+
+                &.accordion-boxed {
+                    --#{$prefix}accordion-active-color: var(--#{$prefix}#{$state});
+                    --#{$prefix}accordion-active-bg: var(--#{$prefix}#{$state}-bg-subtle);
+
+                    [aria-expanded="true"] {
+                        --#{$prefix}accordion-border-color: var(--#{$prefix}#{$state}-border-subtle);
+                    }
+                }
+            }
+        }
+
+        .accordion-solid-#{$state} {
+            --#{$prefix}accordion-active-bg: var(--#{$prefix}#{$state});
+            --#{$prefix}accordion-active-color: #{color-contrast($color)};
+
+            [aria-expanded="true"] {
+                --#{$prefix}accordion-border-color: var(--#{$prefix}#{$state});
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-accordion-classes($theme-colors, $prefix);

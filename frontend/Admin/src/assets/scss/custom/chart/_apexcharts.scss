@@ -1,0 +1,149 @@
+// src/assets/scss/custom/chart/_apexcharts.scss
+
+.apexcharts-tooltip.apexcharts-theme-light {
+    border: 1px solid var(--#{$prefix}border-color) !important;
+    background: var(--#{$prefix}secondary-bg) !important;
+    border-radius: 0.375rem;
+    box-shadow: var(--#{$prefix}box-shadow);
+
+    .apexcharts-tooltip-title {
+        border-bottom: 0 !important;
+        padding-bottom: 0 !important;
+        background-color: var(--#{$prefix}secondary-bg) !important;
+        font-weight: 600;
+    }
+
+    .apexcharts-tooltip-text {
+        font-size: 0.75rem;
+    }
+}
+
+.apexcharts-datalabel {
+    font-family: $font-family-base !important;
+}
+
+.apexcharts-text,
+.apexcharts-title-text {
+    font-family: $font-family-base !important;
+    fill: var(--#{$prefix}body-color) !important;
+}
+
+.apexcharts-legend-text {
+    font-size: 0.75rem;
+    color: var(--#{$prefix}body-color) !important;
+}
+
+.apexcharts-tooltip-rangebar .category {
+    color: var(--#{$prefix}secondary-color) !important;
+}
+
+.apexcharts-xaxistooltip,
+.apexcharts-yaxistooltip {
+    font-size: 0.75rem;
+    color: var(--#{$prefix}emphasis-color) !important;
+    background-color: var(--#{$prefix}secondary-bg) !important;
+    border: 1px solid var(--#{$prefix}border-color) !important;
+}
+
+.apexcharts-xaxistooltip-bottom {
+    &:before {
+        border-bottom: 1px solid var(--#{$prefix}secondary-bg) !important;
+    }
+}
+
+.apexcharts-gridline,
+.apexcharts-xcrosshairs,
+.apexcharts-xaxis-tick {
+    stroke: var(--#{$prefix}border-color) !important;
+}
+
+.apexcharts-xaxis {
+    line {
+        stroke: var(--#{$prefix}light-bg-subtle);
+
+    }
+}
+
+.apexcharts-grid-borders {
+    line {
+        stroke: var(--#{$prefix}light-bg-subtle);
+
+    }
+}
+
+.apexcharts-series-markers {
+
+    circle,
+    path {
+        stroke: var(--#{$prefix}secondary-bg);
+
+    }
+}
+
+.apexcharts-bar-series {
+    path {
+        stroke: var(--#{$prefix}secondary-bg);
+
+    }
+}
+
+.apexcharts-boxPlot-series {
+    path {
+        stroke: var(--#{$prefix}light-bg-subtle);
+
+    }
+}
+
+.apexcharts-heatmap,
+.apexcharts-treemap {
+    rect {
+        stroke: var(--#{$prefix}secondary-bg);
+
+    }
+}
+
+.apexcharts-pie-series {
+    path {
+        stroke: var(--#{$prefix}secondary-bg);
+    }
+}
+
+.apexcharts-pie-label {
+    fill: $white !important;
+}
+
+.apexcharts-pie {
+
+    line,
+    circle {
+        stroke: transparent;
+    }
+}
+
+.apexcharts-radar-series {
+
+    polygon,
+    line {
+        stroke: var(--#{$prefix}light-bg-subtle);
+
+    }
+}
+
+.apexcharts-radialbar-track {
+    path {
+        stroke: var(--#{$prefix}light-bg-subtle);
+
+    }
+}
+
+.apexcharts-data-labels {
+    rect {
+        stroke: var(--#{$prefix}light-bg-subtle);
+
+    }
+}
+
+.apexcharts-menu {
+    background-color: var(--#{$prefix}secondary-bg) !important;
+    border-color: var(--#{$prefix}border-color) !important;
+}

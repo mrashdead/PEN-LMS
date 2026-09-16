@@ -1,0 +1,67 @@
+// src/assets/scss/custom/structure/_boxed.scss
+
+[data-layout=boxed] {
+    body {
+        margin: var(--#{$prefix}boxed-width) var(--#{$prefix}boxed-width) 0;
+        background-color: var(--#{$prefix}boxed-bg);
+    }
+
+    .main-topbar {
+        top: var(--#{$prefix}boxed-width);
+        right: var(--#{$prefix}boxed-width);
+        left: var(--#{$prefix}boxed-width) !important;
+
+        &.nav-sticky {
+            top: 0;
+        }
+    }
+
+    .main-sidebar {
+        top: calc(var(--#{$prefix}topbar) + var(--#{$prefix}boxed-width));
+        left: var(--#{$prefix}boxed-width);
+
+        .navbar-menu {
+            height: calc(100vh - 5rem - var(--#{$prefix}boxed-width));
+        }
+
+        &.sidebar-sticky {
+            top: var(--#{$prefix}topbar);
+
+            .navbar-menu {
+                height: calc(100vh - 5rem);
+            }
+        }
+
+        @include media-breakpoint-down(lg) {
+            top: 0;
+            left: 0;
+        }
+    }
+
+    &[data-profile-sidebar=true] {
+        .main-sidebar {
+            .navbar-menu {
+                height: calc(100vh - 9rem - var(--#{$prefix}boxed-width));
+            }
+
+            &.sidebar-sticky {
+                .navbar-menu {
+                    height: calc(100vh - 9rem);
+                }
+            }
+        }
+    }
+
+    .page-wrapper {
+        background-color: var(--#{$prefix}body-bg);
+        min-height: 100vh;
+    }
+
+    .sidebar-hidden {
+        @include media-breakpoint-down(lg) {
+            .main-sidebar {
+                left: calc(var(--#{$prefix}sidebar) * -1.1);
+            }
+        }
+    }
+}

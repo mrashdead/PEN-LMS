@@ -1,0 +1,143 @@
+/*
+Template Name: Domiex - Admin & Dashboard Template 
+Author: Spring Code
+Version: 1.0.0
+File: Main Css File
+*/
+
+//Fonts
+@import "custom/fonts/fonts";
+
+//Core files
+@import "../../../node_modules/bootstrap/scss/functions";
+@import "../../../node_modules/bootstrap/scss/variables";
+@import "variables";
+@import "variables-custom";
+@import "variables-dark";
+@import "custom/mixin/maps";
+@import 'custom/components/root';
+@import "../../../node_modules/bootstrap/scss/mixins";
+@import "custom/mixin/mixin";
+
+//layouts
+@import "custom/structure/page-wrapper";
+@import "custom/structure/sidebar";
+@import "custom/structure/sidebar-medium";
+@import "custom/structure/sidebar-small";
+@import "custom/structure/topbar";
+@import "custom/structure/footer";
+@import "custom/structure/modern";
+@import "custom/structure/boxed";
+@import "custom/structure/semibox";
+@import "custom/structure/horizontal";
+@import "custom/structure/others";
+@import "custom/structure/page-heading";
+@import "custom/structure/setting-modal";
+
+//components
+@import "custom/components/alerts";
+@import "custom/components/breadcrumb";
+@import "custom/components/button-navigation";
+@import "custom/components/badge";
+@import "custom/components/loader";
+@import "custom/components/accordion";
+@import "custom/components/modal";
+@import "custom/components/progress";
+@import "custom/components/drawer";
+@import "custom/components/notification";
+@import "custom/components/gallery";
+@import "custom/components/timeline";
+@import "custom/components/pagination";
+@import "custom/components/links";
+@import "custom/components/list-group";
+@import "custom/components/tabs";
+@import "custom/components/animation";
+@import "custom/components/avatar";
+@import "custom/components/buttons";
+@import "custom/components/card";
+@import "custom/components/dropdown";
+@import "custom/components/advanced-animation";
+@import "custom/components/advanced-simplebar";
+@import "custom/components/advanced-swiper";
+@import "custom/components/advanced-3d-effect";
+@import "custom/components/advanced-image-annotation";
+@import "custom/components/advanced-highlight";
+@import "custom/components/advanced-bot";
+@import "custom/components/advanced_treemap";
+@import "custom/components/icons-lucide";
+
+// Forms
+@import "custom/forms/form-basic-input";
+@import "custom/forms/form-file-input";
+@import "custom/forms/form-select";
+@import "custom/forms/form-range";
+@import "custom/forms/form-switches";
+@import "custom/forms/form-checkbox-radio";
+@import "custom/forms/form-input-spin";
+@import "custom/forms/form-editor";
+@import "custom/forms/table-base";
+
+//chart
+@import "custom/chart/apexcharts";
+@import "custom/chart/maps-vector";
+
+//plugins
+@import "custom/plugins/air-datepicker";
+@import "custom/plugins/filepond";
+@import "custom/plugins/grid-table";
+@import "custom/plugins/sweetalerts";
+@import "custom/plugins/nouislider";
+@import "custom/plugins/tabulator";
+@import "custom/plugins/tippy";
+@import "custom/plugins/vis-timeline";
+@import "custom/plugins/datatables";
+
+// Pages
+@import "custom/pages/pages-account";
+@import "custom/pages/pages-user";
+@import "custom/pages/pages-user-projects";
+@import "custom/pages/pages-pricing";
+@import "custom/pages/pages-contact-us";
+@import "custom/pages/pages-licenses";
+@import "custom/pages/pages-coming-soon";
+@import "custom/pages/pages-help-center";
+@import "custom/pages/widgets-cards";
+@import "custom/pages/widgets-banners";
+@import "custom/pages/widgets-charts";
+@import "custom/pages/auth-signin-modern";
+@import "custom/pages/auth-signin-creative";
+
+// Apps
+@import "custom/apps/apps-projects-list";
+@import "custom/apps/apps-projects-roadmap";
+@import "custom/apps/apps-crm-lead";
+@import "custom/apps/apps-hospital-appointments-lists";
+@import "custom/apps/apps-hospital-doctor-schedule";
+@import "custom/apps/apps-school-students-overview";
+@import "custom/apps/apps-school-attendances-students";
+@import "custom/apps/apps-school-exam-question";
+@import "custom/apps/apps-school-exam-schedule";
+@import "custom/apps/apps-ecommerce-orders-overview";
+@import "custom/apps/apps-ecommerce-orders-track";
+@import "custom/apps/apps-ecommerce-payment";
+@import "custom/apps/apps-mailbox";
+@import "custom/apps/apps-email-templates";
+@import "custom/apps/apps-calendar-default";
+@import "custom/apps/apps-chat-default";
+@import "custom/apps/invoice";
+
+// Dashboard
+@import "custom/dashboard/index";
+@import "custom/dashboard/dashboard-email";
+@import "custom/dashboard/dashboards-crm";
+@import "custom/dashboard/dashboards-projects";
+@import "custom/dashboard/dashboards-music";
+@import "custom/dashboard/dashboard-school";
+
+// Landing Pages
+@import "custom/landing/landing-navbar";
+@import "custom/landing/landing-ecommerce";
+@import "custom/landing/landing-email";
+@import "custom/landing/landing-invoice";
+@import "custom/landing/landing-school";
+@import "custom/landing/landing-doctors";

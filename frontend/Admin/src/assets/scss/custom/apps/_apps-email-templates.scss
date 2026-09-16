@@ -1,0 +1,5 @@
+// src/assets/scss/custom/apps/_apps-email-templates.scss
+
+.news-gradient {
+    background: linear-gradient(to top, var(--#{$prefix}warning-bg-subtle), rgba(var(--#{$prefix}warning-rgb), 0));
+}

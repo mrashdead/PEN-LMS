@@ -1,0 +1,134 @@
+// src/assets/scss/custom/dashboard/_dashboards-music.scss
+
+.music-bg {
+    @include position(absolute, 0, 0, 0, 0);
+    background: linear-gradient(to bottom right, rgba(var(--#{$prefix}pink-rgb), .15), rgba(var(--#{$prefix}warning-rgb), .15), rgba(var(--#{$prefix}success-rgb), .15));
+}
+
+.music-banner {
+    background: linear-gradient(to right, var(--#{$prefix}primary), var(--#{$prefix}secondary), var(--#{$prefix}pink));
+
+    .btn-play {
+        border-radius: 20px 7px 20px 7px;
+        color: $white !important;
+        background-color: rgba($white, 0.25) !important;
+        border: 0 !important;
+    }
+}
+
+.play-btn {
+    @include transition;
+
+    &:hover {
+        background-color: var(--#{$prefix}secondary-bg);
+        box-shadow: $box-shadow;
+    }
+}
+
+.music-avatar {
+    position: relative;
+    overflow: hidden;
+    @include border-radius();
+
+    .music-avatar-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: rgba($black, 0.25);
+        color: $white;
+        opacity: 0;
+        @include transition;
+
+        &:hover {
+            opacity: 1;
+        }
+    }
+}
+
+.upgrade-bg {
+    background: linear-gradient(to top right, rgba(var(--#{$prefix}info-rgb), 0.15), rgba(var(--#{$prefix}secondary-rgb), 0.15), rgba(var(--#{$prefix}primary-rgb), 0.15));
+}
+
+.music-panel {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    border-top: 1px solid var(--#{$prefix}border-color);
+    backdrop-filter: blur(16px);
+    background-color: rgba(var(--#{$prefix}body-bg-rgb), 0.5);
+    z-index: 1;
+
+    @include media-breakpoint-up(lg) {
+        left: var(--#{$prefix}sidebar);
+    }
+
+    .progress {
+        background-color: var(--#{$prefix}border-color);
+    }
+}
+
+@include media-breakpoint-up(lg) {
+    [data-sidebar=small] {
+        .music-panel {
+            left: var(--#{$prefix}sidebar-sm);
+        }
+    }
+
+    [data-sidebar=medium] {
+        .music-panel {
+            left: var(--#{$prefix}sidebar-md);
+        }
+    }
+
+    //boxed layouts
+    [data-layout=boxed] {
+        &[data-sidebar=small] {
+            .music-panel {
+                left: calc(var(--#{$prefix}sidebar-sm) + var(--#{$prefix}boxed-width));
+            }
+        }
+        
+        &[data-sidebar=medium] {
+            .music-panel {
+                left: calc(var(--#{$prefix}sidebar-md) + var(--#{$prefix}boxed-width));
+            }
+        }
+
+        &[data-sidebar=large] {
+            .music-panel {
+                left: calc(var(--#{$prefix}sidebar) + var(--#{$prefix}boxed-width));
+            }
+        }
+    }
+
+    //Semibox Layouts
+    [data-layout=semibox] {
+        &[data-sidebar=small] {
+            .music-panel {
+                left: calc(var(--#{$prefix}sidebar-sm) + var(--#{$prefix}semibox-width) + var(--#{$prefix}semibox-width));
+            }
+        }
+        
+        &[data-sidebar=medium] {
+            .music-panel {
+                left: calc(var(--#{$prefix}sidebar-md) + var(--#{$prefix}semibox-width) + var(--#{$prefix}semibox-width));
+            }
+        }
+
+        &[data-sidebar=large] {
+            .music-panel {
+                left: calc(var(--#{$prefix}sidebar) + var(--#{$prefix}semibox-width) + var(--#{$prefix}semibox-width));
+            }
+        }
+    }
+
+    [data-layout=horizontal] { 
+        .music-panel {
+            left: 0;
+        }
+    }
+
+}

@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% load asset_v rbac %}
+{% block title %}اشخاص و کاربران{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="اشخاص و کاربران" section="مدیریت کاربران" %}
+{% endblock %}
+
+{% block content %}
+{{ person_page_context|json_script:"pen-persons-ctx" }}
+
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex flex-column flex-xl-row gap-3 align-items-xl-center">
+        <div class="flex-grow-1">
+          <h6 class="mb-1 card-title">فهرست اشخاص</h6>
+          <p class="mb-0 text-muted fs-14">جستجو و مدیریت حساب‌های کاربری با صفحه‌بندی سریع.</p>
+        </div>
+        {% if person_page_context.can_create %}
+          <button type="button" id="person-add" class="btn btn-primary flex-shrink-0">
+            <i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> تعریف شخص
+          </button>
+        {% endif %}
+      </div>
+
+      <div class="card-body pt-0">
+        <form id="person-filter-form" class="row g-2 align-items-end mb-3" method="get" aria-label="جستجو و فیلتر اشخاص">
+          <div class="col-12 col-md-3">
+            <label for="person-filter-national-code" class="form-label">کد ملی دقیق</label>
+            <input type="text" id="person-filter-national-code" name="national_code" class="form-control"
+                   dir="ltr" inputmode="numeric" maxlength="10" pattern="[0-9۰-۹]{10}"
+                   placeholder="۱۰ رقم" autocomplete="off">
+          </div>
+          <div class="col-12 col-md-2">
+            <label for="person-filter-first-name" class="form-label">نام</label>
+            <input type="text" id="person-filter-first-name" name="first_name" class="form-control">
+          </div>
+          <div class="col-12 col-md-2">
+            <label for="person-filter-last-name" class="form-label">نام خانوادگی</label>
+            <input type="text" id="person-filter-last-name" name="last_name" class="form-control">
+          </div>
+          <div class="col-12 col-md-2">
+            <label for="person-filter-role" class="form-label">نقش</label>
+            <select id="person-filter-role" name="role" class="form-select">
+              <option value="">همه نقش‌ها</option>
+              <option value="manager">مدیریت</option>
+              <option value="supervisor">کارمند سرپرست</option>
+              <option value="employee">کارمند</option>
+              <option value="teacher">استاد / مدرس</option>
+              <option value="student">دانش‌آموز</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-2">
+            <label for="person-filter-ordering" class="form-label">مرتب‌سازی</label>
+            <select id="person-filter-ordering" name="ordering" class="form-select">
+              <option value="-created_at">جدیدترین ثبت‌نام</option>
+              <option value="last_name">نام خانوادگی</option>
+              <option value="-last_name">نام خانوادگی (نزولی)</option>
+              <option value="first_name">نام</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-1 d-flex gap-2">
+            <button type="submit" class="btn btn-outline-primary w-100">اعمال</button>
+          </div>
+        </form>
+
+        <div id="person-list-status" class="text-muted fs-14 mb-2" role="status" aria-live="polite"></div>
+        <div class="table-card table-responsive" id="person-table" aria-busy="false">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th scope="col">نام</th>
+                <th scope="col">نام خانوادگی</th>
+                <th scope="col">کد ملی</th>
+                <th scope="col">نقش / نوع</th>
+                <th scope="col">موبایل</th>
+                <th scope="col">تاریخ ثبت</th>
+                <th scope="col">ورود</th>
+                <th scope="col" class="text-end">عملیات</th>
+              </tr>
+            </thead>
+            <tbody id="person-list-body">
+              <tr><td colspan="8"><div class="pen-loading">در حال بارگذاری…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="row align-items-center g-3 mt-2">
+          <div class="col-md-6">
+            <p id="person-page-status" class="text-muted text-center text-md-start mb-0"></p>
+          </div>
+          <div class="col-md-6">
+            <nav aria-label="صفحه‌بندی اشخاص">
+              <ul class="pagination justify-content-center justify-content-md-end mb-0" id="person-pager"></ul>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if person_page_context.can_create %}
+<div class="modal fade" id="person-create-modal" tabindex="-1" aria-labelledby="person-create-title" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <form id="person-create-form" method="post" action="/workspace/persons/create/" novalidate>
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title" id="person-create-title">تعریف شخص جدید</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+        </div>
+        <div class="modal-body">
+          <div id="person-form-errors" class="pen-error-summary" role="alert" aria-live="assertive" tabindex="-1" hidden>
+            <strong>خطاهای فرم را برطرف کنید:</strong>
+            <ul id="person-form-error-list" class="mb-0"></ul>
+          </div>
+
+          <div id="person-progress" class="pen-progress" aria-label="پیشرفت فرم">
+            <span class="done"></span><span></span>
+          </div>
+
+          <section id="person-step-one" data-person-step="1" aria-labelledby="person-step-one-title">
+            <h6 id="person-step-one-title" class="fw-semibold mb-3">گام اول: انتخاب نوع کاربر</h6>
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="id_target">نوع کاربر چیست؟ <span class="text-danger">*</span></label>
+              {{ person_form.target }}
+              <div id="help-target" class="form-text">فقط نقش‌هایی که برای حساب شما مجاز هستند نمایش داده می‌شوند.</div>
+            </div>
+          </section>
+
+          <section id="person-step-two" data-person-step="2" aria-labelledby="person-step-two-title" hidden>
+            <h6 id="person-step-two-title" class="fw-semibold mb-3">گام دوم: اطلاعات شخص</h6>
+            <div class="row g-3">
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="id_first_name">نام <span class="text-danger">*</span></label>
+                {{ person_form.first_name }}
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="id_last_name">نام خانوادگی <span class="text-danger">*</span></label>
+                {{ person_form.last_name }}
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="id_national_code">کد ملی <span class="text-danger">*</span></label>
+                {{ person_form.national_code }}
+                <div id="help-national_code" class="form-text">دقیقاً ۱۰ رقم عددی و یکتا.</div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="id_phone_number">شماره موبایل <span class="text-danger">*</span></label>
+                {{ person_form.phone_number }}
+                <div id="help-phone_number" class="form-text">دقیقاً ۱۱ رقم؛ نمونه: ۰۹۱۲۱۲۳۴۵۶۷.</div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="id_email">ایمیل (اختیاری)</label>
+                {{ person_form.email }}
+                <div id="help-email" class="form-text">در صورت ورود، قالب استاندارد ایمیل بررسی می‌شود.</div>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="id_gender">جنسیت</label>
+                {{ person_form.gender }}
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="id_birth_date">تاریخ تولد</label>
+                {{ person_form.birth_date }}
+                <div id="help-birth_date" class="form-text">قالب شمسی: ۱۴۰۵/۰۱/۰۱.</div>
+              </div>
+
+              <div class="col-12" data-person-role-fields="employee manager" hidden>
+                <div class="border rounded p-3 bg-body-tertiary">
+                  <h6 class="fw-semibold mb-3">اطلاعات شغلی و دسترسی</h6>
+                  <div class="row g-3">
+                    <div class="col-12 col-md-6" data-person-role-fields="employee" hidden>
+                      <label class="form-label" for="id_employee_kind">نوع کاربری کارمند <span class="text-danger">*</span></label>
+                      {{ person_form.employee_kind }}
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label class="form-label" for="id_job_title">عنوان سمت / پست سازمانی <span class="text-danger">*</span></label>
+                      {{ person_form.job_title }}
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label class="form-label" for="id_password">کلمه عبور اختصاصی <span class="text-danger">*</span></label>
+                      {{ person_form.password }}
+                      <div id="help-password" class="form-text">برای کارمند و مدیریت الزامی است؛ حداقل ۸ نویسه.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12" data-person-role-fields="teacher" hidden>
+                <label class="form-label" for="id_specialization">تخصص‌ها / دروس قابل تدریس</label>
+                {{ person_form.specialization }}
+                <div id="help-specialization" class="form-text">عنوان درس یا رشته را با ویرگول جدا کنید.</div>
+              </div>
+
+              <div class="col-12" data-person-role-fields="student" hidden>
+                <div class="border rounded p-3 bg-body-tertiary">
+                  <h6 class="fw-semibold mb-1">اطلاعات والدین</h6>
+                  <p class="text-muted fs-14 mb-3">حداقل یکی از شماره‌های موبایل پدر یا مادر الزامی است.</p>
+                  <div class="row g-3">
+                    <div class="col-12 col-md-4">
+                      <label class="form-label" for="id_father_first_name">نام پدر</label>
+                      {{ person_form.father_first_name }}
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <label class="form-label" for="id_father_last_name">نام خانوادگی پدر</label>
+                      {{ person_form.father_last_name }}
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <label class="form-label" for="id_father_phone_number">شماره موبایل پدر</label>
+                      {{ person_form.father_phone_number }}
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <label class="form-label" for="id_mother_first_name">نام مادر</label>
+                      {{ person_form.mother_first_name }}
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <label class="form-label" for="id_mother_last_name">نام خانوادگی مادر</label>
+                      {{ person_form.mother_last_name }}
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <label class="form-label" for="id_mother_phone_number">شماره موبایل مادر</label>
+                      {{ person_form.mother_phone_number }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="alert alert-info d-flex align-items-start gap-2 mt-4 mb-0" role="note">
+              <i data-lucide="shield-check" class="size-4 flex-shrink-0 mt-1" aria-hidden="true"></i>
+              <span>برای هر شخص حساب داشبورد ساخته می‌شود. نام کاربری کد ملی است؛ رمز پیش‌فرض دانش‌آموز و استاد کد ملی است و کارمند/مدیریت با رمز اختصاصی وارد می‌شوند.</span>
+            </div>
+          </section>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">انصراف</button>
+          <button type="button" class="btn btn-outline-primary" id="person-step-back" hidden>بازگشت</button>
+          <button type="button" class="btn btn-primary" id="person-step-next">ادامه</button>
+          <button type="submit" class="btn btn-primary" id="person-submit" hidden>
+            <i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> ثبت شخص
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="modal fade" id="person-detail-modal" tabindex="-1" aria-labelledby="person-detail-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title" id="person-detail-title">جزئیات شخص</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div>
+      <div class="modal-body" id="person-detail-body"></div>
+      <div class="modal-footer" id="person-detail-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="person-edit-modal" tabindex="-1" aria-labelledby="person-edit-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <form id="person-edit-form" novalidate>
+        <div class="modal-header"><h5 class="modal-title" id="person-edit-title">ویرایش شخص</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div>
+        <div class="modal-body">
+          <div id="person-edit-errors" class="alert alert-danger" role="alert" hidden></div>
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label" for="person-edit-first-name">نام</label><input class="form-control" id="person-edit-first-name" name="first_name" required></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-last-name">نام خانوادگی</label><input class="form-control" id="person-edit-last-name" name="last_name" required></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-national-code">کد ملی</label><input class="form-control" id="person-edit-national-code" name="national_code" readonly disabled></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-person-type">نوع شخص</label><input class="form-control" id="person-edit-person-type" readonly disabled></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-father">نام پدر</label><input class="form-control" id="person-edit-father" name="father_name"></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-mobile">موبایل</label><input class="form-control" id="person-edit-mobile" name="mobile" dir="ltr" required></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-email">ایمیل</label><input class="form-control" id="person-edit-email" name="email" dir="ltr"></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-phone">تلفن ثابت</label><input class="form-control" id="person-edit-phone" name="phone" dir="ltr"></div>
+            <div class="col-12"><label class="form-label" for="person-edit-address">آدرس</label><textarea class="form-control" id="person-edit-address" name="address" rows="2"></textarea></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-gender">جنسیت</label><select class="form-select" id="person-edit-gender" name="gender"><option value="unspecified">مشخص نشده</option><option value="male">مرد</option><option value="female">زن</option></select></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-birth-date">تاریخ تولد</label><input class="form-control" id="person-edit-birth-date" name="birth_date" dir="ltr"></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-department">دپارتمان</label><input class="form-control" id="person-edit-department" name="department"></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-job-title">سمت</label><input class="form-control" id="person-edit-job-title" name="job_title"></div>
+            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="person-edit-active" name="is_active"><label class="form-check-label" for="person-edit-active">رکورد فعال باشد</label></div></div>
+          </div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">انصراف</button><button type="submit" class="btn btn-primary"><i data-lucide="save" class="size-4 me-1"></i> ذخیره تغییرات</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/persons.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,161 @@
+// src/assets/scss/custom/components/_root.scss
+
+@import "../mixin/sidebar";
+@import "../mixin/topbar-colors";
+@import "../mixin/primary-colors";
+
+:root {
+
+    @each $color, $value in $custom-theme-colors-text {
+        --#{$prefix}#{$color}-text-emphasis: #{$value};
+    }
+
+    @each $color, $value in $custom-theme-colors-bg-subtle {
+        --#{$prefix}#{$color}-bg-subtle: #{$value};
+    }
+
+    @each $color, $value in $custom-theme-colors-border-subtle {
+        --#{$prefix}#{$color}-border-subtle: #{$value};
+    }
+
+    --#{$prefix}link-color: var(--#{$prefix}primary);
+
+    @each $name, $value in $primary-color-variations {
+        &[data-colors="#{$name}"] {
+            --#{$prefix}primary: #{$value};
+            --#{$prefix}primary-rgb: #{red($value)}, #{green($value)}, #{blue($value)};
+        }   
+    }
+
+    --#{$prefix}primary-text-emphasis:      color-mix(in srgb, var(--#{$prefix}primary) 75%, black 25%);
+    --#{$prefix}primary-bg-subtle:          color-mix(in srgb, var(--#{$prefix}primary) 10%, transparent);
+    --#{$prefix}primary-border-subtle:      color-mix(in srgb, var(--#{$prefix}primary) 30%, transparent);
+
+    //topbar styles
+    --#{$prefix}sidebar: #{$sidebar-width};
+    --#{$prefix}sidebar-md: #{$sidebar-md-width};
+    --#{$prefix}sidebar-sm: #{$sidebar-sm-width};
+    --#{$prefix}sidebar-padding-y: #{$sidebar-padding-y};
+    --#{$prefix}sidebar-padding-x: #{$sidebar-padding-x};
+    --#{$prefix}sidebar-font-size: #{$sidebar-font-size};
+
+    //sidebar colors
+    @each $theme, $vars in $themes-sidebar {
+        @if $theme ==light {
+            @each $key, $value in $vars {
+                --#{$prefix}#{$key}: #{$value};
+            }
+        }
+
+        @else {
+            &[data-sidebar-colors=#{$theme}] {
+                @each $key, $value in $vars {
+                    --#{$prefix}#{$key}: #{$value};
+                }
+            }
+        }
+    }
+
+    &[data-sidebar-colors=light] {
+        --#{$prefix}sidebar-bg:                     #{$sidebar-bg};
+        --#{$prefix}sidebar-border:                 #{$border-color};
+        --#{$prefix}sidebar-menu-title:             #{$sidebar-menu-title};
+        --#{$prefix}sidebar-link-color:             #{$sidebar-link-color};
+        --#{$prefix}sidebar-dropdown-shadow:        #{$sidebar-dropdown-shadow};
+        --#{$prefix}sidebar-link-hover-color:       #{$sidebar-link-hover-color};
+        --#{$prefix}sidebar-link-bg-hover-color:    #{sidebar-link-bg-hover-color};
+        --#{$prefix}sidebar-link-active-color:      #{$sidebar-link-active-color};
+        --#{$prefix}sidebar-link-bg-active-color:   #{sidebar-link-bg-hover-color};
+        --#{$prefix}sidebar-link-sub-color:         #{$sidebar-link-sub-color};
+        --#{$prefix}sidebar-link-sub-hover-color:   #{$sidebar-link-sub-hover-color};
+        --#{$prefix}sidebar-link-sub-active-color:  #{$sidebar-link-sub-active-color};
+        --#{$prefix}sidebar-link-sub-effect-color:  #{sidebar-link-sub-effect-color};
+    }
+
+    &:is([data-sidebar-colors=dark], [data-sidebar-colors=brand], [data-sidebar-colors=purple], [data-sidebar-colors=sky]) {
+        --#{$prefix}sidebar-border:                 var(--#{$prefix}sidebar-bg);
+        --#{$prefix}sidebar-menu-title:             color-mix(in srgb, var(--#{$prefix}sidebar-bg) 100%, white 95%);
+        --#{$prefix}sidebar-link-color:             color-mix(in srgb, var(--#{$prefix}sidebar-bg) 100%, white 95%);
+        --#{$prefix}sidebar-dropdown-shadow:        0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+        --#{$prefix}sidebar-link-hover-color:       white;
+        --#{$prefix}sidebar-link-bg-hover-color:    color-mix(in srgb, var(--#{$prefix}sidebar-bg) 100%, white 5%);
+        --#{$prefix}sidebar-link-active-color:      white;
+        --#{$prefix}sidebar-link-bg-active-color:   color-mix(in srgb, var(--#{$prefix}sidebar-bg) 100%, white 5%);
+        --#{$prefix}sidebar-link-sub-color:         color-mix(in srgb, var(--#{$prefix}sidebar-bg) 100%, white 95%);
+        --#{$prefix}sidebar-link-sub-hover-color:   white;
+        --#{$prefix}sidebar-link-sub-active-color:  white;
+        --#{$prefix}sidebar-link-sub-effect-color:  color-mix(in srgb, var(--#{$prefix}sidebar-bg) 100%, white 3.5%);
+
+        .main-sidebar .simplebar-scrollbar:before { 
+            background-color: color-mix(in srgb, var(--#{$prefix}sidebar-bg) 100%, white 80%) !important;
+        }
+    }
+
+    //topbar styles
+    --#{$prefix}topbar: #{$topbar-height};
+    --#{$prefix}topbar-bg: #{$topbar-bg};
+
+    //topbar colors
+    @each $theme, $vars in $themes-topbar {
+        $selector: if($theme =='light', '&', '&[data-topbar-colors=#{$theme}]');
+
+        #{$selector} {
+            @each $key, $value in $vars {
+                --#{$prefix}#{$key}: #{$value};
+            }
+
+            @if $theme =='light' {
+                --#{$prefix}topbar-border: #{$topbar-border};
+                --#{$prefix}topbar-color: #{$topbar-color};
+                --#{$prefix}topbar-hover-color: #{$topbar-hover-color};
+            }
+
+            @else {
+                --#{$prefix}topbar-border: color-mix(in srgb, var(--#{$prefix}topbar-bg) 100%, white 10%);
+                --#{$prefix}topbar-color: color-mix(in srgb, var(--#{$prefix}topbar-bg) 100%, white 50%);
+                --#{$prefix}topbar-hover-color: color-mix(in srgb, var(--#{$prefix}topbar-bg) 100%, white 100%);
+            }
+        }
+    }
+
+    //boxed layout
+    --#{$prefix}boxed-bg: #{$boxed-bg};
+    --#{$prefix}boxed-width: #{$boxed-width};
+
+    //semibox layout
+    --#{$prefix}semibox-width: #{$semibox-width};
+
+    &[data-bs-theme="dark"] {
+        @each $color, $value in $custom-theme-colors-text-dark {
+            --#{$prefix}#{$color}-text-emphasis: #{$value};
+        }
+
+        @each $color, $value in $custom-theme-colors-bg-subtle-dark {
+            --#{$prefix}#{$color}-bg-subtle: #{$value};
+        }
+
+        @each $color, $value in $custom-theme-colors-border-subtle-dark {
+            --#{$prefix}#{$color}-border-subtle: #{$value};
+        }
+
+        --#{$prefix}light: #{$custom-light};
+        --#{$prefix}light-rgb: #{to-rgb($custom-light)};
+
+        --#{$prefix}box-shadow: 0 10px 15px -3px rgb(15, 23, 42), 0 4px 6px -4px rgb(15, 23, 42);
+
+        .modal {
+            --#{$prefix}modal-box-shadow: 0 10px 15px -3px rgb(21, 31, 53), 0 4px 6px -4px rgb(21, 31, 53);
+            --#{$prefix}modal-border-color: var(--#{$prefix}border-color);
+        }
+
+        .offcanvas {
+            --#{$prefix}offcanvas-box-shadow: 0 10px 15px -3px rgb(21, 31, 53), 0 4px 6px -4px rgb(21, 31, 53);
+            --#{$prefix}offcanvas-border-color: var(--#{$prefix}border-color);
+        }
+
+        .dropdown-menu {
+            --#{$prefix}dropdown-border-width: 1px;
+            --#{$prefix}dropdown-box-shadow: 0 10px 15px -3px rgb(21, 31, 53), 0 4px 6px -4px rgb(21, 31, 53);
+        }
+    }
+}

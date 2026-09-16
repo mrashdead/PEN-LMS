@@ -1,0 +1,66 @@
+{% load static %}
+{% comment %}
+Pen LMS topbar — deliberately minimal. Kept only what the theme's JS/CSS
+contracts need: #main-topbar (sticky behavior), #toggleSidebar (sidebar
+button) and #darkModeButton (light/dark switch, handled in pen-core.js).
+The demo theme's search box / notifications / settings / language dropdowns
+were sample content and are intentionally omitted.
+{% endcomment %}
+<header class="main-topbar" id="main-topbar">
+  <div class="navbar-brand">
+    <div class="logos">
+      <a href="{% url 'dashboard-home' %}" aria-label="Pen LMS">
+        <img src="{% static 'assets/images/main-logo.png' %}" loading="lazy" height="24" alt="Pen LMS" class="logo-dark">
+        <img src="{% static 'assets/images/logo-white.png' %}" loading="lazy" height="24" alt="Pen LMS" class="logo-light">
+      </a>
+    </div>
+    <button type="button" id="toggleSidebar" class="sidebar-toggle btn p-0" aria-label="باز و بسته کردن منوی کناری">
+      <i data-lucide="panel-right-open" class="size-4"></i>
+    </button>
+  </div>
+
+  <div class="d-flex align-items-center gap-2 ms-auto">
+    {# ── Notifications bell (unread messages) — staff only ────────── #}
+    {% if is_staff_user %}
+    <div class="dropdown">
+      <button type="button" id="notifBell" class="btn topbar-link position-relative"
+              aria-label="اعلان‌ها" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+        <i data-lucide="bell" class="size-4"></i>
+        <span class="msg-badge msg-unread-badge position-absolute top-0 start-100 translate-middle" hidden></span>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end p-0" style="min-width:320px">
+        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+          <h6 class="mb-0 fs-14 fw-semibold flex-grow-1">پیام‌های اخیر</h6>
+          <a href="{% url 'workspace-messages' %}" class="fs-13 link-primary">همه</a>
+        </div>
+        <div id="notif-list" style="max-height:320px;overflow-y:auto" aria-live="polite">
+          <div class="pen-loading">…</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <button type="button" id="darkModeButton" class="topbar-link topbar-mode btn" aria-label="تغییر حالت روشن/تاریک">
+      <i data-lucide="moon" class="size-4 dark"></i>
+      <i data-lucide="sun" class="size-4 light"></i>
+    </button>
+
+    <div class="dropdown">
+      <button type="button" class="btn topbar-link d-lg-none" aria-label="منوی کاربر" data-bs-toggle="dropdown" aria-expanded="false">
+        <i data-lucide="user-round" class="size-4"></i>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end p-2">
+        <div class="px-3 py-2 border-bottom mb-2">
+          <h6 class="mb-0 text-truncate fs-14">{{ request.user.get_full_name|default:request.user.username }}</h6>
+          <p class="mb-0 fs-13 text-muted text-truncate">{{ request.user.username }}</p>
+        </div>
+        <form method="post" action="{% url 'dashboard-logout' %}">
+          {% csrf_token %}
+          <button type="submit" class="dropdown-item d-flex align-items-center gap-2">
+            <i data-lucide="log-out" class="size-4"></i> خروج
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</header>

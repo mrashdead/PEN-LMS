@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}مجوزها{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="مجوزها و دسترسی‌ها" section="مدیریت سازمان" %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  {# ── Access simulator ───────────────────────────────────────────── #}
+  <div class="col-12 col-xl-5">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0 card-title"><i data-lucide="shield-question" class="size-4 me-1"></i> شبیه‌ساز دسترسی</h6>
+        <p class="mb-0 text-muted fs-14">بپرسید «آیا علی به ویرایش فرم ثبت‌نام دسترسی دارد؟» و دلیلش را ببینید.</p>
+      </div>
+      <div class="card-body">
+        <div class="vstack gap-3">
+          <div>
+            <label class="form-label" for="sim-user">کاربر</label>
+            <select id="sim-user" class="form-select" aria-label="انتخاب کاربر"><option value="">در حال بارگذاری…</option></select>
+          </div>
+          <div class="row g-2">
+            <div class="col-7">
+              <label class="form-label" for="sim-resource">منبع</label>
+              <select id="sim-resource" class="form-select" aria-label="منبع"></select>
+            </div>
+            <div class="col-5">
+              <label class="form-label" for="sim-verb">عملیات</label>
+              <select id="sim-verb" class="form-select" aria-label="عملیات">
+                <option value="view">مشاهده</option>
+                <option value="add">ایجاد</option>
+                <option value="change">ویرایش</option>
+                <option value="delete">حذف</option>
+              </select>
+            </div>
+          </div>
+          <button id="sim-run" class="btn btn-primary">
+            <i data-lucide="play" class="size-4 me-1"></i> بررسی
+          </button>
+          <div id="sim-result" hidden></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Permission matrix ──────────────────────────────────────────── #}
+  <div class="col-12 col-xl-7">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0 card-title"><i data-lucide="table" class="size-4 me-1"></i> ماتریس مجوز گروه‌ها</h6>
+        <p class="mb-0 text-muted fs-14">مشاهده/ایجاد/ویرایش/حذف برای هر منبع — از مجوزهای مدل جنگو.</p>
+      </div>
+      <div class="card-body pt-0">
+        <div class="table-responsive" id="matrix-wrap" aria-busy="false">
+          <div class="pen-loading">در حال بارگذاری…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/org.js' %}"></script>
+{% endblock %}

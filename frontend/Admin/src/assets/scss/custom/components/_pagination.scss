@@ -1,0 +1,162 @@
+// src/assets/scss/custom/components/_pagination.scss
+
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+
+    .page-item {
+        &:is(:first-child, :last-child) {
+            .page-link {
+                display: flex;
+                align-items: center;
+                gap: 0.25rem;
+                width: auto;
+                padding: var(--#{$prefix}pagination-padding-y) var(--#{$prefix}pagination-padding-x);
+            }
+        }
+
+        .page-link {
+            @include flexStyle(center, center);
+            width: 2.25rem;
+            height: 2.25rem;
+            @include border-radius($pagination-border-radius);
+            padding: 0;
+        }
+    }
+
+    //rounded-pagination
+    &.pagination-rounded {
+        .page-link {
+            @include border-radius($border-radius-pill);
+        }
+    }
+
+    //pagination modern
+    &.pagination-modern {
+        gap: 0;
+
+        .page-item {
+            .page-link {
+                width: auto;
+                padding: var(--#{$prefix}pagination-padding-y) var(--#{$prefix}pagination-padding-x);
+                @include border-radius(0);
+                gap: 0.25rem;
+            }
+
+            &:is(:first-child, :last-child) {
+                .page-link {
+                    width: 2.25rem;
+                    height: 2.25rem;
+                    @include flexStyle(center, center);
+                    padding: 0;
+                }
+            }
+
+            &:first-child .page-link {
+                border-top-left-radius: var(--#{$prefix}pagination-border-radius);
+                border-bottom-left-radius: var(--#{$prefix}pagination-border-radius);
+            }
+
+            &:last-child .page-link {
+                border-top-right-radius: var(--#{$prefix}pagination-border-radius);
+                border-bottom-right-radius: var(--#{$prefix}pagination-border-radius);
+            }
+        }
+
+        &.pagination-rounded {
+            .page-item {
+                &:first-child .page-link {
+                    border-top-left-radius: $border-radius-pill;
+                    border-bottom-left-radius: $border-radius-pill;
+                }
+
+                &:last-child .page-link {
+                    border-top-right-radius: $border-radius-pill;
+                    border-bottom-right-radius: $border-radius-pill;
+                }
+            }
+        }
+    }
+
+    //pagination flush
+    &.pagination-flush {
+        .page-item {
+            .page-link {
+                border: 0;
+            }
+        }
+    }
+
+    //pagination size
+    &.pagination-xs {
+        .page-item {
+            .page-link {
+                width: 1.5rem;
+                height: 1.5rem;
+                font-size: .75rem;
+                line-height: 1rem;
+            }
+
+            &:is(:first-child, :last-child) {
+                .page-link {
+                    width: auto;
+                    height: 1.5rem;
+                    padding: .125rem .5rem;
+                }
+            }
+        }
+    }
+
+    &.pagination-sm {
+        .page-item {
+            .page-link {
+                width: 1.75rem;
+                height: 1.75rem;
+                font-size: .75rem;
+                line-height: 1rem;
+            }
+
+            &:is(:first-child, :last-child) {
+                .page-link {
+                    width: auto;
+                    height: 1.75rem;
+                }
+            }
+        }
+    }
+
+    &.pagination-md {
+        .page-item {
+            .page-link {
+                width: 2rem;
+                height: 2rem;
+            }
+
+            &:is(:first-child, :last-child) {
+                .page-link {
+                    width: auto;
+                    height: 2rem;
+                }
+            }
+        }
+    }
+
+    &.pagination-lg {
+        .page-item {
+            .page-link {
+                width: 2.5rem;
+                height: 2.5rem;
+                font-size: .9375rem;
+            }
+
+            &:is(:first-child, :last-child) {
+                .page-link {
+                    width: auto;
+                    height: 2.5rem;
+                }
+            }
+        }
+    }
+}

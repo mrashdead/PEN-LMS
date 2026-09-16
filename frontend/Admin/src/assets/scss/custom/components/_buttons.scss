@@ -1,0 +1,108 @@
+// src/assets/scss/custom/components/_buttons.scss
+
+:is(.btn.show) {
+    border-color: transparent;
+}
+
+[class*="btn-dashed-"] {
+    border-style: dashed;
+}
+
+[class*="btn-3d-"] {
+    box-shadow: inset 0 2px 4px 0 var(--#{$prefix}btn-shadow-color);
+}
+
+// Button Size
+.btn.btn-xs {
+    padding: 0.125rem 0.5rem;
+    font-size: 0.6875rem;
+}
+
+.btn.btn-md {
+    padding: 0.5rem 1rem;
+    font-size: 12px;
+}
+
+.btn.btn-lg {
+    padding: 0.75rem 1.75rem;
+    font-size: 1rem;
+}
+
+// Icon Overlay with Text
+.btn-icon-overlay {
+    padding-left: 4rem;
+
+    &.right {
+        padding-inline: 1.5rem 4rem;
+
+        .icon {
+            right: 0;
+            left: auto;
+        }
+    }
+
+    .icon {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        @include flexStyle(center, center);
+        width: 2.375rem;
+        background-color: rgba(var(--#{$prefix}white-rgb), 0.1);
+    }
+}
+
+// Icon Buttons
+.btn {
+    &.btn-icon {
+        width: 2.5625rem;
+        height: 2.5625rem;
+        @include flexStyle(center, center);
+        padding: 0;
+        @include transition($btn-transition);
+
+        i {
+            line-height: 2;
+        }
+    }
+}
+
+.btn-modern {
+    .effect {
+        background-image: radial-gradient(75% 100% at 50% 0%, rgba(56, 189, 248, 0.6) 0%, rgba(56, 189, 248, 0) 75%);
+        opacity: 0;
+        @include transition($btn-transition);
+
+        &:hover {
+            opacity: 100;
+        }
+    }
+}
+
+// hover effect
+.btn-translate-up {
+    transform: translateY(0);
+    @include transition;
+
+    &:hover {
+        transform: translateY(-0.125rem);
+    }
+}
+
+.btn-translate-down {
+    transform: translateY(0);
+    @include transition;
+
+    &:hover {
+        transform: translateY(0.125rem);
+    }
+}
+
+.btn-scale {
+    transform: scale(1);
+    @include transition;
+
+    &:hover {
+        transform: scale(1.1);
+    }
+}

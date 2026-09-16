@@ -1,0 +1,96 @@
+// src/assets/scss/custom/forms/_form-editor.scss
+
+.ql-snow .ql-editor h2 {
+    line-height: 2;
+}
+
+.ql-container {
+    height: 13rem !important;
+}
+
+:is(.ql-toolbar, .ql-container) {
+    .ql-snow {
+        border-color: var(--#{$prefix}border-color) !important;
+    }
+}
+
+.ql-snow {
+    .ql-picker {
+        color: var(--#{$prefix}body-color);
+    }
+
+    .ql-stroke {
+        stroke: var(--#{$prefix}body-color);
+    }
+
+    .ql-picker-options {
+        background-color: var(--#{$prefix}secondary-bg);
+    }
+}
+
+:is(.ql-toolbar, .ql-container).ql-snow {
+    border-color: var(--#{$prefix}border-color);
+}
+
+.ql-toolbar.ql-snow .ql-picker.ql-expanded {
+    :is(.ql-picker-label, .ql-picker-options) {
+        border-color: var(--#{$prefix}border-color);
+    }
+}
+
+//editor.js
+.codex-editor {
+    .codex-editor__redactor {
+        padding-bottom: 0 !important;
+    }
+
+    :is(.ce-toolbar__plus, .ce-toolbar__settings-btn) {
+        color: var(--#{$prefix}body-color);
+    }
+
+    @media (hover: hover) {
+        :is(.ce-toolbar__settings-btn, .ce-toolbar__plus) {
+            &:hover {
+                background-color: var(--#{$prefix}tertiary-bg);
+            }
+        }
+    }
+
+    .ce-block--selected .ce-block__content {
+        background-color: var(--#{$prefix}primary-bg-subtle);
+    }
+
+    .ce-popover {
+        --color-background: var(--#{$prefix}secondary-bg);
+        --color-border: var(--#{$prefix}border-color);
+        --color-text-primary: var(--#{$prefix}body-color);
+        --color-text-secondary: var(--#{$prefix}secondary-color);
+        --color-background-item-hover: var(--#{$prefix}tertiary-bg);
+    }
+
+    .cdx-marker {
+        background-color: var(--#{$prefix}warning-bg-subtle);
+    }
+
+    .cdx-search-field {
+        background-color: var(--#{$prefix}tertiary-bg);
+        border-color: var(--#{$prefix}border-color);
+    }
+}
+
+.cdx-block {
+    .cdx-attaches {
+        --color-line: var(--#{$prefix}border-color);
+        --color-bg: var(--#{$prefix}secondary-bg);
+        --color-bg-secondary: var(--#{$prefix}tertiary-bg);
+        --color-bg-secondary--hover: var(--#{$prefix}tertiary-bg);
+        --color-text-secondary: var(--#{$prefix}secondary-color);
+    }
+}
+
+@media (max-width: 650px) {
+    :is(.ce-toolbar__settings-btn, .ce-toolbar__plus) {
+        border-color: var(--#{$prefix}border-color);
+        background-color: var(--#{$prefix}secondary-bg);
+    }
+}

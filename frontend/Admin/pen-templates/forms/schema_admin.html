@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load forms_extras %}
+{% block title %}مدیریت فرم‌ها{% endblock %}
+{% block page_heading %}
+  {% url 'schema-admin' as admin_url %}
+  {% include "partials/page-heading.html" with title="مدیریت فرم‌ها" section="فرم‌ها" section_url=admin_url %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <div class="flex-grow-1">
+          <h6 class="mb-0 card-title">تعریف فرم‌ها</h6>
+          <p class="mb-0 text-muted fs-14">
+            {{ total_schemas }} نسخه در {{ schema_cards|length }} فرم — نسخه‌های ارسال‌شده تغییرناپذیرند؛ ویرایش یعنی ساخت نسخهٔ جدید.
+          </p>
+        </div>
+        <a href="{% url 'schema-builder-create' %}" class="btn btn-primary flex-shrink-0">
+          <i data-lucide="file-plus-2" class="size-4 me-2"></i> فرم جدید
+        </a>
+      </div>
+      <div class="card-body pt-0">
+        {% for card in schema_cards %}
+          <div class="border rounded p-3 mb-3">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+              <div class="flex-grow-1">
+                <h6 class="mb-0">
+                  {{ card.title }}
+                  <code class="fs-13 text-muted ms-1">{{ card.slug }}</code>
+                </h6>
+                {% if card.description %}<p class="mb-0 text-muted fs-14">{{ card.description }}</p>{% endif %}
+              </div>
+              <a href="{% url 'schema-builder' card.slug %}" class="btn btn-sm btn-outline-primary">
+                <i data-lucide="pencil-ruler" class="size-4 me-1"></i> نسخهٔ جدید از این فرم
+              </a>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">نسخه</th>
+                    <th scope="col">فیلدها</th>
+                    <th scope="col">نقش‌های مجاز</th>
+                    <th scope="col">گردش کار</th>
+                    <th scope="col">وضعیت</th>
+                    <th scope="col">سابمیشن‌ها</th>
+                    <th scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for s in card.versions %}
+                    <tr>
+                      <td>v{{ s.version }}</td>
+                      <td>{{ s.fields|length }}</td>
+                      <td>
+                        {% if s.allowed_roles.all %}
+                          {% for r in s.allowed_roles.all %}<span class="badge bg-light text-dark border me-1">{{ r.name }}</span>{% endfor %}
+                        {% else %}
+                          <span class="badge bg-secondary-subtle text-secondary">همه (عمومی)</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ s.workflow_definition.name|default:'—' }}</td>
+                      <td>
+                        {% if s.is_active %}
+                          <span class="badge bg-success-subtle text-success">فعال</span>
+                        {% else %}
+                          <span class="badge bg-light text-muted border">غیرفعال</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ s.submissions.count }}</td>
+                      <td class="text-nowrap">
+                        {% if s.is_active %}
+                          <a href="{% url 'submission-create' s.slug %}" class="btn btn-sm btn-light" title="پیش‌نمایش/ثبت">
+                            <i data-lucide="external-link" class="size-4"></i>
+                          </a>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% empty %}
+          <div class="pen-empty">
+            <i data-lucide="layout-template" class="size-8 opacity-50"></i>
+            <p class="mb-0 mt-2">هنوز فرمی تعریف نشده است. با «فرم جدید» شروع کنید.</p>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

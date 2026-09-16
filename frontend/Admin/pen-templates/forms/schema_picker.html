@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}شروع فرم جدید{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="ثبت فرم جدید" section="فرم‌ها" %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12 col-lg-9">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0 card-title">یک فرم را انتخاب کنید</h6>
+        <p class="mb-0 text-muted fs-14">فقط فرم‌های فعالی که برای نقش شما تعریف شده‌اند نمایش داده می‌شوند.</p>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          {% for schema in schemas %}
+            <div class="col-12 col-md-6">
+              <a href="{% url 'submission-create' schema.slug %}"
+                 class="d-block text-decoration-none h-100">
+                <div class="card card-h-100 border hover-shadow">
+                  <div class="card-body d-flex gap-3">
+                    <div class="avatar pen-avatar size-12 rounded flex-shrink-0">
+                      <i data-lucide="file-text" class="size-5"></i>
+                    </div>
+                    <div class="flex-grow-1 overflow-hidden">
+                      <h6 class="mb-1 text-truncate">{{ schema.title }}</h6>
+                      {% if schema.description %}
+                        <p class="mb-2 text-muted fs-14">{{ schema.description|truncatechars:120 }}</p>
+                      {% endif %}
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary-subtle text-primary">نسخه {{ schema.version }}</span>
+                        <span class="text-muted fs-13">{{ schema.fields|length }} فیلد</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </a>
+            </div>
+          {% empty %}
+            <div class="col-12">
+              <div class="pen-empty">
+                <i data-lucide="inbox" class="size-8 opacity-50"></i>
+                <p class="mb-0 mt-2">فرم فعالی برای شما تعریف نشده است.</p>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

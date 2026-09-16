@@ -1,0 +1,95 @@
+{% load static asset_v %}<!DOCTYPE html>
+{% comment %}
+Base shell — Domiex admin theme (frontend/Admin/src) wired to Django.
+
+Layout chrome lives in pen-templates/partials/ (sidebar, topbar, footer,
+page-heading) so it can be redesigned in one place. Active nav state is
+derived from the URL, not per-page flags.
+
+Static assets come straight from frontend/Admin/src/assets (already-compiled
+RTL CSS, Vazir fonts, UMD libs) via STATICFILES_DIRS — no Vite build needed.
+
+Blocks:
+  title · head_css · extra_head · page_heading (per-page include of
+  partials/page-heading.html) · content · page_js
+{% endcomment %}
+<html lang="fa"
+      class="scroll-smooth group"
+      data-layout="modern"
+      data-content-width="default"
+      data-bs-theme="light"
+      data-sidebar-colors="dark"
+      data-sidebar="large"
+      data-nav-type="default"
+      dir="rtl"
+      data-colors="default"
+      data-profile-sidebar>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Pen LMS{% endblock %} | پن لِرنینگ</title>
+
+  {# Anti-flicker: applies stored layout/theme attrs before first paint. #}
+  <script src="{% static 'assets/js/layout.js' %}"></script>
+
+  {% block head_css %}
+    <link href="{% static 'assets/css/bootstrap.rtl.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% static 'assets/css/icons.rtl.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% static 'assets/css/font-face.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% static 'assets/css/app.rtl.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% static 'assets/css/custom.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% static 'assets/css/jalalidatepicker.min.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% asset_v_url 'assets/pen/dist/pen.bundle.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% asset_v_url 'assets/pen/css/pen.css' %}" rel="stylesheet" type="text/css">
+  {% endblock %}
+
+  {% block extra_head %}{% endblock %}
+</head>
+
+<body class="sidebar-hidden">
+
+  {# Exact demo DOM order: topbar → sidebar → wrapper (partials/main.html). #}
+  {% include "partials/topbar.html" %}
+  {% include "partials/sidebar.html" %}
+
+  <div class="min-vh-100 position-relative">
+    <div class="page-wrapper">
+      <div class="container-fluid">
+
+        {# Each page renders its own heading via the partial (theme convention). #}
+        {% block page_heading %}{% endblock %}
+
+        {% if messages %}
+          <div class="vstack gap-2 mb-3">
+            {% for message in messages %}
+              <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} d-flex align-items-center gap-2 mb-0" role="status">
+                <i data-lucide="{% if message.tags == 'error' %}circle-alert{% elif message.tags == 'success' %}circle-check{% else %}info{% endif %}" class="size-4 flex-shrink-0"></i>
+                <div>{{ message }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+
+        {% include "partials/footer.html" %}
+      </div>
+    </div>
+  </div>
+
+  {% include "partials/delete-confirmation-modal.html" %}
+
+  {# ── Scripts ───────────────────────────────────────────────────────── #}
+  {# pen.bundle.js = the theme's real admin.bundle core (Bootstrap 5 + #}
+  {# SimpleBar + Lucide) compiled via vite.pen.config.js — same code the #}
+  {# demo runs. Rebuild: cd frontend/Admin && npx vite build --config     #}
+  {# vite.pen.config.js                                                    #}
+  <script src="{% asset_v_url 'assets/pen/dist/pen.bundle.js' %}"></script>
+  {# Jalali datepicker (theme lib) — armed per-page via pen-core.js helper. #}
+  <script src="{% static 'assets/js/jalalidatepicker.min.js' %}"></script>
+  {# Layout helpers (sidebar toggle, dark mode, toast, CSRF). #}
+  <script src="{% asset_v_url 'assets/pen/js/pen-core.js' %}"></script>
+
+  {% block page_js %}{% endblock %}
+</body>
+</html>

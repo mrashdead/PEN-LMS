@@ -1,0 +1,26 @@
+// src/assets/scss/custom/components/_drawer.scss
+
+.offcanvas {
+    .offcanvas-header {
+        border-bottom: 1px solid var(--#{$prefix}offcanvas-border-color);
+    }
+
+    .offcanvas-footer {
+        padding: $offcanvas-padding-y $offcanvas-padding-x;
+        border-top: 1px solid var(--#{$prefix}offcanvas-border-color);
+    }
+
+    &.offcanvas-small {
+        width: 7rem;
+    }
+
+    &.offcanvas-large {
+        width: 24rem;
+    }
+
+    &.offcanvas-half {
+        @include media-breakpoint-up(sm) {
+            width: 50%;
+        }
+    }
+}

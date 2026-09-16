@@ -1,0 +1,39 @@
+/* ========== Your Custom Styles ========== */
+
+/* Breadcrumb RTL */
+.breadcrumb-item+.breadcrumb-item:before {
+    padding-right: var(--dx-breadcrumb-item-padding-x);
+    transform: rotateY(180deg);
+}
+
+/* ApexCharts global font (full coverage) */
+.apexcharts-text,
+.apexcharts-legend-text,
+.apexcharts-tooltip,
+.apexcharts-tooltip *,
+.apexcharts-xaxistooltip,
+.apexcharts-xaxistooltip-text,
+.apexcharts-yaxistooltip,
+.apexcharts-yaxistooltip-text {
+    font-family: 'Vazir', sans-serif !important;
+}
+
+/* JVSM map font (all in project) */
+text.jvm-marker.jvm-element {
+    font-family: Vazir !important;
+    font-weight: 400 !important;
+}
+
+/* Virtual Select (all in project) */
+.vscomp-wrapper {
+    font-family: 'Vazir' !important;
+}
+
+.vscomp-wrapper.multiple .vscomp-option.selected .checkbox-icon::after {
+    transform: rotate(222deg) rotateX(180deg) translate(1px, -4px) !important;
+}
+
+/* Invoice address style */
+pre.text-muted.font-base.fs-sm.mb-0 {
+	font-family: 'Vazir' !important;
+}

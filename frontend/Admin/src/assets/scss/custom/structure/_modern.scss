@@ -1,0 +1,105 @@
+// src/assets/scss/custom/structure/_modern.scss
+
+[data-layout=modern] {
+
+    //data nav type
+    &[data-nav-type=floating] {
+        .main-topbar {
+            position: absolute;
+        }
+    }
+
+    &[data-nav-type=boxed] {
+        .main-topbar {
+            border: 1px solid var(--#{$prefix}topbar-border);
+            margin: .75rem;
+            border-radius: $border-radius;
+
+            &.nav-sticky {
+                margin-top: 0;
+            }
+        }
+
+        .page-wrapper {
+            padding-top: calc(var(--#{$prefix}topbar) * 1.3);
+        }
+    }
+
+    &[data-nav-type=pattern] {
+
+        .sidebar-toggle {
+            color: rgba(var(--#{$prefix}white-rgb), 0.75);
+        }
+
+        .main-topbar {
+            border-color: rgba(var(--#{$prefix}white-rgb), 0.2);
+            background-color: transparent;
+
+            &.nav-sticky {
+                background-color: var(--#{$prefix}primary);
+            }
+
+            .topbar-link {
+                color: rgba(var(--#{$prefix}white-rgb), 0.75);
+
+                &:hover {
+                    color: $white;
+                }
+            }
+        }
+
+        .topbar-main-btn {
+            --#{$prefix}btn-border-color: rgba(var(--#{$prefix}white-rgb), 0.2) !important;
+            --#{$prefix}btn-color: rgba(var(--#{$prefix}white-rgb), 0.75);
+            --#{$prefix}btn-hover-color: var(--#{$prefix}white);
+            --#{$prefix}btn-focus-color: var(--#{$prefix}white);
+            --#{$prefix}btn-active-color: var(--#{$prefix}white);
+        }
+
+        .navbar-search {
+            .icon {
+                color: rgba(var(--#{$prefix}white-rgb), 0.75);
+            }
+
+            .form-control {
+                color: $white;
+
+                &::placeholder {
+                    color: rgba(var(--#{$prefix}white-rgb), 0.75);
+                }
+            }
+        }
+
+        .nav-pattern {
+            position: absolute;
+            inset: 0;
+            display: inline-block;
+            height: 13rem;
+            background-color: var(--#{$prefix}primary);
+
+            svg {
+                width: 100%;
+                height: auto;
+            }
+        }
+
+        .page-heading {
+            color: $white;
+
+            .breadcrumb {
+                --#{$prefix}breadcrumb-divider-color: #{$white};
+                --#{$prefix}breadcrumb-item-active-color: #{$white};
+
+                .breadcrumb-item {
+                    a {
+                        color: rgba(var(--#{$prefix}white-rgb), 0.75);
+                    }
+                }
+            }
+        }
+    }
+}
+
+.nav-pattern {
+    display: none;
+}

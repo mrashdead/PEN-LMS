@@ -1,0 +1,74 @@
+// src/assets/scss/custom/components/_alerts.scss
+
+.btn-close {
+    &::after {
+        content: "\eb98" !important;
+        font-size: 20px;
+        line-height: 15px;
+        color: var(--#{$prefix}btn-close-color);
+        font-family: "remixicon" !important;
+    }
+}
+
+.alert-live-backdrop {
+    backdrop-filter: blur(20px);
+}
+
+.alert-dismissible .btn-close {
+    &::after {
+        color: var(--#{$prefix}alert-color);
+    }
+}
+
+//Icons with Alerts
+.alert-icon {
+    position: relative;
+    @include flexStyle(center);
+    padding-left: 4rem;
+
+    .icon {
+        @include position(absolute, 0, null, 0, 0);
+        @include flexStyle(center, center);
+        width: 2.75rem;
+        border-right: 1px solid var(--#{$prefix}alert-border-color);
+    }
+}
+
+//Icons Alerts
+.icon-alert {
+    border-color: var(--#{$prefix}border-color);
+    .icon {
+        @include flexStyle(center, center);
+    }
+}
+
+.primary-gradient {
+    background: linear-gradient(to right, #358ffc, #1759de);
+}
+
+.secondary-gradient {
+    background: linear-gradient(to right, #a855f7, #7e22ce);
+}
+
+.success-gradient {
+    background: linear-gradient(to right, #358ffc, #22c55e);
+}
+
+.danger-gradient {
+    background: linear-gradient(to right, #152956, #450a0a);
+}
+
+// Live Alerts
+#liveAlert {
+    @include position(fixed, 1.25rem, null, null, 50%);
+    transform: translateX(-50%);
+    z-index: $zindex-fixed;
+}
+
+// Basic Alerts
+.basic-alert {
+    @include flexStyle(center, center);
+    border: 4px solid var(--#{$prefix}secondary-bg);
+    @include position(absolute, -1.25rem, null, null, 50%);
+    transform: translateX(-50%);
+}

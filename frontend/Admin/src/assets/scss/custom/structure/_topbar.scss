@@ -1,0 +1,195 @@
+// src/assets/scss/custom/structure/_topbar.scss
+
+.main-topbar {
+    @include position(fixed, 0, 0, null, 0);
+    height: var(--#{$prefix}topbar);
+    @include flexStyle(null, null);
+    z-index: 1003;
+    padding-right: 1rem;
+    border-bottom: 1px solid var(--#{$prefix}topbar-border);
+    background-color: var(--#{$prefix}topbar-bg);
+    @include transition;
+
+    .navbar-brand {
+        height: var(--#{$prefix}topbar);
+        @include flexStyle(center);
+        width: var(--#{$prefix}sidebar);
+        padding-left: 1rem;
+    }
+
+    .topbar-link {
+        padding: 0;
+        height: 2.25rem;
+        width: 2.25rem;
+        color: var(--#{$prefix}topbar-color);
+        border: none;
+        height: var(--#{$prefix}topbar);
+
+        &:hover {
+            color: var(--#{$prefix}topbar-hover-color);
+        }
+    }
+
+    .sidebar-toggle {
+        display: flex;
+        width: 2.25rem;
+        height: 2.25rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.375rem;
+        border-width: 0;
+        margin-left: 0.5rem;
+        color: var(--#{$prefix}topbar-color);
+    }
+
+    //profile dropdown
+    .profile-dropdown {
+        display: block;
+
+        [data-profile-sidebar] & {
+            display: none;
+        }
+    }
+}
+
+.profile-dropdown-menu {
+    width: 14rem;
+
+    @include media-breakpoint-down(md) {
+        min-width: 18rem;
+        width: auto;
+    }
+}
+
+.topbar-main-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+    height: 2.25rem;
+    border: 1px solid var(--#{$prefix}topbar-border) !important;
+    --#{$prefix}btn-border-color: var(--#{$prefix}topbar-border);
+    --#{$prefix}btn-color: var(--#{$prefix}topbar-color);
+    --#{$prefix}btn-hover-color: var(--#{$prefix}topbar-hover-color);
+    --#{$prefix}btn-focus-color: var(--#{$prefix}topbar-hover-color);
+    --#{$prefix}btn-active-color: var(--#{$prefix}topbar-hover-color);
+}
+
+.topbar-mode {
+    .light {
+        display: none;
+    }
+}
+
+[data-bs-theme=dark] {
+    .topbar-mode {
+        .light {
+            display: inline-block;
+        }
+
+        .dark {
+            display: none;
+        }
+    }
+}
+
+.navbar-search {
+    .icon {
+        position: absolute;
+        top: 0.75rem;
+        left: 0.5rem;
+        color: var(--#{$prefix}topbar-color);
+    }
+
+    .form-control {
+        background-color: transparent;
+        width: 18rem;
+        padding-left: 2rem;
+        color: var(--#{$prefix}topbar-hover-color);
+
+        &::placeholder {
+            color: var(--#{$prefix}topbar-color);
+        }
+    }
+}
+
+.dropdown-menu-topbar {
+    max-height: calc(100vh - var(--#{$prefix}topbar) - 26px);
+    overflow-y: auto;
+}
+
+.notification-animate {
+    @include position(absolute, -3px, -3px);
+}
+
+.topbar-notification {
+    max-height: calc(100vh - 170px);
+
+    .notification-item {
+        color: currentColor;
+        @include transition;
+
+        &:is(.unread, :hover) {
+            background-color: var(--#{$prefix}tertiary-bg);
+        }
+
+    }
+}
+
+.tool-apps {
+    .form-check {
+        position: relative;
+        padding-left: 0;
+
+        .form-check-input {
+            right: -5px;
+            top: -5px;
+            position: absolute;
+            background-color: var(--#{$prefix}secondary-bg);
+
+            &:checked {
+                background-color: var(--#{$prefix}primary);
+            }
+
+            &:checked+.form-check-label {
+                border-color: var(--#{$prefix}primary);
+            }
+        }
+
+        .form-check-label {
+            font-weight: $font-weight-semibold;
+            border: 1px solid var(--#{$prefix}border-color);
+            border-radius: $border-radius;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            width: 100%;
+
+            img {
+                height: 28px;
+            }
+        }
+    }
+}
+
+.dropdown-menu-lg {
+    width: 24rem;
+
+    @include media-breakpoint-down(md) {
+        min-width: 18rem;
+        width: auto;
+    }
+}
+
+:is([data-topbar-colors=dark], [data-topbar-colors=brand], [data-topbar-colors=purple], [data-topbar-colors=sky]) {
+    .logos {
+        .logo-light {
+            display: block;
+        }
+
+        .logo-dark {
+            display: none;
+        }
+    }
+}

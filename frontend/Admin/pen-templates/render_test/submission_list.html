@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+
+<html lang="fa"
+      class="scroll-smooth group"
+      data-layout="modern"
+      data-content-width="default"
+      data-bs-theme="light"
+      data-sidebar-colors="dark"
+      data-sidebar="large"
+      data-nav-type="default"
+      dir="rtl"
+      data-colors="default"
+      data-profile-sidebar>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>فرم‌های من | پن لِرنینگ</title>
+
+  
+  <script src="../src/assets/js/layout.js"></script>
+
+  
+
+  
+</head>
+
+<body class="sidebar-hidden">
+
+  
+  
+
+<header class="main-topbar" id="main-topbar">
+  <div class="navbar-brand">
+    <div class="logos">
+      <a href="" aria-label="Pen LMS">
+        <img src="../src/assets/images/main-logo.png" loading="lazy" height="24" alt="Pen LMS" class="logo-dark">
+        <img src="../src/assets/images/logo-white.png" loading="lazy" height="24" alt="Pen LMS" class="logo-light">
+      </a>
+    </div>
+    <button type="button" id="toggleSidebar" class="sidebar-toggle btn p-0" aria-label="باز و بسته کردن منوی کناری">
+      <i data-lucide="panel-right-open" class="size-4"></i>
+    </button>
+  </div>
+
+  <div class="d-flex align-items-center gap-2 ms-auto">
+    
+    
+    <div class="dropdown">
+      <button type="button" id="notifBell" class="btn topbar-link position-relative"
+              aria-label="اعلان‌ها" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+        <i data-lucide="bell" class="size-4"></i>
+        <span class="msg-badge msg-unread-badge position-absolute top-0 start-100 translate-middle" hidden></span>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end p-0" style="min-width:320px">
+        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+          <h6 class="mb-0 fs-14 fw-semibold flex-grow-1">پیام‌های اخیر</h6>
+          <a href="" class="fs-13 link-primary">همه</a>
+        </div>
+        <div id="notif-list" style="max-height:320px;overflow-y:auto" aria-live="polite">
+          <div class="pen-loading">…</div>
+        </div>
+      </div>
+    </div>
+    
+
+    <button type="button" id="darkModeButton" class="topbar-link topbar-mode btn" aria-label="تغییر حالت روشن/تاریک">
+      <i data-lucide="moon" class="size-4 dark"></i>
+      <i data-lucide="sun" class="size-4 light"></i>
+    </button>
+
+    <div class="dropdown">
+      <button type="button" class="btn topbar-link d-lg-none" aria-label="منوی کاربر" data-bs-toggle="dropdown" aria-expanded="false">
+        <i data-lucide="user-round" class="size-4"></i>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end p-2">
+        <div class="px-3 py-2 border-bottom mb-2">
+          <h6 class="mb-0 text-truncate fs-14">…</h6>
+          <p class="mb-0 fs-13 text-muted text-truncate">…</p>
+        </div>
+        <form method="post" action="">
+          
+          <button type="submit" class="dropdown-item d-flex align-items-center gap-2">
+            <i data-lucide="log-out" class="size-4"></i> خروج
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</header>
+
+  
+
+
+
+<div id="main-sidebar" class="main-sidebar">
+  <div class="sidebar-wrapper">
+
+    
+    <a href="" class="navbar-brand" title="Pen LMS">
+      <div class="logo-lg">
+        <img src="../src/assets/images/main-logo.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
+        <img src="../src/assets/images/logo-white.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+      </div>
+      <div class="logo-sm">
+        <img src="../src/assets/images/logo-sm-dark.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
+        <img src="../src/assets/images/logo-sm-white.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+      </div>
+    </a>
+
+    
+    <div class="dropdown profile-dropdown">
+      <a href="#!" data-bs-toggle="dropdown" aria-expanded="false" aria-label="منوی کاربر"
+         class="btn d-flex align-items-center w-100 gap-2 p-4 text-start">
+        <span class="avatar pen-avatar size-10 rounded flex-shrink-0" aria-hidden="true">…</span>
+        <div class="flex-grow-1 content overflow-hidden">
+          <h6 class="fw-medium text-truncate mb-0">…</h6>
+          <p class="fs-14 text-truncate mb-0">…</p>
+        </div>
+        <div class="arrow"><i data-lucide="chevron-down" class="size-4"></i></div>
+      </a>
+      <div class="dropdown-menu p-4 profile-dropdown-menu">
+        <div class="d-flex align-items-center gap-2">
+          <span class="avatar pen-avatar rounded-circle size-10 flex-shrink-0" aria-hidden="true">…</span>
+          <div class="flex-grow-1 overflow-hidden">
+            <h6 class="mb-0 text-truncate">…</h6>
+            <p class="mb-0 text-truncate fs-14">…</p>
+          </div>
+        </div>
+        <div class="pt-2 mt-3 border-top">
+          <form method="post" action="">
+            
+            <button type="submit" class="profile-link w-100 text-start border-0 bg-transparent py-1">
+              <i data-lucide="log-out" class="d-inline-block me-2 size-4"></i> خروج
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="navbar-menu px-5" id="navbar-menu-list" data-simplebar>
+      <ul class="list-unstyled p-0 navbar-nav-menu">
+
+        <li class="nav-item">
+          <a href="" title="داشبورد"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="gauge"></i></span>
+            <span class="content">داشبورد</span>
+          </a>
+        </li>
+
+        
+        
+        <li class="nav-menu-title">پنل مدرس</li>
+        <li class="nav-item">
+          <a href="" title="داشبورد مدرس"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="layout-dashboard"></i></span>
+            <span class="content">داشبورد و دوره‌های من</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="" title="تقویم"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="calendar-days"></i></span>
+            <span class="content">تقویم و برنامه</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="" title="حضور و غیاب"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="user-check"></i></span>
+            <span class="content">حضور و غیاب</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="" title="کارنامه توصیفی"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="clipboard-check"></i></span>
+            <span class="content">کارنامه توصیفی</span>
+          </a>
+        </li>
+        
+
+        
+        
+        <li class="nav-item">
+          <a href="" title="پورتال من"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="graduation-cap"></i></span>
+            <span class="content">حضور و کارنامه من</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="" title="درخواست‌های من"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="file-stack"></i></span>
+            <span class="content">درخواست‌های من</span>
+          </a>
+        </li>
+        
+
+        
+        
+        <li class="nav-item">
+          <a href="" title="کارهای من"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="list-checks"></i></span>
+            <span class="content">کارهای من</span>
+          </a>
+        </li>
+
+        
+        <li class="nav-item">
+          <a href="#collapseRequests" title="درخواست‌ها"
+             class="nav-link active collapsed"
+             data-bs-toggle="collapse" data-position="right-top" role="button"
+             aria-expanded="truefalse" aria-controls="collapseRequests">
+            <span class="icons"><i data-lucide="file-stack"></i></span>
+            <span class="content">درخواست‌ها</span>
+            <span class="ms-auto menu-arrow"><i data-lucide="chevron-down" class="size-4"></i></span>
+          </a>
+          <div class="collapse show" id="collapseRequests">
+            <ul class="nav-menu-sub">
+              <li><a href="" class="nav-link active"><span>درخواست‌های من</span></a></li>
+              <li><a href="" class="nav-link active"><span>درخواست جدید</span></a></li>
+            </ul>
+          </div>
+        </li>
+
+        
+        <li class="nav-item">
+          <a href="#collapseEdu" title="آموزشگاه"
+             class="nav-link active collapsed"
+             data-bs-toggle="collapse" data-position="right-top" role="button"
+             aria-expanded="truefalse" aria-controls="collapseEdu">
+            <span class="icons"><i data-lucide="school"></i></span>
+            <span class="content">آموزشگاه</span>
+            <span class="ms-auto menu-arrow"><i data-lucide="chevron-down" class="size-4"></i></span>
+          </a>
+          <div class="collapse show" id="collapseEdu">
+            <ul class="nav-menu-sub">
+              
+              <li><a href="" class="nav-link active"><span>اشخاص</span></a></li>
+              
+              <li><a href="" class="nav-link active"><span>دپارتمان‌ها</span></a></li>
+              <li><a href="" class="nav-link active"><span>درس‌ها</span></a></li>
+              <li><a href="" class="nav-link active"><span>دوره‌ها</span></a></li>
+              <li><a href="" class="nav-link active"><span>برگزاری‌ها</span></a></li>
+              <li><a href="" class="nav-link active"><span>کلاس‌ها و جلسات</span></a></li>
+              <li><a href="" class="nav-link active"><span>محل‌های آموزش</span></a></li>
+              <li><a href="" class="nav-link active"><span>ثبت‌نام</span></a></li>
+              <li><a href="" class="nav-link active"><span>تقویم و برنامه</span></a></li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="nav-item">
+          <a href="" title="پیام‌ها"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons">
+              <i data-lucide="mail"></i>
+              <span class="msg-badge msg-unread-badge msg-badge-on-icon" hidden></span>
+            </span>
+            <span class="content d-flex align-items-center gap-2">
+              پیام‌ها
+              <span class="msg-badge msg-unread-badge" hidden></span>
+            </span>
+          </a>
+        </li>
+
+        
+        <li class="nav-item">
+          <a href="" title="گزارش‌ها و تحلیل‌ها"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="bar-chart-3"></i></span>
+            <span class="content">گزارش‌ها و تحلیل‌ها</span>
+          </a>
+        </li>
+        
+        
+
+        
+        <li class="nav-item">
+          <a href="" title="گزارش‌ها و تحلیل‌ها"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="bar-chart-3"></i></span>
+            <span class="content">گزارش‌ها و تحلیل‌ها</span>
+          </a>
+        </li>
+        
+
+        
+        <li class="nav-menu-title">مدیریت سازمان</li>
+
+        <li class="nav-item">
+          <a href="" title="نمودار سازمانی"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="network"></i></span>
+            <span class="content">نمودار سازمانی</span>
+          </a>
+        </li>
+
+        <li class="nav-item">
+          <a href="" title="مجوزها"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="shield-check"></i></span>
+            <span class="content">ماتریس و شبیه‌ساز</span>
+          </a>
+        </li>
+
+        <li class="nav-item">
+          <a href="" title="مدیریت مجوز کاربران"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="user-cog"></i></span>
+            <span class="content">مدیریت مجوز کاربران</span>
+          </a>
+        </li>
+
+        <li class="nav-item">
+          <a href="" title="مسئولیت‌ها"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="user-check"></i></span>
+            <span class="content">مسئولیت‌ها و عملکرد</span>
+          </a>
+        </li>
+
+        <li class="nav-item">
+          <a href="" title="جانشینی"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="repeat"></i></span>
+            <span class="content">جانشینی</span>
+          </a>
+        </li>
+
+        
+        <li class="nav-item">
+          <a href="" title="طراح فرم‌ها"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="layout-template"></i></span>
+            <span class="content">طراح فرم‌ها</span>
+          </a>
+        </li>
+        
+        
+
+      </ul>
+    </div>
+  </div>
+</div>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+
+
+  <div class="min-vh-100 position-relative">
+    <div class="page-wrapper">
+      <div class="container-fluid">
+
+        
+        
+  
+<div class="gap-2 page-heading mb-3 flex-column flex-md-row">
+  <h6 class="flex-grow-1 mb-0">…</h6>
+  <ul class="breadcrumb flex-shrink-0 mb-0">
+    <li class="breadcrumb-item"><a href="">داشبورد</a></li>
+    
+      <li class="breadcrumb-item">
+        <a href="…">…</a>…
+      </li>
+    
+    <li class="breadcrumb-item active" aria-current="page">…</li>
+  </ul>
+</div>
+
+
+
+        
+          <div class="vstack gap-2 mb-3">
+            
+              <div class="alert alert-dangersuccesswarninginfo d-flex align-items-center gap-2 mb-0" role="status">
+                <i data-lucide="circle-alertcircle-checkinfo" class="size-4 flex-shrink-0"></i>
+                <div>…</div>
+              </div>
+            
+          </div>
+        
+
+        
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex flex-column flex-md-row gap-3">
+        <div>
+          <h6 class="mb-0 card-title">درخواست‌های ثبت‌شده</h6>
+          <p class="mb-0 text-muted fs-14">فهرست فرم‌هایی که به شما دسترسی دیدن داده شده است.</p>
+        </div>
+        <a href="" class="btn btn-primary flex-shrink-0 ms-md-auto">
+          <i data-lucide="file-plus-2" class="size-4 me-2"></i> فرم جدید
+        </a>
+      </div>
+
+      <div class="card-body pt-0">
+        
+        <form method="get" class="row g-2 align-items-end mb-3" aria-label="فیلتر فهرست">
+          <div class="col-6 col-md-3">
+            <label for="filter-status" class="form-label visually-hidden">وضعیت</label>
+            <select name="status" id="filter-status" class="form-select" aria-label="فیلتر وضعیت">
+              <option value="">همه وضعیت‌ها</option>
+              
+                <option value="…" selected>…</option>
+              
+            </select>
+          </div>
+          <div class="col-6 col-md-3">
+            <label for="filter-number" class="form-label visually-hidden">شماره فرم</label>
+            <input type="text" name="submission_number" id="filter-number" class="form-control"
+                   placeholder="شماره فرم" value="…"
+                   aria-label="شماره فرم">
+          </div>
+          <div class="col-6 col-md-2">
+            <label for="filter-ordering" class="form-label visually-hidden">ترتیب</label>
+            <select name="ordering" id="filter-ordering" class="form-select" aria-label="ترتیب">
+              <option value="-created_at" selected>جدیدترین</option>
+              <option value="created_at" selected>قدیمی‌ترین</option>
+              <option value="status" selected>وضعیت</option>
+              <option value="-status" selected>وضعیت (نزولی)</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-auto d-flex gap-2">
+            <button type="submit" class="btn btn-outline-primary">اعمال</button>
+            
+              <a href="" class="btn btn-light" aria-label="حذف فیلترها">حذف فیلترها</a>
+            
+          </div>
+        </form>
+
+        
+        <div class="table-card table-responsive" id="submission-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th scope="col">شماره</th>
+                <th scope="col">فرم</th>
+                <th scope="col">وضعیت</th>
+                <th scope="col">تاریخ</th>
+                <th scope="col">فرستنده</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+                <tr>
+                  <td>
+                    <a class="fw-medium link link-primary" href="">
+                      …
+                    </a>
+                  </td>
+                  <td>…</td>
+                  <td><span class="pen-badge pen-badge-…">…</span></td>
+                  <td class="text-nowrap">…</td>
+                  <td>…</td>
+                </tr>
+              
+                <tr>
+                  <td colspan="5">
+                    <div class="pen-empty">
+                      <i data-lucide="inbox" class="size-8 opacity-50"></i>
+                      <p class="mb-0 mt-2">فرمی یافت نشد.</p>
+                    </div>
+                  </td>
+                </tr>
+              
+            </tbody>
+          </table>
+        </div>
+
+        
+        
+          <div class="row align-items-center g-3 mt-2">
+            <div class="col-md-6">
+              <p class="text-muted text-center text-md-start mb-0">
+                صفحه <b>…</b> از <b>…</b>
+              </p>
+            </div>
+            <div class="col-md-6">
+              <nav aria-label="صفحه‌بندی">
+                <ul class="pagination justify-content-center justify-content-md-end mb-0">
+                  
+                    <li class="page-item">
+                      <a class="page-link" href="?page=……" aria-label="قبلی">قبلی</a>
+                    </li>
+                  
+                    <li class="page-item disabled"><span class="page-link">قبلی</span></li>
+                  
+                  
+                    <li class="page-item">
+                      <a class="page-link" href="?page=……" aria-label="بعدی">بعدی</a>
+                    </li>
+                  
+                    <li class="page-item disabled"><span class="page-link">بعدی</span></li>
+                  
+                </ul>
+              </nav>
+            </div>
+          </div>
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+
+        
+<footer class="main-footer">
+  <div class="w-100">
+    <div class="row align-items-center">
+      <div class="col-lg-6 text-muted text-center text-lg-end">
+        &copy; <span id="currentYearFooter"></span> Pen LMS
+      </div>
+      <div class="col-lg-6 text-muted text-center text-lg-start d-none d-lg-block">
+        سامانه مدیریت آموزش
+      </div>
+    </div>
+  </div>
+</footer>
+
+      </div>
+    </div>
+  </div>
+
+  
+  
+  
+  
+  
+  <script src=""></script>
+  
+  <script src="../src/assets/js/jalalidatepicker.min.js"></script>
+  
+  <script src=""></script>
+
+  
+</body>
+</html>

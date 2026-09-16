@@ -1,0 +1,64 @@
+// Mixin for Generating checkbox Classes Based on Theme Colors
+@mixin generate-checkbox-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for checkbox states
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "checkbox Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "checkbox Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        .check-#{$state} {
+            .form-check-input:checked {
+                background-color: var(--#{$prefix}#{$state});
+                border-color: var(--#{$prefix}#{$state});
+            }
+        }
+
+        .check-soft-#{$state} {
+            .form-check-input {
+                --#{$prefix}border-color: rgba(var(--#{$prefix}#{$state}-rgb), .2);
+                --#{$prefix}form-check-bg: var(--#{$prefix}#{$state}-bg-subtle);
+
+                &:checked {
+                    background-color: var(--#{$prefix}#{$state});
+                    border-color: var(--#{$prefix}#{$state});
+                }
+            }
+        }
+
+        .radio-#{$state} {
+            .form-check-input {
+                &:checked {
+                    background-color: var(--#{$prefix}#{$state});
+                    border-color: var(--#{$prefix}#{$state});
+                }
+            }
+        }
+
+        .radio-soft-#{$state} {
+            .form-check-input {
+                --#{$prefix}border-color: rgba(var(--#{$prefix}#{$state}-rgb), .2);
+                --#{$prefix}form-check-bg: var(--#{$prefix}#{$state}-bg-subtle);
+
+                &:focus {
+                    box-shadow: none;
+                }
+
+                &:checked {
+                    background-color: var(--#{$prefix}#{$state});
+                    border-color: var(--#{$prefix}#{$state});
+                }
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-checkbox-classes($theme-colors, $prefix);

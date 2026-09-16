@@ -1,0 +1,8 @@
+// src/assets/scss/custom/components/_advanced-animation.scss
+
+.square{
+    height: 20rem;
+    width: 20rem;
+    background: linear-gradient(136deg, rgba(var(--#{$prefix}primary-rgb), 0.2), rgba(var(--#{$prefix}secondary-rgb), 0.2), rgba(var(--#{$prefix}info-rgb), 0.2));
+    margin: 0 auto;
+}

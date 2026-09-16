@@ -1,0 +1,30 @@
+// Mixin for Generating Tooltip Classes Based on Theme Colors
+@mixin generate-tooltip-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for tooltip states (outline, solid, sub)
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        .tooltip-#{$state} {
+            --#{$prefix}tooltip-bg: var(--#{$prefix}#{$state});
+            --#{$prefix}tooltip-color: var(--#{$prefix}white);
+
+            // Special case for 'light' color
+            @if $state == 'light' {
+                --#{$prefix}tooltip-color: #000;
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-tooltip-classes($theme-colors, $prefix);

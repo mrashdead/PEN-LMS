@@ -1,0 +1,30 @@
+// src/assets/scss/custom/components/_badge.scss
+
+// Button Badge
+.notification {
+    @include badge-square;
+    border: 2px solid var(--#{$prefix}secondary-bg);
+    &.top-end {
+        @include position(absolute, -8px, -8px, null, null);
+    }
+
+    &.top-start {
+        @include position(absolute, -8px, null, null, -8px);
+    }
+
+    &.bottom-start {
+        @include position(absolute, null, null, -8px, -8px);
+    }
+
+    &.bottom-end {
+        @include position(absolute, null, -8px, -8px, null);
+    }
+
+    &.inside {
+        position: static;
+    }
+}
+
+.badge-square {
+    @include badge-square;
+}

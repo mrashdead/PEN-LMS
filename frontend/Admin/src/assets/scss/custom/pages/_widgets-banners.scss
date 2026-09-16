@@ -1,0 +1,40 @@
+// src/assets/scss/custom/pages/_widgets-banners.scss
+
+[class*="widget-banner"] {
+    .banner-circle {
+        border: 20px solid transparent;
+        width: 14rem;
+        height: 14rem;
+        @include position(absolute, null, -3rem, -3rem, null);
+        @include border-radius(50%);
+    }
+
+    img {
+        margin-bottom: -1.5rem;
+
+        @include media-breakpoint-up(md) {
+            margin-bottom: 0;
+            @include position(absolute, null, .75rem, -1.5rem, null);
+        }
+    }
+}
+
+@each $state in map-keys($theme-colors) {
+    .widget-banner-#{$state} {
+        --#{$prefix}card-bg: var(--#{$prefix}#{$state}-bg-subtle);
+        --#{$prefix}card-border-color: var(--#{$prefix}#{$state}-border-subtle);
+
+        .banner-circle {
+            border-color: rgba(var(--#{$prefix}#{$state}-rgb), 0.1);
+        }
+    }
+}
+
+//svg images colors
+.widget-svg {
+    svg {
+        path {
+            stroke: rgba(225, 228, 235, 0.15);
+        }
+    }
+}

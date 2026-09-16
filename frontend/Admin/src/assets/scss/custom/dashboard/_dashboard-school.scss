@@ -1,0 +1,14 @@
+// src/assets/scss/custom/dashboard/_dashboard-school.scss
+
+.date-widget-item {
+    color: var(--#{$prefix}body-color);
+    background-color: var(--#{$prefix}tertiary-bg);
+    font-size: 1.125rem;
+    font-weight: $font-weight-medium;
+    @include border-radius();
+
+    &.active {
+        background-color: var(--#{$prefix}primary);
+        color: white;
+    }
+}

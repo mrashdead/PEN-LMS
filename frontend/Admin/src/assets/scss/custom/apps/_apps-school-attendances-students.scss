@@ -1,0 +1,13 @@
+// src/assets/scss/custom/apps/_apps-school-attendances-students.scss
+
+.attendance-list-late {
+    border-top: 2px solid rgba(var(--#{$prefix}orange-rgb), 0.5);
+}
+
+.attendance-list-on-time {
+    border-top: 2px solid rgba(var(--#{$prefix}success-rgb), 0.5);
+}
+
+.attendance-list-holiday {
+    border-top: 2px solid rgba(var(--#{$prefix}dark-rgb), 0.5);
+}

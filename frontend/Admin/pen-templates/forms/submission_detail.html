@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% load static forms_extras asset_v rbac %}
+{% block title %}{{ submission.submission_number|default:'پیش‌نویس' }} — {{ submission.form_schema.title }}{% endblock %}
+{% block page_heading %}
+  {% url 'submission-list' as forms_list_url %}
+  {% include "partials/page-heading.html" with title=submission.form_schema.title section="فرم‌ها" section_url=forms_list_url %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  {# ── Main card: submission data ──────────────────────────────────── #}
+  <div class="col-12 col-xl-8">
+    <div class="card">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <div class="flex-grow-1">
+          <h6 class="mb-0 card-title">{{ submission.submission_number|default:'پیش‌نویس (بدون شماره)' }}</h6>
+          <p class="mb-0 text-muted fs-14">
+            ارسال‌کننده: {{ submission.submitted_by.get_full_name|default:submission.submitted_by.username }}
+            {% if submission.submitted_at %} — ارسال: {{ submission.submitted_at|date:"Y/m/d H:i" }}{% endif %}
+          </p>
+        </div>
+        <span class="pen-badge pen-badge-{{ submission.status }}">{{ submission.status|status_label }}</span>
+      </div>
+      <div class="card-body">
+        {% if submission.reviewed_by %}
+          <p class="fs-14 text-muted">
+            بررسی‌کننده: {{ submission.reviewed_by.get_full_name|default:submission.reviewed_by.username }}
+            ({{ submission.reviewed_at|date:"Y/m/d H:i" }})
+          </p>
+        {% endif %}
+
+        <div class="table-responsive">
+          <table class="table pen-definition-list mb-0">
+            <tbody>
+              {% for f in rendered_fields %}
+                <tr>
+                  <th scope="row">{{ f.label }}</th>
+                  <td>
+                    {% if f.is_rich %}
+                      <div class="pen-rich-content">{{ f.display|safe }}</div>
+                    {% elif f.is_table %}
+                      <ul class="list-unstyled mb-0">
+                        {% for row in f.display %}
+                          <li>
+                            {{ row.student_id|default:'' }} —
+                            {% firstof row.status row.result '—' %}
+                            {% if row.note or row.teacher_note %}
+                              ({% firstof row.note row.teacher_note %})
+                            {% endif %}
+                          </li>
+                        {% empty %}
+                          <li class="text-muted">—</li>
+                        {% endfor %}
+                      </ul>
+                    {% else %}
+                      {{ f.display|default:'—' }}
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if can_edit %}
+          <div class="d-flex flex-wrap gap-2 mt-4 pt-3 border-top">
+            <a class="btn btn-outline-primary" href="{% url 'submission-edit-page' submission.id %}">
+              <i data-lucide="pencil" class="size-4 me-2"></i> ویرایش پیش‌نویس
+            </a>
+            <button class="btn btn-primary" id="do-submit">
+              <i data-lucide="send" class="size-4 me-2"></i> ارسال نهایی
+            </button>
+            {% can_crud "delete" "submissions" submission as can_delete_submission %}
+            {% if can_delete_submission %}
+              <button type="button" class="btn btn-outline-danger" data-delete-action
+                data-delete-url="/api/forms/submissions/{{ submission.id }}/delete/"
+                data-delete-name="{{ submission.form_schema.title|escape }}"
+                data-delete-code="{{ submission.submission_number|default:submission.id }}"
+                data-delete-redirect="{% url 'submission-list' %}">
+                <i data-lucide="trash-2" class="size-4 me-2"></i> حذف نرم
+              </button>
+            {% endif %}
+          </div>
+          <p class="text-muted fs-13 mt-2 mb-0">ارسال نهایی همه الزامات را اعتبارسنجی می‌کند؛ پس از آن فرم غیرقابل ویرایش است.</p>
+        {% endif %}
+        {% can_crud "delete" "submissions" submission as can_delete_submission %}
+        {% if can_delete_submission and not can_edit %}
+          <div class="mt-3 pt-3 border-top">
+            <button type="button" class="btn btn-outline-danger" data-delete-action
+              data-delete-url="/api/forms/submissions/{{ submission.id }}/delete/"
+              data-delete-name="{{ submission.form_schema.title|escape }}"
+              data-delete-code="{{ submission.submission_number|default:submission.id }}"
+              data-delete-redirect="{% url 'submission-list' %}">
+              <i data-lucide="trash-2" class="size-4 me-2"></i> حذف نرم
+            </button>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Side column: attachments + workflow ─────────────────────────── #}
+  <div class="col-12 col-xl-4 vstack gap-4">
+
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0 card-title">پیوست‌ها</h6>
+      </div>
+      <div class="card-body">
+        {% if attachments %}
+          <ul class="list-unstyled vstack gap-2 mb-0">
+            {% for a in attachments %}
+              <li class="pen-attachment-item">
+                <i data-lucide="paperclip" class="size-4 flex-shrink-0 text-muted"></i>
+                <div class="flex-grow-1 overflow-hidden">
+                  <a href="{% url 'form-attachment-download' a.id %}" class="d-block text-truncate">{{ a.original_filename }}</a>
+                  <span class="fs-13 text-muted">{{ a.mime_type }} — {{ a.file_size }} بایت</span>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0 fs-14">پیوستی ثبت نشده است.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0 card-title">گردش کار</h6>
+      </div>
+      <div class="card-body">
+        {% if submission.workflow_instance %}
+          <p class="fs-14 mb-2">
+            فرآیند: <strong>{{ submission.workflow_instance.workflow_definition.name }}</strong>
+            {% if workflow_state %} — مرحله فعلی: {{ workflow_state.name }}{% endif %}
+          </p>
+          <ol class="list-unstyled pen-workflow-timeline mb-3">
+            {% for log in action_logs %}
+              <li class="mb-2">
+                <div class="fw-medium fs-14">{{ log.action }}</div>
+                <div class="fs-13 text-muted">{{ log.created_at|date:"Y/m/d H:i" }} — {{ log.actor.username }}</div>
+              </li>
+            {% empty %}
+              <li class="text-muted fs-14">تاریخچه‌ای ثبت نشده است.</li>
+            {% endfor %}
+          </ol>
+          {% if available_transitions %}
+            <div class="border-top pt-3" id="transition-box">
+              <label for="transition-id" class="form-label fw-semibold">اقدام بعدی</label>
+              <select id="transition-id" class="form-select mb-2" aria-label="انتقال مجاز">
+                {% for t in available_transitions %}
+                  <option value="{{ t.id }}">{{ t.name }}</option>
+                {% endfor %}
+              </select>
+              <input type="text" id="transition-comment" class="form-control mb-2" placeholder="توضیح (اختیاری)" aria-label="توضیح انتقال">
+              <button type="button" class="btn btn-primary w-100" id="do-transition">
+                <i data-lucide="arrow-left-right" class="size-4 me-2"></i> انجام انتقال
+              </button>
+            </div>
+          {% endif %}
+        {% else %}
+          <p class="text-muted mb-0 fs-14">این فرم به گردش کاری متصل نیست.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Comments (full width) ───────────────────────────────────────── #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h6 class="mb-0 card-title">نظرات</h6>
+      </div>
+      <div class="card-body">
+        <ul class="list-unstyled vstack gap-3 mb-3" id="comment-thread">
+          {% for c in comments %}
+            <li>
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="avatar pen-avatar size-7 rounded-circle">{{ c.author.username|first|upper }}</span>
+                <strong class="fs-14">{{ c.author.username }}</strong>
+                {% if c.is_internal %}<span class="badge bg-warning-subtle text-warning">داخلی</span>{% endif %}
+                <span class="fs-13 text-muted ms-auto">{{ c.created_at|date:"Y/m/d H:i" }}</span>
+              </div>
+              <div class="fs-14">{{ c.body }}</div>
+            </li>
+          {% empty %}
+            <li class="text-muted">نظری ثبت نشده است.</li>
+          {% endfor %}
+        </ul>
+        <form id="comment-form" class="row g-2" aria-label="ثبت نظر جدید">
+          <div class="col-12 col-md-9">
+            <label for="comment-body" class="form-label visually-hidden">متن نظر</label>
+            <input type="text" id="comment-body" class="form-control" placeholder="نظر جدید…" aria-label="متن نظر">
+          </div>
+          <div class="col-12 col-md-3">
+            <button type="submit" class="btn btn-outline-primary w-100">
+              <i data-lucide="message-square-plus" class="size-4 me-2"></i> ثبت نظر
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>window.__PEN_DETAIL_CTX__ = {
+  submissionId: "{{ submission.id }}",
+  submitUrl: "/api/forms/submissions/{{ submission.id }}/submit/",
+  transitionUrl: "/api/forms/submissions/{{ submission.id }}/transition/",
+  commentsUrl: "/api/forms/submissions/{{ submission.id }}/comments/",
+};</script>
+<script src="{% asset_v_url 'assets/pen/js/detail.js' %}"></script>
+{% endblock %}

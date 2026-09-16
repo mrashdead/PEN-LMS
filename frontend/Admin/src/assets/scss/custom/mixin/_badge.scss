@@ -1,0 +1,11 @@
+//badge mixin
+@mixin badge-square {
+    display: inline-flex;
+    height: 22px;
+    width: 22px;
+    align-items: center;
+    justify-content: center;
+    border-width: 1px;
+    font-size: .6875rem;
+    padding: 0;
+}

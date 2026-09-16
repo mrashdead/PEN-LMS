@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}جدول زمان‌بندی روزانه{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="جدول زمان‌بندی روزانه" section="آموزش" %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex flex-wrap align-items-center gap-3">
+        <div class="flex-grow-1">
+          <h6 class="mb-0 card-title">
+            <i data-lucide="table-2" class="size-4 me-1"></i>
+            برنامهٔ روز: <span id="tt-date-label" class="text-primary">—</span>
+          </h6>
+          <p class="mb-0 text-muted fs-14">ردیف‌ها: محل‌های آموزش — ستون‌ها: ساعت — روی هر کلاس نگه دارید تا جزئیات را ببینید.</p>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <div class="btn-group" role="group" aria-label="ناوبری روز">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="tt-prev" aria-label="روز قبل">
+              <i data-lucide="chevron-right" class="size-4"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="tt-today">امروز</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="tt-next" aria-label="روز بعد">
+              <i data-lucide="chevron-left" class="size-4"></i>
+            </button>
+          </div>
+          <div>
+            <label for="tt-date" class="form-label visually-hidden">انتخاب تاریخ</label>
+            <input type="text" id="tt-date" class="form-control form-control-sm" data-jalali
+                   dir="ltr" autocomplete="off" placeholder="۱۴۰۴/۰۷/۰۱" aria-label="انتخاب تاریخ">
+          </div>
+          <div class="d-flex gap-2 fs-13" id="tt-legend">
+            <span class="d-inline-flex align-items-center gap-1"><span class="tt-dot" style="background:var(--dx-primary)"></span> برنامه‌ریزی‌شده</span>
+            <span class="d-inline-flex align-items-center gap-1"><span class="tt-dot" style="background:var(--dx-success)"></span> برگزارشده</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-body pt-0">
+        <div class="table-card table-responsive">
+          <table class="table table-bordered timetable-grid mb-0" id="tt-grid" aria-busy="false">
+            <thead class="table-light">
+              <tr id="tt-hours-row">
+                <th scope="col" class="tt-corner">محل / ساعت</th>
+              </tr>
+            </thead>
+            <tbody id="tt-body">
+              <tr><td colspan="8"><div class="pen-loading">در حال بارگذاری…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-muted fs-13 mt-2 mb-0">
+          نمایش ساعت بر اساس بازهٔ جلسات همان روز است. جلسات لغوشده نمایش داده نمی‌شوند.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/timetable.js' %}"></script>
+{% endblock %}

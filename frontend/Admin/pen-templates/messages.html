@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}پیام‌های درون‌سازمانی{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="پیام‌ها" %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  {# ── Inbox (thread list) ────────────────────────────────────────── #}
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1">
+          <i data-lucide="inbox" class="size-4 me-1"></i> صندوق
+          <span class="badge bg-primary-subtle text-primary ms-1" id="msg-total" hidden></span>
+        </h6>
+        <button id="msg-compose" class="btn btn-sm btn-primary">
+          <i data-lucide="pencil" class="size-4 me-1"></i> پیام جدید
+        </button>
+      </div>
+      <div class="card-body p-0">
+        <div class="p-3 border-bottom">
+          <div class="position-relative">
+            <input type="search" id="msg-search" class="form-control form-control-sm ps-9" placeholder="جستجو در موضوع…" aria-label="جستجو">
+            <i data-lucide="search" class="size-4 text-muted position-absolute top-50 start-0 ms-3 translate-middle-y"></i>
+          </div>
+        </div>
+        <div id="msg-list" class="msg-list" role="list" aria-busy="false" style="max-height:60vh;overflow-y:auto">
+          <div class="pen-loading">در حال بارگذاری…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Thread view ────────────────────────────────────────────────── #}
+  <div class="col-12 col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <div class="flex-grow-1 overflow-hidden">
+          <h6 class="mb-0 card-title text-truncate" id="thread-subject">یک گفتگو را انتخاب کنید</h6>
+          <p class="mb-0 text-muted fs-13" id="thread-participants"></p>
+        </div>
+        <button id="thread-hide" class="btn btn-sm btn-light" title="مخفی از صندوق" hidden>
+          <i data-lucide="archive" class="size-4"></i>
+        </button>
+      </div>
+      <div class="card-body">
+        <div id="thread-empty" class="pen-empty">
+          <i data-lucide="messages-square" class="size-8 opacity-50"></i>
+          <p class="mb-0 mt-2">برای مشاهده، یک گفتگو را از صندوق انتخاب کنید.</p>
+        </div>
+        <div id="thread-messages" class="msg-thread vstack gap-2 mb-3" hidden></div>
+        <form id="reply-form" hidden>
+          <div class="d-flex gap-2 align-items-end">
+            <div class="flex-grow-1">
+              <label for="reply-body" class="form-label visually-hidden">متن پاسخ</label>
+              <textarea id="reply-body" class="form-control" rows="2" placeholder="پاسخ…" aria-label="متن پاسخ"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary align-self-stretch">
+              <i data-lucide="send" class="size-4"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Compose modal ────────────────────────────────────────────────── #}
+<div class="modal fade" id="compose-modal" tabindex="-1" aria-labelledby="compose-label" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title mb-0" id="compose-label">پیام جدید</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+      </div>
+      <div class="modal-body">
+        <div class="vstack gap-3">
+          <div>
+            <label class="form-label" for="compose-recipients">گیرنده‌ها <span class="text-danger">*</span></label>
+            <select id="compose-recipients" class="form-select" multiple size="6" aria-label="گیرنده‌ها"></select>
+            <div class="form-text">برای انتخاب چند نفر، Ctrl را نگه دارید.</div>
+          </div>
+          <div>
+            <label class="form-label" for="compose-subject">موضوع <span class="text-danger">*</span></label>
+            <input id="compose-subject" class="form-control" maxlength="200" placeholder="موضوع پیام">
+          </div>
+          <div>
+            <label class="form-label" for="compose-body">متن <span class="text-danger">*</span></label>
+            <textarea id="compose-body" class="form-control" rows="4" maxlength="5000" placeholder="متن پیام…"></textarea>
+          </div>
+          <div id="compose-errors" class="pen-error-summary" role="alert" hidden><ul class="mb-0"></ul></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">انصراف</button>
+        <button type="button" id="compose-send" class="btn btn-primary">
+          <i data-lucide="send" class="size-4 me-1"></i> ارسال
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/messages.js' %}"></script>
+{% endblock %}

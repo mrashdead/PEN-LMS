@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}داشبورد{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="داشبورد" %}
+{% endblock %}
+
+{% block content %}
+{% if is_staff_user %}
+<div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1">
+          <i data-lucide="mail" class="size-4 me-1"></i> پیام‌های اخیر
+          <span class="msg-badge ms-1 msg-unread-badge" hidden></span>
+        </h6>
+        <a href="{% url 'workspace-messages' %}" class="btn btn-sm btn-outline-primary">
+          مشاهده همه <i data-lucide="arrow-left" class="size-4 me-1"></i>
+        </a>
+      </div>
+      <div class="card-body p-0">
+        <div id="dash-messages" style="max-height:300px;overflow-y:auto">
+          <div class="pen-loading">در حال بارگذاری…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4 mb-4" id="pen-stats">
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card card-h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="avatar size-14 rounded bg-primary-subtle text-primary flex-shrink-0">
+          <i data-lucide="users" class="size-6"></i>
+        </div>
+        <div>
+          <h6 class="mb-0 fw-semibold" data-stat="persons">—</h6>
+          <p class="mb-0 text-muted fs-14">اشخاص</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card card-h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="avatar size-14 rounded bg-secondary-subtle text-secondary flex-shrink-0">
+          <i data-lucide="workflow" class="size-6"></i>
+        </div>
+        <div>
+          <h6 class="mb-0 fw-semibold" data-stat="instances">—</h6>
+          <p class="mb-0 text-muted fs-14">فرآیندها</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card card-h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="avatar size-14 rounded bg-success-subtle text-success flex-shrink-0">
+          <i data-lucide="list-checks" class="size-6"></i>
+        </div>
+        <div>
+          <h6 class="mb-0 fw-semibold" data-stat="tasks">—</h6>
+          <p class="mb-0 text-muted fs-14">وظایف</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card card-h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="avatar size-14 rounded bg-warning-subtle text-warning flex-shrink-0">
+          <i data-lucide="calendar-days" class="size-6"></i>
+        </div>
+        <div>
+          <h6 class="mb-0 fw-semibold" data-stat="terms">—</h6>
+          <p class="mb-0 text-muted fs-14">ترم‌های تحصیلی</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-12 col-lg-7">
+    <div class="card card-h-100">
+      <div class="card-header">
+        <h6 class="mb-0 card-title">دسترسی سریع</h6>
+      </div>
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{% url 'submission-picker' %}" class="btn btn-primary">
+            <i data-lucide="file-plus-2" class="size-4 me-2"></i> ثبت فرم جدید
+          </a>
+          <a href="{% url 'submission-list' %}" class="btn btn-outline-primary">
+            <i data-lucide="clipboard-list" class="size-4 me-2"></i> فهرست فرم‌ها
+          </a>
+          <a href="{% url 'workspace-messages' %}" class="btn btn-outline-primary">
+            <i data-lucide="send" class="size-4 me-2"></i> پیام به همکار
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-5">
+    <div class="card card-h-100">
+      <div class="card-header">
+        <h6 class="mb-0 card-title">راهنمای وضعیت‌های فرم</h6>
+      </div>
+      <div class="card-body d-flex flex-column gap-2">
+        <div><span class="pen-badge pen-badge-draft">پیش‌نویس</span> <span class="text-muted fs-14">در حال تکمیل؛ قابل ویرایش است.</span></div>
+        <div><span class="pen-badge pen-badge-submitted">ارسال‌شده</span> <span class="text-muted fs-14">در صف بررسی.</span></div>
+        <div><span class="pen-badge pen-badge-processing">در حال بررسی</span> <span class="text-muted fs-14">در جریان گردش کار.</span></div>
+        <div><span class="pen-badge pen-badge-approved">تأییدشده</span> <span class="text-muted fs-14">فرآیند با موفقیت پایان یافت.</span></div>
+        <div><span class="pen-badge pen-badge-rejected">ردشده</span> <span class="text-muted fs-14">وضعیت نهایی؛ برای اصلاح تماس بگیرید.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var endpoints = {
+    persons: '/api/persons/?limit=1',
+    instances: '/api/workflow/instances/?limit=1',
+    tasks: '/api/tasks/?limit=1',
+    terms: '/api/academics/terms/?limit=1'
+  };
+  Object.keys(endpoints).forEach(function (key) {
+    fetch(endpoints[key], {
+      credentials: 'same-origin',
+      headers: { 'X-CSRFToken': window.getCookie('csrftoken') }
+    })
+      .then(function (r) { return r.ok ? r.json() : { count: null }; })
+      .then(function (d) {
+        var el = document.querySelector('[data-stat="' + key + '"]');
+        if (el) el.textContent = (d && d.count != null) ? window.persianNumbers(d.count) : '—';
+      })
+      .catch(function () {
+        var el = document.querySelector('[data-stat="' + key + '"]');
+        if (el) el.textContent = '—';
+      });
+  });
+
+  // recent messages card (staff only — element exists then)
+  var box = document.getElementById('dash-messages');
+  if (box) {
+    fetch('/api/messaging/', {
+      credentials: 'same-origin',
+      headers: { 'X-CSRFToken': window.getCookie('csrftoken') }
+    })
+      .then(function (r) { return r.ok ? r.json() : { results: [] }; })
+      .then(function (data) {
+        var rows = (data.results || data || []).slice(0, 5);
+        if (!rows.length) {
+          box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0 fs-14">پیامی ندارید. از «پیام به همکار» شروع کنید.</p></div>';
+          return;
+        }
+        box.innerHTML = rows.map(function (t) {
+          return '<a href="/workspace/messages/?thread=' + encodeURIComponent(t.thread_id) + '" class="d-flex align-items-center gap-2 px-3 py-2 border-bottom text-decoration-none">' +
+            '<div class="flex-grow-1 overflow-hidden">' +
+            '<div class="d-flex align-items-center gap-2">' +
+            '<strong class="fs-14 text-truncate">' + window.htmlEscape(t.subject) + '</strong>' +
+            (t.unread_count ? '<span class="msg-badge">' + window.persianNumbers(t.unread_count) + '</span>' : '') +
+            '</div>' +
+            '<div class="fs-13 text-muted text-truncate">' + window.htmlEscape(t.created_by_name || '') + ' — ' + window.htmlEscape(t.updated_at || '') + '</div>' +
+            '</div></a>';
+        }).join('');
+      })
+      .catch(function () {
+        box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0 fs-14">خطا در دریافت پیام‌ها.</p></div>';
+      });
+  }
+});
+</script>
+{% endblock %}

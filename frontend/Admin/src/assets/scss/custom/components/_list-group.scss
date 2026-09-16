@@ -1,0 +1,30 @@
+// src/assets/scss/custom/components/_list-group.scss
+
+.list-borderless {
+    --#{$prefix}list-group-border-width: none;
+    --#{$prefix}list-group-item-padding-x: 0px;
+    --#{$prefix}list-group-item-padding-y: 4px;
+
+}
+
+.list-arrow {
+    list-style-image: url("../images/others/arrow-right.png");
+}
+
+.list-boxed {
+    .list-group-item {
+        border: var(--#{$prefix}list-group-border-width) solid var(--#{$prefix}list-group-border-color);
+        @include border-radius($border-radius);
+        &:not(:last-child) {
+            margin-bottom: 0.5rem;
+        }
+    } 
+}
+
+@each $state in map-keys($theme-colors) { 
+    .list-group-#{$state} {
+        li::marker, li:before {
+            color: var(--#{$prefix}#{$state});
+        }
+    }
+}

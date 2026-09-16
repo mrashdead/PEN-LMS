@@ -1,0 +1,77 @@
+// src/assets/scss/custom/forms/_table-base.scss
+
+th {
+    font-weight: $font-weight-medium;
+}
+
+.border-separate {
+    border-collapse: separate;
+
+    tr {
+        :is(td, th) {
+            border: 1px solid $table-border-color;
+        }
+    }
+
+    &.border-spacing-2 {
+        border-spacing: .25rem .25rem;
+    }
+}
+
+.table-separate {
+    border-collapse: separate !important;
+    border-spacing: 0 8px !important;
+
+    td {
+        border-top: 1px solid var(--#{$prefix}border-color);
+        border-bottom: 1px solid var(--#{$prefix}border-color);
+
+        &:first-child {
+            border-top-left-radius: $border-radius;
+            border-bottom-left-radius: $border-radius;
+            border-left: 1px solid var(--#{$prefix}border-color);
+        }
+
+        &:last-child {
+            border-top-right-radius: $border-radius;
+            border-bottom-right-radius: $border-radius;
+            border-right: 1px solid var(--#{$prefix}border-color);
+        }
+    }
+}
+
+.table-striped-even>tbody>tr:nth-child(even)>td {
+    background-color: $table-striped-bg;
+}
+
+@each $state in map-keys($theme-colors) {
+
+    .table-color-#{$state} {
+        --#{$prefix}table-striped-bg: var(--#{$prefix}#{$state}-bg-subtle);
+    }
+
+    .table-#{$state} {
+        --#{$prefix}table-color:             var(--#{$prefix}body-color);
+        --#{$prefix}table-bg:                #{rgba(var(--#{$prefix}#{$state}-rgb), 0.15)};
+        --#{$prefix}table-border-color:      #{rgba(var(--#{$prefix}#{$state}-rgb), 0.35)};
+        --#{$prefix}table-striped-bg:        #{rgba(var(--#{$prefix}#{$state}-rgb),0.1)};
+        --#{$prefix}table-active-bg:         #{rgba(var(--#{$prefix}#{$state}-rgb),0.1)};
+        --#{$prefix}table-hover-bg:          #{rgba(var(--#{$prefix}#{$state}-rgb),0.1)};
+    }
+}
+
+
+.table-card {
+    margin-left: -$card-spacer-x;
+    margin-right: -$card-spacer-x;
+
+    :is(th, td) {
+        &:first-child {
+            padding-left: $card-spacer-x !important;
+        }
+
+        &:last-child {
+            padding-right: $card-spacer-x !important;
+        }
+    }
+}

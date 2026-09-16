@@ -1,0 +1,14 @@
+/*
+Template Name: Domiex - Admin & Dashboard Template 
+Author: Spring Code
+Version: 1.0.0
+File: Custom Bootstrap Css File
+*/
+
+//Core files
+@import "../../../node_modules/bootstrap/scss/functions";
+@import "../../../node_modules/bootstrap/scss/variables";
+@import "variables";
+@import "variables-dark";
+@import "custom/mixin/utilities";
+@import "../../../node_modules/bootstrap/scss/bootstrap";

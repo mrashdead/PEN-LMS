@@ -1,0 +1,88 @@
+// src/assets/scss/custom/structure/_semibox.scss
+
+[data-layout=semibox] {
+    .main-sidebar {
+        inset: var(--#{$prefix}semibox-width);
+        top: var(--#{$prefix}semibox-width) !important;
+        border: 1px solid var(--#{$prefix}sidebar-border);
+        border-radius: $border-radius;
+    }
+
+    .main-topbar {
+        border: 1px solid var(--#{$prefix}border-color);
+        border-radius: $border-radius;
+        top: var(--#{$prefix}semibox-width);
+        left: calc(var(--#{$prefix}sidebar) + var(--#{$prefix}semibox-width) + var(--#{$prefix}semibox-width)) !important;
+        right: var(--#{$prefix}semibox-width);
+
+        &.nav-sticky {
+            top: 0;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+        }
+
+        @include media-breakpoint-down(xl) { 
+            left: var(--#{$prefix}semibox-width) !important;
+        }
+    }
+
+    .page-wrapper {
+        padding-top: calc(var(--#{$prefix}topbar) + var(--#{$prefix}semibox-width) + var(--#{$prefix}semibox-width));
+    }
+
+    .navbar-menu {
+        height: calc(100vh - 7rem);
+    }
+
+    &[data-profile-sidebar=true] {
+        .navbar-menu {
+            height: calc(100vh - 12rem);
+        }
+    }
+
+    @include media-breakpoint-up(lg) {
+
+        //sidebar size medium
+        &[data-sidebar=medium] {
+            .main-topbar {
+                left: calc(var(--#{$prefix}sidebar-md) + var(--#{$prefix}semibox-width) + var(--#{$prefix}semibox-width)) !important;
+            }
+        }
+
+        //sidebar size small
+        &[data-sidebar=small] {
+            .main-topbar {
+                left: calc(var(--#{$prefix}sidebar-sm) + var(--#{$prefix}semibox-width) + var(--#{$prefix}semibox-width)) !important;
+            }
+        }
+    }
+
+    .sidebar-hidden {
+        @include media-breakpoint-between(md, xl) {
+            .main-sidebar {
+                left: calc(var(--#{$prefix}sidebar-sm) * -1.1);
+            }
+
+            .main-topbar {
+                left: var(--#{$prefix}semibox-width) !important;
+            }
+
+            .page-wrapper {
+                margin-left: 0 !important;
+            }
+        }
+
+        @include media-breakpoint-down(lg) {
+
+            .main-sidebar {
+                left: calc(var(--#{$prefix}sidebar) * -1.1);
+
+                &.show {
+                    display: block;
+                    left: 0;
+                }
+            }
+
+        }
+    }
+}

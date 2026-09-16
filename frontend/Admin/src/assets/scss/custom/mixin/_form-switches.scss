@@ -1,0 +1,56 @@
+// Mixin for Generating switch Classes Based on Theme Colors
+@mixin generate-switch-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for switch states
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "switch Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "switch Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        .switch-outline-#{$state} {
+            input:checked+label:after {
+                background-color: var(--#{$prefix}#{$state});
+            }
+        }
+    
+        .switch-soft-#{$state} {
+            input:checked+label:after {
+                background-color: var(--#{$prefix}#{$state});
+            }
+        }
+    
+        .switch-light-#{$state} {
+            input:checked+label {
+                background: var(--#{$prefix}#{$state}-bg-subtle);
+                border: 1px solid var(--#{$prefix}#{$state}-bg-subtle);
+    
+                &::after {
+                    background-color: var(--#{$prefix}#{$state});
+                }
+            }
+        }
+    
+        .switch-solid-#{$state} {
+            input:checked+label {
+                background: var(--#{$prefix}#{$state});
+                border: 1px solid var(--#{$prefix}#{$state});
+            }
+        }
+    
+        .switch-effect-#{$state} {
+            input:checked+label:after {
+                background-color: var(--#{$prefix}#{$state});
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-switch-classes($theme-colors, $prefix);

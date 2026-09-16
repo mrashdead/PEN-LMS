@@ -1,0 +1,42 @@
+// src/assets/scss/custom/components/_loader.scss
+
+.spin {
+    height: $spinner-width;
+    width: $spinner-height;
+    @include border-radius($border-radius-pill);
+}
+
+.modern-spinner {
+    border: 2px solid;
+    border-left-color: transparent !important;
+    border-right-color: transparent !important;
+}
+
+.gradient-loader {
+    .bg-gradient {
+        border-color: var(--#{$prefix}primary) var(--#{$prefix}success) var(--#{$prefix}warning) var(--#{$prefix}danger) !important;
+    }
+
+    .bg-gradient2 {
+        border-color: var(--#{$prefix}info) var(--#{$prefix}pink) var(--#{$prefix}secondary) var(--#{$prefix}primary) !important;
+    }
+
+    .bg-sub-gradient {
+        border-color: var(--#{$prefix}primary-bg-subtle) var(--#{$prefix}success-bg-subtle) var(--#{$prefix}warning-bg-subtle) var(--#{$prefix}danger-bg-subtle) !important;
+    }
+}
+
+.animation-button {
+    .circle {
+        margin-top: -.25rem;
+        margin-right: -.25rem;
+    }
+
+    .loader-button-animation {
+        @include position(absolute, -0.2188rem, -0.2188rem, null, null);
+    }
+}
+
+.animate-bounce {
+    border: 2px solid var(--#{$prefix}border-color);
+}

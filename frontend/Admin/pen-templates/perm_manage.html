@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}مدیریت مجوزها{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="مدیریت مجوزها" section="مدیریت سازمان" %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  {# ── Person search ──────────────────────────────────────────────── #}
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0 card-title"><i data-lucide="search" class="size-4 me-1"></i> جستجوی شخص</h6></div>
+      <div class="card-body">
+        <input type="search" id="pm-search" class="form-control mb-3" placeholder="نام، نام‌کاربری یا دپارتمان…" aria-label="جستجوی شخص">
+        <div id="pm-users" class="vstack gap-2" style="max-height:60vh;overflow-y:auto" aria-busy="false">
+          <div class="pen-loading">در حال بارگذاری…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Permission editor ──────────────────────────────────────────── #}
+  <div class="col-12 col-lg-8">
+    <div id="pm-empty" class="card">
+      <div class="card-body">
+        <div class="pen-empty"><i data-lucide="user-cog" class="size-8 opacity-50"></i><p class="mb-0 mt-2">یک شخص را از فهرست انتخاب کنید.</p></div>
+      </div>
+    </div>
+
+    <div id="pm-editor" hidden>
+      <div class="card mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+          <div class="flex-grow-1">
+            <h6 class="mb-0 card-title" id="pm-name">—</h6>
+            <p class="mb-0 text-muted fs-13" id="pm-sub"></p>
+          </div>
+          <span class="badge bg-warning-subtle text-warning" id="pm-superuser" hidden>مدیر سیستم (superuser)</span>
+        </div>
+        <div class="card-body">
+          <h6 class="fw-semibold mb-2"><i data-lucide="shield" class="size-4 me-1"></i> نقش‌ها</h6>
+          <div id="pm-roles" class="d-flex flex-wrap gap-2 mb-3"></div>
+          <div class="d-flex gap-2">
+            <button id="pm-save-roles" class="btn btn-sm btn-primary"><i data-lucide="save" class="size-4 me-1"></i> ذخیرهٔ نقش‌ها</button>
+          </div>
+
+          <hr class="my-4">
+          <h6 class="fw-semibold mb-2"><i data-lucide="users-round" class="size-4 me-1"></i> گروه‌ها (مجوز مدل)</h6>
+          <div id="pm-groups" class="d-flex flex-wrap gap-2 mb-3"></div>
+          <button id="pm-save-groups" class="btn btn-sm btn-primary"><i data-lucide="save" class="size-4 me-1"></i> ذخیرهٔ گروه‌ها</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h6 class="mb-0 card-title"><i data-lucide="table" class="size-4 me-1"></i> دسترسی‌های مؤثر (مشاهده/ایجاد/ویرایش/حذف)</h6></div>
+        <div class="card-body pt-0">
+          <div class="table-responsive" id="pm-perms"></div>
+          <p class="text-muted fs-13 mt-2 mb-0">این جدول از گروه‌ها/مجوزهای مدل جنگو محاسبه می‌شود؛ برای تغییر، گروه‌ها را ویرایش کنید.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/perm-manage.js' %}"></script>
+{% endblock %}

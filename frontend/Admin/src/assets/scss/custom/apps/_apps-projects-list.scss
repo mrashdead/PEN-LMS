@@ -1,0 +1,5 @@
+// src/assets/scss/custom/apps/_apps-projects-list.scss
+
+.progress-gradient-secondary {
+    background: linear-gradient(90deg, var(--#{$prefix}primary), var(--#{$prefix}secondary), var(--#{$prefix}pink));
+}

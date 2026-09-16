@@ -1,0 +1,33 @@
+// Mixin for Generating pagination Classes Based on Theme Colors
+@mixin generate-pagination-classes($colors: $theme-colors, $prefix: '') {
+
+    // Generate contextual modifier classes for pagination states (outline, solid, sub)
+    @each $state, $color in $colors {
+
+        // Error handling: Ensure color exists
+        @if not map-has-key($colors, $state) {
+            @error "Color '#{$state}' is missing in the '$colors' map. Please define it in the theme colors.";
+        }
+
+        // Warning for empty color
+        @if not $color {
+            @warn "Color for '#{$state}' is empty. Using a fallback might cause issues.";
+        }
+
+        .pagination-#{$state} {
+            --#{$prefix}pagination-hover-color: var(--#{$prefix}#{$state});
+            --#{$prefix}pagination-active-bg: var(--#{$prefix}#{$state});
+            --#{$prefix}pagination-active-border-color: var(--#{$prefix}#{$state});
+            --#{$prefix}pagination-focus-color: var(--#{$prefix}#{$state});
+        }
+        
+        .pagination-solid-#{$state} {
+            .page-link {
+                background-color: var(--#{$prefix}#{$state}); 
+            }
+        }
+    }
+}
+
+// Example Usage of the Mixin with a theme prefix
+@include generate-pagination-classes($theme-colors, $prefix);

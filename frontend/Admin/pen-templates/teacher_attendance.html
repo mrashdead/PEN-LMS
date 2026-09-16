@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% load static asset_v %}
+{% block title %}حضور و غیاب{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="حضور و غیاب" section="پنل مدرس" section_url="/workspace/teacher/" %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  {# ── step 1: pick class ─────────────────────────────────────────── #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1">
+          <span class="badge text-bg-primary rounded-pill ms-2">۱</span>
+          انتخاب کلاس
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-12 col-lg-5">
+            <label class="form-label" for="att-class">کلاس / دوره <span class="text-danger">*</span></label>
+            <select id="att-class" class="form-select" aria-label="انتخاب کلاس">
+              <option value="">— انتخاب کلاس —</option>
+            </select>
+            <div class="form-text" id="att-class-hint">فقط کلاس‌هایی که به عنوان مدرس به شما تخصیص داده شده‌اند نمایش داده می‌شوند.</div>
+          </div>
+          <div class="col-12 col-lg-4">
+            <label class="form-label" for="att-session">جلسه</label>
+            <select id="att-session" class="form-select" disabled aria-label="انتخاب جلسه">
+              <option value="">— ابتدا کلاس را انتخاب کنید —</option>
+            </select>
+            <div class="form-text" id="att-session-hint"></div>
+          </div>
+          <div class="col-12 col-lg-3 d-flex align-items-end">
+            <button type="button" id="att-new" class="btn btn-outline-secondary w-100" disabled>
+              <i data-lucide="plus" class="size-4 me-1"></i> جلسه جدید
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── step 2: session metadata ───────────────────────────────────── #}
+  <div class="col-12 col-xl-4">
+    <div class="card card-h-100">
+      <div class="card-header">
+        <h6 class="mb-0 card-title">
+          <span class="badge text-bg-primary rounded-pill ms-2">۲</span>
+          اطلاعات جلسه
+        </h6>
+      </div>
+      <div class="card-body">
+        <div id="att-meta" class="d-flex flex-column gap-3">
+          <div>
+            <label class="form-label" for="att-date">تاریخ جلسه (شمسی) <span class="text-danger">*</span></label>
+            <input type="text" id="att-date" class="form-control" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۴/۰۶/۲۵" disabled>
+          </div>
+          <div>
+            <label class="form-label" for="att-number">شماره جلسه <span class="text-danger">*</span></label>
+            <input type="number" id="att-number" class="form-control" min="1" max="200" disabled>
+            <div class="form-text">خودکار روی بعدی تنظیم می‌شود؛ برای ویرایش همان عدد را عوض نکنید.</div>
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label" for="att-start">ساعت شروع <span class="text-danger">*</span></label>
+              <input type="text" id="att-start" class="form-control" data-jalali-time dir="ltr" autocomplete="off" placeholder="۱۸:۰۰" disabled>
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="att-end">ساعت پایان <span class="text-danger">*</span></label>
+              <input type="text" id="att-end" class="form-control" data-jalali-time dir="ltr" autocomplete="off" placeholder="۲۰:۰۰" disabled>
+            </div>
+          </div>
+          <div>
+            <label class="form-label" for="att-title">عنوان جلسه (اختیاری)</label>
+            <input type="text" id="att-title" class="form-control" maxlength="256" placeholder="مثلاً: فصل ۳ — مبحث مشتق" disabled>
+          </div>
+          <p class="fs-13 text-muted mb-0">برای یک کلاس، در هر تاریخ فقط یک جلسه قابل ثبت است و شماره جلسه تکراری ساخته نمی‌شود.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── step 3: roster sheet ───────────────────────────────────────── #}
+  <div class="col-12 col-xl-8">
+    <div class="card">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1">
+          <span class="badge text-bg-primary rounded-pill ms-2">۳</span>
+          وضعیت دانش‌آموزان
+          <span class="fs-13 text-muted fw-normal" id="att-count"></span>
+        </h6>
+        <div class="d-flex align-items-center gap-2">
+          <div class="btn-group btn-group-sm" role="group" aria-label="تنظیم گروهی">
+            <button type="button" class="btn btn-outline-success" id="att-all-present" disabled>همه حاضر</button>
+            <button type="button" class="btn btn-outline-secondary" id="att-clear" disabled>پاک کردن</button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" id="att-table">
+            <thead class="table-light">
+              <tr>
+                <th scope="col" style="width:3rem">#</th>
+                <th scope="col">دانش‌آموز</th>
+                <th scope="col">وضعیت حضور</th>
+                <th scope="col">یادداشت</th>
+              </tr>
+            </thead>
+            <tbody id="att-rows">
+              <tr><td colspan="4"><div class="pen-empty">برای بارگذاری خودکار فهرست دانش‌آموزان، ابتدا کلاس را انتخاب کنید.</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card-footer d-flex flex-wrap align-items-center gap-3">
+        <div class="fs-13 text-muted flex-grow-1" id="att-summary">وضعیت هیچ دانش‌آموزی انتخاب نشده است.</div>
+        <div class="d-flex gap-2">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="att-replace" checked>
+            <label class="form-check-label fs-13" for="att-replace">حذف ثبت‌های حذف‌شده از فهرست</label>
+          </div>
+          <button type="button" id="att-save" class="btn btn-primary" disabled>
+            <i data-lucide="save" class="size-4 me-1"></i> ثبت جلسه
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/teacher-attendance.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,168 @@
+// src/assets/scss/custom/plugins/_tabulator.scss
+
+.tabulator {
+    background-color: var(--#{$prefix}secondary-bg);
+    font-size: $font-size-base;
+
+    .tabulator-header {
+        border-bottom: 1px solid var(--#{$prefix}border-color);
+        border-top-color: var(--#{$prefix}border-color);
+        color: var(--#{$prefix}body-color);
+        font-weight: $font-weight-semibold;
+
+        .tabulator-col {
+            background-color: var(--#{$prefix}secondary-bg);
+            border-color: var(--#{$prefix}border-color);
+
+            &.tabulator-sortable[aria-sort=none] .tabulator-col-content .tabulator-col-sorter {
+                color: var(--#{$prefix}secondary-color);
+            }
+
+            &.tabulator-sortable[aria-sort=descending] .tabulator-col-content .tabulator-col-sorter {
+                color: var(--#{$prefix}body-color);
+            }
+
+            .tabulator-col-content .tabulator-col-sorter .tabulator-arrow {
+                border-bottom-color: var(--#{$prefix}border-color);
+            }
+
+            &.tabulator-sortable[aria-sort=none] .tabulator-col-content .tabulator-col-sorter .tabulator-arrow {
+                border-bottom-color: var(--#{$prefix}border-color);
+            }
+        }
+
+
+        .tabulator-col .tabulator-col-content {
+            padding: 14px;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .tabulator-col.tabulator-sortable.tabulator-col-sorter-element:hover {
+                background-color: var(--#{$prefix}tertiary-bg);
+            }
+        }
+    }
+
+    .tabulator-row {
+        background-color: var(--#{$prefix}secondary-bg);
+        border-color: var(--#{$prefix}border-color);
+
+        .tabulator-cell {
+            border-color: var(--#{$prefix}border-color);
+        }
+
+        &.tabulator-row-even {
+            background-color: var(--#{$prefix}tertiary-bg);
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            &.tabulator-selectable:hover {
+                background-color: var(--#{$prefix}tertiary-bg);
+                cursor: pointer;
+            }
+        }
+    }
+
+    .tabulator-tableholder .tabulator-table {
+        color: var(--#{$prefix}body-color);
+    }
+
+    .tabulator-row .tabulator-cell .tabulator-data-tree-control {
+        background-color: transparent;
+        border-color: var(--#{$prefix}border-color);
+    }
+
+    .tabulator-footer {
+        padding-top: 12px;
+        background-color: transparent;
+        border: none;
+        color: var(--#{$prefix}body-color);
+
+        @include media-breakpoint-down(lg) {
+            .tabulator-footer-contents {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+
+        .tabulator-paginator {
+            color: var(--#{$prefix}body-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .5rem;
+            flex-wrap: wrap;
+            
+            @include media-breakpoint-up(lg) { 
+                justify-content: end;
+            }
+        }
+
+        .tabulator-page {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            height: 2.25rem;
+            @include border-radius($pagination-border-radius);
+            padding-top: 0;
+            padding-bottom: 0;
+            background-color: $pagination-bg;
+            border-color: $pagination-border-color;
+
+            &:disabled {
+                color: var(--#{$prefix}tertiary-color);
+                border-color: var(--#{$prefix}border-color);
+                background-color: var(--#{$prefix}secondary-bg)
+            }
+
+            &.active {
+                background-color: var(--#{$prefix}primary);
+                border-color: var(--#{$prefix}primary);
+            }
+
+            &[data-page=last] {
+                border-color: $pagination-border-color;
+            }
+
+            @media (hover: hover) and (pointer: fine) {
+
+                &:not(.disabled):hover,
+                &:not(.active):hover {
+                    background: var(--#{$prefix}tertiary-bg);
+                    border-color: var(--#{$prefix}border-color);
+                    color: var(--#{$prefix}primary);
+                }
+            }
+
+        }
+
+        .tabulator-pages {
+            @include flexStyle(center, center);
+            gap: 0.5rem;
+
+            .tabulator-page {
+                width: 2.25rem;
+                padding: 0;
+            }
+        }
+
+        .tabulator-page-size {
+            border-color: var(--#{$prefix}border-color);
+            background-color: $input-bg;
+        }
+    }
+}
+
+.tabulator-row .tabulator-cell .tabulator-data-tree-control .tabulator-data-tree-control-collapse:after,
+.tabulator-row .tabulator-cell .tabulator-data-tree-control .tabulator-data-tree-control-expand,
+.tabulator-row .tabulator-cell .tabulator-data-tree-control .tabulator-data-tree-control-expand:after {
+    background-color: var(--#{$prefix}border-color);
+}
+
+.tabulator-cell {
+    svg {
+        width: 16px;
+        height: 16px;
+    }
+}
