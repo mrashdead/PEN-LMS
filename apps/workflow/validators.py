@@ -76,7 +76,12 @@ class TransitionValidator:
         # --- 4. Actor حداقل یک نقش مجاز دارد؟ ---
         if transition.allowed_role_codes:
             actor_roles = actor.role_codes()
-            if not any(role in actor_roles for role in transition.allowed_role_codes):
+            # The workflow administrator is the operational fallback for
+            # every approval queue.  Definitions may predate this policy, so
+            # enforce it centrally instead of relying on seed data.
+            if "workflow_admin" not in actor_roles and not any(
+                role in actor_roles for role in transition.allowed_role_codes
+            ):
                 errors.append(
                     f"شما نقش مجاز برای این انتقال را ندارید. "
                     f"نقش‌های مورد نیاز: {transition.allowed_role_codes}."

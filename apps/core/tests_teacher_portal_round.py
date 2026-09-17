@@ -596,6 +596,8 @@ class LearnerPortalTests(_PortalBase):
         self.assertIn("date_jalali", sess[0])
         self.assertRegex(sess[0]["date_jalali"], r"^[۰-۹]{4}/")
         self.assertEqual(body["attendance"]["totals"]["late"], 1)
+        self.assertEqual(body["attendance"]["rate"], 100)
+        self.assertEqual(body["attendance"]["on_time_rate"], 0)
         self.assertEqual(
             [s["id"] for s in body["students"]], [str(self.students[0].pk)])
 

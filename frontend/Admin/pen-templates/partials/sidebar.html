@@ -48,6 +48,11 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </div>
         </div>
         <div class="pt-2 mt-3 border-top">
+          {% if can_change_own_password %}
+          <a href="{% url 'password-change' %}" class="profile-link d-block py-1 text-decoration-none">
+            <i data-lucide="key-round" class="d-inline-block me-2 size-4"></i> تغییر رمز عبور
+          </a>
+          {% endif %}
           <form method="post" action="{% url 'dashboard-logout' %}">
             {% csrf_token %}
             <button type="submit" class="profile-link w-100 text-start border-0 bg-transparent py-1">
@@ -70,6 +75,26 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">داشبورد</span>
           </a>
         </li>
+
+        <li class="nav-item">
+          <a href="{% url 'workspace-profile' %}" title="پنل کاربری من"
+             class="nav-link{% if urlname == 'workspace-profile' %} active{% endif %}"
+             {% if urlname == 'workspace-profile' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="user-round"></i></span>
+            <span class="content">پنل کاربری من</span>
+          </a>
+        </li>
+
+        {% if can_change_own_password %}
+        <li class="nav-item">
+          <a href="{% url 'password-change' %}" title="تغییر رمز عبور"
+             class="nav-link{% if urlname == 'password-change' %} active{% endif %}"
+             {% if urlname == 'password-change' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="key-round"></i></span>
+            <span class="content">تغییر رمز عبور</span>
+          </a>
+        </li>
+        {% endif %}
 
         {# ══ TEACHER PORTAL (teacher-only: nothing else) ══════════════ #}
         {% if is_teacher_only %}

@@ -1121,14 +1121,15 @@ def learner_attendance_summary(user, student=None) -> dict:
     ``student`` is a Person already resolved by the caller (see
     ``_resolve_learner_person``); when omitted it falls back to the user's own
     person. Returns {totals:{present,absent,late,excused}, all, rate,
-    sessions:[…]}. Scoped strictly to that one student — never another's rows.
+    on_time_rate, sessions:[…]}. Scoped strictly to that one student — never
+    another's rows.
     Dates are surfaced as Jalali (۱۴۰۴/…) per the portal spec; ISO kept for
     client-side sorting.
     """
     from apps.core.utils import persian_date
 
     person = student if student is not None else getattr(user, "person", None)
-    empty = {"totals": {}, "all": 0, "rate": 0, "sessions": []}
+    empty = {"totals": {}, "all": 0, "rate": 0, "on_time_rate": 0, "sessions": []}
     if person is None:
         return empty
     records = (
@@ -1160,6 +1161,7 @@ def learner_attendance_summary(user, student=None) -> dict:
     all_count = sum(totals.values())
     present = totals.get(AttendanceRecord.Status.PRESENT, 0)
     late = totals.get(AttendanceRecord.Status.LATE, 0)
+    on_time_rate = round(present * 100 / all_count) if all_count else 0
     rate = round((present + late) * 100 / all_count) if all_count else 0
     return {
         "totals": {
@@ -1168,7 +1170,10 @@ def learner_attendance_summary(user, student=None) -> dict:
             "late": totals.get("late", 0),
             "excused": totals.get("excused", 0),
         },
-        "all": all_count, "rate": rate, "sessions": sessions,
+        "all": all_count,
+        "rate": rate,
+        "on_time_rate": on_time_rate,
+        "sessions": sessions,
     }
 
 

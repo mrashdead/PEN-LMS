@@ -638,6 +638,16 @@ def dashboard_data(user, filters: ReportFilters) -> dict[str, Any]:
     workflow = workflow_report(filters)
     communications = communications_report(filters)
     active_students = next((row["value"] for row in people["by_role"] if row["key"] == "student"), 0)
+    from apps.persons.models import Person
+
+    thirty_days_ago = timezone.localdate() - dt.timedelta(days=29)
+    new_students_30d = Person.objects.filter(
+        is_deleted=False,
+        is_active=True,
+        person_type=Person.Type.STUDENT,
+        created_at__date__gte=thirty_days_ago,
+        created_at__date__lte=timezone.localdate(),
+    ).count()
     return {
         "filters": filters.as_dict(),
         "permissions": {"can_view_financial": financial.get("visible", False)},
@@ -648,6 +658,7 @@ def dashboard_data(user, filters: ReportFilters) -> dict[str, Any]:
             "class_utilization_pct": enrollments["capacity"]["occupancy_pct"],
             "room_utilization_pct": classes["room_utilization_pct"],
             "pending_requests": workflow["pending_review"],
+            "new_students_30d": new_students_30d,
         },
         "financial": financial,
         "enrollments": enrollments,

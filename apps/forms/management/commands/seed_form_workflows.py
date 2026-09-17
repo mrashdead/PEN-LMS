@@ -8,9 +8,9 @@ form catalog references, using the EXISTING engine models (WorkflowDefinition,
 State, Transition) and its role-code conventions:
 
   form-approval      new → pending-manager → done      (تعریف درس/دوره/برگزاری)
-                     approve: manager, hr; reject: manager, hr
+                     approve: manager, hr, workflow_admin; reject: manager, hr, workflow_admin
   form-review        new → pending-manager → done      (حضور و غیاب/کارنامه)
-                     approve/reject: manager only
+                     approve/reject: manager, workflow_admin
   lead-assessment    new → assessed → enrolled/closed  (تعیین سطح)
                      assess: employee, hr, manager, workflow_admin
                      enroll: employee, hr, manager, workflow_admin
@@ -42,8 +42,8 @@ WORKFLOW_BLUEPRINTS: dict[str, dict[str, Any]] = {
         # (name, from_state, to_state, allowed_role_codes, kind)
         "transitions": [
             ("submit", "new", "pending-manager", ["employee", "hr", "manager", "workflow_admin"], "submit"),
-            ("approve", "pending-manager", "done", ["manager", "hr"], "approve"),
-            ("reject", "pending-manager", "done", ["manager", "hr"], "reject"),
+            ("approve", "pending-manager", "done", ["manager", "hr", "workflow_admin"], "approve"),
+            ("reject", "pending-manager", "done", ["manager", "hr", "workflow_admin"], "reject"),
         ],
     },
     "form-review": {
@@ -55,8 +55,8 @@ WORKFLOW_BLUEPRINTS: dict[str, dict[str, Any]] = {
         ],
         "transitions": [
             ("submit", "new", "pending-manager", ["teacher", "manager"], "submit"),
-            ("approve", "pending-manager", "done", ["manager"], "approve"),
-            ("reject", "pending-manager", "done", ["manager"], "reject"),
+            ("approve", "pending-manager", "done", ["manager", "workflow_admin"], "approve"),
+            ("reject", "pending-manager", "done", ["manager", "workflow_admin"], "reject"),
         ],
     },
     "lead-assessment": {

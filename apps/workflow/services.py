@@ -402,8 +402,11 @@ class WorkflowEngineService:
                 instance=instance,
                 transition=transition,
                 approver=actor,
-                role_code=", ".join(sorted(roles & set(transition.allowed_role_codes)))
-                if transition.allowed_role_codes else ", ".join(sorted(roles)),
+                role_code=(
+                    "workflow_admin"
+                    if "workflow_admin" in roles
+                    else ", ".join(sorted(roles & set(transition.allowed_role_codes)))
+                ) if transition.allowed_role_codes else ", ".join(sorted(roles)),
                 action="approve" if (
                     semantic == "approve" or action_l in ("approve", "accept", "confirmed")
                 ) else "reject",
@@ -623,6 +626,10 @@ class WorkflowEngineService:
         for t in outgoing:
             if t.allowed_role_codes:
                 role_codes.update(t.allowed_role_codes)
+
+        # Keep an actionable task for the system operator even when an older
+        # workflow definition only listed manager/HR in its transitions.
+        role_codes.add("workflow_admin")
 
         if not role_codes:
             logger.warning(

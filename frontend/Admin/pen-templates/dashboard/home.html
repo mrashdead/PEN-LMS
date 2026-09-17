@@ -33,11 +33,11 @@
     <div class="card card-h-100">
       <div class="card-body d-flex align-items-center gap-3">
         <div class="avatar size-14 rounded bg-primary-subtle text-primary flex-shrink-0">
-          <i data-lucide="users" class="size-6"></i>
+          <i data-lucide="{% if is_manager %}building-2{% else %}users{% endif %}" class="size-6"></i>
         </div>
         <div>
           <h6 class="mb-0 fw-semibold" data-stat="persons">—</h6>
-          <p class="mb-0 text-muted fs-14">اشخاص</p>
+          <p class="mb-0 text-muted fs-14">{% if is_manager %}ظرفیت پرشده{% else %}اشخاص{% endif %}</p>
         </div>
       </div>
     </div>
@@ -46,11 +46,11 @@
     <div class="card card-h-100">
       <div class="card-body d-flex align-items-center gap-3">
         <div class="avatar size-14 rounded bg-secondary-subtle text-secondary flex-shrink-0">
-          <i data-lucide="workflow" class="size-6"></i>
+          <i data-lucide="{% if is_manager %}inbox{% else %}workflow{% endif %}" class="size-6"></i>
         </div>
         <div>
           <h6 class="mb-0 fw-semibold" data-stat="instances">—</h6>
-          <p class="mb-0 text-muted fs-14">فرآیندها</p>
+          <p class="mb-0 text-muted fs-14">{% if is_manager %}درخواست‌های منتظر اقدام{% else %}فرآیندها{% endif %}</p>
         </div>
       </div>
     </div>
@@ -59,11 +59,11 @@
     <div class="card card-h-100">
       <div class="card-body d-flex align-items-center gap-3">
         <div class="avatar size-14 rounded bg-success-subtle text-success flex-shrink-0">
-          <i data-lucide="list-checks" class="size-6"></i>
+          <i data-lucide="{% if is_manager %}user-plus{% else %}list-checks{% endif %}" class="size-6"></i>
         </div>
         <div>
           <h6 class="mb-0 fw-semibold" data-stat="tasks">—</h6>
-          <p class="mb-0 text-muted fs-14">وظایف</p>
+          <p class="mb-0 text-muted fs-14">{% if is_manager %}ثبت‌نام جدید{% else %}وظایف در دست من{% endif %}</p>
         </div>
       </div>
     </div>
@@ -72,11 +72,11 @@
     <div class="card card-h-100">
       <div class="card-body d-flex align-items-center gap-3">
         <div class="avatar size-14 rounded bg-warning-subtle text-warning flex-shrink-0">
-          <i data-lucide="calendar-days" class="size-6"></i>
+          <i data-lucide="{% if is_manager %}trending-up{% else %}calendar-days{% endif %}" class="size-6"></i>
         </div>
         <div>
           <h6 class="mb-0 fw-semibold" data-stat="terms">—</h6>
-          <p class="mb-0 text-muted fs-14">ترم‌های تحصیلی</p>
+          <p class="mb-0 text-muted fs-14">{% if is_manager %}روند ثبت‌نام ۳۰ روزه{% else %}ترم‌های تحصیلی{% endif %}</p>
         </div>
       </div>
     </div>
@@ -94,8 +94,8 @@
           <a href="{% url 'submission-picker' %}" class="btn btn-primary">
             <i data-lucide="file-plus-2" class="size-4 me-2"></i> ثبت فرم جدید
           </a>
-          <a href="{% url 'submission-list' %}" class="btn btn-outline-primary">
-            <i data-lucide="clipboard-list" class="size-4 me-2"></i> فهرست فرم‌ها
+          <a href="{% url 'workspace-work' %}" class="btn btn-outline-primary">
+            <i data-lucide="list-checks" class="size-4 me-2"></i> کارهای در دست من
           </a>
           <a href="{% url 'workspace-messages' %}" class="btn btn-outline-primary">
             <i data-lucide="send" class="size-4 me-2"></i> پیام به همکار
@@ -107,14 +107,19 @@
   <div class="col-12 col-lg-5">
     <div class="card card-h-100">
       <div class="card-header">
-        <h6 class="mb-0 card-title">راهنمای وضعیت‌های فرم</h6>
+        <h6 class="mb-0 card-title">{% if is_manager %}سه سؤال مهم امروز{% else %}راهنمای وضعیت‌های فرم{% endif %}</h6>
       </div>
       <div class="card-body d-flex flex-column gap-2">
+        {% if is_manager %}
+        <p class="mb-0 text-muted fs-14">این داشبورد به‌جای فهرست عددها، ظرفیت، صف تأیید و روند ثبت‌نام را جلو می‌آورد.</p>
+        <a href="{% url 'workspace-reports' %}" class="btn btn-sm btn-outline-primary align-self-start">جزئیات گزارش‌ها</a>
+        {% else %}
         <div><span class="pen-badge pen-badge-draft">پیش‌نویس</span> <span class="text-muted fs-14">در حال تکمیل؛ قابل ویرایش است.</span></div>
         <div><span class="pen-badge pen-badge-submitted">ارسال‌شده</span> <span class="text-muted fs-14">در صف بررسی.</span></div>
         <div><span class="pen-badge pen-badge-processing">در حال بررسی</span> <span class="text-muted fs-14">در جریان گردش کار.</span></div>
         <div><span class="pen-badge pen-badge-approved">تأییدشده</span> <span class="text-muted fs-14">فرآیند با موفقیت پایان یافت.</span></div>
         <div><span class="pen-badge pen-badge-rejected">ردشده</span> <span class="text-muted fs-14">وضعیت نهایی؛ برای اصلاح تماس بگیرید.</span></div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -124,12 +129,17 @@
 {% block page_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  var endpoints = {
+  var endpoints = {% if is_manager %}{
+    persons: '/api/reports/dashboard/?period=month',
+    instances: '/api/reports/dashboard/?period=month',
+    tasks: '/api/reports/dashboard/?period=month',
+    terms: '/api/reports/dashboard/?period=month'
+  }{% else %}{
     persons: '/api/persons/?limit=1',
     instances: '/api/workflow/instances/?limit=1',
     tasks: '/api/tasks/?limit=1',
     terms: '/api/academics/terms/?limit=1'
-  };
+  }{% endif %};
   Object.keys(endpoints).forEach(function (key) {
     fetch(endpoints[key], {
       credentials: 'same-origin',
@@ -137,8 +147,16 @@ document.addEventListener('DOMContentLoaded', function () {
     })
       .then(function (r) { return r.ok ? r.json() : { count: null }; })
       .then(function (d) {
+        {% if is_manager %}
+        var kpis = d.kpis || {};
+        var values = { persons: kpis.class_utilization_pct, instances: kpis.pending_requests, tasks: kpis.new_students_30d, terms: kpis.new_students_30d };
+        var managerValue = values[key];
+        var managerEl = document.querySelector('[data-stat="' + key + '"]');
+        if (managerEl && managerValue != null) managerEl.textContent = key === 'persons' ? window.persianNumbers(Number(managerValue).toFixed(1)) + '٪' : window.persianNumbers(managerValue);
+        {% else %}
         var el = document.querySelector('[data-stat="' + key + '"]');
         if (el) el.textContent = (d && d.count != null) ? window.persianNumbers(d.count) : '—';
+        {% endif %}
       })
       .catch(function () {
         var el = document.querySelector('[data-stat="' + key + '"]');

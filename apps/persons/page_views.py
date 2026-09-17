@@ -1,7 +1,9 @@
 """Server-rendered persons workspace and its Django-form write endpoint."""
 from __future__ import annotations
 
+from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
+from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
 
@@ -26,6 +28,12 @@ def _form_error_payload(form) -> dict[str, list[str]]:
 class PersonsPage(StaffRequiredMixin, TemplateView):
     template_name = "persons.html"
 
+    def dispatch(self, request, *args, **kwargs):
+        roles = set(request.user.role_codes()) if request.user.is_authenticated else set()
+        if not (request.user.is_superuser or roles & {"manager", "workflow_admin"}):
+            raise PermissionDenied("فهرست اشخاص فقط برای مدیر سیستم در دسترس است.")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         form = PersonDefinitionForm(actor=self.request.user)
@@ -38,6 +46,11 @@ class PersonsPage(StaffRequiredMixin, TemplateView):
                 for value, _label in form.fields["target"].choices
             ],
             "can_create": bool(form.allowed_targets),
+            "can_manage_passwords": bool(
+                self.request.user.is_superuser
+                or set(self.request.user.role_codes()) & {"manager", "workflow_admin"}
+            ),
+            "password_management_url": reverse("workspace-password-management"),
         }
         return context
 

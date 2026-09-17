@@ -15,10 +15,16 @@ consumers.
 """
 from __future__ import annotations
 
+from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
+from django.shortcuts import redirect, render
 from django.views.generic import TemplateView
+
+from apps.accounts.forms import AdminPasswordResetForm
+from apps.core.utils import jalali_datetime_str, persian_date, persian_numbers
 
 # Roles that may see the education/admin surfaces (mirrors the read side of
 # apps.core.permissions.IsAcademicManager; writes are gated by the API itself).
@@ -392,6 +398,145 @@ class StaffRequiredMixin(LoginRequiredMixin):
         if self._is_teacher_only(request) and not self.teacher_allowed:
             raise PermissionDenied("این بخش برای پنل مدرس در دسترس نیست.")
         return super().dispatch(request, *args, **kwargs)
+
+
+class ProfilePage(LoginRequiredMixin, TemplateView):
+    """Personal account page, available to every authenticated user."""
+
+    template_name = "profile.html"
+
+    _ROLE_LABELS = {
+        "manager": "مدیر",
+        "workflow_admin": "مدیر سیستم",
+        "supervisor": "سرپرست",
+        "employee": "کارمند",
+        "teacher": "مدرس",
+        "student": "دانش‌آموز",
+        "guardian": "ولی / سرپرست",
+        "hr": "منابع انسانی",
+    }
+
+    @staticmethod
+    def _related(obj, name):
+        try:
+            return getattr(obj, name, None)
+        except Exception:
+            return None
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        roles = set(user.role_codes()) if hasattr(user, "role_codes") else set()
+        person = self._related(user, "person")
+        role_labels = [self._ROLE_LABELS.get(role, role) for role in sorted(roles)]
+
+        identity = [
+            {"label": "نام کاربری", "value": user.username, "dir": "ltr"},
+            {"label": "نام و نام خانوادگی", "value": user.get_full_name() or "ثبت نشده"},
+            {"label": "ایمیل", "value": user.email or "ثبت نشده", "dir": "ltr"},
+            {"label": "شمارهٔ همراه", "value": persian_numbers(user.mobile) or "ثبت نشده", "dir": "ltr"},
+        ]
+        if user.last_login:
+            identity.append({"label": "آخرین ورود", "value": jalali_datetime_str(user.last_login)})
+
+        personal = []
+        profile_sections = []
+        if person:
+            personal = [
+                {"label": "نام", "value": person.first_name or "—"},
+                {"label": "نام خانوادگی", "value": person.last_name or "—"},
+                {"label": "کد ملی", "value": persian_numbers(person.national_code) or "—", "dir": "ltr"},
+                {"label": "نوع شخص", "value": person.get_person_type_display() or "—"},
+                {"label": "شمارهٔ همراه ثبت‌شده", "value": persian_numbers(person.mobile) or "—", "dir": "ltr"},
+                {"label": "تاریخ تولد", "value": persian_date(person.birth_date) or "ثبت نشده"},
+                {"label": "دپارتمان", "value": person.department or "ثبت نشده"},
+                {"label": "سمت", "value": person.job_title or "ثبت نشده"},
+            ]
+            student = self._related(person, "student_profile")
+            if student:
+                profile_sections.append({
+                    "title": "اطلاعات آموزشی",
+                    "items": [
+                        {"label": "پایهٔ تحصیلی", "value": student.grade_level or "ثبت نشده"},
+                        {"label": "شعبهٔ کلاس", "value": student.class_section or "ثبت نشده"},
+                        {"label": "سال تحصیلی", "value": student.school_year or "ثبت نشده"},
+                    ],
+                })
+            guardian = self._related(person, "guardian_profile")
+            if guardian:
+                profile_sections.append({
+                    "title": "اطلاعات ارتباطی ولی",
+                    "items": [
+                        {"label": "شغل", "value": guardian.occupation or "ثبت نشده"},
+                        {"label": "تحصیلات", "value": guardian.education_level or "ثبت نشده"},
+                        {"label": "راه ارتباطی ترجیحی", "value": guardian.preferred_contact or "ثبت نشده"},
+                    ],
+                })
+            staff = self._related(person, "staff_profile")
+            if staff:
+                profile_sections.append({
+                    "title": "اطلاعات شغلی",
+                    "items": [
+                        {"label": "نوع همکاری", "value": staff.get_kind_display()},
+                        {"label": "تخصص", "value": staff.specialization or "ثبت نشده"},
+                        {"label": "مدرک تحصیلی", "value": staff.academic_degree or "ثبت نشده"},
+                    ],
+                })
+
+        context.update({
+            "profile_identity": identity,
+            "profile_personal": personal,
+            "profile_sections": profile_sections,
+            "profile_roles": role_labels or ["کاربر"],
+            "profile_person": person,
+        })
+        return context
+
+
+class PasswordManagementPage(LoginRequiredMixin, TemplateView):
+    """Administrator-only password recovery for users without self-service."""
+
+    template_name = "password_management.html"
+
+    @staticmethod
+    def _allowed(user):
+        roles = set(user.role_codes()) if hasattr(user, "role_codes") else set()
+        return bool(user.is_superuser or roles & _SYS_ADMIN_ROLES)
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not self._allowed(request.user):
+            raise PermissionDenied("این بخش فقط برای مدیر سیستم در دسترس است.")
+        return super().dispatch(request, *args, **kwargs)
+
+    def _user_queryset(self):
+        User = get_user_model()
+        return User.objects.filter(is_active=True, is_deleted=False).order_by(
+            "first_name", "last_name", "username"
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.setdefault("password_management_form", AdminPasswordResetForm(
+            user_queryset=self._user_queryset(),
+        ))
+        context["password_user_count"] = self._user_queryset().count()
+        return context
+
+    def post(self, request, *args, **kwargs):
+        form = AdminPasswordResetForm(
+            request.POST,
+            user_queryset=self._user_queryset(),
+        )
+        if form.is_valid():
+            target = form.save(actor=request.user)
+            messages.success(
+                request,
+                f"رمز عبور «{target.get_full_name() or target.username}» با موفقیت تنظیم شد.",
+            )
+            return redirect("workspace-password-management")
+        return render(request, self.template_name, self.get_context_data(
+            password_management_form=form,
+        ))
 
 
 class ResourcePage(StaffRequiredMixin, TemplateView):

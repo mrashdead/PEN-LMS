@@ -21,6 +21,11 @@
             <i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> تعریف شخص
           </button>
         {% endif %}
+        {% if person_page_context.can_manage_passwords %}
+          <a href="{{ person_page_context.password_management_url }}" class="btn btn-outline-primary flex-shrink-0">
+            <i data-lucide="key-round" class="size-4 me-1" aria-hidden="true"></i> مدیریت رمز کاربران
+          </a>
+        {% endif %}
       </div>
 
       <div class="card-body pt-0">

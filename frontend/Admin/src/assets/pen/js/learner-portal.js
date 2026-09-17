@@ -38,6 +38,7 @@
   var $switch = document.getElementById('lp-switch');
   var $ring = document.getElementById('lp-ring');
   var $rate = document.getElementById('lp-rate');
+  var $onTimeRate = document.getElementById('lp-on-time-rate');
   var $total = document.getElementById('lp-total');
   var $cards = document.getElementById('lp-cards');
   var $sessions = document.getElementById('lp-sessions');
@@ -66,8 +67,10 @@
       if (el) el.textContent = pn(t[k] || 0);
     });
     var rate = att.rate || 0;
+    var onTimeRate = att.on_time_rate || 0;
     $ring.style.setProperty('--pen-ring', rate);
     $rate.textContent = pn(rate) + '٪';
+    if ($onTimeRate) $onTimeRate.textContent = pn(onTimeRate) + '٪';
     $total.textContent = 'از ' + pn(att.all || 0) + ' جلسه ثبت‌شده';
 
     current = att.sessions || [];

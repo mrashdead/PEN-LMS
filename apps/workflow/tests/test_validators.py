@@ -100,6 +100,12 @@ class TransitionValidatorTestCase(TestCase):
         self.assertFalse(result.is_valid)
         self.assertTrue(any("نقش" in e or "role" in e for e in result.errors))
 
+    def test_workflow_admin_can_take_any_transition(self):
+        result = self.validator.validate(
+            self.instance, self.transition, _MockUser({"workflow_admin"})
+        )
+        self.assertTrue(result.is_valid)
+
     def test_no_role_codes_allows_anyone(self):
         self.transition.allowed_role_codes = []
         result = self.validator.validate(self.instance, self.transition, _MockUser({"student"}))

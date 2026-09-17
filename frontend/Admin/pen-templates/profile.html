@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}پنل کاربری من{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="پنل کاربری من" section="حساب کاربری" %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-12 col-xl-4">
+    <div class="card h-100">
+      <div class="card-body text-center p-5">
+        <span class="avatar pen-avatar size-20 rounded-circle mx-auto mb-3 fs-2" aria-hidden="true">
+          {{ request.user.username|first|upper }}
+        </span>
+        <h4 class="mb-1">{{ request.user.get_full_name|default:request.user.username }}</h4>
+        <p class="text-muted mb-3" dir="ltr">{{ request.user.username }}</p>
+        <div class="d-flex flex-wrap justify-content-center gap-2">
+          {% for role in profile_roles %}
+            <span class="badge bg-primary-subtle text-primary">{{ role }}</span>
+          {% endfor %}
+        </div>
+        <div class="d-grid gap-2 mt-4">
+          {% if can_change_own_password %}
+            <a href="{% url 'password-change' %}" class="btn btn-primary">
+              <i data-lucide="key-round" class="size-4 me-1"></i> تغییر رمز عبور
+            </a>
+          {% endif %}
+          <form method="post" action="{% url 'dashboard-logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-secondary w-100">
+              <i data-lucide="log-out" class="size-4 me-1"></i> خروج از حساب
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-8">
+    <div class="card mb-4">
+      <div class="card-header">
+        <h6 class="card-title mb-1">اطلاعات حساب</h6>
+        <p class="text-muted fs-14 mb-0">اطلاعاتی که برای حساب ورود شما ثبت شده است.</p>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          {% for item in profile_identity %}
+            <div class="col-12 col-md-6">
+              <div class="border rounded p-3 h-100">
+                <div class="text-muted fs-13 mb-1">{{ item.label }}</div>
+                <div class="fw-semibold text-break"{% if item.dir %} dir="{{ item.dir }}"{% endif %}>{{ item.value }}</div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {% if profile_personal %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h6 class="card-title mb-1">اطلاعات شخصی</h6>
+          <p class="text-muted fs-14 mb-0">اطلاعات هویتی ثبت‌شده در پروندهٔ شما.</p>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            {% for item in profile_personal %}
+              <div class="col-12 col-md-6">
+                <div class="d-flex justify-content-between gap-3 border-bottom pb-2">
+                  <span class="text-muted">{{ item.label }}</span>
+                  <span class="fw-semibold text-end text-break"{% if item.dir %} dir="{{ item.dir }}"{% endif %}>{{ item.value }}</span>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="card mb-4">
+        <div class="card-body py-5 text-center">
+          <i data-lucide="user-round-search" class="size-10 text-muted mb-3"></i>
+          <h6>پروندهٔ شخصی هنوز به این حساب متصل نشده است</h6>
+          <p class="text-muted mb-0">اطلاعات ورود شما فعال است؛ برای تکمیل پرونده با مدیریت آموزشگاه تماس بگیرید.</p>
+        </div>
+      </div>
+    {% endif %}
+
+    {% for section in profile_sections %}
+      <div class="card mb-4">
+        <div class="card-header"><h6 class="card-title mb-0">{{ section.title }}</h6></div>
+        <div class="card-body">
+          <div class="row g-3">
+            {% for item in section.items %}
+              <div class="col-12 col-md-4">
+                <div class="text-muted fs-13 mb-1">{{ item.label }}</div>
+                <div class="fw-semibold">{{ item.value }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

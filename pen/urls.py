@@ -4,6 +4,7 @@ URL configuration for pen project.
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from django.urls import reverse_lazy
 from django.views.generic import RedirectView
 from rest_framework.authtoken.views import obtain_auth_token
 
@@ -35,13 +36,26 @@ urlpatterns = [
     path('workspace/', include('apps.core.page_urls')),
 
     # Password management
-    path('api/auth/password/change/', auth_views.PasswordChangeView.as_view(
-        template_name='registration/password_change_form.html',
-        success_url='/api/auth/password/done/',
-    ), name='password-change'),
+    path('api/auth/password/change/', core_views.DashboardPasswordChangeView.as_view(), name='password-change'),
     path('api/auth/password/done/', auth_views.PasswordChangeDoneView.as_view(
         template_name='registration/password_change_done.html',
     ), name='password-change-done'),
+    path('dashboard/password/reset/', auth_views.PasswordResetView.as_view(
+        template_name='registration/password_reset_form.html',
+        email_template_name='registration/password_reset_email.html',
+        subject_template_name='registration/password_reset_subject.txt',
+        success_url=reverse_lazy('password-reset-done'),
+    ), name='password-reset'),
+    path('dashboard/password/reset/done/', auth_views.PasswordResetDoneView.as_view(
+        template_name='registration/password_reset_done.html',
+    ), name='password-reset-done'),
+    path('dashboard/password/reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(
+        template_name='registration/password_reset_confirm.html',
+        success_url=reverse_lazy('password-reset-complete'),
+    ), name='password-reset-confirm'),
+    path('dashboard/password/reset/complete/', auth_views.PasswordResetCompleteView.as_view(
+        template_name='registration/password_reset_complete.html',
+    ), name='password-reset-complete'),
 
     # Dashboard
     path('dashboard/login/', core_views.DashboardLoginView.as_view(), name='dashboard-login'),

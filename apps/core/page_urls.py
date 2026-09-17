@@ -12,6 +12,8 @@ from apps.core.pages import (
     OrgPermissionsPage,
     OrgResponsibilitiesPage,
     PermissionManagePage,
+    PasswordManagementPage,
+    ProfilePage,
     RequestsPage,
     ResourcePage,
     TeacherAttendancePage,
@@ -24,6 +26,8 @@ from apps.persons.page_views import PersonCreatePageView, PersonsPage
 from apps.reports.views.reports import ReportsPage
 
 urlpatterns = [
+    path("profile/", ProfilePage.as_view(), name="workspace-profile"),
+    path("password-management/", PasswordManagementPage.as_view(), name="workspace-password-management"),
     path("work/", WorkQueuePage.as_view(), name="workspace-work"),
     path("requests/", RequestsPage.as_view(), name="workspace-requests"),
     path("enrollments/", EnrollmentPage.as_view(), name="workspace-enrollments"),

@@ -15,6 +15,9 @@
   var CSRF = window.getCookie ? window.getCookie('csrftoken') : '';
   var draftId = ctx.submissionId || null; // filled in after first save
   var editing = function () { return !!draftId; };  // ── helpers ─────────────────────────────────────────────────────────
+  var dirty = false;
+  var saving = false;
+  var saveStatus = document.getElementById('draft-save-status');
 
   function escapeHtml(s) {
     return window.htmlEscape ? window.htmlEscape(s) : String(s == null ? '' : s);
@@ -577,6 +580,31 @@
     window.location.href = '/forms/submissions/' + submission.id + '/';
   }
 
+  function setSaveStatus(text, tone) {
+    if (!saveStatus) return;
+    saveStatus.textContent = text;
+    saveStatus.className = 'fs-13 ' + (tone === 'danger' ? 'text-danger' : 'text-muted');
+  }
+
+  function saveDraftSilently() {
+    if (!dirty || saving) return Promise.resolve();
+    saving = true;
+    setSaveStatus('در حال ذخیرهٔ پیش‌نویس…');
+    var payload = editing()
+      ? { data: collect() }
+      : { schema_slug: ctx.schemaSlug, data: collect() };
+    var url = editing() ? '/api/forms/submissions/' + draftId + '/' : '/api/forms/submissions/';
+    return postJson(url, payload, editing() ? 'PATCH' : 'POST')
+      .then(function (res) {
+        if (!res.ok) { setSaveStatus('ذخیره نشد؛ بعداً دوباره تلاش می‌کنیم.', 'danger'); return; }
+        if (!draftId) draftId = res.body.id;
+        dirty = false;
+        setSaveStatus('پیش‌نویس ذخیره شد.');
+      })
+      .catch(function () { setSaveStatus('ذخیره نشد؛ اتصال را بررسی کنید.', 'danger'); })
+      .finally(function () { saving = false; });
+  }
+
   var draftBtn = document.getElementById('save-draft');
   var submitBtn = document.getElementById('submit-form');
 
@@ -595,6 +623,8 @@
           }
           if (!res.ok) { showFieldErrors(extractErrors(res.body)); return; }
           if (!draftId) draftId = res.body.id;
+          dirty = false;
+          setSaveStatus('پیش‌نویس ذخیره شد.');
           afterSave(res.body);
         })
         .catch(function (err) { window.penToast('خطا: ' + err, 'danger'); })
@@ -639,6 +669,14 @@
 
   form.addEventListener('input', applyConditionals);
   form.addEventListener('change', applyConditionals);
+  form.addEventListener('input', function () { dirty = true; setSaveStatus('تغییرات ذخیره‌نشده است.'); });
+  form.addEventListener('change', function () { dirty = true; setSaveStatus('تغییرات ذخیره‌نشده است.'); });
+  window.setInterval(saveDraftSilently, 20000);
+  window.addEventListener('beforeunload', function (event) {
+    if (!dirty || saving) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
   applyConditionals();
 
   // Jalali pickers: hydrate server-rendered ISO values to Jalali text,

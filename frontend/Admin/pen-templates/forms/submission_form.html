@@ -67,6 +67,10 @@
             <a href="{% if submission %}{% url 'submission-detail-page' submission.id %}{% else %}{% url 'submission-list' %}{% endif %}"
                class="btn btn-light">انصراف</a>
           </div>
+          <div class="d-flex align-items-center gap-2 mt-2 text-muted fs-13" aria-live="polite">
+            <i data-lucide="cloud" class="size-4"></i>
+            <span id="draft-save-status">ذخیرهٔ خودکار هر ۲۰ ثانیه فعال است.</span>
+          </div>
           <p class="text-muted fs-13 mt-2 mb-0">
             «ذخیره پیش‌نویس» فیلدهای ناقص را می‌پذیرد؛ «ارسال نهایی» همه الزامات را اعتبارسنجی می‌کند.
           </p>

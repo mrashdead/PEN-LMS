@@ -34,6 +34,7 @@ def user_flags(request):
             "is_learner": False,
             "is_sys_admin": False,
             "is_reports_user": False,
+            "can_change_own_password": False,
             "sidebar_urlname": "", "sidebar_is_forms": False,
             "sidebar_is_edu": False, "sidebar_is_req": False,
         }
@@ -51,8 +52,9 @@ def user_flags(request):
         "is_staff_user": bool(roles & STAFF_ROLES),
         "is_manager": bool(roles & {"manager", "workflow_admin"}),
         "is_unit_manager": bool(roles & {"manager", "workflow_admin", "hr"}),
-        "is_sys_admin": bool(roles & {"manager", "workflow_admin"}),
+        "is_sys_admin": bool(user.is_superuser or roles & {"manager", "workflow_admin"}),
         "is_reports_user": bool(roles & REPORT_ACCESS_ROLES),
+        "can_change_own_password": bool(roles & {"manager", "workflow_admin", "supervisor", "employee"}),
         "is_teacher": is_teacher,
         "is_teacher_only": is_teacher_only,
         # A learner-portal account: a student (own data) or a guardian
