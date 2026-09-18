@@ -44,6 +44,9 @@ vine==5.1.0
 wcwidth==0.8.2
 jdatetime==6.1.0
 openpyxl==3.1.5
+reportlab>=4.2,<6
+arabic-reshaper>=3.0.0,<4
+python-bidi>=0.6.0,<1
 
 # Forms app: rich-text sanitization + content-based MIME detection.
 # python-magic needs the libmagic shared library (debian: libmagic1,

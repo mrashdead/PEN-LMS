@@ -19,8 +19,14 @@ Attendance/grade writes: teacher-of-class OR manager (object check on session).
 """
 from __future__ import annotations
 
+import datetime as dt
+import json
+import urllib.request
+
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -43,10 +49,14 @@ from apps.education.models import (
     Course,
     CourseOffering,
     Department,
+    EnrollmentWaitlist,
     Lesson,
     Location,
     OfferingEnrollment,
+    ParentReportDelivery,
+    SessionMaterial,
 )
+from apps.education.calendar import student_schedule
 from apps.education.serializers import (
     AcademicHolidaySerializer,
     AttendanceRecordSerializer,
@@ -57,8 +67,11 @@ from apps.education.serializers import (
     LessonSerializer,
     LocationSerializer,
     OfferingEnrollmentSerializer,
+    EnrollmentWaitlistSerializer,
+    SessionMaterialSerializer,
 )
 from apps.education.services import (
+    CapacityExceededError,
     EducationServiceError,
     bulk_attendance,
     create_session,
@@ -68,6 +81,9 @@ from apps.education.services import (
     learner_attendance_summary,
     learner_report_cards,
     learner_students,
+    place_on_waitlist,
+    promote_next_waitlist,
+    withdraw_student,
     record_session_attendance,
     roster_students,
     save_report_cards,
@@ -75,6 +91,7 @@ from apps.education.services import (
     teacher_report_cards,
     _resolve_learner_person,
 )
+from apps.persons.models import Person, StudentGuardian
 
 
 def _student_of(request):
@@ -329,8 +346,21 @@ class OfferingEnrollView(APIView):
         student_id = request.data.get("student")
         if not student_id:
             return Response({"student": "الزامی است."}, status=status.HTTP_400_BAD_REQUEST)
+        student = Person.objects.filter(
+            pk=student_id, person_type=Person.Type.STUDENT,
+            is_active=True, is_deleted=False,
+        ).first()
+        if student is None:
+            return Response({"student": "دانش‌آموز فعال یافت نشد."}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            enroll_student(offering=offering, student=student_id, actor=request.user)
+            enroll_student(offering=offering, student=student, actor=request.user)
+        except CapacityExceededError:
+            entry = place_on_waitlist(offering=offering, student=student, actor=request.user)
+            return Response({
+                "waitlisted": True,
+                "waitlist_id": str(entry.pk),
+                "message": "ظرفیت تکمیل است؛ دانش‌آموز در صف انتظار قرار گرفت.",
+            }, status=status.HTTP_202_ACCEPTED)
         except EducationServiceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(
@@ -370,6 +400,13 @@ class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
         # capacity first (row lock) — refuse before writing the money record
         try:
             enroll_student(offering=offering, student=student, actor=request.user)
+        except CapacityExceededError:
+            entry = place_on_waitlist(offering=offering, student=student, actor=request.user)
+            return Response({
+                "waitlisted": True,
+                "waitlist_id": str(entry.pk),
+                "message": "ظرفیت تکمیل است؛ دانش‌آموز در صف انتظار قرار گرفت.",
+            }, status=status.HTTP_202_ACCEPTED)
         except EducationServiceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         enrollment = serializer.save()
@@ -388,10 +425,243 @@ class EnrollmentSoftDeleteView(SoftDeleteView):
     queryset = OfferingEnrollment.objects.all()
     resource_key = "enrollments"
 
+    def post(self, request, *args, **kwargs):
+        enrollment = self.get_object()
+        was_live = not enrollment.is_deleted
+        response = super().post(request, *args, **kwargs)
+        if was_live and response.status_code < 300:
+            withdraw_student(offering=enrollment.offering, actor=request.user)
+        return response
+
 
 class EnrollmentRestoreView(SoftRestoreView):
     queryset = OfferingEnrollment.all_objects.all()
     resource_key = "enrollments"
+
+
+class WaitlistListCreateView(generics.ListCreateAPIView):
+    """GET/POST /waitlist/ — FIFO queue for full offerings."""
+
+    serializer_class = EnrollmentWaitlistSerializer
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
+
+    def get_queryset(self):
+        qs = EnrollmentWaitlist.objects.filter(is_deleted=False).select_related(
+            "offering", "offering__course", "student"
+        )
+        offering = self.request.query_params.get("offering")
+        if offering:
+            qs = qs.filter(offering_id=offering)
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs.order_by("requested_at", "created_at")
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        entry = place_on_waitlist(
+            offering=serializer.validated_data["offering"],
+            student=serializer.validated_data["student"],
+            actor=request.user,
+        )
+        return Response(self.get_serializer(entry).data, status=status.HTTP_201_CREATED)
+
+
+class WaitlistOfferView(APIView):
+    """POST /waitlist/<offering>/offer-next/ — manually trigger FIFO offer."""
+
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
+
+    def post(self, request, pk):
+        offering = CourseOffering.objects.filter(pk=pk, is_deleted=False).first()
+        if offering is None:
+            return Response({"detail": "برگزاری یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        entry = promote_next_waitlist(offering=offering, actor=request.user)
+        if entry is None:
+            return Response({"offered": False, "message": "صف انتظاری برای این برگزاری وجود ندارد یا ظرفیت آزاد نیست."})
+        return Response({"offered": True, "entry": EnrollmentWaitlistSerializer(entry).data})
+
+
+class SessionMaterialListCreateView(APIView):
+    """GET/POST /sessions/<id>/materials/ — topics and teaching attachments."""
+
+    permission_classes = (IsActiveUser,)
+
+    def _session(self, request, pk):
+        session = ClassSession.objects.filter(pk=pk, is_deleted=False).select_related(
+            "offering", "teacher", "location"
+        ).first()
+        if session is None:
+            return None
+        roles = set(request.user.role_codes())
+        if roles & {"manager", "workflow_admin", "hr"}:
+            return session
+        if education_sessions_visible_to(request.user).filter(pk=pk).exists():
+            return session
+        return None
+
+    def get(self, request, pk):
+        session = self._session(request, pk)
+        if session is None:
+            return Response({"detail": "جلسه یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        rows = SessionMaterial.objects.filter(session=session, is_deleted=False).order_by("sort_order", "created_at")
+        return Response({
+            "topic": session.topic,
+            "schedule_version": session.schedule_revisions.filter(is_deleted=False).count() + 1,
+            "materials": SessionMaterialSerializer(rows, many=True, context={"request": request}).data,
+        })
+
+    def post(self, request, pk):
+        session = self._session(request, pk)
+        if session is None:
+            return Response({"detail": "جلسه یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        roles = set(request.user.role_codes())
+        person = _student_of(request)
+        if not (roles & {"manager", "workflow_admin", "hr"}) and (
+            person is None or session.teacher_id != person.pk
+        ):
+            return Response({"detail": "فقط مدرس این جلسه یا مدیر می‌تواند ضمیمه اضافه کند."}, status=status.HTTP_403_FORBIDDEN)
+        serializer = SessionMaterialSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        material = serializer.save(session=session)
+        return Response(SessionMaterialSerializer(material, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+    def patch(self, request, pk):
+        session = self._session(request, pk)
+        if session is None:
+            return Response({"detail": "جلسه یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        roles = set(request.user.role_codes())
+        person = _student_of(request)
+        if not (roles & {"manager", "workflow_admin", "hr"}) and (
+            person is None or session.teacher_id != person.pk
+        ):
+            return Response({"detail": "فقط مدرس این جلسه یا مدیر می‌تواند برنامه را ویرایش کند."}, status=status.HTTP_403_FORBIDDEN)
+        topic = str((request.data or {}).get("topic") or "").strip()
+        try:
+            update_session(session=session, actor=request.user, topic=topic)
+        except EducationServiceError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return self.get(request, pk)
+
+
+class SessionMaterialDetailView(APIView):
+    permission_classes = (IsActiveUser,)
+
+    def post(self, request, pk):
+        material = SessionMaterial.objects.filter(pk=pk, is_deleted=False).select_related("session").first()
+        if material is None:
+            return Response({"detail": "ضمیمه یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        roles = set(request.user.role_codes())
+        person = _student_of(request)
+        if not (roles & {"manager", "workflow_admin", "hr"}) and (
+            person is None or material.session.teacher_id != person.pk
+        ):
+            return Response({"detail": "دسترسی حذف این ضمیمه را ندارید."}, status=status.HTTP_403_FORBIDDEN)
+        material.soft_delete()
+        return Response({"detail": "ضمیمه حذف شد.", "id": str(material.pk)})
+
+
+def _report_student_and_guardian(request):
+    student_id = (
+        request.query_params.get("student")
+        or (request.data.get("student") if hasattr(request, "data") else "")
+        or ""
+    ).strip() or None
+    person = _resolve_learner_person(request.user, student_id)
+    if person is None:
+        return None, None
+    link = (
+        StudentGuardian.objects.filter(
+            student=person, is_active=True, is_deleted=False,
+        ).select_related("guardian").order_by("-guardian__is_active", "guardian__last_name").first()
+    )
+    guardian = link.guardian if link else None
+    return person, guardian
+
+
+def _send_report_sms(*, phone: str, student, attendance: dict, report_cards: list[dict]) -> None:
+    from django.conf import settings
+
+    gateway = getattr(settings, "SMS_GATEWAY_URL", "")
+    if not gateway:
+        raise RuntimeError("درگاه پیامک در تنظیمات سامانه فعال نشده است.")
+    message = (
+        f"گزارش {student.first_name} {student.last_name}: "
+        f"حضور {attendance.get('rate', 0)}٪، "
+        f"جلسات {attendance.get('all', 0)}، "
+        f"کارنامه صادرشده {len(report_cards)} مورد."
+    )
+    payload = json.dumps({
+        "to": phone, "message": message,
+        "from": getattr(settings, "SMS_SENDER", ""),
+    }).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    token = getattr(settings, "SMS_GATEWAY_TOKEN", "")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(gateway, data=payload, headers=headers, method="POST")
+    with urllib.request.urlopen(request, timeout=10) as response:
+        if response.status >= 300:
+            raise RuntimeError(f"درگاه پیامک پاسخ {response.status} داد.")
+
+
+class LearnerReportCardDeliveryView(APIView):
+    """PDF download and parent SMS action for the learner report."""
+
+    permission_classes = (IsActiveUser,)
+
+    def get(self, request):
+        person, _guardian = _report_student_and_guardian(request)
+        if person is None:
+            return Response({"detail": "گزارش این دانش‌آموز برای شما قابل مشاهده نیست."}, status=status.HTTP_403_FORBIDDEN)
+        attendance = learner_attendance_summary(request.user, student=person)
+        cards = learner_report_cards(request.user, student=person)
+        if request.query_params.get("format") != "pdf":
+            return Response({"student": person.display_name, "attendance": attendance, "report_cards": cards})
+        from apps.education.report_pdf import build_learner_report_pdf
+
+        try:
+            content = build_learner_report_pdf(student=person, attendance=attendance, report_cards=cards)
+        except ImportError:
+            return Response({"detail": "کتابخانهٔ تولید PDF روی سرور نصب نشده است."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        ParentReportDelivery.objects.create(
+            student=person, requested_by=request.user,
+            channel=ParentReportDelivery.Channel.PDF,
+            status=ParentReportDelivery.Status.SENT,
+            recipient="download",
+            sent_at=timezone.now(),
+        )
+        response = HttpResponse(content, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="learner-report-{person.student_code or person.pk}.pdf"'
+        return response
+
+    def post(self, request):
+        person, guardian = _report_student_and_guardian(request)
+        if person is None:
+            return Response({"detail": "گزارش این دانش‌آموز برای شما قابل مشاهده نیست."}, status=status.HTTP_403_FORBIDDEN)
+        phone = (guardian.mobile if guardian else "") or ""
+        if not phone:
+            return Response({"detail": "برای این دانش‌آموز شمارهٔ همراه ولی ثبت نشده است."}, status=status.HTTP_400_BAD_REQUEST)
+        attendance = learner_attendance_summary(request.user, student=person)
+        cards = learner_report_cards(request.user, student=person)
+        delivery = ParentReportDelivery.objects.create(
+            student=person, requested_by=request.user,
+            channel=ParentReportDelivery.Channel.SMS,
+            recipient=phone,
+        )
+        try:
+            _send_report_sms(phone=phone, student=person, attendance=attendance, report_cards=cards)
+        except Exception as exc:
+            delivery.status = ParentReportDelivery.Status.FAILED
+            delivery.error = str(exc)[:2000]
+            delivery.save(update_fields=["status", "error", "updated_at"])
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        delivery.status = ParentReportDelivery.Status.SENT
+        delivery.sent_at = timezone.now()
+        delivery.save(update_fields=["status", "sent_at", "updated_at"])
+        return Response({"sent": True, "message": "گزارش برای ولی پیامک شد."})
 
 
 class SessionListCreateView(generics.ListCreateAPIView):
@@ -426,6 +696,7 @@ class SessionListCreateView(generics.ListCreateAPIView):
                 location=vd.get("location"),
                 class_code=vd.get("class_code", ""),
                 title=vd.get("title", ""),
+                topic=vd.get("topic", ""),
                 actor=request.user,
             )
         except EducationServiceError as exc:
@@ -448,6 +719,34 @@ class SessionDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         return education_sessions_visible_to(self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        vd = dict(serializer.validated_data)
+        for key in ("offering", "class_group", "session_number"):
+            vd.pop(key, None)
+        schedule_fields = {
+            key: vd.pop(key)
+            for key in (
+                "session_date", "start_time", "end_time", "teacher", "location",
+                "lesson", "title", "topic", "status", "class_code",
+            )
+            if key in vd
+        }
+        try:
+            if schedule_fields:
+                instance = update_session(session=instance, actor=request.user, **schedule_fields)
+            else:
+                for attr, value in vd.items():
+                    setattr(instance, attr, value)
+                if vd:
+                    instance.save(update_fields=list(vd) + ["updated_at"])
+        except EducationServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(instance).data)
 
 
 class SessionSoftDeleteView(SoftDeleteView):
@@ -829,6 +1128,11 @@ class LearnerPortalView(APIView):
             "students": students,
             "attendance": learner_attendance_summary(request.user, student=person),
             "report_cards": learner_report_cards(request.user, student=person),
+            "schedule": student_schedule(
+                request.user,
+                start=timezone.localdate(),
+                end=timezone.localdate() + dt.timedelta(days=30),
+            ),
         })
 
 
@@ -882,6 +1186,7 @@ class OfferingCreateSessionView(APIView):
                 teacher=offering.instructor,
                 location=offering.location,
                 title=vd.get("title", ""),
+                topic=vd.get("topic", ""),
                 actor=request.user,
             )
         except EducationServiceError as exc:

@@ -199,6 +199,12 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Pen LMS <noreply@example
 SERVER_EMAIL = env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
 EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=10)
 
+# Parent report SMS adapter. The application sends a provider-neutral JSON
+# payload; deployments set the actual provider endpoint and bearer token.
+SMS_GATEWAY_URL = env("SMS_GATEWAY_URL", default="")
+SMS_GATEWAY_TOKEN = env("SMS_GATEWAY_TOKEN", default="")
+SMS_SENDER = env("SMS_SENDER", default="")
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SLA defaults (report §15-9). The SLA scan command uses these when a State
 # declares no per-state override. reminder_lead_hours = how long BEFORE the

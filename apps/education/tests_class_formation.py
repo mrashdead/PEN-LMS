@@ -137,7 +137,7 @@ class FormationPrefillTests(TestCase):
         self.assertEqual(p.location_id, str(self.room.pk))
         self.assertEqual(p.teacher_id, str(self.teacher.pk))
         self.assertEqual(p.schedule["days"], ["sat", "wed"])
-        self.assertEqual(p.start_date.split("/")[0], "۱۴۰۵")  # jalali text
+        self.assertEqual(p.start_date, "۱۴۰۵/۰۶/۲۸")  # machine-parseable jalali input
         self.assertEqual(p.total_hours, 40)  # 20+20
 
     def test_lessons_are_the_offering_curriculum(self):

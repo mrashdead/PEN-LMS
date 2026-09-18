@@ -19,6 +19,25 @@
 </div>
 
 <div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body d-flex flex-wrap align-items-center gap-2">
+        <div class="flex-grow-1">
+          <h6 class="mb-1">گزارش قابل ارسال برای ولی</h6>
+          <p class="mb-0 text-muted fs-14">نسخهٔ PDF را دانلود کنید یا خلاصهٔ وضعیت را برای ولی پیامک کنید.</p>
+        </div>
+        <a id="lp-pdf-link" href="#" class="btn btn-outline-primary" target="_blank" rel="noopener">
+          <i data-lucide="file-down" class="size-4 me-1"></i> دانلود PDF
+        </a>
+        <button type="button" id="lp-sms-button" class="btn btn-primary">
+          <i data-lucide="message-square-share" class="size-4 me-1"></i> ارسال پیامک به ولی
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
   {# ── attendance stats ─────────────────────────────────────────────── #}
   <div class="col-12 col-lg-4">
     <div class="card card-h-100">
@@ -93,6 +112,20 @@
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mt-1">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <h6 class="mb-0 card-title flex-grow-1"><i data-lucide="book-open-check" class="size-4 me-1"></i> این هفته چه می‌خوانیم؟</h6>
+        <span id="lp-schedule-updated" class="text-muted fs-13"></span>
+      </div>
+      <div class="card-body p-0" id="lp-schedule">
+        <div class="pen-loading py-4">در حال بارگذاری…</div>
       </div>
     </div>
   </div>

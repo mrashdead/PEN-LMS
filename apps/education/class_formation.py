@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 
 from django.db import transaction
 
-from apps.core.utils import persian_date, persian_numbers
+from apps.core.utils import jalali_date_str, persian_date, persian_numbers
 from apps.education.models import ClassSession, CourseOffering, Lesson
 from apps.education.services import (
     EducationServiceError,
@@ -145,7 +145,13 @@ def formation_prefill(offering: CourseOffering) -> FormationPrefill:
         teacher_name=(
             f"{teacher.first_name} {teacher.last_name}".strip() if teacher else ""
         ),
-        start_date=persian_date(offering.start_date) if offering.start_date else None,
+        # This value is written back to the editable date input and submitted
+        # to the API.  Keep it machine-parseable (date only); ``persian_date``
+        # is a human display string and also includes the month name.
+        start_date=(
+            persian_numbers(jalali_date_str(offering.start_date))
+            if offering.start_date else None
+        ),
         schedule=dict(offering.schedule or {}),
         total_hours=total_hours,
         suggested_class_code=suggest_class_code(offering),

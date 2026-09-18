@@ -25,6 +25,7 @@ Design notes honoring the migration report:
 """
 from __future__ import annotations
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
@@ -427,6 +428,10 @@ class ClassSession(DomainModel):
     )
     session_number = models.PositiveSmallIntegerField(default=1)
     title = models.CharField(max_length=256, blank=True, default="")
+    topic = models.CharField(
+        max_length=500, blank=True, default="",
+        help_text="موضوع درس این جلسه — برای برنامه‌ریزی مدرس و مشاهدهٔ دانش‌آموز.",
+    )
     session_date = models.DateField(db_index=True)
     start_time = models.TimeField()
     end_time = models.TimeField()
@@ -489,6 +494,78 @@ class ClassSession(DomainModel):
     def clean(self) -> None:
         if self.start_time and self.end_time and self.end_time <= self.start_time:
             raise ValidationError({"end_time": "ساعت پایان باید بعد از شروع باشد."})
+
+
+class SessionScheduleRevision(DomainModel):
+    """Audit trail for schedule changes visible to learners and guardians."""
+
+    session = models.ForeignKey(
+        ClassSession, on_delete=models.CASCADE, related_name="schedule_revisions"
+    )
+    version = models.PositiveIntegerField(default=1)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="session_schedule_changes",
+    )
+    before = models.JSONField(default=dict, blank=True)
+    after = models.JSONField(default=dict, blank=True)
+    reason = models.CharField(max_length=500, blank=True, default="")
+
+    class Meta:
+        app_label = "education"
+        db_table = "education_session_schedule_revision"
+        ordering = ("-version", "-created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "version"], condition=_ALIVE,
+                name="uniq_edu_session_schedule_revision_alive",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["session", "-version"]),
+        ]
+
+
+class SessionMaterial(DomainModel):
+    """A link or uploaded learning attachment belonging to one session."""
+
+    class Kind(models.TextChoices):
+        LINK = "link", "پیوند آموزشی"
+        FILE = "file", "فایل"
+        VIDEO = "video", "ویدئو"
+
+    session = models.ForeignKey(
+        ClassSession, on_delete=models.CASCADE, related_name="materials"
+    )
+    title = models.CharField(max_length=256)
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.LINK)
+    url = models.URLField(blank=True, default="")
+    file = models.FileField(
+        upload_to="education/session-materials/", null=True, blank=True
+    )
+    sort_order = models.PositiveSmallIntegerField(default=1)
+    is_visible = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        app_label = "education"
+        db_table = "education_session_material"
+        ordering = ("sort_order", "created_at")
+        indexes = [
+            models.Index(fields=["session", "is_visible"]),
+        ]
+
+    def clean(self) -> None:
+        if not (self.url or self.file):
+            raise ValidationError("برای ضمیمه، پیوند یا فایل را وارد کنید.")
+
+    @property
+    def public_url(self) -> str:
+        if self.url:
+            return self.url
+        try:
+            return self.file.url if self.file else ""
+        except ValueError:
+            return ""
 
 
 class AttendanceRecord(DomainModel):
@@ -705,6 +782,87 @@ class OfferingEnrollment(DomainModel):
     def final_amount_jalali_date(self) -> str:
         from apps.core.utils import persian_date
         return persian_date(self.enrolled_at)
+
+
+class EnrollmentWaitlist(DomainModel):
+    """A student's queue position when an offering has no free seat."""
+
+    class Status(models.TextChoices):
+        WAITING = "waiting", "در صف انتظار"
+        OFFERED = "offered", "صندلی آزاد شد"
+        ENROLLED = "enrolled", "به ثبت‌نام تبدیل شد"
+        DECLINED = "declined", "ردشده"
+        CANCELLED = "cancelled", "لغوشده"
+
+    offering = models.ForeignKey(
+        CourseOffering, on_delete=models.PROTECT, related_name="waitlist_entries"
+    )
+    student = models.ForeignKey(
+        "persons.Person", on_delete=models.PROTECT, related_name="enrollment_waitlists",
+        limit_choices_to={"person_type": "student"},
+    )
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.WAITING, db_index=True
+    )
+    requested_at = models.DateTimeField(default=timezone.now, db_index=True)
+    offered_at = models.DateTimeField(null=True, blank=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+    note = models.CharField(max_length=500, blank=True, default="")
+
+    class Meta:
+        app_label = "education"
+        db_table = "education_enrollment_waitlist"
+        ordering = ("requested_at", "created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["offering", "student"],
+                condition=_ALIVE & models.Q(status__in=["waiting", "offered"]),
+                name="uniq_edu_waitlist_active_student",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["offering", "status", "requested_at"]),
+            models.Index(fields=["student", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.student} → {self.offering} [{self.status}]"
+
+
+class ParentReportDelivery(DomainModel):
+    """Audit/status record for PDF and parent SMS report delivery."""
+
+    class Channel(models.TextChoices):
+        PDF = "pdf", "PDF"
+        SMS = "sms", "پیامک"
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "در صف ارسال"
+        SENT = "sent", "ارسال‌شده"
+        FAILED = "failed", "ناموفق"
+
+    student = models.ForeignKey(
+        "persons.Person", on_delete=models.CASCADE, related_name="report_deliveries"
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="requested_parent_reports",
+    )
+    channel = models.CharField(max_length=8, choices=Channel.choices, db_index=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.QUEUED, db_index=True)
+    recipient = models.CharField(max_length=128, blank=True, default="")
+    period_label = models.CharField(max_length=64, blank=True, default="")
+    error = models.TextField(blank=True, default="")
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        app_label = "education"
+        db_table = "education_parent_report_delivery"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["student", "channel", "created_at"]),
+            models.Index(fields=["status", "channel"]),
+        ]
 
 
 class AcademicHoliday(DomainModel):

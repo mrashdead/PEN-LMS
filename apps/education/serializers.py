@@ -21,6 +21,8 @@ from apps.education.models import (
     Lesson,
     Location,
     OfferingEnrollment,
+    EnrollmentWaitlist,
+    SessionMaterial,
 )
 
 #: Recurrence-rule validation mirrors apps.education.services._DAY_KEYS.
@@ -316,13 +318,17 @@ class ClassSessionSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     teacher_name = serializers.SerializerMethodField()
     location_name = serializers.CharField(source="location.name", read_only=True,
                                           default="")
+    materials = serializers.SerializerMethodField()
+    schedule_version = serializers.SerializerMethodField()
+    schedule_updated_at = serializers.SerializerMethodField()
 
     class Meta:
         model = ClassSession
         fields = ("id", "offering", "offering_title", "class_group", "class_code",
                   "lesson", "lesson_title", "session_number",
-                  "title", "session_date", "start_time", "end_time", "teacher",
+                  "title", "topic", "session_date", "start_time", "end_time", "teacher",
                   "teacher_name", "location", "location_name", "status",
+                  "materials", "schedule_version", "schedule_updated_at",
                   "legacy_id", "created_at", "updated_at", "actions")
         # session_number stays writable (the generator supplies 1..N; a manual
         # create may pin one) — validate() pre-checks it against the
@@ -340,6 +346,20 @@ class ClassSessionSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     def get_teacher_name(self, obj) -> str:
         t = obj.teacher
         return f"{t.first_name} {t.last_name}".strip() if t else ""
+
+    def get_materials(self, obj) -> list[dict]:
+        return SessionMaterialSerializer(
+            obj.materials.filter(is_deleted=False, is_visible=True), many=True,
+            context=self.context,
+        ).data
+
+    def get_schedule_version(self, obj) -> int:
+        return obj.schedule_revisions.filter(is_deleted=False).count() + 1
+
+    def get_schedule_updated_at(self, obj) -> str:
+        latest = obj.schedule_revisions.filter(is_deleted=False).order_by("-version").first()
+        stamp = latest.created_at if latest else obj.updated_at
+        return stamp.isoformat() if stamp else ""
 
     def validate(self, attrs):
         # Class create/edit paths must not fight the generator's numbering.
@@ -367,6 +387,57 @@ class AttendanceRecordSerializer(serializers.ModelSerializer):
         fields = ("id", "session", "student", "status", "note",
                   "recorded_by", "created_at")
         read_only_fields = ("created_at",)
+
+
+class SessionMaterialSerializer(serializers.ModelSerializer):
+    public_url = serializers.ReadOnlyField()
+
+    class Meta:
+        model = SessionMaterial
+        fields = (
+            "id", "session", "title", "kind", "url", "file", "public_url",
+            "sort_order", "is_visible", "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "public_url", "created_at", "updated_at")
+
+    def validate(self, attrs):
+        if not attrs.get("url") and not attrs.get("file"):
+            raise serializers.ValidationError("برای ضمیمه، پیوند یا فایل را وارد کنید.")
+        return attrs
+
+
+class EnrollmentWaitlistSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    offering_title = serializers.SerializerMethodField()
+    position = serializers.SerializerMethodField()
+    requested_at = serializers.DateTimeField(read_only=True)
+    offered_at = serializers.DateTimeField(read_only=True)
+
+    class Meta:
+        model = EnrollmentWaitlist
+        fields = (
+            "id", "offering", "offering_title", "student", "student_name",
+            "status", "position", "requested_at", "offered_at", "responded_at",
+            "note", "created_at", "updated_at",
+        )
+        read_only_fields = (
+            "id", "status", "position", "requested_at", "offered_at",
+            "created_at", "updated_at",
+        )
+
+    def get_student_name(self, obj) -> str:
+        return obj.student.display_name
+
+    def get_offering_title(self, obj) -> str:
+        return obj.offering.title or (obj.offering.course.title if obj.offering.course_id else "")
+
+    def get_position(self, obj) -> int | None:
+        if obj.status not in {EnrollmentWaitlist.Status.WAITING, EnrollmentWaitlist.Status.OFFERED}:
+            return None
+        return EnrollmentWaitlist.objects.filter(
+            offering=obj.offering, status=EnrollmentWaitlist.Status.WAITING,
+            is_deleted=False, requested_at__lte=obj.requested_at,
+        ).count()
 
 
 class GradeRecordSerializer(serializers.ModelSerializer):

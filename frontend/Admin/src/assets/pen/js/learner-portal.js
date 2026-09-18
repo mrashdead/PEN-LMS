@@ -43,6 +43,10 @@
   var $cards = document.getElementById('lp-cards');
   var $sessions = document.getElementById('lp-sessions');
   var $filter = document.getElementById('lp-filter');
+  var $pdfLink = document.getElementById('lp-pdf-link');
+  var $smsButton = document.getElementById('lp-sms-button');
+  var $schedule = document.getElementById('lp-schedule');
+  var $scheduleUpdated = document.getElementById('lp-schedule-updated');
 
   var current = [];   // sessions of the loaded student (for client-side filter)
 
@@ -120,6 +124,42 @@
     icons();
   }
 
+  function renderSchedule(schedule) {
+    var days = (schedule && schedule.days) || [];
+    var rows = [];
+    days.forEach(function (day) {
+      (day.sessions || []).forEach(function (s) {
+        rows.push({ day: day.date_jalali || jal(day.date), session: s });
+      });
+    });
+    if (!rows.length) {
+      $schedule.innerHTML = '<div class="pen-empty py-4">برای ۳۰ روز آینده جلسه‌ای در برنامه ثبت نشده است.</div>';
+      $scheduleUpdated.textContent = '';
+      return;
+    }
+    var changed = rows.some(function (r) { return Number(r.session.schedule_version || 1) > 1; });
+    $scheduleUpdated.textContent = changed ? 'برنامهٔ به‌روزشده' : '';
+    $schedule.innerHTML = '<div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="table-light"><tr>' +
+      '<th>تاریخ</th><th>موضوع درس</th><th>ساعت</th><th>محل</th><th>آخرین تغییر</th><th>ضمیمه</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        var s = r.session;
+        var materials = (s.materials || []).map(function (m) {
+          return '<a href="' + esc(m.url || '#') + '" target="_blank" rel="noopener" class="d-block fs-13">' + esc(m.title) + '</a>';
+        }).join('') || '—';
+        var changedLabel = 'بدون تغییر';
+        if (Number(s.schedule_version || 1) > 1) {
+          var stamp = s.schedule_updated_at ? new Date(s.schedule_updated_at).toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+          changedLabel = 'نسخهٔ ' + pn(s.schedule_version) + (stamp ? ' · ' + stamp : '');
+        }
+        return '<tr><td class="fw-semibold" dir="ltr">' + esc(r.day) + '</td>' +
+          '<td><div class="fw-semibold">' + esc(s.topic || s.title || 'موضوع جلسه ثبت نشده') + '</div>' +
+          (Number(s.schedule_version || 1) > 1 ? '<span class="badge bg-warning-subtle text-warning mt-1">برنامه تغییر کرده</span>' : '') + '</td>' +
+          '<td dir="ltr">' + pn(s.start || '') + '–' + pn(s.end || '') + '</td>' +
+          '<td>' + esc(s.location || '—') + '</td><td class="fs-13 text-muted">' + esc(changedLabel) + '</td><td>' + materials + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+    icons();
+  }
+
   function load(studentId) {
     var url = PORTAL + (studentId ? '?student=' + encodeURIComponent(studentId) : '');
     $cards.innerHTML = '<div class="pen-loading">در حال بارگذاری…</div>';
@@ -128,6 +168,10 @@
       renderSwitch(d.students, d.student && d.student.id);
       renderAttendance(d.attendance || {});
       renderCards(d.report_cards || []);
+      renderSchedule(d.schedule || {});
+      var selected = d.student && d.student.id;
+      if ($pdfLink) $pdfLink.href = '/api/education/portal/report-card/?format=pdf&student=' + encodeURIComponent(selected || '');
+      if ($smsButton) $smsButton.dataset.student = selected || '';
     }).catch(function (e) {
       if (e.status === 403 && e.body && e.body.students) {
         renderSwitch(e.body.students, null);
@@ -140,6 +184,21 @@
   }
 
   $filter.addEventListener('change', renderSessions);
+
+  if ($smsButton) {
+    $smsButton.addEventListener('click', function () {
+      var studentId = $smsButton.dataset.student || '';
+      $smsButton.disabled = true;
+      fetch('/api/education/portal/report-card/', {
+        method: 'POST', credentials: 'same-origin',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, window.penCsrfHeader ? window.penCsrfHeader() : {}),
+        body: JSON.stringify({ student: studentId, channel: 'sms' })
+      }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); })
+        .then(function (res) { if (!res.ok) throw new Error(res.b.detail || 'ارسال پیامک انجام نشد.'); toast(res.b.message || 'پیامک ارسال شد.', 'success'); })
+        .catch(function (e) { toast(e.message, 'danger'); })
+        .finally(function () { $smsButton.disabled = false; });
+    });
+  }
 
   document.addEventListener('DOMContentLoaded', function () {
     load(param('student') || '');

@@ -24,8 +24,10 @@ from apps.education.models import (
     AttendanceRecord,
     ClassSession,
     CourseOffering,
+    EnrollmentWaitlist,
     GradeRecord,
     OfferingEnrollment,
+    SessionScheduleRevision,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,10 @@ class CapacityExceededError(EducationServiceError):
 
 class ScheduleConflictError(EducationServiceError):
     """تداخل زمانی مدرس/مکان/برگزاری برای این جلسه وجود دارد."""
+
+
+def _waitlist_student_name(entry) -> str:
+    return entry.student.display_name if entry.student_id else "دانش‌آموز"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -70,11 +76,72 @@ def enroll_student(*, offering: CourseOffering, student, actor=None) -> CourseOf
 
 
 @transaction.atomic
+def place_on_waitlist(*, offering: CourseOffering, student, actor=None) -> EnrollmentWaitlist:
+    """Place a student in the FIFO queue, idempotently."""
+    locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
+    if locked.status not in (CourseOffering.Status.DRAFT, CourseOffering.Status.OPEN):
+        raise EducationServiceError("ثبت‌نام یا صف انتظار این برگزاری فعال نیست.")
+    existing = EnrollmentWaitlist.objects.filter(
+        offering=locked, student=student, is_deleted=False,
+        status__in=[EnrollmentWaitlist.Status.WAITING, EnrollmentWaitlist.Status.OFFERED],
+    ).first()
+    if existing:
+        return existing
+    return EnrollmentWaitlist.objects.create(offering=locked, student=student)
+
+
+@transaction.atomic
+def promote_next_waitlist(*, offering: CourseOffering, actor=None) -> EnrollmentWaitlist | None:
+    """Offer the first waiting student whenever a seat becomes available."""
+    locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
+    if not locked.capacity or locked.enrolled_count >= locked.capacity:
+        return None
+    entry = (
+        EnrollmentWaitlist.objects.select_for_update()
+        .select_related("student", "student__user")
+        .filter(
+            offering=locked, status=EnrollmentWaitlist.Status.WAITING,
+            is_deleted=False,
+        )
+        .order_by("requested_at", "created_at")
+        .first()
+    )
+    if entry is None:
+        return None
+    entry.status = EnrollmentWaitlist.Status.OFFERED
+    entry.offered_at = dt.datetime.now(dt.timezone.utc)
+    entry.save(update_fields=["status", "offered_at", "updated_at"])
+    # Email is best-effort and outside the enrollment transaction. The queue
+    # row remains the source of truth when an account has no email.
+    recipient = getattr(getattr(entry.student, "user", None), "email", "") or entry.student.email
+    if recipient:
+        from django.conf import settings
+        from django.core.mail import send_mail
+
+        def _notify():
+            send_mail(
+                subject="یک جای خالی در دورهٔ موردنظر شما ایجاد شد",
+                message=(
+                    f"سلام {entry.student.display_name}،\n\n"
+                    f"در برگزاری «{locked.title or locked.course.title}» یک جای خالی ایجاد شده است. "
+                    "لطفاً برای تکمیل ثبت‌نام با آموزشگاه تماس بگیرید."
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[recipient],
+                fail_silently=True,
+            )
+        transaction.on_commit(_notify)
+    logger.info("waitlist offer %s created for %s (by %s)", entry.pk, _waitlist_student_name(entry), actor)
+    return entry
+
+
+@transaction.atomic
 def withdraw_student(*, offering: CourseOffering, actor=None) -> CourseOffering:
     """Decrement the counter symmetrically (never below zero)."""
     locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
     locked.enrolled_count = max(locked.enrolled_count - 1, 0)
     locked.save(update_fields=["enrolled_count", "updated_at"])
+    promote_next_waitlist(offering=locked, actor=actor)
     return locked
 
 
@@ -109,6 +176,7 @@ def create_session(
     location=None,
     class_code: str = "",
     title: str = "",
+    topic: str = "",
     actor=None,
     check_conflicts: bool = True,
 ) -> ClassSession:
@@ -158,6 +226,7 @@ def create_session(
             class_code=class_code,
             session_number=session_number,
             title=title,
+            topic=topic,
             session_date=session_date,
             start_time=start_time,
             end_time=end_time,
@@ -188,7 +257,7 @@ def update_session(
     rewrites history automatically); cancelling is done via status.
     """
     allowed = {"session_date", "start_time", "end_time", "teacher", "location",
-               "lesson", "title", "status", "class_code"}
+               "lesson", "title", "topic", "status", "class_code"}
     unknown = set(fields) - allowed
     if unknown:
         raise EducationServiceError(f"فیلد نامعتبر برای ویرایش جلسه: {', '.join(sorted(unknown))}")
@@ -220,12 +289,42 @@ def update_session(
                 "این بازه با جلسهٔ دیگری (اتاق/مدرس/کلاس) تداخل دارد."
             )
 
+    before = {
+        "session_date": locked.session_date.isoformat(),
+        "start_time": locked.start_time.strftime("%H:%M"),
+        "end_time": locked.end_time.strftime("%H:%M"),
+        "teacher": str(locked.teacher_id) if locked.teacher_id else None,
+        "location": str(locked.location_id) if locked.location_id else None,
+        "class_code": locked.class_code or "",
+    }
+    tracked_changed = any(
+        name in fields and fields[name] != getattr(locked, name)
+        for name in ("session_date", "start_time", "end_time", "teacher", "location", "class_code")
+    )
     for name, value in fields.items():
         setattr(locked, name, value)
     update_fields = ["updated_at"] + [
         name for name in allowed if name in fields
     ]
     locked.save(update_fields=update_fields)
+    if tracked_changed:
+        after = {
+            "session_date": locked.session_date.isoformat(),
+            "start_time": locked.start_time.strftime("%H:%M"),
+            "end_time": locked.end_time.strftime("%H:%M"),
+            "teacher": str(locked.teacher_id) if locked.teacher_id else None,
+            "location": str(locked.location_id) if locked.location_id else None,
+            "class_code": locked.class_code or "",
+        }
+        version = (
+            SessionScheduleRevision.objects.filter(session=locked, is_deleted=False)
+            .order_by("-version").values_list("version", flat=True).first() or 0
+        ) + 1
+        SessionScheduleRevision.objects.create(
+            session=locked, version=version, changed_by=actor,
+            before=before, after=after,
+            reason=(fields.get("reason") or "").strip() if isinstance(fields.get("reason"), str) else "",
+        )
     logger.info("session %s adjusted (fields=%s) by %s",
                 locked.pk, sorted(fields), actor)
     return locked
@@ -1282,6 +1381,7 @@ def teacher_classes(user) -> list[dict]:
                 {
                     "id": str(s.pk),
                     "number": s.session_number,
+                    "topic": s.topic or "",
                     "date": s.session_date.isoformat(),
                     "date_jalali": persian_date(s.session_date),
                     "start": s.start_time.strftime("%H:%M"),

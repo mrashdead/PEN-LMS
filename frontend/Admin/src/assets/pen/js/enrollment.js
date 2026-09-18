@@ -12,6 +12,7 @@
   var PERSONS = '/api/persons/?person_type=student';
   var OFFERINGS = '/api/education/offerings/';
   var ENROLL = '/api/education/enrollments/';
+  var WAITLIST = '/api/education/waitlist/';
   var CSRF = window.getCookie ? window.getCookie('csrftoken') : '';
 
   function esc(s) { return window.htmlEscape ? window.htmlEscape(s) : (s == null ? '' : String(s)); }
@@ -207,11 +208,12 @@
           var lines = Object.keys(res.b).map(function (k) { var v = res.b[k]; return k + ': ' + (Array.isArray(v) ? v.join('، ') : v); });
           return fail(lines.join(' — ') || 'خطا در ثبت‌نام');
         }
-        toast('ثبت‌نام انجام شد ✓', 'success');
+        toast(res.b.waitlisted ? 'ظرفیت تکمیل است؛ دانش‌آموز در صف انتظار قرار گرفت.' : 'ثبت‌نام انجام شد ✓', res.b.waitlisted ? 'warning' : 'success');
         document.getElementById('enr-form').reset();
         $sPicked.textContent = ''; state.courseAmount = 0; renderAmount();
         $cheques.innerHTML = ''; $chequeWrap.classList.add('d-none'); $refWrap.classList.remove('d-none');
         loadRecent();
+        loadWaitlist();
       })
       .catch(function (e) { fail(e.message); });
   });
@@ -236,9 +238,24 @@
       .finally(function () { $box.removeAttribute('aria-busy'); icons(); });
   }
 
+  function loadWaitlist() {
+    var $box = document.getElementById('enr-waitlist');
+    if (!$box) return;
+    get(WAITLIST + '?page_size=15&status=waiting').then(function (d) {
+      var rows = d.results || [];
+      if (!rows.length) { $box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0 fs-14">صف انتظاری ثبت نشده است.</p></div>'; return; }
+      $box.innerHTML = rows.map(function (r) {
+        return '<div class="px-3 py-2 border-bottom"><div class="d-flex align-items-center gap-2"><strong class="fs-14">' + esc(r.student_name || '') + '</strong>' +
+          '<span class="badge bg-warning-subtle text-warning ms-auto">نفر ' + window.persianNumbers(r.position || 0) + '</span></div>' +
+          '<div class="fs-13 text-muted">' + esc(r.offering_title || '') + ' · درخواست ' + esc(r.requested_at || '') + '</div></div>';
+      }).join('');
+    }).catch(function (e) { $box.innerHTML = '<div class="pen-empty py-4">' + esc(e.message) + '</div>'; });
+  }
+
   // ── boot ────────────────────────────────────────────────────────────
   loadOfferings();
   loadRecent();
+  loadWaitlist();
   renderAmount();
   if (window.penAttachJalaliPickers) window.penAttachJalaliPickers();
 })();

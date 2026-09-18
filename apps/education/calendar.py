@@ -83,9 +83,22 @@ def _session_row(s, *, attendance_url_base: str = "", extra: Optional[dict] = No
             if s.offering_id
             else (s.class_group.name if s.class_group_id else "")
         ),
+        "topic": s.topic or "",
         "teacher": s.teacher.display_name if s.teacher_id else "",
         "location": s.location.name if s.location_id else "",
         "location_id": str(s.location_id) if s.location_id else None,
+        "schedule_version": s.schedule_revisions.filter(is_deleted=False).count() + 1,
+        "schedule_updated_at": (
+            (s.schedule_revisions.filter(is_deleted=False).order_by("-version").first() or s).updated_at.isoformat()
+            if getattr(s, "updated_at", None) else ""
+        ),
+        "materials": [
+            {
+                "id": str(m.pk), "title": m.title, "kind": m.kind,
+                "url": m.public_url,
+            }
+            for m in s.materials.filter(is_deleted=False, is_visible=True).order_by("sort_order", "created_at")
+        ],
     }
     if attendance_url_base:
         # deep link the teacher's calendar into the per-session attendance form

@@ -122,6 +122,37 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="td-content-modal" tabindex="-1" aria-labelledby="td-content-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="td-content-title">برنامه و محتوای جلسه</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+      </div>
+      <div class="modal-body">
+        <div id="td-content-status" class="alert d-none" role="status"></div>
+        <div class="mb-3">
+          <label class="form-label" for="td-content-topic">موضوع درس</label>
+          <input type="text" id="td-content-topic" class="form-control" maxlength="500" placeholder="مثال: حل معادلهٔ درجهٔ دوم">
+        </div>
+        <div class="border rounded p-3 bg-body-tertiary">
+          <h6 class="mb-3">افزودن ضمیمهٔ آموزشی</h6>
+          <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-5"><label class="form-label fs-13" for="td-material-title">عنوان</label><input id="td-material-title" class="form-control" placeholder="جزوهٔ جلسه"></div>
+            <div class="col-12 col-md-5"><label class="form-label fs-13" for="td-material-url">پیوند</label><input id="td-material-url" class="form-control" dir="ltr" placeholder="https://..."></div>
+            <div class="col-12 col-md-2"><button type="button" id="td-material-add" class="btn btn-outline-primary w-100">افزودن</button></div>
+          </div>
+        </div>
+        <div id="td-material-list" class="vstack gap-2 mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="td-content-save">ذخیرهٔ موضوع</button>
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block page_js %}

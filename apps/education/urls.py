@@ -47,10 +47,13 @@ from apps.education.views import (
     OfferingGenerateSessionsView,
     OfferingListCreateView,
     OfferingCreateSessionView,
+    LearnerReportCardDeliveryView,
     OfferingReportCardsView,
     OfferingRecordSessionView,
     OfferingRosterView,
     OfferingSessionSheetView,
+    SessionMaterialDetailView,
+    SessionMaterialListCreateView,
     LearnerPortalView,
     TeacherClassesView,
     SessionAttendanceListView,
@@ -59,6 +62,8 @@ from apps.education.views import (
     SessionListCreateView,
     SessionRestoreView,
     SessionSoftDeleteView,
+    WaitlistListCreateView,
+    WaitlistOfferView,
 )
 
 urlpatterns = [
@@ -83,6 +88,7 @@ urlpatterns = [
     path("offerings/<uuid:pk>/delete/", OfferingSoftDeleteView.as_view(), name="edu-offering-delete"),
     path("offerings/<uuid:pk>/restore/", OfferingRestoreView.as_view(), name="edu-offering-restore"),
     path("offerings/<uuid:pk>/enroll/", OfferingEnrollView.as_view(), name="edu-offering-enroll"),
+    path("offerings/<uuid:pk>/waitlist/offer-next/", WaitlistOfferView.as_view(), name="edu-waitlist-offer-next"),
     path("offerings/<uuid:pk>/generate-sessions/", OfferingGenerateSessionsView.as_view(), name="edu-offering-generate-sessions"),
     # «تشکیل کلاس»: read-model → dry-run preview → atomic generation
     path("offerings/<uuid:pk>/formation/", OfferingFormationView.as_view(), name="edu-offering-formation"),
@@ -92,6 +98,7 @@ urlpatterns = [
     path("enrollments/<uuid:pk>/", OfferingEnrollmentDetailView.as_view(), name="edu-enrollment-detail"),
     path("enrollments/<uuid:pk>/delete/", EnrollmentSoftDeleteView.as_view(), name="edu-enrollment-delete"),
     path("enrollments/<uuid:pk>/restore/", EnrollmentRestoreView.as_view(), name="edu-enrollment-restore"),
+    path("waitlist/", WaitlistListCreateView.as_view(), name="edu-waitlist-list"),
     path("sessions/", SessionListCreateView.as_view(), name="edu-session-list"),
     path("sessions/<uuid:pk>/", SessionDetailView.as_view(), name="edu-session-detail"),
     path("sessions/<uuid:pk>/delete/", SessionSoftDeleteView.as_view(), name="edu-session-delete"),
@@ -100,6 +107,8 @@ urlpatterns = [
          SessionBulkAttendanceView.as_view(), name="edu-session-attendance-post"),
     path("sessions/<uuid:pk>/roster/",
          SessionAttendanceListView.as_view(), name="edu-session-roster"),
+    path("sessions/<uuid:pk>/materials/", SessionMaterialListCreateView.as_view(), name="edu-session-materials"),
+    path("materials/<uuid:pk>/delete/", SessionMaterialDetailView.as_view(), name="edu-session-material-delete"),
     # Teacher portal + learner portal
     path("teacher/classes/", TeacherClassesView.as_view(), name="edu-teacher-classes"),
     path("offerings/<uuid:pk>/roster/", OfferingRosterView.as_view(), name="edu-offering-roster"),
@@ -108,6 +117,7 @@ urlpatterns = [
     path("offerings/<uuid:pk>/sheet/", OfferingSessionSheetView.as_view(), name="edu-offering-sheet"),
     path("offerings/<uuid:pk>/report-cards/", OfferingReportCardsView.as_view(), name="edu-offering-report-cards"),
     path("portal/", LearnerPortalView.as_view(), name="edu-learner-portal"),
+    path("portal/report-card/", LearnerReportCardDeliveryView.as_view(), name="edu-learner-report-card-delivery"),
     # Reports (§13-7)
     path("reports/attendance/", AttendanceReportView.as_view(), name="edu-report-attendance"),
     path("reports/capacity/", CapacityReportView.as_view(), name="edu-report-capacity"),
