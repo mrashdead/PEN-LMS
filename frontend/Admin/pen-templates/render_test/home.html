@@ -16,18 +16,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>داشبورد | پن لِرنینگ</title>
 
-
+  
   <script src="../src/assets/js/layout.js"></script>
 
+  
 
-
-
+  
 </head>
 
 <body class="sidebar-hidden">
 
-
-
+  
+  
 
 <header class="main-topbar" id="main-topbar">
   <div class="navbar-brand">
@@ -43,8 +43,8 @@
   </div>
 
   <div class="d-flex align-items-center gap-2 ms-auto">
-
-
+    
+    
     <div class="dropdown">
       <button type="button" id="notifBell" class="btn topbar-link position-relative"
               aria-label="اعلان‌ها" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
@@ -61,7 +61,7 @@
         </div>
       </div>
     </div>
-
+    
 
     <button type="button" id="darkModeButton" class="topbar-link topbar-mode btn" aria-label="تغییر حالت روشن/تاریک">
       <i data-lucide="moon" class="size-4 dark"></i>
@@ -77,8 +77,16 @@
           <h6 class="mb-0 text-truncate fs-14">…</h6>
           <p class="mb-0 fs-13 text-muted text-truncate">…</p>
         </div>
+        <a href="" class="dropdown-item d-flex align-items-center gap-2">
+          <i data-lucide="user-round" class="size-4"></i> پنل کاربری من
+        </a>
+        
+          <a href="" class="dropdown-item d-flex align-items-center gap-2">
+            <i data-lucide="key-round" class="size-4"></i> تغییر رمز عبور
+          </a>
+        
         <form method="post" action="">
-
+          
           <button type="submit" class="dropdown-item d-flex align-items-center gap-2">
             <i data-lucide="log-out" class="size-4"></i> خروج
           </button>
@@ -88,14 +96,14 @@
   </div>
 </header>
 
-
+  
 
 
 
 <div id="main-sidebar" class="main-sidebar">
   <div class="sidebar-wrapper">
 
-
+    
     <a href="" class="navbar-brand" title="Pen LMS">
       <div class="logo-lg">
         <img src="../src/assets/images/main-logo.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
@@ -107,7 +115,7 @@
       </div>
     </a>
 
-
+    
     <div class="dropdown profile-dropdown">
       <a href="#!" data-bs-toggle="dropdown" aria-expanded="false" aria-label="منوی کاربر"
          class="btn d-flex align-items-center w-100 gap-2 p-4 text-start">
@@ -127,13 +135,13 @@
           </div>
         </div>
         <div class="pt-2 mt-3 border-top">
-
+          
           <a href="" class="profile-link d-block py-1 text-decoration-none">
             <i data-lucide="key-round" class="d-inline-block me-2 size-4"></i> تغییر رمز عبور
           </a>
-
+          
           <form method="post" action="">
-
+            
             <button type="submit" class="profile-link w-100 text-start border-0 bg-transparent py-1">
               <i data-lucide="log-out" class="d-inline-block me-2 size-4"></i> خروج
             </button>
@@ -142,7 +150,7 @@
       </div>
     </div>
 
-
+    
     <div class="navbar-menu px-5" id="navbar-menu-list" data-simplebar>
       <ul class="list-unstyled p-0 navbar-nav-menu">
 
@@ -155,8 +163,28 @@
           </a>
         </li>
 
+        <li class="nav-item">
+          <a href="" title="پنل کاربری من"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="user-round"></i></span>
+            <span class="content">پنل کاربری من</span>
+          </a>
+        </li>
 
+        
+        <li class="nav-item">
+          <a href="" title="تغییر رمز عبور"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="key-round"></i></span>
+            <span class="content">تغییر رمز عبور</span>
+          </a>
+        </li>
+        
 
+        
+        
         <li class="nav-menu-title">پنل مدرس</li>
         <li class="nav-item">
           <a href="" title="داشبورد مدرس"
@@ -190,10 +218,10 @@
             <span class="content">کارنامه توصیفی</span>
           </a>
         </li>
+        
 
-
-
-
+        
+        
         <li class="nav-item">
           <a href="" title="پورتال من"
              class="nav-link active"
@@ -210,10 +238,10 @@
             <span class="content">درخواست‌های من</span>
           </a>
         </li>
+        
 
-
-
-
+        
+        
         <li class="nav-item">
           <a href="" title="کارهای من"
              class="nav-link active"
@@ -223,7 +251,7 @@
           </a>
         </li>
 
-
+        
         <li class="nav-item">
           <a href="#collapseRequests" title="درخواست‌ها"
              class="nav-link active collapsed"
@@ -241,7 +269,7 @@
           </div>
         </li>
 
-
+        
         <li class="nav-item">
           <a href="#collapseEdu" title="آموزشگاه"
              class="nav-link active collapsed"
@@ -253,9 +281,9 @@
           </a>
           <div class="collapse show" id="collapseEdu">
             <ul class="nav-menu-sub">
-
+              
               <li><a href="" class="nav-link active"><span>اشخاص</span></a></li>
-
+              
               <li><a href="" class="nav-link active"><span>دپارتمان‌ها</span></a></li>
               <li><a href="" class="nav-link active"><span>درس‌ها</span></a></li>
               <li><a href="" class="nav-link active"><span>دوره‌ها</span></a></li>
@@ -283,7 +311,7 @@
           </a>
         </li>
 
-
+        
         <li class="nav-item">
           <a href="" title="گزارش‌ها و تحلیل‌ها"
              class="nav-link active"
@@ -292,10 +320,10 @@
             <span class="content">گزارش‌ها و تحلیل‌ها</span>
           </a>
         </li>
+        
+        
 
-
-
-
+        
         <li class="nav-item">
           <a href="" title="گزارش‌ها و تحلیل‌ها"
              class="nav-link active"
@@ -304,9 +332,9 @@
             <span class="content">گزارش‌ها و تحلیل‌ها</span>
           </a>
         </li>
+        
 
-
-
+        
         <li class="nav-menu-title">مدیریت سازمان</li>
 
         <li class="nav-item">
@@ -354,7 +382,7 @@
           </a>
         </li>
 
-
+        
         <li class="nav-item">
           <a href="" title="طراح فرم‌ها"
              class="nav-link active"
@@ -363,8 +391,8 @@
             <span class="content">طراح فرم‌ها</span>
           </a>
         </li>
-
-
+        
+        
 
       </ul>
     </div>
@@ -378,36 +406,36 @@
     <div class="page-wrapper">
       <div class="container-fluid">
 
-
-
-
+        
+        
+  
 <div class="gap-2 page-heading mb-3 flex-column flex-md-row">
   <h6 class="flex-grow-1 mb-0">…</h6>
   <ul class="breadcrumb flex-shrink-0 mb-0">
     <li class="breadcrumb-item"><a href="">داشبورد</a></li>
-
+    
       <li class="breadcrumb-item">
         <a href="…">…</a>…
       </li>
-
+    
     <li class="breadcrumb-item active" aria-current="page">…</li>
   </ul>
 </div>
 
 
 
-
+        
           <div class="vstack gap-2 mb-3">
-
+            
               <div class="alert alert-dangersuccesswarninginfo d-flex align-items-center gap-2 mb-0" role="status">
                 <i data-lucide="circle-alertcircle-checkinfo" class="size-4 flex-shrink-0"></i>
                 <div>…</div>
               </div>
-
+            
           </div>
+        
 
-
-
+        
 
 <div class="row g-4 mb-4">
   <div class="col-12">
@@ -513,23 +541,23 @@
         <h6 class="mb-0 card-title">سه سؤال مهم امروزراهنمای وضعیت‌های فرم</h6>
       </div>
       <div class="card-body d-flex flex-column gap-2">
-
+        
         <p class="mb-0 text-muted fs-14">این داشبورد به‌جای فهرست عددها، ظرفیت، صف تأیید و روند ثبت‌نام را جلو می‌آورد.</p>
         <a href="" class="btn btn-sm btn-outline-primary align-self-start">جزئیات گزارش‌ها</a>
-
+        
         <div><span class="pen-badge pen-badge-draft">پیش‌نویس</span> <span class="text-muted fs-14">در حال تکمیل؛ قابل ویرایش است.</span></div>
         <div><span class="pen-badge pen-badge-submitted">ارسال‌شده</span> <span class="text-muted fs-14">در صف بررسی.</span></div>
         <div><span class="pen-badge pen-badge-processing">در حال بررسی</span> <span class="text-muted fs-14">در جریان گردش کار.</span></div>
         <div><span class="pen-badge pen-badge-approved">تأییدشده</span> <span class="text-muted fs-14">فرآیند با موفقیت پایان یافت.</span></div>
         <div><span class="pen-badge pen-badge-rejected">ردشده</span> <span class="text-muted fs-14">وضعیت نهایی؛ برای اصلاح تماس بگیرید.</span></div>
-
+        
       </div>
     </div>
   </div>
 </div>
 
 
-
+        
 <footer class="main-footer">
   <div class="w-100">
     <div class="row align-items-center">
@@ -573,18 +601,18 @@
 </div>
 
 
-
-
-
-
-
+  
+  
+  
+  
+  
   <script src=""></script>
-
+  
   <script src="../src/assets/js/jalalidatepicker.min.js"></script>
-
+  
   <script src=""></script>
 
-
+  
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   var endpoints = {
@@ -605,16 +633,16 @@ document.addEventListener('DOMContentLoaded', function () {
     })
       .then(function (r) { return r.ok ? r.json() : { count: null }; })
       .then(function (d) {
-
+        
         var kpis = d.kpis || {};
         var values = { persons: kpis.class_utilization_pct, instances: kpis.pending_requests, tasks: kpis.new_students_30d, terms: kpis.new_students_30d };
         var managerValue = values[key];
         var managerEl = document.querySelector('[data-stat="' + key + '"]');
         if (managerEl && managerValue != null) managerEl.textContent = key === 'persons' ? window.persianNumbers(Number(managerValue).toFixed(1)) + '٪' : window.persianNumbers(managerValue);
-
+        
         var el = document.querySelector('[data-stat="' + key + '"]');
         if (el) el.textContent = (d && d.count != null) ? window.persianNumbers(d.count) : '—';
-
+        
       })
       .catch(function () {
         var el = document.querySelector('[data-stat="' + key + '"]');

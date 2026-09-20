@@ -278,6 +278,17 @@ class Instance(DomainModel):
         on_delete=models.PROTECT,
         related_name="workflow_instances",
     )
+    subject_person = models.ForeignKey(
+        "persons.Person",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subject_workflow_instances",
+        help_text=(
+            "شخص هدف این درخواست (دانش‌آموز/کارمند/مدرس). از داده‌ی فرم استخراج "
+            "می‌شود و گیرنده‌ی اصلی اعلان‌هاست — واحد یکپارچه‌سازی فرم‌ها و گردش‌کار."
+        ),
+    )
     title = models.CharField(
         max_length=512,
         help_text="عنوان درخواست — مثلاً «مرخصی ۳ روزه از ۱۵ تا ۱۷ مهر»",
@@ -325,6 +336,7 @@ class Instance(DomainModel):
             models.Index(fields=["workflow_definition", "status"]),
             models.Index(fields=["requester", "status"]),
             models.Index(fields=["current_state"]),
+            models.Index(fields=["subject_person"]),
         ]
 
     def __str__(self) -> str:

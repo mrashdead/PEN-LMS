@@ -462,12 +462,20 @@ class FormSubmissionService:
 
         schema = submission.form_schema
         engine = WorkflowEngineService()
+        # subject_person از داده‌ی فرم استخراج و در submit_submission
+        # به submission.subject_person_id ست شده — همین FK را به Instance
+        # پاس می‌دهیم تا workflowاعلان‌ها را به شخص هدف بفرستد
+        # (یکپارچه‌سازی فرم‌ها و گردش‌کار).
+        subject_person_kwargs = {}
+        if submission.subject_person_id:
+            subject_person_kwargs["subject_person"] = submission.subject_person
         try:
             instance = engine.create_instance(
                 workflow_code=schema.workflow_definition.code,
                 requester=user,
                 title=f"{schema.title} — {submission.submission_number}",
                 description=submission.notes or "",
+                **subject_person_kwargs,
             )
             engine.link_entity(instance_id=instance.id, entity=submission)
             return instance

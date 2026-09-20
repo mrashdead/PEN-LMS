@@ -125,6 +125,7 @@ class WorkflowEngineService:
         requester: settings.AUTH_USER_MODEL,  # type: ignore[valid-type]
         title: str,
         description: str = "",
+        subject_person=None,
     ) -> Instance:
         """
         ایجاد یک نمونه جدید از فرآیند.
@@ -132,7 +133,7 @@ class WorkflowEngineService:
         مراحل:
           1. قفل و بارگذاری WorkflowDefinition
           2. یافتن State اولیه (is_initial)
-          3. ساخت Instance
+          3. ساخت Instance (با subject_person برای اعلان‌ها)
           4. ثبت ActionLog اولین اقدام
           5. ساخت WorkflowTask برای کاربران مجاز State اولیه
 
@@ -141,6 +142,8 @@ class WorkflowEngineService:
             requester: کاربر درخواست‌دهنده
             title: عنوان درخواست
             description: توضیحات (اختیاری)
+            subject_person: شخص هدف (Person) — گیرنده‌ی اصلی اعلان‌ها.
+                از داده‌ی فرم استخراج می‌شود (یکپارچه‌سازی فرم و گردش‌کار).
 
         Returns:
             Instance ایجادشده
@@ -178,6 +181,7 @@ class WorkflowEngineService:
             description=description,
             status=Instance.Status.RUNNING,
             tracking_number=_next_tracking_number(),
+            subject_person=subject_person,
         )
 
         # 4. ثبت ActionLog
@@ -718,6 +722,12 @@ class WorkflowEngineService:
         recipients.update(new_task_users)
         if instance.requester_id:
             recipients.add(instance.requester_id)
+        # گیرنده‌ی اصلی اعلان‌ها: شخص هدف (subject_person).
+        # از داده‌ی فرم استخراج می‌شود — یکپارچه‌سازی فرم و گردش‌کار.
+        # actor (فردی که اقدام کرده) اعلان نمی‌گیرد، حتی اگر subject باشد.
+        subject = instance.subject_person
+        if subject is not None and subject.user_id:
+            recipients.add(subject.user_id)
         recipients.discard(getattr(actor, "pk", None))
 
         template = "task_created"

@@ -66,3 +66,4 @@ class InstanceFactory(factory.django.DjangoModelFactory):
     requester = factory.SubFactory("apps.accounts.tests.UserFactory")
     title = factory.Sequence(lambda n: f"Instance {n}")
     status = "running"
+    subject_person = None  # optional FK — set explicitly in tests
