@@ -47,6 +47,7 @@ Blocks:
 </head>
 
 <body class="sidebar-hidden">
+  <a class="pen-skip-link" href="#main-content">رفتن به محتوای اصلی</a>
 
   {# Exact demo DOM order: topbar → sidebar → wrapper (partials/main.html). #}
   {% include "partials/topbar.html" %}
@@ -54,16 +55,16 @@ Blocks:
 
   <div class="min-vh-100 position-relative">
     <div class="page-wrapper">
-      <div class="container-fluid">
+      <main id="main-content" class="container-fluid" tabindex="-1">
 
         {# Each page renders its own heading via the partial (theme convention). #}
         {% block page_heading %}{% endblock %}
 
         {% if messages %}
-          <div class="vstack gap-2 mb-3">
+          <div class="vstack gap-2 mb-3" aria-label="پیام‌های سامانه">
             {% for message in messages %}
-              <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} d-flex align-items-center gap-2 mb-0" role="status">
-                <i data-lucide="{% if message.tags == 'error' %}circle-alert{% elif message.tags == 'success' %}circle-check{% else %}info{% endif %}" class="size-4 flex-shrink-0"></i>
+              <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} d-flex align-items-center gap-2 mb-0" role="status" aria-live="polite">
+                <i data-lucide="{% if message.tags == 'error' %}circle-alert{% elif message.tags == 'success' %}circle-check{% else %}info{% endif %}" class="size-4 flex-shrink-0" aria-hidden="true"></i>
                 <div>{{ message }}</div>
               </div>
             {% endfor %}
@@ -73,7 +74,7 @@ Blocks:
         {% block content %}{% endblock %}
 
         {% include "partials/footer.html" %}
-      </div>
+      </main>
     </div>
   </div>
 

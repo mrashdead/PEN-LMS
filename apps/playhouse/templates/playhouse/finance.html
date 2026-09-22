@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load asset_v %}
+{% block title %}گزارش مالی خانه بازی{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="گزارش مالی خانه بازی" section="خانه بازی" %}
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <a href="{% url 'playhouse-dashboard' %}" class="btn btn-light">
+    <i data-lucide="arrow-right" class="size-4 me-1"></i> بازگشت به پذیرش
+  </a>
+  <div class="btn-group ms-auto" role="group" aria-label="بازه گزارش">
+    <button type="button" class="btn btn-outline-primary active" data-period="daily">امروز</button>
+    <button type="button" class="btn btn-outline-primary" data-period="weekly">هفته جاری</button>
+    <button type="button" class="btn btn-outline-primary" data-period="monthly">ماه جاری</button>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-xl-3"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">فاکتور پرداخت‌شده</div><div class="fs-4 fw-bold mt-2" id="ph-fin-invoices">—</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">درآمد زمان بازی</div><div class="fs-4 fw-bold mt-2" id="ph-fin-time">—</div><small>تومان</small></div></div></div>
+  <div class="col-6 col-xl-3"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">آیتم‌های کافه</div><div class="fs-4 fw-bold mt-2" id="ph-fin-cafe">—</div><small>تومان</small></div></div></div>
+  <div class="col-6 col-xl-3"><div class="card border-0 shadow-sm h-100 bg-primary text-white"><div class="card-body"><div class="opacity-75 small">جمع کل دریافتی</div><div class="fs-4 fw-bold mt-2" id="ph-fin-total">—</div><small class="opacity-75">تومان</small></div></div></div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-transparent border-0 pt-4 px-4 d-flex align-items-center">
+    <div><h6 class="mb-1 card-title">جزئیات پرداخت‌ها</h6><p class="mb-0 text-muted fs-14" id="ph-fin-period">—</p></div>
+    <button type="button" class="btn btn-sm btn-light ms-auto" id="ph-fin-refresh"><i data-lucide="refresh-cw" class="size-4 me-1"></i> بروزرسانی</button>
+  </div>
+  <div class="card-body px-4 pb-4">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light"><tr><th>شماره فاکتور</th><th>نام کودک</th><th>روش پرداخت</th><th>کد رهگیری</th><th>زمان بازی</th><th>کافه</th><th>جمع</th><th>تاریخ پرداخت</th></tr></thead>
+        <tbody id="ph-fin-rows"><tr><td colspan="8" class="text-center text-muted py-4">در حال بارگذاری…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>window.__PLAYHOUSE_FINANCE_API__ = "/api/playhouse/finance/report/";</script>
+<script src="{% asset_v_url 'assets/pen/js/playhouse-finance.js' %}"></script>
+{% endblock %}

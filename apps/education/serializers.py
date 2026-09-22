@@ -24,6 +24,7 @@ from apps.education.models import (
     EnrollmentWaitlist,
     SessionMaterial,
 )
+from apps.leads.models import Lead
 
 #: Recurrence-rule validation mirrors apps.education.services._DAY_KEYS.
 _VALID_DAYS = frozenset({"sat", "sun", "mon", "tue", "wed", "thu", "fri"})
@@ -449,6 +450,12 @@ class GradeRecordSerializer(serializers.ModelSerializer):
 
 
 class OfferingEnrollmentSerializer(serializers.ModelSerializer):
+    lead = serializers.PrimaryKeyRelatedField(
+        queryset=Lead.objects.filter(is_deleted=False),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
     student_name = serializers.CharField(source="student.get_full_name", read_only=True)
     offering_title = serializers.CharField(source="offering.title", read_only=True)
     enrolled_at = JalaliDateField(required=False)
@@ -458,7 +465,7 @@ class OfferingEnrollmentSerializer(serializers.ModelSerializer):
         fields = ("id", "offering", "offering_title", "student", "student_name",
                   "course_amount", "discount_type", "discount_value", "final_amount",
                   "payment_method", "cheque_count", "cheques", "reference",
-                  "enrolled_at", "is_active", "created_at", "updated_at")
+                  "enrolled_at", "is_active", "created_at", "updated_at", "lead")
         read_only_fields = ("id", "final_amount", "created_at", "updated_at")
 
     def validate(self, attrs):
@@ -469,6 +476,12 @@ class OfferingEnrollmentSerializer(serializers.ModelSerializer):
             course_amount = attrs.get("course_amount")
             if course_amount in (None, 0):
                 attrs["course_amount"] = sum(l.tuition or 0 for l in offering.course.lessons.all())
+        lead = attrs.get("lead")
+        if lead is not None:
+            if lead.status not in (Lead.Status.RECOMMENDED, Lead.Status.ASSESSED):
+                raise serializers.ValidationError({"lead": "این لید هنوز برای ثبت‌نام آماده نیست."})
+            if lead.enrolled_person_id and student is not None and lead.enrolled_person_id != student.pk:
+                raise serializers.ValidationError({"lead": "این لید قبلاً به دانش‌آموز دیگری متصل شده است."})
         dt = attrs.get("discount_type", getattr(self.instance, "discount_type", "none"))
         dv = attrs.get("discount_value", getattr(self.instance, "discount_value", 0)) or 0
         if dt == OfferingEnrollment.DiscountType.PERCENT and dv > 100:
@@ -489,6 +502,7 @@ class OfferingEnrollmentSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         final = validated_data.pop("_final", 0)
+        validated_data.pop("lead", None)
         validated_data["final_amount"] = final
         return super().create(validated_data)
 

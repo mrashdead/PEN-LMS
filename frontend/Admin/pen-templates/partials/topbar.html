@@ -46,26 +46,31 @@ were sample content and are intentionally omitted.
     </button>
 
     <div class="dropdown">
-      <button type="button" class="btn topbar-link d-lg-none" aria-label="منوی کاربر" data-bs-toggle="dropdown" aria-expanded="false">
-        <i data-lucide="user-round" class="size-4"></i>
+      <button type="button" class="btn topbar-user d-flex align-items-center gap-2" aria-label="منوی کاربر" data-bs-toggle="dropdown" aria-expanded="false">
+        <span class="avatar pen-avatar size-8 rounded-circle flex-shrink-0" aria-hidden="true">{{ request.user.username|first|upper }}</span>
+        <span class="topbar-user-copy d-none d-md-block text-start">
+          <strong class="d-block fs-13 text-truncate">{{ request.user.get_full_name|default:request.user.username }}</strong>
+          <span class="d-block fs-12 text-muted text-truncate">حساب کاربری</span>
+        </span>
+        <i data-lucide="chevron-down" class="size-4 d-none d-md-block" aria-hidden="true"></i>
       </button>
-      <div class="dropdown-menu dropdown-menu-end p-2">
+      <div class="dropdown-menu dropdown-menu-end p-2 topbar-user-menu">
         <div class="px-3 py-2 border-bottom mb-2">
           <h6 class="mb-0 text-truncate fs-14">{{ request.user.get_full_name|default:request.user.username }}</h6>
           <p class="mb-0 fs-13 text-muted text-truncate">{{ request.user.username }}</p>
         </div>
         <a href="{% url 'workspace-profile' %}" class="dropdown-item d-flex align-items-center gap-2">
-          <i data-lucide="user-round" class="size-4"></i> پنل کاربری من
+          <i data-lucide="user-round" class="size-4" aria-hidden="true"></i> پنل کاربری من
         </a>
         {% if can_change_own_password %}
           <a href="{% url 'password-change' %}" class="dropdown-item d-flex align-items-center gap-2">
-            <i data-lucide="key-round" class="size-4"></i> تغییر رمز عبور
+            <i data-lucide="key-round" class="size-4" aria-hidden="true"></i> تغییر رمز عبور
           </a>
         {% endif %}
         <form method="post" action="{% url 'dashboard-logout' %}">
           {% csrf_token %}
           <button type="submit" class="dropdown-item d-flex align-items-center gap-2">
-            <i data-lucide="log-out" class="size-4"></i> خروج
+            <i data-lucide="log-out" class="size-4" aria-hidden="true"></i> خروج
           </button>
         </form>
       </div>

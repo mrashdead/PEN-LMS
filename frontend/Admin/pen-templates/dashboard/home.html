@@ -28,54 +28,54 @@
 </div>
 {% endif %}
 
-<div class="row g-4 mb-4" id="pen-stats">
+<div class="row g-4 mb-4" id="pen-stats" aria-label="خلاصهٔ وضعیت سامانه">
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100">
+    <div class="card card-h-100 pen-stat-card">
       <div class="card-body d-flex align-items-center gap-3">
         <div class="avatar size-14 rounded bg-primary-subtle text-primary flex-shrink-0">
           <i data-lucide="{% if is_manager %}building-2{% else %}users{% endif %}" class="size-6"></i>
         </div>
-        <div>
-          <h6 class="mb-0 fw-semibold" data-stat="persons">—</h6>
+        <div class="min-w-0">
+          <div class="d-flex align-items-baseline gap-2"><h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="persons">—</h2><span class="pen-stat-caption">زنده</span></div>
           <p class="mb-0 text-muted fs-14">{% if is_manager %}ظرفیت پرشده{% else %}اشخاص{% endif %}</p>
         </div>
       </div>
     </div>
   </div>
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100">
+    <div class="card card-h-100 pen-stat-card">
       <div class="card-body d-flex align-items-center gap-3">
         <div class="avatar size-14 rounded bg-secondary-subtle text-secondary flex-shrink-0">
           <i data-lucide="{% if is_manager %}inbox{% else %}workflow{% endif %}" class="size-6"></i>
         </div>
-        <div>
-          <h6 class="mb-0 fw-semibold" data-stat="instances">—</h6>
+        <div class="min-w-0">
+          <h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="instances">—</h2>
           <p class="mb-0 text-muted fs-14">{% if is_manager %}درخواست‌های منتظر اقدام{% else %}فرآیندها{% endif %}</p>
         </div>
       </div>
     </div>
   </div>
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100">
+    <div class="card card-h-100 pen-stat-card">
       <div class="card-body d-flex align-items-center gap-3">
         <div class="avatar size-14 rounded bg-success-subtle text-success flex-shrink-0">
           <i data-lucide="{% if is_manager %}user-plus{% else %}list-checks{% endif %}" class="size-6"></i>
         </div>
-        <div>
-          <h6 class="mb-0 fw-semibold" data-stat="tasks">—</h6>
+        <div class="min-w-0">
+          <h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="tasks">—</h2>
           <p class="mb-0 text-muted fs-14">{% if is_manager %}ثبت‌نام جدید{% else %}وظایف در دست من{% endif %}</p>
         </div>
       </div>
     </div>
   </div>
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100">
+    <div class="card card-h-100 pen-stat-card">
       <div class="card-body d-flex align-items-center gap-3">
         <div class="avatar size-14 rounded bg-warning-subtle text-warning flex-shrink-0">
           <i data-lucide="{% if is_manager %}trending-up{% else %}calendar-days{% endif %}" class="size-6"></i>
         </div>
-        <div>
-          <h6 class="mb-0 fw-semibold" data-stat="terms">—</h6>
+        <div class="min-w-0">
+          <h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="terms">—</h2>
           <p class="mb-0 text-muted fs-14">{% if is_manager %}روند ثبت‌نام ۳۰ روزه{% else %}ترم‌های تحصیلی{% endif %}</p>
         </div>
       </div>

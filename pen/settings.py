@@ -44,6 +44,8 @@ INSTALLED_APPS: list[str] = [
     "apps.messaging",
     "apps.org",
     "apps.reports",
+    "apps.playhouse",
+    "apps.leads",
 ]
 
 MIDDLEWARE: list[str] = [

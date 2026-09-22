@@ -56,6 +56,7 @@ from apps.education.models import (
     ParentReportDelivery,
     SessionMaterial,
 )
+from apps.leads.models import Lead
 from apps.education.calendar import student_schedule
 from apps.education.serializers import (
     AcademicHolidaySerializer,
@@ -397,6 +398,7 @@ class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         offering = serializer.validated_data["offering"]
         student = serializer.validated_data["student"]
+        lead = serializer.validated_data.get("lead")
         # capacity first (row lock) — refuse before writing the money record
         try:
             enroll_student(offering=offering, student=student, actor=request.user)
@@ -410,6 +412,10 @@ class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
         except EducationServiceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         enrollment = serializer.save()
+        if lead is not None:
+            lead.enrolled_person = student
+            lead.status = Lead.Status.ENROLLED
+            lead.save(update_fields=["enrolled_person", "status", "updated_at"])
         return Response(self.get_serializer(enrollment).data, status=status.HTTP_201_CREATED)
 
 

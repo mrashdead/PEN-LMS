@@ -25,6 +25,7 @@
 </head>
 
 <body class="sidebar-hidden">
+  <a class="pen-skip-link" href="#main-content">رفتن به محتوای اصلی</a>
 
   
   
@@ -69,26 +70,31 @@
     </button>
 
     <div class="dropdown">
-      <button type="button" class="btn topbar-link d-lg-none" aria-label="منوی کاربر" data-bs-toggle="dropdown" aria-expanded="false">
-        <i data-lucide="user-round" class="size-4"></i>
+      <button type="button" class="btn topbar-user d-flex align-items-center gap-2" aria-label="منوی کاربر" data-bs-toggle="dropdown" aria-expanded="false">
+        <span class="avatar pen-avatar size-8 rounded-circle flex-shrink-0" aria-hidden="true">…</span>
+        <span class="topbar-user-copy d-none d-md-block text-start">
+          <strong class="d-block fs-13 text-truncate">…</strong>
+          <span class="d-block fs-12 text-muted text-truncate">حساب کاربری</span>
+        </span>
+        <i data-lucide="chevron-down" class="size-4 d-none d-md-block" aria-hidden="true"></i>
       </button>
-      <div class="dropdown-menu dropdown-menu-end p-2">
+      <div class="dropdown-menu dropdown-menu-end p-2 topbar-user-menu">
         <div class="px-3 py-2 border-bottom mb-2">
           <h6 class="mb-0 text-truncate fs-14">…</h6>
           <p class="mb-0 fs-13 text-muted text-truncate">…</p>
         </div>
         <a href="" class="dropdown-item d-flex align-items-center gap-2">
-          <i data-lucide="user-round" class="size-4"></i> پنل کاربری من
+          <i data-lucide="user-round" class="size-4" aria-hidden="true"></i> پنل کاربری من
         </a>
         
           <a href="" class="dropdown-item d-flex align-items-center gap-2">
-            <i data-lucide="key-round" class="size-4"></i> تغییر رمز عبور
+            <i data-lucide="key-round" class="size-4" aria-hidden="true"></i> تغییر رمز عبور
           </a>
         
         <form method="post" action="">
           
           <button type="submit" class="dropdown-item d-flex align-items-center gap-2">
-            <i data-lucide="log-out" class="size-4"></i> خروج
+            <i data-lucide="log-out" class="size-4" aria-hidden="true"></i> خروج
           </button>
         </form>
       </div>
@@ -116,41 +122,6 @@
     </a>
 
     
-    <div class="dropdown profile-dropdown">
-      <a href="#!" data-bs-toggle="dropdown" aria-expanded="false" aria-label="منوی کاربر"
-         class="btn d-flex align-items-center w-100 gap-2 p-4 text-start">
-        <span class="avatar pen-avatar size-10 rounded flex-shrink-0" aria-hidden="true">…</span>
-        <div class="flex-grow-1 content overflow-hidden">
-          <h6 class="fw-medium text-truncate mb-0">…</h6>
-          <p class="fs-14 text-truncate mb-0">…</p>
-        </div>
-        <div class="arrow"><i data-lucide="chevron-down" class="size-4"></i></div>
-      </a>
-      <div class="dropdown-menu p-4 profile-dropdown-menu">
-        <div class="d-flex align-items-center gap-2">
-          <span class="avatar pen-avatar rounded-circle size-10 flex-shrink-0" aria-hidden="true">…</span>
-          <div class="flex-grow-1 overflow-hidden">
-            <h6 class="mb-0 text-truncate">…</h6>
-            <p class="mb-0 text-truncate fs-14">…</p>
-          </div>
-        </div>
-        <div class="pt-2 mt-3 border-top">
-          
-          <a href="" class="profile-link d-block py-1 text-decoration-none">
-            <i data-lucide="key-round" class="d-inline-block me-2 size-4"></i> تغییر رمز عبور
-          </a>
-          
-          <form method="post" action="">
-            
-            <button type="submit" class="profile-link w-100 text-start border-0 bg-transparent py-1">
-              <i data-lucide="log-out" class="d-inline-block me-2 size-4"></i> خروج
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    
     <div class="navbar-menu px-5" id="navbar-menu-list" data-simplebar>
       <ul class="list-unstyled p-0 navbar-nav-menu">
 
@@ -162,26 +133,6 @@
             <span class="content">داشبورد</span>
           </a>
         </li>
-
-        <li class="nav-item">
-          <a href="" title="پنل کاربری من"
-             class="nav-link active"
-             aria-current="page">
-            <span class="icons"><i data-lucide="user-round"></i></span>
-            <span class="content">پنل کاربری من</span>
-          </a>
-        </li>
-
-        
-        <li class="nav-item">
-          <a href="" title="تغییر رمز عبور"
-             class="nav-link active"
-             aria-current="page">
-            <span class="icons"><i data-lucide="key-round"></i></span>
-            <span class="content">تغییر رمز عبور</span>
-          </a>
-        </li>
-        
 
         
         
@@ -218,6 +169,16 @@
             <span class="content">کارنامه توصیفی</span>
           </a>
         </li>
+        
+        <li class="nav-item">
+          <a href="" title="تعیین‌سطح‌های من"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="user-round-search"></i></span>
+            <span class="content">تعیین‌سطح‌های من</span>
+          </a>
+        </li>
+        
         
 
         
@@ -321,6 +282,37 @@
           </a>
         </li>
         
+
+        
+        <li class="nav-item">
+          <a href="" title="خانه بازی"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="toy-brick"></i></span>
+            <span class="content">خانه بازی</span>
+          </a>
+        </li>
+        
+        
+        <li class="nav-item">
+          <a href="" title="تعیین‌سطح‌های من"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="user-round-search"></i></span>
+            <span class="content">تعیین‌سطح‌های من</span>
+          </a>
+        </li>
+        
+        
+        <li class="nav-item">
+          <a href="" title="مدیریت لیدها"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="user-round-search"></i></span>
+            <span class="content">مدیریت لیدها</span>
+          </a>
+        </li>
+        
         
 
         
@@ -404,14 +396,15 @@
 
   <div class="min-vh-100 position-relative">
     <div class="page-wrapper">
-      <div class="container-fluid">
+      <main id="main-content" class="container-fluid" tabindex="-1">
 
         
         
   
 <div class="gap-2 page-heading mb-3 flex-column flex-md-row">
-  <h6 class="flex-grow-1 mb-0">…</h6>
-  <ul class="breadcrumb flex-shrink-0 mb-0">
+  <h1 class="flex-grow-1 mb-0">…</h1>
+  <nav aria-label="مسیر صفحه">
+  <ol class="breadcrumb flex-shrink-0 mb-0">
     <li class="breadcrumb-item"><a href="">داشبورد</a></li>
     
       <li class="breadcrumb-item">
@@ -419,16 +412,17 @@
       </li>
     
     <li class="breadcrumb-item active" aria-current="page">…</li>
-  </ul>
+  </ol>
+  </nav>
 </div>
 
 
 
         
-          <div class="vstack gap-2 mb-3">
+          <div class="vstack gap-2 mb-3" aria-label="پیام‌های سامانه">
             
-              <div class="alert alert-dangersuccesswarninginfo d-flex align-items-center gap-2 mb-0" role="status">
-                <i data-lucide="circle-alertcircle-checkinfo" class="size-4 flex-shrink-0"></i>
+              <div class="alert alert-dangersuccesswarninginfo d-flex align-items-center gap-2 mb-0" role="status" aria-live="polite">
+                <i data-lucide="circle-alertcircle-checkinfo" class="size-4 flex-shrink-0" aria-hidden="true"></i>
                 <div>…</div>
               </div>
             
@@ -595,7 +589,7 @@
   </div>
 </footer>
 
-      </div>
+      </main>
     </div>
   </div>
 

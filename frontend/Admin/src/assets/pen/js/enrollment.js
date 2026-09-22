@@ -13,6 +13,8 @@
   var OFFERINGS = '/api/education/offerings/';
   var ENROLL = '/api/education/enrollments/';
   var WAITLIST = '/api/education/waitlist/';
+  var LEAD_ID = new URLSearchParams(window.location.search).get('lead');
+  var LEAD_API = LEAD_ID ? '/api/leads/' + encodeURIComponent(LEAD_ID) + '/' : '';
   var CSRF = window.getCookie ? window.getCookie('csrftoken') : '';
 
   function esc(s) { return window.htmlEscape ? window.htmlEscape(s) : (s == null ? '' : String(s)); }
@@ -28,6 +30,8 @@
   function toInt(v) { return Number(String(v || '').replace(/[^\d]/g, '')) || 0; }
 
   var state = { courseAmount: 0, lessons: [] };
+  var leadState = null;
+  var leadCourseId = '';
 
   // ── student search ──────────────────────────────────────────────────
   var $sSearch = document.getElementById('enr-student-search');
@@ -35,6 +39,46 @@
   var $sHidden = document.getElementById('enr-student');
   var $sPicked = document.getElementById('enr-student-picked');
   var sTimer = null;
+
+  function setStudent(id, name) {
+    $sHidden.value = id || '';
+    $sPicked.textContent = id ? 'انتخاب‌شده: ' + name : '';
+    if (id) {
+      document.getElementById('enr-person-create-wrap').classList.add('d-none');
+    }
+  }
+
+  function loadLeadContext() {
+    if (!LEAD_ID) return Promise.resolve();
+    return get(LEAD_API).then(function (lead) {
+      leadState = lead;
+      leadCourseId = lead.course || '';
+      var context = document.getElementById('enr-lead-context');
+      context.classList.remove('d-none');
+      document.getElementById('enr-lead-summary').textContent = lead.student_name + ' · ' + (lead.phone || 'بدون شماره') + ' · ' + (lead.course_title || 'دوره در لید مشخص نشده') + (lead.assessment_result ? ' · نتیجه: ' + lead.assessment_result : '');
+      $sSearch.value = lead.student_name || '';
+      if (lead.enrolled_person) {
+        setStudent(lead.enrolled_person, lead.enrolled_person_name || lead.student_name);
+      } else {
+        document.getElementById('enr-person-create-wrap').classList.remove('d-none');
+      }
+    });
+  }
+
+  document.getElementById('enr-create-person').addEventListener('click', function () {
+    if (!LEAD_ID) return;
+    var nationalCode = document.getElementById('enr-lead-national-code').value.trim();
+    var studentCode = document.getElementById('enr-lead-student-code').value.trim();
+    if (!/^\d{10}$/.test(nationalCode)) return toast('کد ملی باید ۱۰ رقم باشد.', 'danger');
+    if (!studentCode) return toast('کد دانش‌آموزی را وارد کنید.', 'danger');
+    var button = document.getElementById('enr-create-person');
+    button.disabled = true;
+    fetch('/api/leads/' + encodeURIComponent(LEAD_ID) + '/create-person/', { method: 'POST', credentials: 'same-origin', headers: headers(), body: JSON.stringify({ national_code: nationalCode, student_code: studentCode, father_name: document.getElementById('enr-lead-father-name').value.trim() }) })
+      .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(Object.keys(b).map(function (k) { return Array.isArray(b[k]) ? b[k].join('، ') : b[k]; }).join(' — ') || 'ساخت شخص ناموفق بود.'); return b; }); })
+      .then(function (person) { setStudent(person.person_id, person.person_name); toast('شخص دانش‌آموز ساخته و به لید متصل شد.', 'success'); })
+      .catch(function (e) { toast(e.message, 'danger'); })
+      .finally(function () { button.disabled = false; });
+  });
 
   function searchStudents(q) {
     $sResults.style.display = 'block';
@@ -79,6 +123,13 @@
         var seats = o.seats_left == null ? 'نامحدود' : window.persianNumbers(o.seats_left) + ' خالی';
         return '<option value="' + esc(o.id) + '">' + esc(o.course_title || o.title || o.id) + ' — ' + seats + '</option>';
       }).join('');
+      if (leadCourseId) {
+        var matching = offerings.filter(function (o) { return String(o.course) === String(leadCourseId); });
+        if (matching.length === 1) {
+          $offering.value = matching[0].id;
+          $offering.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
     }).catch(function (e) { toast(e.message, 'danger'); });
   }
   $offering.addEventListener('change', function () {
@@ -184,6 +235,7 @@
       discount_value: toInt($dVal.value),
       payment_method: method,
     };
+    if (LEAD_ID) payload.lead = LEAD_ID;
     var enrolledAt = document.getElementById('enr-date').value.trim();
     if (enrolledAt) payload.enrolled_at = enrolledAt; // empty → server default
     if (method === 'cheque') {
@@ -254,6 +306,7 @@
 
   // ── boot ────────────────────────────────────────────────────────────
   loadOfferings();
+  loadLeadContext().catch(function (e) { toast('اطلاعات لید دریافت نشد: ' + e.message, 'danger'); });
   loadRecent();
   loadWaitlist();
   renderAmount();

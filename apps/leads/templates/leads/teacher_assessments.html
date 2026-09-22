@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load asset_v %}
+
+{% block title %}تعیین‌سطح‌های من{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="تعیین‌سطح‌های من" section="پنل مدرس" %}
+{% endblock %}
+
+{% block content %}
+<div class="lead-workspace" data-lead-app data-lead-mode="teacher">
+  <section class="lead-hero mb-4" aria-labelledby="teacher-lead-title">
+    <div>
+      <span class="lead-kicker">صف اختصاصی استاد</span>
+      <h1 id="teacher-lead-title">جلسه‌ها و ارزیابی‌های من</h1>
+      <p class="mb-0">فقط لیدهایی را می‌بینید که برای تعیین سطح به شما سپرده شده‌اند. نتیجه را پس از جلسه ثبت کنید.</p>
+    </div>
+    <div class="lead-hero-flow" aria-label="مراحل کار استاد">
+      <span class="is-active">مشاهده نوبت</span><i data-lucide="chevron-left" aria-hidden="true"></i>
+      <span>ثبت ارزیابی</span><i data-lucide="chevron-left" aria-hidden="true"></i>
+      <span>بازگشت به کارمند</span>
+    </div>
+  </section>
+
+  <div class="row g-3 mb-4" aria-label="خلاصهٔ تعیین‌سطح‌های من">
+    <div class="col-12 col-md-4"><div class="lead-stat"><span class="lead-stat-icon lead-stat-blue"><i data-lucide="clipboard-list" aria-hidden="true"></i></span><div><strong>{{ lead_count }}</strong><small>کل ارجاع‌ها</small></div></div></div>
+    <div class="col-12 col-md-4"><div class="lead-stat"><span class="lead-stat-icon lead-stat-amber"><i data-lucide="calendar-clock" aria-hidden="true"></i></span><div><strong>{{ lead_pending_count }}</strong><small>در انتظار ارزیابی</small></div></div></div>
+    <div class="col-12 col-md-4"><div class="lead-stat"><span class="lead-stat-icon lead-stat-green"><i data-lucide="clipboard-check" aria-hidden="true"></i></span><div><strong>{{ lead_completed_count }}</strong><small>نتیجه ثبت‌شده</small></div></div></div>
+  </div>
+
+  <section class="card lead-queue-card" aria-labelledby="teacher-lead-queue-title">
+    <div class="card-header lead-queue-header">
+      <div><h2 id="teacher-lead-queue-title" class="h6 mb-1 card-title">صف تعیین سطح</h2><p class="lead-muted mb-0">برای دیدن اطلاعات جلسه و ثبت نتیجه، نوبت را باز کنید.</p></div>
+      <button type="button" id="lead-refresh" class="btn btn-light btn-sm" aria-label="به‌روزرسانی صف تعیین سطح"><i data-lucide="refresh-cw" class="size-4" aria-hidden="true"></i></button>
+    </div>
+    <div class="lead-filters" role="group" aria-label="فیلتر تعیین‌سطح‌ها">
+      <button class="is-active" data-filter="all" type="button" aria-pressed="true">همه</button>
+      <button data-filter="pending" type="button" aria-pressed="false">نوبت‌های پیش‌رو</button>
+      <button data-filter="completed" type="button" aria-pressed="false">نتیجه ثبت‌شده</button>
+    </div>
+    <div id="lead-list" class="lead-list" role="region" aria-label="فهرست تعیین سطح" aria-live="polite" aria-busy="true">
+      {% for lead in leads %}
+      <article class="lead-card" data-id="{{ lead.pk }}" data-status="{{ lead.status }}">
+        <div class="lead-card-main"><div class="lead-avatar" aria-hidden="true">{{ lead.student_name|first }}</div><div class="min-w-0"><div class="d-flex align-items-center gap-2 flex-wrap"><strong class="lead-card-name">{{ lead.student_name }}</strong><span class="lead-status lead-status-{{ lead.status }}">{{ lead.status_label }}</span></div><p class="lead-card-meta mb-0">{{ lead.neighborhood|default:"محله ثبت نشده" }}</p><p class="lead-card-meta mb-0">{% if lead.assessment_date %}جلسه {{ lead.assessment_date|date:"Y/m/d" }}{% if lead.assessment_time %}، {{ lead.assessment_time|time:"H:i" }}{% endif %}{% else %}زمان جلسه ثبت نشده{% endif %}</p></div></div>
+        <div class="lead-card-side"><span class="lead-code">{{ lead.code }}</span><button type="button" class="btn btn-sm btn-outline-primary lead-open" data-id="{{ lead.pk }}">مشاهده و ارزیابی</button></div>
+      </article>
+      {% empty %}<div class="lead-empty"><i data-lucide="clipboard-check" aria-hidden="true"></i><strong>هنوز نوبتی به شما ارجاع نشده</strong><span>پس از تعیین استاد توسط کارمند، نوبت در این صفحه نمایش داده می‌شود.</span></div>{% endfor %}
+    </div>
+  </section>
+</div>
+
+<div class="modal fade" id="lead-detail-modal" tabindex="-1" aria-labelledby="lead-detail-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><div><h2 class="modal-title h5" id="lead-detail-title">جزئیات تعیین سطح</h2><span id="lead-detail-code" class="lead-code"></span></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div><div class="modal-body" id="lead-detail-body"><p class="pen-loading" role="status">در حال دریافت اطلاعات نوبت…</p></div></div></div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>window.__LEADS_API__ = "/api/leads/teacher/";</script>
+<script src="{% asset_v_url 'assets/pen/js/leads.js' %}"></script>
+{% endblock %}

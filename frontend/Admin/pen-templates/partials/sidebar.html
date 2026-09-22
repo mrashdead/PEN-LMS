@@ -28,41 +28,6 @@ Add a page: one nav-item; add a section: copy a collapse block.
       </div>
     </a>
 
-    {# ── Profile ───────────────────────────────────────────────────── #}
-    <div class="dropdown profile-dropdown">
-      <a href="#!" data-bs-toggle="dropdown" aria-expanded="false" aria-label="منوی کاربر"
-         class="btn d-flex align-items-center w-100 gap-2 p-4 text-start">
-        <span class="avatar pen-avatar size-10 rounded flex-shrink-0" aria-hidden="true">{{ request.user.username|first|upper }}</span>
-        <div class="flex-grow-1 content overflow-hidden">
-          <h6 class="fw-medium text-truncate mb-0">{{ request.user.get_full_name|default:request.user.username }}</h6>
-          <p class="fs-14 text-truncate mb-0">{{ request.user.username }}</p>
-        </div>
-        <div class="arrow"><i data-lucide="chevron-down" class="size-4"></i></div>
-      </a>
-      <div class="dropdown-menu p-4 profile-dropdown-menu">
-        <div class="d-flex align-items-center gap-2">
-          <span class="avatar pen-avatar rounded-circle size-10 flex-shrink-0" aria-hidden="true">{{ request.user.username|first|upper }}</span>
-          <div class="flex-grow-1 overflow-hidden">
-            <h6 class="mb-0 text-truncate">{{ request.user.get_full_name|default:request.user.username }}</h6>
-            <p class="mb-0 text-truncate fs-14">{{ request.user.username }}</p>
-          </div>
-        </div>
-        <div class="pt-2 mt-3 border-top">
-          {% if can_change_own_password %}
-          <a href="{% url 'password-change' %}" class="profile-link d-block py-1 text-decoration-none">
-            <i data-lucide="key-round" class="d-inline-block me-2 size-4"></i> تغییر رمز عبور
-          </a>
-          {% endif %}
-          <form method="post" action="{% url 'dashboard-logout' %}">
-            {% csrf_token %}
-            <button type="submit" class="profile-link w-100 text-start border-0 bg-transparent py-1">
-              <i data-lucide="log-out" class="d-inline-block me-2 size-4"></i> خروج
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-
     {# ── Navigation ────────────────────────────────────────────────── #}
     <div class="navbar-menu px-5" id="navbar-menu-list" data-simplebar>
       <ul class="list-unstyled p-0 navbar-nav-menu">
@@ -75,26 +40,6 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">داشبورد</span>
           </a>
         </li>
-
-        <li class="nav-item">
-          <a href="{% url 'workspace-profile' %}" title="پنل کاربری من"
-             class="nav-link{% if urlname == 'workspace-profile' %} active{% endif %}"
-             {% if urlname == 'workspace-profile' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="user-round"></i></span>
-            <span class="content">پنل کاربری من</span>
-          </a>
-        </li>
-
-        {% if can_change_own_password %}
-        <li class="nav-item">
-          <a href="{% url 'password-change' %}" title="تغییر رمز عبور"
-             class="nav-link{% if urlname == 'password-change' %} active{% endif %}"
-             {% if urlname == 'password-change' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="key-round"></i></span>
-            <span class="content">تغییر رمز عبور</span>
-          </a>
-        </li>
-        {% endif %}
 
         {# ══ TEACHER PORTAL (teacher-only: nothing else) ══════════════ #}
         {% if is_teacher_only %}
@@ -131,6 +76,16 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">کارنامه توصیفی</span>
           </a>
         </li>
+        {% if is_lead_teacher %}
+        <li class="nav-item">
+          <a href="{% url 'leads-teacher-assessments' %}" title="تعیین‌سطح‌های من"
+             class="nav-link{% if urlname == 'leads-teacher-assessments' %} active{% endif %}"
+             {% if urlname == 'leads-teacher-assessments' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="user-round-search"></i></span>
+            <span class="content">تعیین‌سطح‌های من</span>
+          </a>
+        </li>
+        {% endif %}
         {% endif %}
 
         {# ══ LEARNER PORTAL (student/parent) ══════════════════════════ #}
@@ -231,6 +186,37 @@ Add a page: one nav-item; add a section: copy a collapse block.
              {% if urlname == 'workspace-reports' %}aria-current="page"{% endif %}>
             <span class="icons"><i data-lucide="bar-chart-3"></i></span>
             <span class="content">گزارش‌ها و تحلیل‌ها</span>
+          </a>
+        </li>
+        {% endif %}
+
+        {% if is_playhouse_user %}
+        <li class="nav-item">
+          <a href="{% url 'playhouse-dashboard' %}" title="خانه بازی"
+             class="nav-link{% if urlname == 'playhouse-dashboard' %} active{% endif %}"
+             {% if urlname == 'playhouse-dashboard' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="toy-brick"></i></span>
+            <span class="content">خانه بازی</span>
+          </a>
+        </li>
+        {% endif %}
+        {% if is_lead_teacher %}
+        <li class="nav-item">
+          <a href="{% url 'leads-teacher-assessments' %}" title="تعیین‌سطح‌های من"
+             class="nav-link{% if urlname == 'leads-teacher-assessments' %} active{% endif %}"
+             {% if urlname == 'leads-teacher-assessments' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="user-round-search"></i></span>
+            <span class="content">تعیین‌سطح‌های من</span>
+          </a>
+        </li>
+        {% endif %}
+        {% if is_lead_operator %}
+        <li class="nav-item">
+          <a href="{% url 'leads-dashboard' %}" title="مدیریت لیدها"
+             class="nav-link{% if urlname == 'leads-dashboard' %} active{% endif %}"
+             {% if urlname == 'leads-dashboard' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="user-round-search"></i></span>
+            <span class="content">مدیریت لیدها</span>
           </a>
         </li>
         {% endif %}

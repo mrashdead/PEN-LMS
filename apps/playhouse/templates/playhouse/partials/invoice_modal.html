@@ -1,0 +1,79 @@
+<div class="modal fade" id="ph-invoice-modal" tabindex="-1" aria-labelledby="ph-invoice-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="ph-invoice-title">
+          <i data-lucide="receipt" class="size-5 text-primary" aria-hidden="true"></i>
+          فاکتور خانه بازی
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="ph-invoice-session" value="">
+
+        {# ── زمان ───────────────────────────────────────────────────── #}
+        <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded-3 mb-3">
+          <div>
+            <div class="text-muted small">مدت سپری‌شده</div>
+            <div class="fw-bold fs-5" id="ph-invoice-time">—</div>
+            <div class="text-muted small mt-1" id="ph-invoice-rate">نرخ: —</div>
+          </div>
+          <div class="text-end">
+            <div class="text-muted small">هزینه زمان</div>
+            <div class="fw-bold fs-5" id="ph-invoice-time-amount" data-amount="0">—</div>
+            <div class="text-muted small mt-1" id="ph-invoice-blocks">— بازه ۱۵ دقیقه‌ای</div>
+          </div>
+        </div>
+
+        {# ── آیتم‌های کافه ──────────────────────────────────────────── #}
+        <label class="form-label">آیتم‌های کافه</label>
+        <div id="ph-cafe-items">
+          <div class="row g-2 ph-cafe-row">
+            <div class="col-6">
+              <input type="text" class="form-control" placeholder="نام آیتم" aria-label="نام آیتم">
+            </div>
+            <div class="col-5">
+              <input type="number" class="form-control" placeholder="قیمت" min="0" aria-label="قیمت">
+            </div>
+            <div class="col-1 d-flex align-items-center">
+              <button type="button" class="btn btn-sm btn-light ph-cafe-add" title="افزودن آیتم">
+                <i data-lucide="plus"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {# ── پرداخت ──────────────────────────────────────────────────── #}
+        <div class="border-top mt-3 pt-3">
+          <label class="form-label">روش پرداخت</label>
+          <div class="btn-group w-100" role="group" aria-label="روش پرداخت">
+            <input type="radio" class="btn-check" name="ph-pay-method" id="ph-pay-pos" value="pos">
+            <label class="btn btn-outline-primary" for="ph-pay-pos">دستگاه پوز</label>
+            <input type="radio" class="btn-check" name="ph-pay-method" id="ph-pay-card" value="card_transfer">
+            <label class="btn btn-outline-primary" for="ph-pay-card">کارت به کارت</label>
+          </div>
+          <div class="mt-2">
+            <label for="ph-tracking" class="form-label">کد رهگیری</label>
+            <input type="text" id="ph-tracking" class="form-control" dir="ltr"
+                   placeholder="کد رهگیری پوز یا کارت به کارت" aria-label="کد رهگیری">
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center border-top mt-3 pt-3">
+          <span class="fw-semibold">مبلغ کل</span>
+          <span class="fw-bold fs-4 text-primary" id="ph-invoice-total">—</span>
+        </div>
+
+        <div id="ph-invoice-error" class="alert alert-danger mt-3 mb-0" role="alert" hidden></div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button>
+        <button type="button" class="btn btn-primary" id="ph-invoice-submit">
+          <i data-lucide="check" class="size-4 me-1"></i> صدور فاکتور و ثبت پرداخت
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

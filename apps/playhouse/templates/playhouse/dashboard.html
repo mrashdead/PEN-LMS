@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% load asset_v %}
+{% block title %}خانه بازی{% endblock %}
+{% block page_heading %}{% endblock %}
+
+{% block content %}
+<div class="ph-page">
+  <section class="ph-hero" aria-labelledby="ph-page-title">
+    <div class="ph-hero-copy">
+      <div class="ph-kicker"><span class="ph-kicker-dot"></span> میز پذیرش خانه بازی</div>
+      <h1 id="ph-page-title">ورود و زمان‌گیری کودک به خانه بازی</h1>
+      <p>ورود را ثبت کنید، تایمر را از لحظه حضور شروع کنید و در پایان فاکتور را صادر کنید.</p>
+    </div>
+    <div class="ph-rate-card" aria-label="نرخ فعلی خانه بازی">
+      <span class="ph-rate-label"><i data-lucide="coins" aria-hidden="true"></i> نرخ فعلی</span>
+      <strong><span id="ph-price-value">—</span> <small>تومان</small></strong>
+      <span>برای هر ۱۵ دقیقه</span>
+    </div>
+  </section>
+
+  <div class="ph-layout">
+    <aside class="ph-intake-panel" aria-labelledby="ph-intake-title">
+      <div class="ph-panel-heading">
+        <div class="ph-heading-icon ph-heading-icon-coral"><i data-lucide="user-round-plus" aria-hidden="true"></i></div>
+        <div><h2 id="ph-intake-title">ثبت ورود جدید</h2><p>اطلاعات کودک را وارد یا از سوابق انتخاب کنید.</p></div>
+      </div>
+
+      <form id="ph-intake-form" novalidate>
+        <div class="ph-section-label"><span>۱</span> زمان حضور</div>
+        <div class="ph-field">
+          <label for="ph-date-display">تاریخ ورود</label>
+          <div class="ph-input-icon-wrap"><i data-lucide="calendar-days" aria-hidden="true"></i><input type="text" id="ph-date-display" class="form-control ph-date-input" value="{{ today_jalali }}" data-jalali autocomplete="off" dir="ltr" inputmode="numeric" placeholder="۱۴۰۵/۰۶/۳۰" required aria-describedby="ph-date-help"></div>
+          <input type="hidden" name="session_date" id="ph-date" value="{{ today|date:'Y-m-d' }}">
+          <div class="ph-help" id="ph-date-help">امروز به‌صورت خودکار انتخاب شده و قابل ویرایش است.</div>
+        </div>
+
+        <div class="ph-section-label"><span>۲</span> انتخاب کودک</div>
+        <div class="ph-member-picker" id="ph-member-picker">
+          <label for="ph-member-search">جستجو در سوابق خانه بازی</label>
+          <div class="ph-input-icon-wrap"><i data-lucide="search" aria-hidden="true"></i><input type="search" id="ph-member-search" class="form-control" placeholder="نام کودک یا شماره والدین…" autocomplete="off" aria-label="جستجوی عضو قبلی" aria-controls="ph-member-results" aria-expanded="false"><button type="button" class="ph-input-clear" id="ph-member-clear" aria-label="پاک کردن انتخاب" hidden><i data-lucide="x" aria-hidden="true"></i></button></div>
+          <div class="ph-search-status" id="ph-search-status" aria-live="polite">برای انتخاب سریع، نام یا شماره را جستجو کنید.</div>
+          <div class="ph-member-results d-none" id="ph-member-results" role="listbox"></div>
+          <div class="ph-selected-member" id="ph-selected-member" hidden><div class="ph-selected-avatar"><i data-lucide="check" aria-hidden="true"></i></div><div class="flex-grow-1 min-w-0"><strong id="ph-selected-name">—</strong><span id="ph-selected-meta">اطلاعات قبلی بارگذاری شد</span></div><button type="button" class="btn btn-sm btn-link p-0" id="ph-selected-remove">تغییر</button></div>
+        </div>
+
+        <div class="ph-section-label"><span>۳</span> اطلاعات کودک</div>
+        <div class="row g-3">
+          <div class="col-6 ph-field"><label for="ph-first">نام</label><input type="text" id="ph-first" name="first_name" class="form-control" placeholder="مثلاً آوا" required></div>
+          <div class="col-6 ph-field"><label for="ph-last">نام خانوادگی</label><input type="text" id="ph-last" name="last_name" class="form-control" placeholder="مثلاً محمدی" required></div>
+          <div class="col-5 ph-field"><label for="ph-age">سن</label><div class="ph-input-suffix-wrap"><input type="number" id="ph-age" name="age" class="form-control" min="0" max="120" placeholder="—"><span>سال</span></div></div>
+          <div class="col-7 ph-field"><label for="ph-mobile">شماره والدین</label><input type="text" id="ph-mobile" name="guardian_mobile" class="form-control" inputmode="tel" dir="ltr" placeholder="0912…"></div>
+          <div class="col-6 ph-field"><label for="ph-national-code">کد ملی کودک <span class="text-muted">(فرد جدید)</span></label><input type="text" id="ph-national-code" name="national_code" class="form-control" inputmode="numeric" dir="ltr" maxlength="10" placeholder="۱۰ رقم"></div>
+          <div class="col-6 ph-field"><label for="ph-student-code">کد دانش‌آموزی / شناسه <span class="text-muted">(فرد جدید)</span></label><input type="text" id="ph-student-code" name="student_code" class="form-control" dir="ltr" maxlength="32" placeholder="مثلاً PH-1001"></div>
+        </div>
+
+        <input type="hidden" name="member_pk" id="ph-member-pk" value="">
+        <input type="hidden" name="person_pk" id="ph-person-pk" value="">
+        <div class="ph-form-actions"><button type="submit" class="btn ph-primary-action flex-grow-1"><i data-lucide="play-circle" aria-hidden="true"></i> ثبت ورود و آماده‌سازی تایمر</button><button type="button" class="btn ph-secondary-action" id="ph-reset">پاک‌سازی</button></div>
+      </form>
+    </aside>
+
+    <section class="ph-sessions-panel" aria-labelledby="ph-sessions-title">
+      <div class="ph-sessions-heading">
+        <div><div class="ph-kicker ph-kicker-muted">وضعیت لحظه‌ای</div><h2 id="ph-sessions-title">نوبت‌های امروز</h2><p>از همین‌جا تایمر را شروع، متوقف یا پایان دهید.</p></div>
+        <div class="ph-list-actions">{% if is_playhouse_finance %}<a class="btn ph-outline-action" href="{% url 'playhouse-finance' %}"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i> گزارش مالی</a>{% endif %}<button type="button" class="btn ph-icon-action" id="ph-refresh" title="بروزرسانی لیست"><i data-lucide="refresh-cw" aria-hidden="true"></i><span class="visually-hidden">بروزرسانی</span></button></div>
+      </div>
+
+      <div class="ph-live-strip"><div><span class="ph-live-pulse"></span><strong>تایمرهای فعال</strong><span class="ph-live-value" id="ph-active-count">۰</span></div><div><i data-lucide="calendar-check-2" aria-hidden="true"></i><span>نمایش امروز</span><span class="ph-live-value" id="ph-today-count">—</span></div></div>
+
+      <div class="ph-table-shell"><div class="table-responsive"><table class="table ph-session-table align-middle mb-0" id="ph-session-table">
+        <thead><tr><th>ورود / خروج</th><th>کودک</th><th>تماس والدین</th><th>مدت حضور</th><th>وضعیت</th><th class="text-end">عملیات</th></tr></thead>
+        <tbody>
+          {% for s in sessions %}
+            <tr data-id="{{ s.id }}" data-status="{{ s.status }}" data-entry="{{ s.entry_at|date:'c'|default:'' }}" data-paused-at="{{ s.paused_at|date:'c'|default:'' }}" data-paused-seconds="{{ s.paused_seconds|default:0 }}" data-billable="{{ s.billable_minutes|default:0 }}">
+              <td class="ph-time-cell" data-role="times"><span>ورود: {{ s.entry_at|date:'H:i'|default:'—' }}</span><span>خروج: {{ s.exit_at|date:'H:i'|default:'—' }}</span></td>
+              <td><div class="ph-child-name">{{ s.member.display_name }}</div><div class="ph-child-age">{% if s.member.age %}{{ s.member.age }} ساله{% else %}سن ثبت نشده{% endif %}</div></td>
+              <td dir="ltr" class="ph-phone-cell">{{ s.member.guardian_mobile|default:'—' }}</td>
+              <td class="ph-timer-cell" data-role="timer">{% if s.status == 'active' or s.status == 'paused' %}{{ s.elapsed_label }}{% elif s.status == 'finished' %}{{ s.billable_label }}{% else %}—{% endif %}</td>
+              <td data-role="status">
+                {% if s.invoice %}
+                  {% if s.invoice.is_paid %}<span class="ph-status ph-status-paid"><span></span>پرداخت شده</span>
+                  {% else %}<span class="ph-status ph-status-invoiced"><span></span>فاکتور صادر شد</span>{% endif %}
+                {% else %}<span class="ph-status ph-status-{{ s.status }}"><span></span>{{ s.get_status_display }}</span>{% endif %}
+              </td>
+              <td class="text-end"><div class="ph-row-actions" data-role="actions">
+                {% if s.status == 'waiting' %}<button class="btn ph-row-btn ph-row-start" data-act="start" title="شروع تایمر"><i data-lucide="play" aria-hidden="true"></i></button><button class="btn ph-row-btn ph-row-cancel" data-act="cancel" title="لغو"><i data-lucide="x" aria-hidden="true"></i></button>
+                {% elif s.status == 'active' %}<button class="btn ph-row-btn ph-row-pause" data-act="stop" title="توقف تایمر"><i data-lucide="pause" aria-hidden="true"></i></button><button class="btn ph-row-btn ph-row-end" data-act="end" title="پایان حضور"><i data-lucide="square" aria-hidden="true"></i></button>
+                {% elif s.status == 'paused' %}<button class="btn ph-row-btn ph-row-start" data-act="start" title="ادامه تایمر"><i data-lucide="play" aria-hidden="true"></i></button><button class="btn ph-row-btn ph-row-end" data-act="end" title="پایان حضور"><i data-lucide="square" aria-hidden="true"></i></button>
+                {% elif s.status == 'finished' and not s.invoice %}<button class="btn ph-row-btn ph-row-invoice" data-act="invoice" title="صدور فاکتور"><i data-lucide="receipt" aria-hidden="true"></i><span>فاکتور</span></button>
+                {% elif s.status == 'finished' and s.invoice %}<span class="ph-invoice-done" title="{{ s.invoice.invoice_number }}">{{ s.invoice.invoice_number|default:'ثبت شد' }}</span>{% endif %}
+              </div></td>
+            </tr>
+          {% empty %}<tr class="ph-empty"><td colspan="6"><div class="ph-empty-state"><div class="ph-empty-icon"><i data-lucide="sparkles" aria-hidden="true"></i></div><strong>هنوز ورودی ثبت نشده است</strong><span>اولین کودک امروز را از فرم سمت راست ثبت کنید.</span></div></td></tr>{% endfor %}
+        </tbody>
+      </table></div></div>
+    </section>
+  </div>
+</div>
+
+{% include "playhouse/partials/invoice_modal.html" %}
+{% endblock %}
+
+{% block page_js %}
+<script>window.__PLAYHOUSE_API__ = "/api/playhouse/";</script>
+<script src="{% asset_v_url 'assets/pen/js/playhouse.js' %}"></script>
+{% endblock %}

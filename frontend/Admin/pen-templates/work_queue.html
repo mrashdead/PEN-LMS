@@ -44,12 +44,12 @@
 
 <div class="card">
   <div class="card-header d-flex flex-wrap align-items-center gap-2">
-    <ul class="nav nav-tabs card-header-tabs flex-grow-1" role="tablist">
-      <li class="nav-item"><button class="nav-link active" data-tab="pending" type="button">در حال انجام</button></li>
-      <li class="nav-item"><button class="nav-link" data-tab="soon" type="button">نزدیک سررسید</button></li>
-      <li class="nav-item"><button class="nav-link" data-tab="overdue" type="button">تأخیرکرده</button></li>
-      <li class="nav-item"><button class="nav-link" data-tab="drafts" type="button">پیش‌نویس‌ها</button></li>
-      <li class="nav-item"><button class="nav-link" data-tab="done" type="button">انجام‌شده</button></li>
+    <ul class="nav nav-tabs card-header-tabs flex-grow-1" role="tablist" aria-label="فهرست کارهای من">
+      <li class="nav-item"><button class="nav-link active" data-tab="pending" type="button" id="wq-tab-pending" role="tab" aria-controls="wq-list" aria-selected="true">در حال انجام</button></li>
+      <li class="nav-item"><button class="nav-link" data-tab="soon" type="button" id="wq-tab-soon" role="tab" aria-controls="wq-list" aria-selected="false">نزدیک سررسید</button></li>
+      <li class="nav-item"><button class="nav-link" data-tab="overdue" type="button" id="wq-tab-overdue" role="tab" aria-controls="wq-list" aria-selected="false">تأخیرکرده</button></li>
+      <li class="nav-item"><button class="nav-link" data-tab="drafts" type="button" id="wq-tab-drafts" role="tab" aria-controls="wq-list" aria-selected="false">پیش‌نویس‌ها</button></li>
+      <li class="nav-item"><button class="nav-link" data-tab="done" type="button" id="wq-tab-done" role="tab" aria-controls="wq-list" aria-selected="false">انجام‌شده</button></li>
     </ul>
     <div class="position-relative">
       <input type="search" id="wq-search" class="form-control form-control-sm ps-9" placeholder="جستجو…" aria-label="جستجو در کارها">
@@ -57,7 +57,7 @@
     </div>
   </div>
   <div class="card-body pt-0">
-    <div id="wq-list" class="vstack gap-2 pt-3" aria-busy="false"></div>
+    <div id="wq-list" class="vstack gap-2 pt-3" aria-busy="false" role="tabpanel" aria-labelledby="wq-tab-pending"></div>
   </div>
 </div>
 {% endblock %}

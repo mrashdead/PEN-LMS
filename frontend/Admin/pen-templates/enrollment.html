@@ -13,6 +13,9 @@
       <div class="card-header"><h6 class="mb-0 card-title">فرم ثبت‌نام</h6></div>
       <div class="card-body">
         <form id="enr-form" novalidate>
+          <section id="enr-lead-context" class="alert alert-info d-none mb-4" aria-labelledby="enr-lead-title">
+            <div class="d-flex align-items-start gap-2"><i data-lucide="clipboard-check" class="size-5 flex-shrink-0" aria-hidden="true"></i><div><strong id="enr-lead-title">اطلاعات لید تعیین‌سطح‌شده</strong><p id="enr-lead-summary" class="mb-0 mt-1"></p></div></div>
+          </section>
           <div class="row g-3">
             {# 1) student search #}
             <div class="col-12">
@@ -23,6 +26,19 @@
               </div>
               <input type="hidden" name="student" id="enr-student">
               <div class="form-text" id="enr-student-picked"></div>
+            </div>
+
+            <div class="col-12 d-none" id="enr-person-create-wrap">
+              <div class="border rounded p-3 bg-body-tertiary">
+                <h3 class="h6 mb-2">ساخت شخص دانش‌آموز از اطلاعات لید</h3>
+                <p class="text-muted fs-13 mb-3">اطلاعات نام، تماس و محله از لید می‌آید؛ برای ساخت پروندهٔ اشخاص، این دو شناسه را تکمیل کنید.</p>
+                <div class="row g-3">
+                  <div class="col-12 col-md-6"><label class="form-label" for="enr-lead-national-code">کد ملی دانش‌آموز <span class="text-danger">*</span></label><input id="enr-lead-national-code" class="form-control" dir="ltr" inputmode="numeric" maxlength="10" aria-describedby="enr-lead-national-help"><div id="enr-lead-national-help" class="form-text">۱۰ رقم</div></div>
+                  <div class="col-12 col-md-6"><label class="form-label" for="enr-lead-student-code">کد دانش‌آموزی <span class="text-danger">*</span></label><input id="enr-lead-student-code" class="form-control" dir="ltr" maxlength="32"></div>
+                  <div class="col-12"><label class="form-label" for="enr-lead-father-name">نام پدر</label><input id="enr-lead-father-name" class="form-control"></div>
+                </div>
+                <button type="button" id="enr-create-person" class="btn btn-outline-primary mt-3"><i data-lucide="user-round-plus" class="size-4 me-1" aria-hidden="true"></i> ساخت و اتصال شخص</button>
+              </div>
             </div>
 
             {# 2) offering #}
@@ -37,7 +53,7 @@
             <div class="col-12 col-md-6">
               <label class="form-label">مبلغ دوره</label>
               <div class="input-group">
-                <input type="text" id="enr-course-amount" class="form-control bg-body-tertiary" readonly value="—" aria-readonly="true">
+                <input type="text" id="enr-course-amount" class="form-control bg-body-tertiary" readonly value="—" aria-label="مبلغ دوره">
                 <span class="input-group-text fs-13">تومان</span>
               </div>
             </div>

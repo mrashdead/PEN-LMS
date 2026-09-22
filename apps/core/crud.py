@@ -10,7 +10,37 @@ from typing import Any
 
 from django.core.exceptions import PermissionDenied
 
+from apps.core.access_enforcer import acl_strict
 from apps.core.models import AuditEvent
+
+
+# Maps `resource_for()` short key → (app_label, model_name) for ACL model entries.
+_MODEL_SHORT_TO_KEY: dict[str, str] = {
+    "persons": "persons.person",
+    "departments": "education.department",
+    "locations": "education.location",
+    "lessons": "education.lesson",
+    "courses": "education.course",
+    "offerings": "education.courseoffering",
+    "sessions": "education.classsession",
+    "enrollments": "academics.classenrollment",
+    "holidays": "education.academicholiday",
+    "terms": "academics.academicterm",
+    "class-groups": "academics.classgroup",
+    "submissions": "forms.formsubmission",
+    "requests": "workflow.instance",
+}
+# Verb for each can_* function — used for the ACL layer.
+_VERB_FOR_CREATE = "add"
+_VERB_FOR_VIEW = "view"
+_VERB_FOR_CHANGE = "change"
+_VERB_FOR_DELETE = "delete"
+_VERB_FOR_RESTORE = "change"  # restore uses change-level permission
+
+
+def _acl_model_key(resource: str) -> str | None:
+    """Convert resource short-key to app_label.model_name, or return None."""
+    return _MODEL_SHORT_TO_KEY.get(resource)
 
 
 RESOURCE_MANAGER_ROLES = {"manager", "workflow_admin"}
@@ -80,56 +110,63 @@ def is_draft(obj: Any) -> bool:
 
 
 def can_view_resource(user, obj: Any, resource: str | None = None) -> bool:
-    if is_elevated(user):
-        return True
     resource = resource or resource_for(obj)
     roles = roles_for(user)
     if resource == "persons":
-        return bool(roles & {"employee", "teacher", "student", "guardian", "supervisor"}) or is_owner(user, obj)
-    if resource in ACADEMIC_RESOURCES:
-        return bool(roles & {"teacher", "employee", "supervisor", "student", "guardian"}) or is_owner(user, obj)
-    if resource == "submissions":
-        return is_owner(user, obj) or bool(roles & {"teacher", "employee", "student", "guardian"})
-    if resource == "requests":
-        return is_owner(user, obj) or bool(roles & {"teacher", "employee", "student", "guardian"})
-    return is_owner(user, obj)
+        baseline = bool(roles & {"employee", "teacher", "student", "guardian", "supervisor"}) or is_owner(user, obj)
+    elif resource in ACADEMIC_RESOURCES:
+        baseline = bool(roles & {"teacher", "employee", "supervisor", "student", "guardian"}) or is_owner(user, obj)
+    elif resource == "submissions":
+        baseline = is_owner(user, obj) or bool(roles & {"teacher", "employee", "student", "guardian"})
+    elif resource == "requests":
+        baseline = is_owner(user, obj) or bool(roles & {"teacher", "employee", "student", "guardian"})
+    else:
+        baseline = is_owner(user, obj)
+    return acl_strict(user, "model", _acl_model_key(resource) or resource, _VERB_FOR_VIEW, baseline)
 
 
 def can_create_resource(user, resource: str) -> bool:
     roles = roles_for(user)
     if is_superadmin(user) or roles & RESOURCE_MANAGER_ROLES:
-        return True
-    if "supervisor" in roles and resource in {"persons", "lessons", "courses", "offerings", "sessions"}:
-        return True
-    return False
+        baseline = True
+    elif "supervisor" in roles and resource in {"persons", "lessons", "courses", "offerings", "sessions"}:
+        baseline = True
+    else:
+        baseline = False
+    return acl_strict(user, "model", _acl_model_key(resource) or resource, _VERB_FOR_CREATE, baseline)
 
 
 def can_edit_resource(user, obj: Any, resource: str | None = None) -> bool:
     resource = resource or resource_for(obj)
     roles = roles_for(user)
     if is_superadmin(user):
-        return True
-    if roles & RESOURCE_MANAGER_ROLES:
-        return True
-    if "hr" in roles and resource in {"persons", "submissions", "requests"}:
-        return True
-    return bool(roles & SUPERVISOR_ROLES and is_owner(user, obj) and is_draft(obj))
+        baseline = True
+    elif roles & RESOURCE_MANAGER_ROLES:
+        baseline = True
+    elif "hr" in roles and resource in {"persons", "submissions", "requests"}:
+        baseline = True
+    else:
+        baseline = bool(roles & SUPERVISOR_ROLES and is_owner(user, obj) and is_draft(obj))
+    return acl_strict(user, "model", _acl_model_key(resource) or resource, _VERB_FOR_CHANGE, baseline)
 
 
 def can_delete_resource(user, obj: Any, resource: str | None = None) -> bool:
     resource = resource or resource_for(obj)
     roles = roles_for(user)
     if is_superadmin(user):
-        return True
-    if roles & RESOURCE_MANAGER_ROLES:
-        return True
-    if "hr" in roles and resource in {"persons", "submissions", "requests"}:
-        return True
-    return bool(roles & SUPERVISOR_ROLES and is_owner(user, obj) and is_draft(obj))
+        baseline = True
+    elif roles & RESOURCE_MANAGER_ROLES:
+        baseline = True
+    elif "hr" in roles and resource in {"persons", "submissions", "requests"}:
+        baseline = True
+    else:
+        baseline = bool(roles & SUPERVISOR_ROLES and is_owner(user, obj) and is_draft(obj))
+    return acl_strict(user, "model", _acl_model_key(resource) or resource, _VERB_FOR_DELETE, baseline)
 
 
 def can_restore_resource(user, obj: Any) -> bool:
-    return is_superadmin(user) or "workflow_admin" in roles_for(user)
+    baseline = is_superadmin(user) or "workflow_admin" in roles_for(user)
+    return acl_strict(user, "model", _acl_model_key(resource_for(obj)) or "", _VERB_FOR_RESTORE, baseline)
 
 
 def crud_actions(user, obj: Any, resource: str | None = None) -> dict[str, bool]:

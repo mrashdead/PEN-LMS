@@ -4,11 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ورود | Pen LMS</title>
+  <script src="{% static 'assets/js/layout.js' %}"></script>
   <link href="{% static 'assets/css/bootstrap.rtl.css' %}" rel="stylesheet" type="text/css">
   <link href="{% static 'assets/css/icons.rtl.css' %}" rel="stylesheet" type="text/css">
   <link href="{% static 'assets/css/font-face.css' %}" rel="stylesheet" type="text/css">
   <link href="{% static 'assets/css/app.rtl.css' %}" rel="stylesheet" type="text/css">
   <link href="{% static 'assets/css/custom.css' %}" rel="stylesheet" type="text/css">
+  <link href="{% asset_v_url 'assets/pen/dist/pen.bundle.css' %}" rel="stylesheet" type="text/css">
   <link href="{% asset_v_url 'assets/pen/css/pen.css' %}" rel="stylesheet" type="text/css">
 </head>
 <body>
@@ -37,9 +39,9 @@
                 {% endfor %}
               {% endif %}
 
-              {% if form.errors %}
+              {% if form.non_field_errors %}
                 <div class="alert alert-danger" role="alert">
-                  نام کاربری یا رمز عبور اشتباه است.
+                  {{ form.non_field_errors }}
                 </div>
               {% endif %}
 
@@ -50,24 +52,29 @@
                 <div class="mb-3">
                   <label for="id_username" class="form-label">نام کاربری</label>
                   <div class="input-group">
-                    <span class="input-group-text bg-transparent"><i data-lucide="user" class="size-4"></i></span>
-                    <input type="text" name="username" id="id_username" class="form-control" required autofocus
-                           autocomplete="username" placeholder="نام کاربری خود را وارد کنید">
+                    <span class="input-group-text bg-transparent" aria-hidden="true"><i data-lucide="user" class="size-4"></i></span>
+                    <input type="text" name="username" id="id_username" class="form-control{% if form.username.errors %} is-invalid{% endif %}" required autofocus
+                           autocomplete="username" placeholder="نام کاربری خود را وارد کنید" value="{{ form.username.value|default:'' }}" aria-describedby="login-username-error">
                   </div>
+                  {% for error in form.username.errors %}<div id="login-username-error" class="invalid-feedback d-block" role="alert">{{ error }}</div>{% endfor %}
                 </div>
 
                 <div class="mb-3">
                   <label for="id_password" class="form-label">رمز عبور</label>
                   <div class="input-group">
-                    <span class="input-group-text bg-transparent"><i data-lucide="lock" class="size-4"></i></span>
-                    <input type="password" name="password" id="id_password" class="form-control" required
-                           autocomplete="current-password" placeholder="رمز عبور خود را وارد کنید">
+                    <span class="input-group-text bg-transparent" aria-hidden="true"><i data-lucide="lock" class="size-4"></i></span>
+                    <input type="password" name="password" id="id_password" class="form-control{% if form.password.errors %} is-invalid{% endif %}" required
+                           autocomplete="current-password" placeholder="رمز عبور خود را وارد کنید" aria-describedby="login-password-error">
+                    <button type="button" class="btn btn-outline-secondary password-toggle" data-password-toggle="id_password" aria-label="نمایش رمز عبور" aria-pressed="false">
+                      <i data-lucide="eye" class="size-4" aria-hidden="true"></i>
+                    </button>
                   </div>
+                  {% for error in form.password.errors %}<div id="login-password-error" class="invalid-feedback d-block" role="alert">{{ error }}</div>{% endfor %}
                 </div>
 
                 <div class="d-grid mt-4">
                   <button type="submit" class="btn btn-primary">
-                    <i data-lucide="log-in" class="size-4 me-2"></i> ورود به پنل
+                    <i data-lucide="log-in" class="size-4 me-2" aria-hidden="true"></i> ورود به پنل
                   </button>
                 </div>
               </form>
@@ -87,13 +94,24 @@
   </div>
 </div>
 
-<script src="{% static 'assets/libs/bootstrap/dist/js/bootstrap.bundle.min.js' %}"></script>
-<script src="{% static 'assets/libs/lucide/dist/umd/lucide.min.js' %}"></script>
+<script src="{% asset_v_url 'assets/pen/dist/pen.bundle.js' %}"></script>
+<script src="{% asset_v_url 'assets/pen/js/pen-core.js' %}"></script>
 <script>
-  window.addEventListener('load', function () { if (window.lucide) lucide.createIcons(); });
   window.addEventListener('DOMContentLoaded', function () {
     var el = document.getElementById('currentYearFooter');
     if (el) el.textContent = String(new Date().getFullYear());
+    document.querySelectorAll('[data-password-toggle]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var input = document.getElementById(button.dataset.passwordToggle);
+        if (!input) return;
+        var visible = input.type === 'password';
+        input.type = visible ? 'text' : 'password';
+        button.setAttribute('aria-pressed', String(visible));
+        button.setAttribute('aria-label', visible ? 'پنهان کردن رمز عبور' : 'نمایش رمز عبور');
+        button.innerHTML = '<i data-lucide="' + (visible ? 'eye-off' : 'eye') + '" class="size-4" aria-hidden="true"></i>';
+        if (window.penRenderIcons) window.penRenderIcons();
+      });
+    });
   });
 </script>
 </body>

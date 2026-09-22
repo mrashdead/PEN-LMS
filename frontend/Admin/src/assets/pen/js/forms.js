@@ -29,7 +29,7 @@
 
   function showFieldErrors(errors) {
     // errors: {fieldKey: [msgs]} or {non_field_errors: [...], error: "..."}
-    form.querySelectorAll('.pen-errors').forEach(function (ul) { ul.remove(); });
+    form.querySelectorAll('.pen-field-errors, .pen-errors').forEach(function (el) { el.remove(); });
     form.querySelectorAll('.pen-field.is-invalid').forEach(function (el) {
       el.classList.remove('is-invalid');
     });
@@ -47,14 +47,14 @@
         return;
       }
       var wrap = fieldWrap(key);
-      var ul = document.createElement('ul');
-      ul.className = 'pen-errors';
+      var ul = document.createElement('div');
+      ul.className = 'invalid-feedback pen-field-errors';
       ul.id = 'error_' + key;
       ul.setAttribute('role', 'alert');
       msgs.forEach(function (m) {
-        var li = document.createElement('li');
-        li.textContent = m;
-        ul.appendChild(li);
+        var item = document.createElement('div');
+        item.textContent = m;
+        ul.appendChild(item);
       });
       fieldMsgs.push(key + ': ' + msgs.join('؛ '));
       if (wrap) {

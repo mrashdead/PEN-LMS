@@ -28,9 +28,15 @@ urlpatterns = [
     path('api/messaging/', include('apps.messaging.urls')),
     path('api/org/', include('apps.org.urls')),
     path('api/reports/', include('apps.reports.urls')),
+    path('api/playhouse/', include('apps.playhouse.urls')),
+    path('api/leads/', include('apps.leads.urls')),
 
     # Forms UI pages (session auth, dashboard-style)
     path('forms/', include('apps.forms.page_urls')),
+
+    # Playhouse operator page (session auth, dashboard-style)
+    path('playhouse/', include('apps.playhouse.page_urls')),
+    path('leads/', include('apps.leads.page_urls')),
 
     # Dashboard workspace pages (persons / education / reports)
     path('workspace/', include('apps.core.page_urls')),

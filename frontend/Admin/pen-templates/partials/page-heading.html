@@ -7,8 +7,9 @@ Params:
   section_url — parent section URL (optional; pairs with section)
 {% endcomment %}
 <div class="gap-2 page-heading mb-3 flex-column flex-md-row">
-  <h6 class="flex-grow-1 mb-0">{{ title }}</h6>
-  <ul class="breadcrumb flex-shrink-0 mb-0">
+  <h1 class="flex-grow-1 mb-0">{{ title }}</h1>
+  <nav aria-label="مسیر صفحه">
+  <ol class="breadcrumb flex-shrink-0 mb-0">
     <li class="breadcrumb-item"><a href="{% url 'dashboard-home' %}">داشبورد</a></li>
     {% if section %}
       <li class="breadcrumb-item">
@@ -16,5 +17,6 @@ Params:
       </li>
     {% endif %}
     <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
-  </ul>
+  </ol>
+  </nav>
 </div>

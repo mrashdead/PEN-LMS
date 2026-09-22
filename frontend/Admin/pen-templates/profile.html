@@ -45,7 +45,7 @@
       <div class="card-body">
         <div class="row g-3">
           {% for item in profile_identity %}
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-md-4">
               <div class="border rounded p-3 h-100">
                 <div class="text-muted fs-13 mb-1">{{ item.label }}</div>
                 <div class="fw-semibold text-break"{% if item.dir %} dir="{{ item.dir }}"{% endif %}>{{ item.value }}</div>
@@ -65,10 +65,10 @@
         <div class="card-body">
           <div class="row g-3">
             {% for item in profile_personal %}
-              <div class="col-12 col-md-6">
-                <div class="d-flex justify-content-between gap-3 border-bottom pb-2">
-                  <span class="text-muted">{{ item.label }}</span>
-                  <span class="fw-semibold text-end text-break"{% if item.dir %} dir="{{ item.dir }}"{% endif %}>{{ item.value }}</span>
+              <div class="col-12 col-md-4">
+                <div class="border rounded p-3 h-100">
+                  <div class="text-muted fs-13 mb-1">{{ item.label }}</div>
+                  <div class="fw-semibold text-break"{% if item.dir %} dir="{{ item.dir }}"{% endif %}>{{ item.value }}</div>
                 </div>
               </div>
             {% endfor %}

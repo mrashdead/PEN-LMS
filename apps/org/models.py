@@ -100,3 +100,87 @@ class Delegation(DomainModel):
             and self.valid_from and self.valid_from <= now
             and self.valid_to and self.valid_to >= now
         )
+
+
+class ACLEntryType(models.TextChoices):
+    """انواع منبعی که می‌توان روی آن دسترسی صریح (ACL) تعریف کرد."""
+
+    PAGE = "page", "صفحه (workspace)"
+    FORM = "form", "فرم داینامیک"
+    MODEL = "model", "ماژول / Model"
+
+
+class ACLVerb(models.TextChoices):
+    """فعل‌های قابل اهدا در PersonACL."""
+
+    VIEW = "view", "مشاهده"
+    ADD = "add", "ایجاد"
+    CHANGE = "change", "ویرایش"
+    DELETE = "delete", "حذف"
+    SUBMIT = "submit", "ارسال (submit)"
+    APPROVE = "approve", "تأیید"
+    REJECT = "reject", "رد"
+
+
+class PersonACLEntry(DomainModel):
+    """
+    یک گرنت صریح (explicit grant) از یک فعلی‌به روی یک منبع برای یک کاربر.
+
+    حضور ردیف = «تصمیم نهایی همان لیست فعل‌ها است» برای آن (type, key).
+    نبود ردیف = رفتار نقش/گروه فعلی (baseline) بدون تغییر.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="person_acl_entries",
+        db_index=True,
+    )
+    resource_type = models.CharField(
+        max_length=16,
+        choices=ACLEntryType.choices,
+        db_index=True,
+    )
+    resource_key = models.CharField(max_length=120, db_index=True)
+    verbs = models.JSONField(
+        default=list,
+        help_text="لیست ACLVerb — مثل [\"view\",\"add\"]",
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="granted_acl_entries",
+        help_text="چه کسی این دسترسی صریح را داده (audit).",
+    )
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="revoked_acl_entries",
+    )
+
+    class Meta:
+        app_label = "org"
+        db_table = "org_person_acl_entry"
+        verbose_name = "Person ACL Entry (دسترسی صریح)"
+        verbose_name_plural = "Person ACL Entries (دسترسی‌های صریح)"
+        ordering = ("resource_type", "resource_key")
+        constraints = [
+            # فقط یک ردیف زنده به ازای هر (user, type, key).
+            # UniqueConstraint روی Postgres ایندکس پشتیبان روی همین ستون‌ها می‌سازد،
+            # پس ایندکس جداگانه لازم نیست (نام ایندکس با migration در sync می‌ماند).
+            models.UniqueConstraint(
+                fields=["user", "resource_type", "resource_key"],
+                condition=models.Q(is_deleted=False),
+                name="uniq_org_person_acl_live",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} → {self.resource_type}:{self.resource_key} [{','.join(self.verbs or [])}]"
+
+    @property
+    def verb_set(self) -> set[str]:
+        return set(self.verbs or [])

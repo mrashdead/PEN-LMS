@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from apps.forms.permissions import ELEVATED_ROLES
 from apps.forms.templatetags.forms_extras import FORMS_URL_NAMES
+from apps.playhouse.permissions import FINANCE_ROLES, OPERATOR_ROLES
+from apps.leads.permissions import LEAD_OPERATOR_ROLES
 from apps.reports.permissions import REPORT_ACCESS_ROLES
 
 STAFF_ROLES = {"manager", "workflow_admin", "hr", "employee", "teacher"}
@@ -34,6 +36,11 @@ def user_flags(request):
             "is_learner": False,
             "is_sys_admin": False,
             "is_reports_user": False,
+            "is_playhouse_user": False,
+            "is_playhouse_finance": False,
+            "is_leads_user": False,
+            "is_lead_operator": False,
+            "is_lead_teacher": False,
             "can_change_own_password": False,
             "sidebar_urlname": "", "sidebar_is_forms": False,
             "sidebar_is_edu": False, "sidebar_is_req": False,
@@ -54,6 +61,11 @@ def user_flags(request):
         "is_unit_manager": bool(roles & {"manager", "workflow_admin", "hr"}),
         "is_sys_admin": bool(user.is_superuser or roles & {"manager", "workflow_admin"}),
         "is_reports_user": bool(roles & REPORT_ACCESS_ROLES),
+        "is_playhouse_user": bool(roles & OPERATOR_ROLES),
+        "is_playhouse_finance": bool(roles & FINANCE_ROLES),
+        "is_leads_user": bool(roles & (LEAD_OPERATOR_ROLES | {"teacher"})),
+        "is_lead_operator": bool(roles & LEAD_OPERATOR_ROLES),
+        "is_lead_teacher": "teacher" in roles,
         "can_change_own_password": bool(roles & {"manager", "workflow_admin", "supervisor", "employee"}),
         "is_teacher": is_teacher,
         "is_teacher_only": is_teacher_only,

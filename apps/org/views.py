@@ -17,14 +17,17 @@ structure, not PII). Delegation writes + the simulator are elevated-role only
 """
 from __future__ import annotations
 
+from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.permissions import IsActiveUser
-from apps.org import services
+from apps.org import acl_services, services
 from apps.forms.permissions import ELEVATED_ROLES
+
+User = get_user_model()
 
 
 class _StaffGate:
@@ -239,3 +242,171 @@ class PermissionGroupsView(_StaffGate, APIView):
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)
+
+
+# ── Person ACL (manual explicit grants) ────────────────────────────────────────
+
+class AclCatalogView(_StaffGate, APIView):
+    """
+    GET /api/org/acl/catalog/
+    → full catalog: pages + forms (dynamic from DB) + models + verb labels.
+    No user context needed; same catalog for everyone.
+    """
+
+    permission_classes = (IsActiveUser,)
+
+    def get(self, request):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        return Response(acl_services.catalog())
+
+
+class AclDirectoryView(_StaffGate, APIView):
+    """GET /api/org/acl/directory/?search= → staff users for the person picker."""
+
+    permission_classes = (IsActiveUser,)
+
+    def get(self, request):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        q = request.query_params.get("search", "")
+        return Response({"results": acl_services.user_directory(q)})
+
+
+class AclUserView(_StaffGate, APIView):
+    """
+    GET /api/org/acl/user/<uuid>/
+    → all explicit ACL entries for one user + effective-access summary per resource.
+    """
+
+    permission_classes = (IsActiveUser,)
+
+    def get(self, request, pk):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        user = User.objects.filter(pk=pk, is_deleted=False).first()
+        if user is None:
+            return Response({"detail": "کاربر یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(acl_services.user_acl_full(user))
+
+
+class AclGrantView(_StaffGate, APIView):
+    """
+    PUT /api/org/acl/user/<uuid>/grant/
+    Body: {resource_type, resource_key, verbs: []}
+    Set the explicit verb list for one (type, key). Atomic + row-locked.
+    """
+
+    permission_classes = (IsActiveUser,)
+
+    def put(self, request, pk):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        user = User.objects.filter(pk=pk, is_deleted=False).first()
+        if user is None:
+            return Response({"detail": "کاربر یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        payload = request.data or {}
+        try:
+            resource_type, resource_key, verbs = acl_services.validate_grant_payload(payload)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            entry = acl_services.grant_verbs(
+                user=user,
+                resource_type=resource_type,
+                resource_key=resource_key,
+                verbs=verbs,
+                actor=request.user,
+            )
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        if entry is None:
+            # empty verbs = revoked
+            return Response({"ok": True, "entry": None, "message": "ACL entry removed."})
+        return Response({
+            "ok": True,
+            "entry": acl_services.entry_serialize(entry),
+        })
+
+
+class AclRevokeView(_StaffGate, APIView):
+    """
+    POST /api/org/acl/user/<uuid>/revoke/
+    Body: {resource_type, resource_key}
+    Soft-delete the ACL entry for one (type, key).
+    """
+
+    permission_classes = (IsActiveUser,)
+
+    def post(self, request, pk):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        user = User.objects.filter(pk=pk, is_deleted=False).first()
+        if user is None:
+            return Response({"detail": "کاربر یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        payload = request.data or {}
+        resource_type = str(payload.get("resource_type", "")).strip()
+        resource_key = str(payload.get("resource_key", "")).strip()
+        if not resource_type or not resource_key:
+            return Response(
+                {"error": "resource_type و resource_key الزامی‌اند."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        ok = acl_services.revoke(
+            user=user,
+            resource_type=resource_type,
+            resource_key=resource_key,
+            actor=request.user,
+        )
+        return Response({"ok": ok})
+
+
+class AclBulkView(_StaffGate, APIView):
+    """
+    POST /api/org/acl/user/<uuid>/bulk/
+    Body: {entries: [{resource_type, resource_key, verbs}]}
+    Save the entire ACL grid for one user in one transaction.
+    Entries with empty verbs are revoked.
+    """
+
+    permission_classes = (IsActiveUser,)
+
+    def post(self, request, pk):
+        denied = self._deny(request, elevated_only=True)
+        if denied:
+            return denied
+        user = User.objects.filter(pk=pk, is_deleted=False).first()
+        if user is None:
+            return Response({"detail": "کاربر یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        entries = (request.data or {}).get("entries") or []
+        if not isinstance(entries, list):
+            return Response(
+                {"error": "entries باید لیست باشد."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        errors = []
+        results = []
+        for i, entry in enumerate(entries):
+            try:
+                resource_type, resource_key, verbs = acl_services.validate_grant_payload(entry)
+            except ValueError as exc:
+                errors.append({"index": i, "error": str(exc)})
+                continue
+            try:
+                obj = acl_services.grant_verbs(
+                    user=user,
+                    resource_type=resource_type,
+                    resource_key=resource_key,
+                    verbs=verbs,
+                    actor=request.user,
+                )
+                if obj is not None:
+                    results.append(acl_services.entry_serialize(obj))
+            except Exception as exc:
+                errors.append({"index": i, "error": str(exc)})
+        return Response({"ok": True, "saved": results, "errors": errors})

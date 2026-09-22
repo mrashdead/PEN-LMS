@@ -10,6 +10,7 @@
   var optionsNode = document.getElementById('pen-report-options');
   var options = optionsNode ? JSON.parse(optionsNode.textContent || '{}') : {};
   var charts = {};
+  var lastData = null;
   var state = { query: new URLSearchParams(window.location.search), period: new URLSearchParams(window.location.search).get('period') || '' };
 
   var labels = {
@@ -86,11 +87,20 @@
       node.innerHTML = '<div class="pen-empty">برای این بازه داده‌ای ثبت نشده است.</div>';
       return;
     }
-    charts[id] = new ApexCharts(node, Object.assign({
-      chart: { height: 280, fontFamily: 'Vazirmatn, sans-serif', toolbar: { show: false }, animations: { enabled: false } },
-      dataLabels: { enabled: false }, grid: { borderColor: '#e5eaf0', strokeDashArray: 4 },
-      tooltip: { theme: 'light' }, legend: { position: 'bottom', fontFamily: 'Vazirmatn, sans-serif' },
-    }, config));
+    var styles = getComputedStyle(document.documentElement);
+    var dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    var bodyColor = styles.getPropertyValue('--dx-body-color').trim() || '#0f172a';
+    var borderColor = styles.getPropertyValue('--dx-border-color').trim() || '#e5eaf0';
+    var defaults = {
+      chart: { height: 280, fontFamily: 'Vazirmatn, sans-serif', foreColor: bodyColor, toolbar: { show: false }, animations: { enabled: false } },
+      dataLabels: { enabled: false }, grid: { borderColor: borderColor, strokeDashArray: 4 },
+      tooltip: { theme: dark ? 'dark' : 'light' }, legend: { position: 'bottom', fontFamily: 'Vazirmatn, sans-serif' },
+    };
+    var chartConfig = Object.assign({}, defaults, config);
+    chartConfig.chart = Object.assign({}, defaults.chart, config.chart || {});
+    chartConfig.grid = Object.assign({}, defaults.grid, config.grid || {});
+    chartConfig.tooltip = Object.assign({}, defaults.tooltip, config.tooltip || {});
+    charts[id] = new ApexCharts(node, chartConfig);
     charts[id].render();
   }
   function renderDonut(id, values, names, colors) {
@@ -231,6 +241,7 @@
     }).join('');
   }
   function render(data) {
+    lastData = data;
     renderFinancial(data.financial || {});
     renderEnrollments(data.enrollments || {});
     renderPeople(data.people || {});
@@ -276,5 +287,6 @@
   });
   document.getElementById('report-print').addEventListener('click', function () { window.print(); });
   document.querySelectorAll('[data-report-export]').forEach(function (button) { button.addEventListener('click', function () { if (!button.disabled) exportReport(button.dataset.reportExport); }); });
+  window.addEventListener('pen:theme-change', function () { if (lastData) render(lastData); });
   load(state.query);
 })();

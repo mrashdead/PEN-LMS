@@ -158,8 +158,9 @@
   // tabs
   document.querySelectorAll('[data-tab]').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      document.querySelectorAll('[data-tab]').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('[data-tab]').forEach(function (b) { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
       btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
       tab = btn.dataset.tab;
       render();
     });

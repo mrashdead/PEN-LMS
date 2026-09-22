@@ -51,6 +51,36 @@
         </div>
       </div>
 
+      {# ── Explicit ACL (manual per-user grants) ───────────────────── #}
+      <div class="card mt-4">
+        <div class="card-header d-flex align-items-center gap-2">
+          <div class="flex-grow-1">
+            <h6 class="mb-0 card-title"><i data-lucide="user-check" class="size-4 me-1"></i> دسترسی‌های صریح (ACL)</h6>
+            <p class="mb-0 text-muted fs-13">برای هر صفحه / فرم / ماژول، دقیقاً مشخص کنید این شخص چه فعلی دارد. اگر برای یک منبع دسترسی صریح تعریف شود، همان تصمیم نهایی است (نقش/گروه روی آن منبع لحاظ نمی‌شود).</p>
+          </div>
+          <button id="acl-filter-clear" class="btn btn-sm btn-outline-secondary" type="button">پاک‌کردن فیلتر</button>
+        </div>
+        <div class="card-body">
+          <div class="d-flex gap-2 mb-3 flex-wrap">
+            <div class="flex-grow-1">
+              <input type="search" id="acl-search" class="form-control form-control-sm" placeholder="جستجوی منبع…" aria-label="جستجوی منبع ACL">
+            </div>
+            <select id="acl-type" class="form-select form-select-sm" style="width:auto" aria-label="نوع منبع">
+              <option value="all">همهٔ منابع</option>
+              <option value="page">صفحه‌ها</option>
+              <option value="form">فرم‌ها</option>
+              <option value="model">ماژول‌ها</option>
+            </select>
+          </div>
+          <div id="acl-empty" class="pen-empty py-3" hidden><p class="mb-0 fs-14">منبعی برای نمایش نیست.</p></div>
+          <div class="table-responsive" id="acl-grid"></div>
+          <div class="d-flex justify-content-between align-items-center mt-3">
+            <span class="text-muted fs-13" id="acl-status"></span>
+            <button id="acl-save-all" class="btn btn-sm btn-primary" disabled><i data-lucide="save" class="size-4 me-1"></i> ذخیرهٔ همهٔ ACL</button>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header"><h6 class="mb-0 card-title"><i data-lucide="table" class="size-4 me-1"></i> دسترسی‌های مؤثر (مشاهده/ایجاد/ویرایش/حذف)</h6></div>
         <div class="card-body pt-0">

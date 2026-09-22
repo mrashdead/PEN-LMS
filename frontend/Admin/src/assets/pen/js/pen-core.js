@@ -265,10 +265,14 @@
   document.addEventListener('DOMContentLoaded', function () {
     var button = document.getElementById('darkModeButton');
     if (!button) return;
+    var current = docEl.getAttribute('data-bs-theme') || 'light';
+    button.setAttribute('aria-pressed', String(current === 'dark'));
     button.addEventListener('click', function () {
       var next = (docEl.getAttribute('data-bs-theme') || 'light') === 'light' ? 'dark' : 'light';
       docEl.setAttribute('data-bs-theme', next);
+      button.setAttribute('aria-pressed', String(next === 'dark'));
       try { sessionStorage.setItem('data-bs-theme', next); } catch (e) { /* private mode */ }
+      window.dispatchEvent(new CustomEvent('pen:theme-change', { detail: { theme: next } }));
     });
   });
 
@@ -422,13 +426,6 @@
   var jalaliArmed = false;
   window.penAttachJalaliPickers = function () {
     if (!window.jalaliDatepicker) return;
-    if (!jalaliArmed) {
-      // zIndex must clear Bootstrap modals (1055); default 1000 hides the
-      // calendar behind the dialog so dates can't be picked.
-      // hasSecond:false → time picker shows only HH:MM (no seconds).
-      window.jalaliDatepicker.startWatch({ zIndex: 2000, hasSecond: false });
-      jalaliArmed = true;
-    }
     document.querySelectorAll('input[type="date"], [data-jalali], [data-jalali-time]').forEach(function (input) {
       if (input.dataset.jdpArmed) return;
       input.dataset.jdpArmed = '1';
@@ -438,10 +435,16 @@
       if (input.hasAttribute('data-jalali-time')) {
         input.setAttribute('data-jdp-only-time', '');
         if (!input.value) input.placeholder = '۱۴:۳۰';
-      } else if (input.hasAttribute('data-jalali') && !input.value) {
+      } else if (input.hasAttribute('data-jalali') && !input.value && !input.placeholder) {
         input.placeholder = '۱۴۰۴/۰۷/۰۱';
       }
     });
+    if (!jalaliArmed) {
+      // Arm inputs before starting the watcher. This is important for pages
+      // that add their picker fields dynamically or use data-jalali only.
+      window.jalaliDatepicker.startWatch({ zIndex: 2000, hasSecond: false, persianDigits: false });
+      jalaliArmed = true;
+    }
   };
 
   document.addEventListener('DOMContentLoaded', function () {

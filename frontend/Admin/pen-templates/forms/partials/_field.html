@@ -258,9 +258,9 @@ Non-negotiables honored:
     <div class="form-text" id="help_{{ f.key }}">{{ f.help_text }}</div>
   {% endif %}
   {% if errors %}
-    <ul class="pen-errors" id="error_{{ f.key }}" role="alert">
-      {% for message in errors %}<li>{{ message }}</li>{% endfor %}
-    </ul>
+    <div id="error_{{ f.key }}" class="invalid-feedback pen-field-errors" role="alert">
+      {% for message in errors %}<div>{{ message }}</div>{% endfor %}
+    </div>
   {% endif %}
 </div>
 {% endwith %}
