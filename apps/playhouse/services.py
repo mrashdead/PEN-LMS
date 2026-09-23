@@ -59,6 +59,15 @@ class PlayhouseService:
         otherwise a ``PlayhouseMember`` is created (and, if a matching Person
         exists, linked to it — see ``_maybe_link_person``).
         """
+        config = PlayhouseConfig.get_solo()
+        if not config.is_open_now:
+            raise PlayhouseServiceError(
+                "خانه بازی اکنون باز نیست — ثبت ورود جدید مسدود است."
+            )
+        if not config.is_within_working_hours():
+            raise PlayhouseServiceError(
+                "خارج از ساعات کاری خانه بازی — ثبت ورود مجاز نیست."
+            )
         member = self._resolve_member(
             operator=operator,
             first_name=first_name,
@@ -363,3 +372,36 @@ class PlayhouseService:
             "payment_method", "tracking_code", "is_paid", "paid_at", "updated_at",
         ])
         return locked
+
+    # ─── تنظیمات ───
+    @transaction.atomic
+    def update_config(
+        self,
+        *,
+        operator,
+        price_per_15_minutes,
+        open_time=None,
+        close_time=None,
+        is_open_now: bool = True,
+    ) -> "PlayhouseConfig":
+        """Update the singleton billing settings (manager-only by permission)."""
+        config = PlayhouseConfig.get_solo()
+        try:
+            price = Decimal(str(price_per_15_minutes))
+        except (ValueError, ArithmeticError):
+            raise PlayhouseServiceError("قیمت واردشده معتبر نیست.")
+        if price < 0:
+            raise PlayhouseServiceError("قیمت نمی‌تواند منفی باشد.")
+        if open_time and close_time and close_time <= open_time:
+            raise PlayhouseServiceError("ساعت بسته شدن باید بعد از ساعت باز شدن باشد.")
+
+        config.price_per_15_minutes = price
+        config.open_time = open_time or None
+        config.close_time = close_time or None
+        config.is_open_now = is_open_now
+        config.save(update_fields=[
+            "price_per_15_minutes", "open_time", "close_time", "is_open_now", "updated_at",
+        ])
+        # invalidate the cached singleton pk so later reads re-fetch
+        PlayhouseConfig._singleton_pk = None
+        return config

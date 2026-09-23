@@ -58,6 +58,33 @@ class OrgServicesTest(TestCase):
         res = services.simulate_access(self.boss.pk, "schemas", "add")
         self.assertTrue(res["allowed"])
 
+    def test_legacy_hr_role_is_not_an_assignment_option(self):
+        Role.objects.create(code="hr", name="منابع انسانی")
+
+        self.assertNotIn("hr", {row["code"] for row in services.all_roles()})
+
+    def test_new_hr_assignment_is_rejected_without_revoking_existing_roles(self):
+        with self.assertRaisesMessage(ValueError, "برای تخصیص جدید غیرفعال هستند"):
+            services.set_user_roles(
+                user_id=self.staff.pk,
+                role_codes=["employee", "hr"],
+                actor=self.boss,
+            )
+
+        self.assertEqual(self.staff.role_codes(), {"employee"})
+
+    def test_existing_hr_assignment_can_be_retained_during_migration(self):
+        Role.objects.create(code="hr", name="منابع انسانی")
+        self.staff.assign_role("hr", assigned_by=self.boss)
+
+        result = services.set_user_roles(
+            user_id=self.staff.pk,
+            role_codes=["employee", "hr"],
+            actor=self.boss,
+        )
+
+        self.assertEqual(set(result["roles"]), {"employee", "hr"})
+
     def test_unit_performance_groups_by_department(self):
         from apps.tasks.models import WorkflowTask  # noqa: F401 (ensure import ok)
         perf = services.unit_performance()

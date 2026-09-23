@@ -21,6 +21,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from apps.accounts.models import Role
+from apps.accounts.role_policy import LEGACY_ROLE_CODES
 from apps.org.models import Delegation
 from apps.tasks.models import WorkflowTask
 from apps.workflow.models import Transition, WorkflowDefinition
@@ -454,7 +455,9 @@ def user_permissions(user_id) -> dict | None:
 def all_roles() -> list[dict]:
     return [
         {"code": r.code, "name": r.name}
-        for r in Role.objects.filter(is_active=True, is_deleted=False).order_by("priority", "code")
+        for r in Role.objects.filter(is_active=True, is_deleted=False)
+        .exclude(code__in=LEGACY_ROLE_CODES)
+        .order_by("priority", "code")
     ]
 
 
@@ -474,22 +477,26 @@ def set_user_roles(*, user_id, role_codes: list[str], actor) -> dict:
     if u is None:
         raise ValueError("کاربر یافت نشد.")
     wanted = {c.strip().lower() for c in role_codes if c and c.strip()}
+    current = set(u.role_codes())
+    newly_requested_legacy = (wanted - current) & LEGACY_ROLE_CODES
+    if newly_requested_legacy:
+        legacy = ", ".join(sorted(newly_requested_legacy))
+        raise ValueError(
+            f"نقش‌های قدیمی «{legacy}» برای تخصیص جدید غیرفعال هستند؛ "
+            "ابتدا migration نقش‌ها را تعیین تکلیف کنید."
+        )
 
     actor_roles = set(actor.role_codes()) if hasattr(actor, "role_codes") else set()
     # Roles the actor is allowed to assign = their own creation/grant targets
     # plus the base learner/staff roles (everyone may hold student/teacher).
     grantable = hierarchy.allowed_targets(actor_roles, is_superuser=actor.is_superuser) | {
-        "student", "teacher", "employee", "supervisor", "manager", "hr", "workflow_admin"
+        "student", "teacher", "employee", "supervisor", "manager", "workflow_admin"
     }
     if not actor.is_superuser:
         # A manager may not grant the top admin role; only workflow_admin can.
         if "workflow_admin" in wanted and "workflow_admin" not in actor_roles:
             raise ValueError("فقط مدیر سیستم می‌تواند نقش مدیر فرآیند بدهد.")
-        if "hr" in wanted and not (actor_roles & {"workflow_admin", "hr"}):
-            raise ValueError("شما مجاز به اعطای نقش منابع انسانی نیستید.")
-
     # Revoke roles not in wanted; assign missing ones.
-    current = set(u.role_codes())
     for code in current - wanted:
         u.revoke_role(code)
     for code in wanted - current:

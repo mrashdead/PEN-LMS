@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load asset_v %}
+{% block title %}تنظیمات خانه بازی{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="تنظیمات خانه بازی" section="خانه بازی" %}
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <a href="{% url 'playhouse-dashboard' %}" class="btn btn-light">
+    <i data-lucide="arrow-right" class="size-4 me-1"></i> بازگشت به پذیرش
+  </a>
+  <a href="{% url 'playhouse-finance' %}" class="btn btn-light ms-auto">
+    <i data-lucide="chart-no-axes-combined" class="size-4 me-1"></i> گزارش مالی
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-7">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent border-0 pt-4 px-4">
+        <h6 class="mb-1 card-title">قیمت‌گذاری و ساعات کاری</h6>
+        <p class="mb-0 text-muted fs-14">این مقادیر در محاسبه فاکتور و کنترل ورود جدید استفاده می‌شوند.</p>
+      </div>
+      <div class="card-body px-4 pb-4">
+        <form id="ph-settings-form" novalidate>
+          <div class="mb-3">
+            <label for="ph-set-price" class="form-label">هزینه هر ۱۵ دقیقه <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <input type="number" class="form-control" id="ph-set-price" min="0" step="1000"
+                     value="{{ config.price_per_15_minutes }}" required dir="ltr">
+              <span class="input-group-text">تومان</span>
+            </div>
+            <div class="form-text">مبلغ به ازای هر بلوک ۱۵ دقیقه‌ای بازی محاسبه می‌شود.</div>
+          </div>
+
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="ph-set-open"
+                     {% if config.is_open_now %}checked{% endif %}>
+              <label class="form-check-label" for="ph-set-open">خانه بازی باز است</label>
+            </div>
+            <div class="form-text">اگر خاموش باشد، ثبت ورود جدید مسدود می‌شود.</div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-6">
+              <label for="ph-set-open-time" class="form-label">ساعت باز شدن</label>
+              <input type="time" class="form-control" id="ph-set-open-time" dir="ltr"
+                     value="{{ config.open_time|time:'H:i'|default:'' }}">
+            </div>
+            <div class="col-6">
+              <label for="ph-set-close-time" class="form-label">ساعت بسته شدن</label>
+              <input type="time" class="form-control" id="ph-set-close-time" dir="ltr"
+                     value="{{ config.close_time|time:'H:i'|default:'' }}">
+            </div>
+          </div>
+          <div class="form-text mt-1">در صورت تنظیم، ورود جدید فقط در این بازه زمانی مجاز خواهد بود.</div>
+
+          <div id="ph-set-error" class="alert alert-danger mt-3 mb-0" role="alert" hidden></div>
+          <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary" id="ph-set-submit">
+              <i data-lucide="save" class="size-4 me-1"></i> ذخیره تنظیمات
+            </button>
+            <button type="button" class="btn btn-light" id="ph-set-reset">بازنشانی</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-transparent border-0 pt-4 px-4">
+        <h6 class="mb-1 card-title">نحوه محاسبه</h6>
+      </div>
+      <div class="card-body px-4 pb-4">
+        <p class="text-muted fs-14">سیستم مدت حضور را به بلوک‌های ۱۵ دقیقه‌ای گرد می‌کند (به نزدیک‌ترین بلوک):</p>
+        <table class="table table-sm table-borderless">
+          <tbody>
+            <tr><td>۷ دقیقه حضور</td><td class="text-end fw-semibold">۰ بلوک (رایگان)</td></tr>
+            <tr><td>۸ دقیقه حضور</td><td class="text-end fw-semibold">۱ بلوک</td></tr>
+            <tr><td>۲ ساعت و ۷ دقیقه</td><td class="text-end fw-semibold">۸ بلوک (۲ ساعت)</td></tr>
+            <tr><td>۲ ساعت و ۸ دقیقه</td><td class="text-end fw-semibold">۹ بلوک (۲ ساعت و ۱۵ دقیقه)</td></tr>
+          </tbody>
+        </table>
+        <p class="text-muted fs-14 mb-0">
+          مبلغ نهایی زمان = تعداد بلوک × هزینه هر ۱۵ دقیقه.
+          سپس آیتم‌های کافه به آن افزوده می‌شود.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script>window.__PLAYHOUSE_API__ = "/api/playhouse/";</script>
+<script src="{% asset_v_url 'assets/pen/js/playhouse-settings.js' %}"></script>
+{% endblock %}

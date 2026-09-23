@@ -7,6 +7,7 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from apps.playhouse.models import (
+    PlayhouseConfig,
     PlayhouseInvoice,
     PlayhouseInvoiceItem,
     PlayhouseMember,
@@ -152,3 +153,12 @@ class MarkPaymentSerializer(serializers.Serializer):
     )
     tracking_code = serializers.CharField(max_length=64, required=True, allow_blank=False)
     notes = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class PlayhouseConfigSerializer(serializers.Serializer):
+    """Read/patch the singleton playhouse settings."""
+
+    price_per_15_minutes = serializers.IntegerField(min_value=0, required=True)
+    open_time = serializers.TimeField(required=False, allow_null=True)
+    close_time = serializers.TimeField(required=False, allow_null=True)
+    is_open_now = serializers.BooleanField(required=False, default=True)

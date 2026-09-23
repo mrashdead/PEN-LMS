@@ -194,6 +194,9 @@ docker-compose.override.yml
 *.tmp
 *.temp
 *.sh
+# Keep the provider-neutral test gate and its CI contract reviewable in Git.
+scripts/test_ci.sh
+CI-TEST-DESIGN.md
 
 # Secrets committed accidentally to the index; refresh after-unstage.
 .env.swp

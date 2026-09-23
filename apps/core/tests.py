@@ -1,7 +1,7 @@
 """Unit tests for custom permission classes — pure, no DB needed."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, create_autospec
+from unittest.mock import MagicMock, create_autospec, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -190,7 +190,10 @@ class IsPersonOwnerOrManagerTest(TestCase):
         req = MockRequest(user=user, method="PATCH")
         obj = MagicMock()
         obj.user_id = "u2"
-        self.assertFalse(self.perm.has_object_permission(req, self.view, obj))
+        # The ACL lookup needs a real User UUID; isolate that separate layer
+        # when exercising the role fallback with a lightweight MockUser.
+        with patch("apps.core.access_enforcer.acl_allows", return_value=None):
+            self.assertFalse(self.perm.has_object_permission(req, self.view, obj))
 
 
 class CanCreateUserForPersonTest(TestCase):

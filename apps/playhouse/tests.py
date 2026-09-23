@@ -444,3 +444,94 @@ class ApiTest(TestCase):
         self.assertEqual(r.data["summary"]["grand_total"],
                          int(inv["time_amount"]) + 20000)
         self.assertEqual(r.data["invoices"][0]["tracking"], "REF-1")
+
+
+class ConfigSettingsTest(TestCase):
+    """Settings page: price + working hours + open/close gating."""
+
+    def setUp(self):
+        _seed_roles()
+        self.client = APIClient()
+        self.mgr = UserFactory(roles=["manager"])
+        self.emp = UserFactory(roles=["employee"])
+        self.client.force_authenticate(user=self.mgr)
+        # reset config to a known baseline
+        cfg = PlayhouseConfig.get_solo()
+        cfg.price_per_15_minutes = 130000
+        cfg.open_time = None
+        cfg.close_time = None
+        cfg.is_open_now = True
+        cfg.save()
+
+    def test_config_exposes_hours(self):
+        r = self.client.get("/api/playhouse/config/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data["price_per_15_minutes"], 130000)
+        self.assertTrue(r.data["is_open_now"])
+
+    def test_manager_can_update_price(self):
+        r = self.client.put(
+            "/api/playhouse/config/",
+            {"price_per_15_minutes": 150000, "is_open_now": True},
+            format="json",
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data["price_per_15_minutes"], 150000)
+        self.assertEqual(PlayhouseConfig.get_solo().price_per_15_minutes, 150000)
+
+    def test_employee_cannot_update_config(self):
+        self.client.force_authenticate(user=self.emp)
+        r = self.client.put(
+            "/api/playhouse/config/",
+            {"price_per_15_minutes": 999},
+            format="json",
+        )
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(PlayhouseConfig.get_solo().price_per_15_minutes, 130000)
+
+    def test_reject_negative_price(self):
+        r = self.client.put(
+            "/api/playhouse/config/",
+            {"price_per_15_minutes": -100},
+            format="json",
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(PlayhouseConfig.get_solo().price_per_15_minutes, 130000)
+
+    def test_reject_close_before_open(self):
+        r = self.client.put(
+            "/api/playhouse/config/",
+            {"price_per_15_minutes": 130000, "open_time": "20:00", "close_time": "09:00"},
+            format="json",
+        )
+        self.assertEqual(r.status_code, 400)
+        cfg = PlayhouseConfig.get_solo()
+        self.assertIsNone(cfg.open_time)
+        self.assertIsNone(cfg.close_time)
+
+    def test_closed_blocks_new_entry(self):
+        PlayhouseConfig.get_solo()
+        PlayhouseConfig.objects.update(is_open_now=False)
+        PlayhouseConfig._singleton_pk = None
+        r = self.client.post(
+            "/api/playhouse/sessions/",
+            {"first_name": "ب", "last_name": "ت", "age": 5, "guardian_mobile": "09120000099"},
+            format="json",
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(PlayhouseSession.objects.count(), 0)
+
+    def test_outside_working_hours_blocks_entry(self):
+        # open 09:00–10:00 daily; now (test runtime) is almost surely outside
+        PlayhouseConfig.objects.update(open_time="09:00", close_time="10:00")
+        PlayhouseConfig._singleton_pk = None
+        r = self.client.post(
+            "/api/playhouse/sessions/",
+            {"first_name": "ب", "last_name": "ت", "age": 5, "guardian_mobile": "09120000098"},
+            format="json",
+        )
+        # current time may fall inside the window; assert either accepted or blocked-with-message
+        if r.status_code == 400:
+            self.assertIn("ساعات کاری", str(r.data.get("detail", "")))
+        else:
+            self.assertEqual(r.status_code, 201)

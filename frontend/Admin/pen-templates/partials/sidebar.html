@@ -19,12 +19,12 @@ Add a page: one nav-item; add a section: copy a collapse block.
     {# ── Brand ─────────────────────────────────────────────────────── #}
     <a href="{% url 'dashboard-home' %}" class="navbar-brand" title="Pen LMS">
       <div class="logo-lg">
-        <img src="{% static 'assets/images/main-logo.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
-        <img src="{% static 'assets/images/logo-white.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+        <img src="{% static 'assets/images/pen_logo_clean.svg' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
+        <img src="{% static 'assets/images/pen_logo_clean.svg' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
       </div>
       <div class="logo-sm">
-        <img src="{% static 'assets/images/logo-sm-dark.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
-        <img src="{% static 'assets/images/logo-sm-white.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+        <img src="{% static 'assets/images/pen_logo_clean.svg' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
+        <img src="{% static 'assets/images/pen_logo_clean.svg' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
       </div>
     </a>
 
@@ -197,6 +197,24 @@ Add a page: one nav-item; add a section: copy a collapse block.
              {% if urlname == 'playhouse-dashboard' %}aria-current="page"{% endif %}>
             <span class="icons"><i data-lucide="toy-brick"></i></span>
             <span class="content">خانه بازی</span>
+          </a>
+        </li>
+        {% endif %}
+        {% if is_playhouse_finance %}
+        <li class="nav-item">
+          <a href="{% url 'playhouse-finance' %}" title="گزارش مالی خانه بازی"
+             class="nav-link{% if urlname == 'playhouse-finance' %} active{% endif %}"
+             {% if urlname == 'playhouse-finance' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="chart-no-axes-combined"></i></span>
+            <span class="content">گزارش مالی خانه بازی</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'playhouse-settings' %}" title="تنظیمات خانه بازی"
+             class="nav-link{% if urlname == 'playhouse-settings' %} active{% endif %}"
+             {% if urlname == 'playhouse-settings' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="settings"></i></span>
+            <span class="content">تنظیمات خانه بازی</span>
           </a>
         </li>
         {% endif %}

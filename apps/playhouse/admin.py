@@ -17,8 +17,8 @@ from apps.playhouse.models import (
 
 @admin.register(PlayhouseConfig)
 class PlayhouseConfigAdmin(admin.ModelAdmin):
-    list_display = ("price_per_15_minutes", "created_at")
-    fields = ("price_per_15_minutes",)
+    list_display = ("price_per_15_minutes", "open_time", "close_time", "is_open_now", "created_at")
+    fields = ("price_per_15_minutes", "open_time", "close_time", "is_open_now")
 
     def has_add_permission(self, request) -> bool:
         # Singleton — reuse the existing row's edit form.

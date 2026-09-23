@@ -38,13 +38,27 @@ def round_to_nearest_15(minutes: int) -> int:
 
 
 class PlayhouseConfig(DomainModel):
-    """Singleton holding playhouse billing settings (edited in admin)."""
+    """Singleton holding playhouse billing settings (edited in admin or page)."""
 
     price_per_15_minutes = models.DecimalField(
         max_digits=12,
         decimal_places=0,
         default=130000,
         help_text="هزینه هر ۱۵ دقیقه خانه بازی (تومان)",
+    )
+
+    # ─── ساعات کاری (کنترل دسترسی بر اساس ساعت) ───
+    open_time = models.TimeField(
+        null=True, blank=True,
+        help_text="ساعت باز شدن خانه بازی (اختیاری)",
+    )
+    close_time = models.TimeField(
+        null=True, blank=True,
+        help_text="ساعت بسته شدن خانه بازی (اختیاری)",
+    )
+    is_open_now = models.BooleanField(
+        default=True,
+        help_text="اگر خاموش باشد، ثبت ورود جدید مسدود می‌شود",
     )
 
     class Meta:
@@ -55,6 +69,16 @@ class PlayhouseConfig(DomainModel):
 
     def __str__(self) -> str:
         return f"Config {self.price_per_15_minutes:,} تومان / ۱۵ دقیقه"
+
+    def is_within_working_hours(self, when=None) -> bool:
+        """True if ``when`` (or now) falls inside [open, close)."""
+        if not (self.open_time and self.close_time):
+            return True
+        if when is None:
+            t = timezone.localtime().time()
+        else:
+            t = when.time() if hasattr(when, "time") else when
+        return self.open_time <= t < self.close_time
 
     _singleton_pk: int | None = None
 

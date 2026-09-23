@@ -9,6 +9,8 @@ click-plugins==1.1.1.2
 click-repl==0.3.0
 coverage==7.15.4
 Django==5.1.15
+# pen/settings.py imports environ directly; pin the version validated in this environment.
+django-environ==0.14.0
 django-cors-headers==4.9.0
 django-filter==25.1
 djangorestframework==3.17.2

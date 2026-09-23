@@ -104,10 +104,14 @@ if _db_engine == "django.db.backends.sqlite3":
         }
     }
 else:
+    _db_name = env("DB_NAME")
+    _test_db_name = env("TEST_DB_NAME", default=f"test_{_db_name}")
+    if _test_db_name == _db_name:
+        raise ValueError("TEST_DB_NAME must differ from DB_NAME")
     DATABASES = {
         "default": {
             "ENGINE": _db_engine,
-            "NAME": env("DB_NAME"),
+            "NAME": _db_name,
             "USER": env("DB_USER"),
             "PASSWORD": env("DB_PASSWORD"),
             "HOST": env("DB_HOST"),
@@ -118,6 +122,8 @@ else:
                 "options": "-c statement_timeout=30000",
             },
             "ATOMIC_REQUESTS": False,
+            # Django's test runner creates this database and drops it afterwards.
+            "TEST": {"NAME": _test_db_name},
         }
     }
 

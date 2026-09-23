@@ -5,11 +5,14 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.accounts.models import Role
+from apps.accounts.role_policy import is_legacy_role
 
 DEFAULT_ROLES: list[dict[str, object]] = [
     {"code": "employee", "name": "کارمند", "priority": 100},
     {"code": "supervisor", "name": "سرپرست", "priority": 70},
     {"code": "manager", "name": "مدیر مستقیم", "priority": 50},
+    # Legacy compatibility: keep the row discoverable for existing workflow
+    # history and UserRole records, but do not expose it for new assignment.
     {"code": "hr", "name": "منابع انسانی", "priority": 40},
     {"code": "workflow_admin", "name": "مدیر فرآیند", "priority": 10},
     {"code": "student", "name": "دانش‌آموز", "priority": 90},
@@ -42,7 +45,8 @@ class Command(BaseCommand):
                 obj = Role(code=code)
             obj.name = str(item["name"])
             obj.priority = item["priority"]
-            obj.is_active = True
+            if not is_legacy_role(code):
+                obj.is_active = True
             obj.is_deleted = False
             obj.deleted_at = None
             obj.save()

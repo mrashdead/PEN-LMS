@@ -56,3 +56,24 @@ class PlayhouseFinancePage(LoginRequiredMixin, TemplateView):
         if not request.user.is_active or not roles & FINANCE_ROLES:
             raise Http404
         return super().dispatch(request, *args, **kwargs)
+
+
+class PlayhouseSettingsPage(LoginRequiredMixin, TemplateView):
+    """Manager-only page: 15-minute price + working hours."""
+
+    template_name = "playhouse/settings.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
+        roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
+        if not request.user.is_active or not roles & FINANCE_ROLES:
+            raise Http404
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from apps.playhouse.models import PlayhouseConfig
+
+        context = super().get_context_data(**kwargs)
+        context["config"] = PlayhouseConfig.get_solo()
+        return context

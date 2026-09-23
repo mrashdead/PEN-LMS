@@ -5,9 +5,14 @@ from __future__ import annotations
 
 from django.urls import path
 
-from apps.playhouse.pages import PlayhouseDashboardPage, PlayhouseFinancePage
+from apps.playhouse.pages import (
+    PlayhouseDashboardPage,
+    PlayhouseFinancePage,
+    PlayhouseSettingsPage,
+)
 
 urlpatterns = [
     path("", PlayhouseDashboardPage.as_view(), name="playhouse-dashboard"),
     path("finance/", PlayhouseFinancePage.as_view(), name="playhouse-finance"),
+    path("settings/", PlayhouseSettingsPage.as_view(), name="playhouse-settings"),
 ]
