@@ -2,7 +2,7 @@
 {% load forms_extras rbac %}
 {% block title %}فرم‌های من{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="فهرست فرم‌ها" section="فرم‌ها" %}
+  {% include "partials/page-heading.html" with title="فهرست فرم‌ها" section="فرم‌ها" icon="file-stack" subtitle="پیگیری فرم‌ها و وضعیت درخواست‌های ثبت‌شده" %}
 {% endblock %}
 
 {% block content %}
@@ -10,9 +10,12 @@
   <div class="col-12">
     <div class="card">
       <div class="card-header d-flex flex-column flex-md-row gap-3">
-        <div>
-          <h6 class="mb-0 card-title">درخواست‌های ثبت‌شده</h6>
+        <div class="d-flex align-items-start gap-3">
+          <span class="pen-card-heading-icon bg-primary-subtle text-primary" aria-hidden="true"><i data-lucide="clipboard-list" class="size-5"></i></span>
+          <div>
+            <h2 class="h6 mb-1 card-title">درخواست‌های ثبت‌شده</h2>
             <p class="mb-0 text-muted fs-14">فهرست فرم‌ها و درخواست‌های شما؛ هر فرم متصل به فرآیند از همین‌جا قابل پیگیری است.</p>
+          </div>
         </div>
         <a href="{% url 'submission-picker' %}" class="btn btn-primary flex-shrink-0 ms-md-auto">
           <i data-lucide="file-plus-2" class="size-4 me-2"></i> فرم جدید
@@ -21,7 +24,7 @@
 
       <div class="card-body pt-0">
         {# ── Filters (server-side via GET) ────────────────────────────── #}
-        <form method="get" class="row g-2 align-items-end mb-3" aria-label="فیلتر فهرست">
+        <form method="get" class="row g-2 align-items-end mb-3 pen-filter-bar" aria-label="فیلتر فهرست">
           <div class="col-6 col-md-3">
             <label for="filter-status" class="form-label visually-hidden">وضعیت</label>
             <select name="status" id="filter-status" class="form-select" aria-label="فیلتر وضعیت">
@@ -56,7 +59,7 @@
 
         {# ── Table ────────────────────────────────────────────────────── #}
         <div class="table-card table-responsive" id="submission-table">
-          <table class="table table-hover align-middle mb-0">
+          <table class="table table-hover table-borderless text-nowrap align-middle mb-0">
             <thead class="table-light">
               <tr>
                 <th scope="col">شماره درخواست</th>
@@ -115,10 +118,7 @@
               {% empty %}
                 <tr>
                   <td colspan="6">
-                    <div class="pen-empty">
-                      <i data-lucide="inbox" class="size-8 opacity-50"></i>
-                      <p class="mb-0 mt-2">فرمی یافت نشد.</p>
-                    </div>
+                    {% include "partials/empty-state.html" with icon="inbox" message="فرمی یافت نشد." %}
                   </td>
                 </tr>
               {% endfor %}

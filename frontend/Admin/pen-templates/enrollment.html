@@ -2,7 +2,7 @@
 {% load static asset_v %}
 {% block title %}ثبت‌نام در دوره{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="ثبت‌نام" section="آموزشگاه" %}
+  {% include "partials/page-heading.html" with title="ثبت‌نام" section="آموزشگاه" icon="user-round-plus" subtitle="انتخاب دانش‌آموز و ثبت او در دورهٔ مناسب" %}
 {% endblock %}
 
 {% block content %}
@@ -10,7 +10,10 @@
   {# ── Enrollment form ────────────────────────────────────────────── #}
   <div class="col-12 col-xl-7">
     <div class="card">
-      <div class="card-header"><h6 class="mb-0 card-title">فرم ثبت‌نام</h6></div>
+      <div class="card-header d-flex align-items-center gap-3">
+        <span class="pen-card-heading-icon bg-primary-subtle text-primary" aria-hidden="true"><i data-lucide="user-round-plus" class="size-5"></i></span>
+        <div><h2 class="h6 mb-1 card-title">فرم ثبت‌نام</h2><p class="text-muted fs-14 mb-0">اطلاعات دانش‌آموز، دوره و روش پرداخت را وارد کنید.</p></div>
+      </div>
       <div class="card-body">
         <form id="enr-form" novalidate>
           <section id="enr-lead-context" class="alert alert-info d-none mb-4" aria-labelledby="enr-lead-title">

@@ -2,43 +2,23 @@
 {% load static asset_v %}
 {% block title %}کارهای من{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="کارهای من" %}
+  {% include "partials/page-heading.html" with title="کارهای من" section="صف پیگیری" icon="list-checks" subtitle="کارهای باز، نزدیک سررسید و انجام‌شده را یکجا ببینید" %}
 {% endblock %}
 
 {% block content %}
 {# ── KPI strip ────────────────────────────────────────────────────── #}
-<div class="row g-3 mb-4">
+<div class="row g-4 mb-4">
   <div class="col-6 col-lg-3">
-    <div class="card card-h-100">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-12 rounded bg-primary-subtle text-primary flex-shrink-0"><i data-lucide="inbox" class="size-5"></i></div>
-        <div><h5 class="mb-0" id="kpi-open">—</h5><p class="mb-0 text-muted fs-14">باز</p></div>
-      </div>
-    </div>
+    {% include "partials/stat-card.html" with icon="inbox" tone="primary" label="باز" value_id="kpi-open" %}
   </div>
   <div class="col-6 col-lg-3">
-    <div class="card card-h-100">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-12 rounded bg-warning-subtle text-warning flex-shrink-0"><i data-lucide="clock" class="size-5"></i></div>
-        <div><h5 class="mb-0" id="kpi-soon">—</h5><p class="mb-0 text-muted fs-14">نزدیک سررسید</p></div>
-      </div>
-    </div>
+    {% include "partials/stat-card.html" with icon="clock" tone="warning" label="نزدیک سررسید" value_id="kpi-soon" %}
   </div>
   <div class="col-6 col-lg-3">
-    <div class="card card-h-100">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-12 rounded bg-danger-subtle text-danger flex-shrink-0"><i data-lucide="alarm-minus" class="size-5"></i></div>
-        <div><h5 class="mb-0" id="kpi-overdue">—</h5><p class="mb-0 text-muted fs-14">تأخیرکرده</p></div>
-      </div>
-    </div>
+    {% include "partials/stat-card.html" with icon="alarm-minus" tone="danger" label="تأخیرکرده" value_id="kpi-overdue" %}
   </div>
   <div class="col-6 col-lg-3">
-    <div class="card card-h-100">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-12 rounded bg-secondary-subtle text-secondary flex-shrink-0"><i data-lucide="file-pen" class="size-5"></i></div>
-        <div><h5 class="mb-0" id="kpi-drafts">—</h5><p class="mb-0 text-muted fs-14">پیش‌نویس من</p></div>
-      </div>
-    </div>
+    {% include "partials/stat-card.html" with icon="file-pen" tone="secondary" label="پیش‌نویس من" value_id="kpi-drafts" %}
   </div>
 </div>
 

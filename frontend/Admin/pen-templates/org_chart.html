@@ -2,16 +2,17 @@
 {% load static asset_v %}
 {% block title %}نمودار سازمانی{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="نمودار سازمانی" section="مدیریت سازمان" %}
+  {% include "partials/page-heading.html" with title="نمودار سازمانی" section="مدیریت سازمان" icon="network" subtitle="مشاهدهٔ ساختار واحدها و اعضای سازمان" %}
 {% endblock %}
 
 {% block content %}
 <div class="row">
   <div class="col-12">
     <div class="card card-h-100">
-      <div class="card-header">
+      <div class="card-header d-flex align-items-center gap-3">
+        <span class="pen-card-heading-icon bg-primary-subtle text-primary" aria-hidden="true"><i data-lucide="network" class="size-5"></i></span>
         <div class="d-flex flex-wrap align-items-center gap-2">
-          <h6 class="card-title mb-0 flex-grow-1">نمودار سازمانی</h6>
+          <h2 class="h6 card-title mb-0 flex-grow-1">سلسله‌مراتب</h2>
           <span id="org-active-count" class="badge bg-primary-subtle text-primary">در حال بارگذاری…</span>
         </div>
       </div>

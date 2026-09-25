@@ -1,0 +1,9 @@
+{% comment %}
+Shared empty-state pattern from the theme's card/list surfaces.
+Optional params: state_id, icon, title, message, extra_class, role.
+{% endcomment %}
+<div{% if state_id %} id="{{ state_id }}"{% endif %} class="pen-empty{% if extra_class %} {{ extra_class }}{% endif %}"{% if role %} role="{{ role }}"{% endif %}>
+  {% if icon %}<span class="pen-empty-icon" aria-hidden="true"><i data-lucide="{{ icon }}" class="size-5"></i></span>{% endif %}
+  {% if title %}<strong class="pen-empty-title">{{ title }}</strong>{% endif %}
+  {% if message %}<p class="mb-0">{{ message }}</p>{% endif %}
+</div>

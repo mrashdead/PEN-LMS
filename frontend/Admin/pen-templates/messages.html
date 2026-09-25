@@ -47,10 +47,7 @@
         </button>
       </div>
       <div class="card-body">
-        <div id="thread-empty" class="pen-empty">
-          <i data-lucide="messages-square" class="size-8 opacity-50"></i>
-          <p class="mb-0 mt-2">برای مشاهده، یک گفتگو را از صندوق انتخاب کنید.</p>
-        </div>
+        {% include "partials/empty-state.html" with state_id="thread-empty" icon="messages-square" message="برای مشاهده، یک گفتگو را از صندوق انتخاب کنید." %}
         <div id="thread-messages" class="msg-thread vstack gap-2 mb-3" hidden></div>
         <form id="reply-form" hidden>
           <div class="d-flex gap-2 align-items-end">

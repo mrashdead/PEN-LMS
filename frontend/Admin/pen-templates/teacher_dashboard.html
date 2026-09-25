@@ -2,62 +2,22 @@
 {% load static asset_v %}
 {% block title %}پنل مدرس{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="پنل مدرس" %}
+  {% include "partials/page-heading.html" with title="پنل مدرس" section="آموزش" icon="graduation-cap" subtitle="دوره‌ها، جلسات پیش‌رو و کارهای نیازمند پیگیری" %}
 {% endblock %}
 
 {% block content %}
 <div class="row g-4 mb-4">
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-primary-subtle text-primary flex-shrink-0">
-          <i data-lucide="school" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <h2 class="h4 mb-0 fw-bold tabular-nums" data-td-stat="classes">—</h2>
-          <p class="mb-0 text-muted fs-14">دوره‌های من</p>
-        </div>
-      </div>
-    </div>
+    {% include "partials/stat-card.html" with icon="school" tone="primary" label="دوره‌های من" data_td_stat="classes" %}
   </div>
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-success-subtle text-success flex-shrink-0">
-          <i data-lucide="calendar-days" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <h2 class="h4 mb-0 fw-bold tabular-nums" data-td-stat="upcoming">—</h2>
-          <p class="mb-0 text-muted fs-14">جلسه پیش‌رو</p>
-        </div>
-      </div>
-    </div>
+    {% include "partials/stat-card.html" with icon="calendar-days" tone="success" label="جلسه پیش‌رو" data_td_stat="upcoming" %}
   </div>
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-warning-subtle text-warning flex-shrink-0">
-          <i data-lucide="user-check" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <h2 class="h4 mb-0 fw-bold tabular-nums" data-td-stat="pending">—</h2>
-          <p class="mb-0 text-muted fs-14">حضور ثبت‌نشده</p>
-        </div>
-      </div>
-    </div>
+    {% include "partials/stat-card.html" with icon="user-check" tone="warning" label="حضور ثبت‌نشده" data_td_stat="pending" %}
   </div>
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-info-subtle text-info flex-shrink-0">
-          <i data-lucide="users" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <h2 class="h4 mb-0 fw-bold tabular-nums" data-td-stat="students">—</h2>
-          <p class="mb-0 text-muted fs-14">دانش‌آموزان</p>
-        </div>
-      </div>
-    </div>
+    {% include "partials/stat-card.html" with icon="users" tone="info" label="دانش‌آموزان" data_td_stat="students" %}
   </div>
 </div>
 

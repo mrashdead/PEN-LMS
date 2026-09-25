@@ -5,9 +5,31 @@ Params:
   title       — current page title (required)
   section     — parent section name shown in the breadcrumb (optional)
   section_url — parent section URL (optional; pairs with section)
+  subtitle    — short description below the title (optional)
+  icon        — Lucide icon override (optional; defaults by section)
 {% endcomment %}
-<div class="gap-2 page-heading mb-3 flex-column flex-md-row">
-  <h1 class="flex-grow-1 mb-0">{{ title }}</h1>
+<div class="gap-3 page-heading mb-4 flex-column flex-md-row pen-page-heading">
+  <div class="pen-page-heading-main">
+    <span class="pen-page-heading-icon" aria-hidden="true">
+      {% if icon %}<i data-lucide="{{ icon }}" class="size-5"></i>
+      {% elif section == "فرم‌ها" %}<i data-lucide="file-stack" class="size-5"></i>
+      {% elif section == "مدیریت سازمان" %}<i data-lucide="network" class="size-5"></i>
+      {% elif section == "مدیریت کاربران" %}<i data-lucide="users" class="size-5"></i>
+      {% elif section == "پنل مدرس" %}<i data-lucide="graduation-cap" class="size-5"></i>
+      {% elif section == "حساب کاربری" %}<i data-lucide="user-round" class="size-5"></i>
+      {% elif section == "آموزشگاه" or section == "آموزش" %}<i data-lucide="school" class="size-5"></i>
+      {% elif section == "مدیریت" %}<i data-lucide="chart-no-axes-combined" class="size-5"></i>
+      {% elif section == "فرآیند پذیرش" %}<i data-lucide="clipboard-check" class="size-5"></i>
+      {% elif section == "مدیریت فرم‌ها" %}<i data-lucide="file-cog" class="size-5"></i>
+      {% elif section == "خانه بازی" %}<i data-lucide="sparkles" class="size-5"></i>
+      {% else %}<i data-lucide="layout-dashboard" class="size-5"></i>{% endif %}
+    </span>
+    <div class="pen-page-heading-copy">
+      {% if section %}<div class="pen-page-heading-eyebrow">{{ section }}</div>{% endif %}
+      <h1 class="h3 mb-0">{{ title }}</h1>
+      {% if subtitle %}<p class="pen-page-heading-subtitle">{{ subtitle }}</p>{% endif %}
+    </div>
+  </div>
   <nav aria-label="مسیر صفحه">
   <ol class="breadcrumb flex-shrink-0 mb-0">
     <li class="breadcrumb-item"><a href="{% url 'dashboard-home' %}">داشبورد</a></li>

@@ -93,10 +93,7 @@
             </div>
           </div>
         {% empty %}
-          <div class="pen-empty">
-            <i data-lucide="layout-template" class="size-8 opacity-50"></i>
-            <p class="mb-0 mt-2">هنوز فرمی تعریف نشده است. با «فرم جدید» شروع کنید.</p>
-          </div>
+          {% include "partials/empty-state.html" with icon="layout-template" message="هنوز فرمی تعریف نشده است. با «فرم جدید» شروع کنید." %}
         {% endfor %}
       </div>
     </div>

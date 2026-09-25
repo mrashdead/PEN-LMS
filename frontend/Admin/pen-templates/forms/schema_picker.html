@@ -54,10 +54,7 @@
             </div>
           {% empty %}
             <div class="col-12">
-              <div class="pen-empty">
-                <i data-lucide="inbox" class="size-8 opacity-50"></i>
-                <p class="mb-0 mt-2">فرم فعالی برای شما تعریف نشده است.</p>
-              </div>
+              {% include "partials/empty-state.html" with icon="inbox" message="فرم فعالی برای شما تعریف نشده است." %}
             </div>
           {% endfor %}
         </div>

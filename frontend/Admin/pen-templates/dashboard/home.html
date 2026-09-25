@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}داشبورد{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="داشبورد" %}
+  {% include "partials/page-heading.html" with title="داشبورد" section="نمای کلی" icon="layout-dashboard" subtitle="دسترسی به شاخص‌ها، پیام‌ها و کارهای جاری" %}
 {% endblock %}
 
 {% block content %}
@@ -30,56 +30,32 @@
 
 <div class="row g-4 mb-4" id="pen-stats" aria-label="خلاصهٔ وضعیت سامانه">
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-primary-subtle text-primary flex-shrink-0">
-          <i data-lucide="{% if is_manager %}building-2{% else %}users{% endif %}" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <div class="d-flex align-items-baseline gap-2"><h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="persons">—</h2><span class="pen-stat-caption">زنده</span></div>
-          <p class="mb-0 text-muted fs-14">{% if is_manager %}ظرفیت تکمیل‌شده{% else %}افراد{% endif %}</p>
-        </div>
-      </div>
-    </div>
+    {% if is_manager %}
+      {% include "partials/stat-card.html" with icon="building-2" tone="primary" label="ظرفیت تکمیل‌شده" data_stat="persons" hint="زنده" %}
+    {% else %}
+      {% include "partials/stat-card.html" with icon="users" tone="primary" label="افراد" data_stat="persons" hint="زنده" %}
+    {% endif %}
   </div>
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-secondary-subtle text-secondary flex-shrink-0">
-          <i data-lucide="{% if is_manager %}inbox{% else %}workflow{% endif %}" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="instances">—</h2>
-          <p class="mb-0 text-muted fs-14">{% if is_manager %}درخواست‌های منتظر اقدام{% else %}فرآیندها{% endif %}</p>
-        </div>
-      </div>
-    </div>
+    {% if is_manager %}
+      {% include "partials/stat-card.html" with icon="inbox" tone="secondary" label="درخواست‌های منتظر اقدام" data_stat="instances" %}
+    {% else %}
+      {% include "partials/stat-card.html" with icon="workflow" tone="secondary" label="فرآیندها" data_stat="instances" %}
+    {% endif %}
   </div>
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-success-subtle text-success flex-shrink-0">
-          <i data-lucide="{% if is_manager %}user-plus{% else %}list-checks{% endif %}" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="tasks">—</h2>
-          <p class="mb-0 text-muted fs-14">{% if is_manager %}ثبت‌نام جدید{% else %}وظایف در دست من{% endif %}</p>
-        </div>
-      </div>
-    </div>
+    {% if is_manager %}
+      {% include "partials/stat-card.html" with icon="user-plus" tone="success" label="ثبت‌نام جدید" data_stat="tasks" %}
+    {% else %}
+      {% include "partials/stat-card.html" with icon="list-checks" tone="success" label="وظایف در دست من" data_stat="tasks" %}
+    {% endif %}
   </div>
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-warning-subtle text-warning flex-shrink-0">
-          <i data-lucide="{% if is_manager %}trending-up{% else %}calendar-days{% endif %}" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="terms">—</h2>
-          <p class="mb-0 text-muted fs-14">{% if is_manager %}روند ثبت‌نام ۳۰ روزه{% else %}ترم‌های تحصیلی{% endif %}</p>
-        </div>
-      </div>
-    </div>
+    {% if is_manager %}
+      {% include "partials/stat-card.html" with icon="trending-up" tone="warning" label="روند ثبت‌نام ۳۰ روزه" data_stat="terms" %}
+    {% else %}
+      {% include "partials/stat-card.html" with icon="calendar-days" tone="warning" label="ترم‌های تحصیلی" data_stat="terms" %}
+    {% endif %}
   </div>
 </div>
 
