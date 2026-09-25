@@ -16,6 +16,16 @@
             {% if submission %}ویرایش پیش‌نویس {{ submission.submission_number|default:'' }}{% else %}تکمیل فرم{% endif %}
           </h6>
           <p class="mb-0 text-muted fs-14">{% if schema.description %}{{ schema.description }}{% endif %}</p>
+          <div class="d-flex flex-wrap gap-2 mt-2">
+            {% if request_type %}
+              <span class="badge bg-info-subtle text-info">نوع درخواست: {{ request_type.title }}</span>
+            {% endif %}
+            {% if schema.workflow_definition or request_type.workflow_definition %}
+              <span class="badge bg-success-subtle text-success">این فرم وارد گردش‌کار می‌شود</span>
+            {% else %}
+              <span class="badge bg-secondary-subtle text-secondary">فرم اطلاعاتی</span>
+            {% endif %}
+          </div>
         </div>
         <span class="badge bg-primary-subtle text-primary">نسخه {{ schema.version }}</span>
         {% if submission %}<span class="pen-badge pen-badge-draft">پیش‌نویس</span>{% endif %}
@@ -72,7 +82,7 @@
             <span id="draft-save-status">ذخیرهٔ خودکار هر ۲۰ ثانیه فعال است.</span>
           </div>
           <p class="text-muted fs-13 mt-2 mb-0">
-            «ذخیره پیش‌نویس» فیلدهای ناقص را می‌پذیرد؛ «ارسال نهایی» همه الزامات را اعتبارسنجی می‌کند.
+            «ذخیره پیش‌نویس» فیلدهای ناقص را می‌پذیرد؛ «ارسال نهایی» همه الزامات را اعتبارسنجی می‌کند و درخواست را وارد مرحلهٔ اول گردش‌کار می‌سازد.
           </p>
         </form>
       </div>
@@ -85,6 +95,8 @@
 <script>window.__PEN_FORM_CTX__ = {
   schemaSlug: "{{ schema.slug|escapejs }}",
   submissionId: "{% if submission %}{{ submission.id }}{% endif %}",
+  requestId: "{{ request_id|default:'' }}",
+  requestDetailUrl: "{% if request_id %}/workspace/requests/?id={{ request_id }}{% endif %}",
 };</script>
 <script src="{% asset_v_url 'assets/pen/js/forms.js' %}"></script>
 {% endblock %}

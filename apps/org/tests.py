@@ -28,6 +28,37 @@ class OrgServicesTest(TestCase):
         self.assertEqual(chart[0]["username"], "boss")
         self.assertEqual([c["username"] for c in chart[0]["reports"]], ["staff"])
 
+    def test_org_chart_groups_are_role_based_and_additive(self):
+        teacher_role = Role.objects.create(code="teacher", name="معلم")
+        student_role = Role.objects.create(code="student", name="دانش‌آموز")
+        teacher = User.objects.create_user(
+            username="teacher", password="x", first_name="مدرس", manager=self.boss
+        )
+        student = User.objects.create_user(
+            username="student", password="x", first_name="دانش‌آموز", manager=self.boss
+        )
+        teacher.assign_role(teacher_role.code)
+        teacher.assign_role(self.employee_role.code)
+        student.assign_role(student_role.code)
+
+        groups = {row["key"]: row for row in services.org_chart_groups()}
+        self.assertEqual(groups["management"]["count"], 1)
+        self.assertEqual(groups["teachers"]["count"], 1)
+        self.assertEqual(groups["students"]["count"], 1)
+        self.assertEqual(groups["employees"]["count"], 2)
+        self.assertEqual(groups["teachers"]["chart"][0]["username"], "teacher")
+
+    def test_org_chart_group_promotes_member_when_manager_is_outside_group(self):
+        teacher_role = Role.objects.create(code="teacher", name="معلم")
+        teacher = User.objects.create_user(
+            username="teacher", password="x", first_name="مدرس", manager=self.boss
+        )
+        teacher.assign_role(teacher_role.code)
+        teacher_group = next(
+            row for row in services.org_chart_groups() if row["key"] == "teachers"
+        )
+        self.assertEqual([node["username"] for node in teacher_group["chart"]], ["teacher"])
+
     def test_departments_count(self):
         deps = {d["department"]: d["count"] for d in services.departments()}
         self.assertEqual(deps.get("آموزش"), 2)

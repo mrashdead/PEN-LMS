@@ -139,7 +139,7 @@
     }).catch(function (e) { toast(e.message, 'danger'); });
   }
 
-  function labelForPerson(person) { return ((person.first_name || '') + ' ' + (person.last_name || '')).trim() || 'شخص'; }
+  function labelForPerson(person) { return ((person.first_name || '') + ' ' + (person.last_name || '')).trim() || 'فرد'; }
 
   var $detailEl = document.getElementById('person-detail-modal');
   var detailModal = $detailEl && window.bootstrap ? window.bootstrap.Modal.getOrCreateInstance($detailEl) : null;
@@ -391,7 +391,7 @@
           showFormErrors(result.body.errors || result.body);
           return;
         }
-        toast(result.body.message || 'شخص با موفقیت ثبت شد ✓', 'success');
+        toast(result.body.message || 'فرد با موفقیت ثبت شد ✓', 'success');
         if (modal) modal.hide();
         resetWizard();
         var listUrl = apiUrlWithParams();
@@ -454,7 +454,7 @@
         return response.json().then(function (body) { if (!response.ok) throw new Error(errorLines(body).join(' — ')); return body; });
       }).then(function () {
         if (editModal) editModal.hide();
-        toast('اطلاعات شخص به‌روزرسانی شد ✓', 'success');
+        toast('اطلاعات فرد به‌روز شد ✓', 'success');
         loadList(apiUrlWithParams(), true);
       }).catch(function (e) {
         var box = document.getElementById('person-edit-errors'); box.textContent = e.message; box.hidden = false;

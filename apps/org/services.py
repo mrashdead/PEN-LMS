@@ -44,6 +44,163 @@ VERB_PERM = {
 
 # ── org chart ───────────────────────────────────────────────────────────────
 
+ORG_CHART_GROUPS = (
+    {
+        "key": "all",
+        "label": "همه اعضا",
+        "description": "نمایش کامل ساختار سازمانی",
+        "icon": "network",
+    },
+    {
+        "key": "management",
+        "label": "مدیریت",
+        "description": "مدیران و مدیران فرآیند",
+        "icon": "briefcase-business",
+    },
+    {
+        "key": "supervisors",
+        "label": "سرپرستان",
+        "description": "سرپرستان واحدها و تیم‌ها",
+        "icon": "shield-check",
+    },
+    {
+        "key": "teachers",
+        "label": "معلمان",
+        "description": "مدرسان و اعضای آموزشی",
+        "icon": "graduation-cap",
+    },
+    {
+        "key": "employees",
+        "label": "کارکنان",
+        "description": "کارمندان و نیروهای اجرایی",
+        "icon": "users",
+    },
+    {
+        "key": "students",
+        "label": "دانش‌آموزان",
+        "description": "دانش‌آموزان فعال سامانه",
+        "icon": "book-open",
+    },
+    {
+        "key": "other",
+        "label": "سایر اعضا",
+        "description": "کاربران بدون گروه سازمانی مشخص",
+        "icon": "user-round",
+    },
+)
+
+
+def _org_group_keys(user, roles: set[str]) -> set[str]:
+    """Return every organizational group that applies to a user.
+
+    Group membership is intentionally additive: a person with both teacher and
+    employee roles appears in both views. This mirrors the project's support
+    for multi-role users instead of forcing a lossy single primary role.
+    """
+    person = getattr(user, "person", None)
+    person_type = getattr(person, "person_type", "") if person else ""
+    keys: set[str] = set()
+
+    if user.is_superuser or roles & {"manager", "workflow_admin"}:
+        keys.add("management")
+    if "supervisor" in roles:
+        keys.add("supervisors")
+    if "teacher" in roles or person_type == "teacher":
+        keys.add("teachers")
+    if "employee" in roles or person_type == "employee":
+        keys.add("employees")
+    if "student" in roles or person_type == "student":
+        keys.add("students")
+    if not keys:
+        keys.add("other")
+    return keys
+
+
+def _org_chart_read_model() -> tuple[list[dict], dict[str, set]]:
+    """Build the shared user read-model and the role-based group index."""
+    users = list(
+        User.objects.filter(is_active=True, is_deleted=False)
+        .select_related("manager", "person")
+        .order_by("first_name", "last_name")
+    )
+    by_manager: dict = defaultdict(list)
+    group_ids: dict[str, set] = {group["key"]: set() for group in ORG_CHART_GROUPS}
+    records = []
+
+    for user in users:
+        roles = user.role_codes()
+        person = getattr(user, "person", None)
+        record = {
+            "user": user,
+            "manager_id": user.manager_id,
+            "roles": sorted(roles),
+            "photo_url": person.photo.url if person and person.photo else "",
+            "groups": _org_group_keys(user, roles),
+        }
+        records.append(record)
+        by_manager[user.manager_id].append(record)
+        for group_key in record["groups"]:
+            group_ids[group_key].add(user.pk)
+
+    return records, group_ids
+
+
+def _build_org_tree(records: list[dict], allowed_ids: set | None = None) -> list[dict]:
+    """Build a manager tree, promoting filtered users to roots when needed."""
+    included = {record["user"].pk for record in records} if allowed_ids is None else set(allowed_ids)
+    by_id = {record["user"].pk: record for record in records}
+    children_by_manager: dict = defaultdict(list)
+    for record in records:
+        if record["user"].pk in included:
+            children_by_manager[record["manager_id"]].append(record)
+
+    def node(record, seen):
+        user = record["user"]
+        children = []
+        for child in children_by_manager.get(user.pk, []):
+            if child["user"].pk not in seen:
+                children.append(node(child, seen | {child["user"].pk}))
+        return {
+            "id": str(user.pk),
+            "name": user.get_full_name() or user.username,
+            "username": user.username,
+            "department": user.department or "",
+            "job_title": user.job_title or "",
+            "roles": record["roles"],
+            "groups": sorted(record["groups"]),
+            "photo_url": record["photo_url"],
+            "reports": children,
+        }
+
+    roots = []
+    root_records = [
+        record for record in records
+        if record["user"].pk in included and record["manager_id"] not in included
+    ]
+    visited = set()
+
+    def mark_subtree(user_id, seen):
+        if user_id in seen:
+            return
+        seen.add(user_id)
+        visited.add(user_id)
+        for child in children_by_manager.get(user_id, []):
+            mark_subtree(child["user"].pk, seen)
+
+    for record in root_records:
+        user_id = record["user"].pk
+        if user_id not in visited:
+            roots.append(node(record, {user_id}))
+            mark_subtree(user_id, set())
+
+    # A malformed manager cycle must not make the read model disappear.
+    for record in records:
+        user_id = record["user"].pk
+        if user_id in included and user_id not in visited:
+            roots.append(node(record, {user_id}))
+            mark_subtree(user_id, set())
+    return roots
+
 def org_chart() -> list[dict]:
     """
     Tree of users by manager chain, grouped under departments.
@@ -52,38 +209,23 @@ def org_chart() -> list[dict]:
     reports. Depth is bounded by the manager graph (assumed acyclic; a
     visited-set guards against accidental cycles).
     """
-    users = list(
-        User.objects.filter(is_active=True, is_deleted=False)
-        .select_related("manager")
-        .order_by("first_name", "last_name")
-    )
-    by_manager: dict = defaultdict(list)
-    for u in users:
-        by_manager[u.manager_id].append(u)
+    records, _ = _org_chart_read_model()
+    return _build_org_tree(records)
 
-    def node(u, seen):
-        children = []
-        for child in by_manager.get(u.pk, []):
-            if child.pk in seen:
-                continue
-            children.append(node(child, seen | {child.pk}))
-        return {
-            "id": str(u.pk),
-            "name": u.get_full_name() or u.username,
-            "username": u.username,
-            "department": u.department or "",
-            "job_title": u.job_title or "",
-            "roles": sorted(u.role_codes()),
-            "reports": children,
-        }
 
-    roots = []
-    seen = set()
-    for u in users:
-        if u.manager_id is None and u.pk not in seen:
-            roots.append(node(u, {u.pk}))
-            seen.add(u.pk)
-    return roots
+def org_chart_groups() -> list[dict]:
+    """Return the full chart plus additive role-based chart views."""
+    records, group_ids = _org_chart_read_model()
+    groups = []
+    for definition in ORG_CHART_GROUPS:
+        key = definition["key"]
+        ids = None if key == "all" else group_ids.get(key, set())
+        groups.append({
+            **definition,
+            "count": len(records) if key == "all" else len(ids or set()),
+            "chart": _build_org_tree(records, ids),
+        })
+    return groups
 
 
 def departments() -> list[dict]:

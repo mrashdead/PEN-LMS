@@ -113,7 +113,12 @@ def can_view_resource(user, obj: Any, resource: str | None = None) -> bool:
     resource = resource or resource_for(obj)
     roles = roles_for(user)
     if resource == "persons":
-        baseline = bool(roles & {"employee", "teacher", "student", "guardian", "supervisor"}) or is_owner(user, obj)
+        baseline = bool(
+            roles & {
+                "manager", "hr", "workflow_admin", "employee", "teacher",
+                "student", "guardian", "supervisor",
+            }
+        ) or is_owner(user, obj)
     elif resource in ACADEMIC_RESOURCES:
         baseline = bool(roles & {"teacher", "employee", "supervisor", "student", "guardian"}) or is_owner(user, obj)
     elif resource == "submissions":

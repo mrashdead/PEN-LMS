@@ -26,6 +26,9 @@ class PrivateMediaStorage(FileSystemStorage):
         kwargs.setdefault("base_url", None)  # no public URL — downloads are view-based
         super().__init__(*args, **kwargs)
 
+    def url(self, name: str) -> str:
+        raise ValueError("Private media is available only through permission-checked views.")
+
     def deconstruct(self):
         path, args, kwargs = super().deconstruct()
         kwargs.pop("location", None)   # computed from MEDIA_ROOT at runtime

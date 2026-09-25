@@ -103,6 +103,7 @@ class Command(BaseCommand):
                     recipient=task.assignee,
                     channel=NotificationOutbox.Channel.IN_APP,
                     template="sla_reminder",
+                    delivery_key=f"sla-reminder:{task.pk}",
                     payload={
                         "title": task.instance.title,
                         "note": "مهلت انجام این کار رو به پایان است.",
@@ -179,6 +180,7 @@ class Command(BaseCommand):
                         recipient_id=uid,
                         channel=NotificationOutbox.Channel.IN_APP,
                         template="sla_escalated",
+                        delivery_key=f"sla-escalation:{task.pk}:{uid}",
                         payload={
                             "title": task.instance.title,
                             "note": "یک کار از مهلت تعیین‌شده گذشته است؛ لطفاً پیگیری کنید.",
@@ -195,6 +197,7 @@ class Command(BaseCommand):
                         recipient=task.assignee,
                         channel=NotificationOutbox.Channel.IN_APP,
                         template="sla_escalated",
+                        delivery_key=f"sla-escalation:{task.pk}:{task.assignee_id}",
                         payload={
                             "title": task.instance.title,
                             "note": "مهلت انجام این کار گذشته است.",

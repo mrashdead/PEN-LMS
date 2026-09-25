@@ -1,8 +1,10 @@
 """
 Dynamic form builder models.
 
+RequestType     — business request catalog item connected to a form/workflow.
 FormSchema      — versioned, immutable form definition (fields as JSON).
 FormSubmission  — a filled instance of a schema version (data as JSON).
+Request         — the unified business request aggregate over a submission.
 FormAttachment  — private file uploaded against a ``file`` field.
 FormComment     — threaded comment on a submission (internal flag).
 SubmissionSequence — per-(slug, year) counter for concurrency-safe numbers.
@@ -23,6 +25,68 @@ from apps.forms.schema_validation import SchemaDefinitionError, validate_form_fi
 from apps.forms.storage import build_upload_path, private_storage
 
 
+class RequestType(DomainModel):
+    """Catalog entry describing what a submitted form means to the business.
+
+    A form answers *which data should be collected*.  A request type answers
+    *what business process that data starts*.  Keeping the catalog separate
+    from ``FormSchema`` lets multiple schema versions share one business
+    process while the workflow definition remains configurable.
+    """
+
+    class Kind(models.TextChoices):
+        INFORMATIONAL = "informational", "اطلاعاتی"
+        REQUEST = "request", "درخواستی"
+        OPERATIONAL = "operational", "عملیاتی"
+
+    code = models.SlugField(max_length=120, unique=True, db_index=True)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default="")
+    kind = models.CharField(
+        max_length=20,
+        choices=Kind.choices,
+        default=Kind.REQUEST,
+        db_index=True,
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    workflow_definition = models.ForeignKey(
+        "workflow.WorkflowDefinition",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="request_types",
+    )
+    allowed_roles = models.ManyToManyField(
+        "accounts.Role",
+        related_name="request_types",
+        blank=True,
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        app_label = "forms"
+        db_table = "forms_request_type"
+        verbose_name = "Request Type (نوع درخواست)"
+        verbose_name_plural = "Request Types (انواع درخواست)"
+        ordering = ("code",)
+        indexes = [
+            models.Index(fields=["code", "is_active"], name="forms_reque_code_f2b6d4_idx"),
+            models.Index(fields=["kind", "is_active"], name="forms_reque_kind_a31fed_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.code} — {self.title}"
+
+    def clean(self) -> None:
+        self.code = (self.code or "").strip().lower()
+        if not self.code:
+            raise ValidationError({"code": "کد نوع درخواست الزامی است."})
+
+    def save(self, *args, **kwargs) -> None:
+        self.code = (self.code or "").strip().lower()
+        super().save(*args, **kwargs)
+
+
 class FormSchema(DomainModel):
     """A versioned form definition. ``(slug, version)`` is unique."""
 
@@ -39,6 +103,14 @@ class FormSchema(DomainModel):
     fields = models.JSONField(
         default=list,
         help_text="Ordered list of FieldDefinition objects (see schema_validation).",
+    )
+    request_type = models.ForeignKey(
+        RequestType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="form_schemas",
+        help_text="نوع کسب‌وکاری درخواستی که این نسخهٔ فرم ایجاد می‌کند.",
     )
     workflow_definition = models.ForeignKey(
         "workflow.WorkflowDefinition",
@@ -110,6 +182,13 @@ class FormSubmission(DomainModel):
         REJECTED = "rejected", "Rejected"
         ARCHIVED = "archived", "Archived"
 
+    class ProjectionStatus(models.TextChoices):
+        NOT_APPLICABLE = "not_applicable", "Not applicable"
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        COMPLETE = "complete", "Complete"
+        FAILED = "failed", "Failed"
+
     #: Statuses after which the submission is immutable via the update API.
     IMMUTABLE_STATUSES = {
         Status.SUBMITTED, Status.PROCESSING,
@@ -179,6 +258,15 @@ class FormSubmission(DomainModel):
     )
     client_ip = models.GenericIPAddressField(null=True, blank=True)
     last_action_at = models.DateTimeField(null=True, blank=True)
+    projection_status = models.CharField(
+        max_length=20,
+        choices=ProjectionStatus.choices,
+        default=ProjectionStatus.NOT_APPLICABLE,
+        db_index=True,
+    )
+    projection_attempts = models.PositiveSmallIntegerField(default=0)
+    projection_next_attempt_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    projection_last_error = models.TextField(blank=True, default="")
 
     class Meta:
         app_label = "forms"
@@ -206,6 +294,112 @@ class FormSubmission(DomainModel):
         """Fields to validate against: the snapshot if present, else schema."""
         snap = self.version_snapshot or {}
         return snap.get("fields") or self.form_schema.fields
+
+
+class Request(DomainModel):
+    """Unified business request aggregate backed by a form submission.
+
+    ``FormSubmission`` remains the compatibility/data-capture record.  This
+    model gives the product a stable business vocabulary: requester, subject,
+    request type and lifecycle.  Workflow execution is still owned by
+    ``workflow.Instance`` and is reached through ``form_submission``.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "پیش‌نویس"
+        SUBMITTED = "submitted", "ارسال‌شده"
+        IN_REVIEW = "in_review", "در حال بررسی"
+        AWAITING_ACTION = "awaiting_action", "منتظر اقدام"
+        CHANGES_REQUESTED = "changes_requested", "نیازمند اصلاح"
+        APPROVED = "approved", "تأییدشده"
+        REJECTED = "rejected", "ردشده"
+        CANCELLED = "cancelled", "لغوشده"
+        COMPLETED = "completed", "تکمیل‌شده"
+        BLOCKED_ASSIGNMENT = "blocked_assignment", "بدون مسئول"
+        ARCHIVED = "archived", "بایگانی‌شده"
+
+    request_type = models.ForeignKey(
+        RequestType,
+        on_delete=models.PROTECT,
+        related_name="requests",
+    )
+    form_submission = models.OneToOneField(
+        FormSubmission,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="business_request",
+    )
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="business_requests",
+    )
+    subject_person = models.ForeignKey(
+        "persons.Person",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="business_requests",
+    )
+    request_number = models.CharField(
+        max_length=200,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="شمارهٔ قابل پیگیری؛ معمولاً از شمارهٔ submission یا workflow می‌آید.",
+    )
+    status = models.CharField(
+        max_length=24,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True,
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    last_action_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        app_label = "forms"
+        db_table = "forms_request"
+        verbose_name = "Request (درخواست)"
+        verbose_name_plural = "Requests (درخواست‌ها)"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["request_type", "status"], name="forms_reque_request_b4571c_idx"),
+            models.Index(fields=["requester", "status"], name="forms_reque_request_b2cbee_idx"),
+            models.Index(fields=["subject_person", "status"], name="forms_reque_subject_622f33_idx"),
+            models.Index(fields=["status", "created_at"], name="forms_reque_status_c362c3_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return self.request_number or f"{self.request_type.code}/{self.pk}"
+
+    @property
+    def workflow_instance(self):
+        submission = self.form_submission
+        return getattr(submission, "workflow_instance", None) if submission else None
+
+    @property
+    def workflow_instance_id(self):
+        instance = self.workflow_instance
+        return getattr(instance, "pk", None)
+
+    @property
+    def current_state(self):
+        instance = self.workflow_instance
+        return getattr(instance, "current_state", None)
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status in {
+            self.Status.APPROVED,
+            self.Status.REJECTED,
+            self.Status.CANCELLED,
+            self.Status.COMPLETED,
+            self.Status.ARCHIVED,
+        }
 
 
 class FormAttachment(DomainModel):

@@ -22,6 +22,7 @@ from apps.education.models import (
     Location,
     OfferingEnrollment,
     EnrollmentWaitlist,
+    EnrollmentRefund,
     SessionMaterial,
 )
 from apps.leads.models import Lead
@@ -459,14 +460,19 @@ class OfferingEnrollmentSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source="student.get_full_name", read_only=True)
     offering_title = serializers.CharField(source="offering.title", read_only=True)
     enrolled_at = JalaliDateField(required=False)
+    final_class_enrollment_id = serializers.UUIDField(read_only=True, allow_null=True)
 
     class Meta:
         model = OfferingEnrollment
         fields = ("id", "offering", "offering_title", "student", "student_name",
                   "course_amount", "discount_type", "discount_value", "final_amount",
                   "payment_method", "cheque_count", "cheques", "reference",
-                  "enrolled_at", "is_active", "created_at", "updated_at", "lead")
-        read_only_fields = ("id", "final_amount", "created_at", "updated_at")
+                  "enrolled_at", "is_active", "lifecycle_status",
+                  "final_class_enrollment_id", "created_at", "updated_at", "lead")
+        read_only_fields = (
+            "id", "final_amount", "lifecycle_status", "final_class_enrollment_id",
+            "created_at", "updated_at",
+        )
 
     def validate(self, attrs):
         # Mirror the model's single rule so the API returns field errors, not 500.
@@ -499,6 +505,20 @@ class OfferingEnrollmentSerializer(serializers.ModelSerializer):
         else:
             attrs["_final"] = base
         return attrs
+
+
+class EnrollmentRefundSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EnrollmentRefund
+        fields = (
+            "id", "enrollment", "amount", "status", "reason", "reference",
+            "requested_by", "processed_by", "processed_at", "metadata",
+            "created_at", "updated_at",
+        )
+        read_only_fields = (
+            "id", "status", "requested_by", "processed_by", "processed_at",
+            "created_at", "updated_at",
+        )
 
     def create(self, validated_data):
         final = validated_data.pop("_final", 0)

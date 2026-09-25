@@ -29,51 +29,178 @@
 
   // ── ORG CHART page ──────────────────────────────────────────────────
   function bootChart() {
-    var $tree = document.getElementById('org-tree');
-    var $deps = document.getElementById('org-departments');
-    var profileModal = window.bootstrap ? new window.bootstrap.Modal(document.getElementById('profile-modal')) : null;
+    var $tree = document.getElementById('rightToLeftChart');
+    var profileModalElement = document.getElementById('profile-modal');
+    var profileModal = window.bootstrap && profileModalElement ? new window.bootstrap.Modal(profileModalElement) : null;
+    var defaultAvatar = $tree.getAttribute('data-avatar-default') || '/static/assets/images/avatar/user-45.png';
+    var $groups = document.getElementById('org-groups');
+    var $activeCount = document.getElementById('org-active-count');
+    var groupRecords = [];
+    var selectedGroup = 'all';
+    var chartNodes = null;
+    var resizeTimer = null;
 
-    function nodeHtml(n) {
-      var kids = (n.reports || []).length
-        ? '<div class="collapse" id="node-' + esc(n.id) + '"><div class="org-children">' + n.reports.map(nodeHtml).join('') + '</div></div>'
-        : '';
-      var toggle = (n.reports || []).length
-        ? '<button class="btn btn-sm btn-light org-toggle" data-bs-toggle="collapse" data-target="#node-' + esc(n.id) + '" aria-label="باز/بستن"><i data-lucide="chevron-down" class="size-4"></i></button>'
-        : '';
-      return '<div class="org-node">' +
-        '<div class="org-node-row d-flex align-items-center gap-2">' +
-        toggle +
-        '<button class="btn btn-link text-start org-person" data-user="' + esc(n.id) + '">' +
-        '<span class="fw-semibold">' + esc(n.name) + '</span>' +
-        (n.job_title ? ' <span class="fs-13 text-muted">· ' + esc(n.job_title) + '</span>' : '') +
-        '</button>' +
-        (n.department ? '<span class="badge bg-light text-dark border ms-auto">' + esc(n.department) + '</span>' : '') +
-        '</div>' + kids + '</div>';
+    function getColor(color) {
+      var value = getComputedStyle(document.documentElement).getPropertyValue(color).trim();
+      if (/^\d{1,3},\s*\d{1,3},\s*\d{1,3}$/.test(value)) return 'rgb(' + value + ')';
+      return value || color;
     }
 
-    get(BASE + 'chart/').then(function (d) {
-      var nodes = d.chart || [];
-      $tree.innerHTML = nodes.length
-        ? '<div class="org-children">' + nodes.map(nodeHtml).join('') + '</div>'
-        : '<div class="pen-empty"><p class="mb-0">سلسله‌مراتبی ثبت نشده (مدیر مستقیم برای کاربران تنظیم نشده است).</p></div>';
-      ($deps.innerHTML = (d.departments || []).map(function (dep) {
-        return '<div class="col-6 col-md-3"><div class="card card-h-100"><div class="card-body text-center">' +
-          '<h5 class="mb-0">' + window.persianNumbers(dep.count) + '</h5>' +
-          '<p class="mb-0 text-muted fs-14">' + esc(dep.department) + '</p></div></div></div>';
-      }).join('') || '');
+    // ApexTree receives actual CSS values in the purchased template's
+    // initialization. Resolve the same --dx-* tokens for the Django page.
+    function resolveTheme(value) {
+      if (typeof value === 'string') return value.indexOf('--dx-') === 0 ? getColor(value) : value;
+      if (Array.isArray(value)) return value.map(resolveTheme);
+      if (value && typeof value === 'object') {
+        var copy = {};
+        Object.keys(value).forEach(function (key) { copy[key] = resolveTheme(value[key]); });
+        return copy;
+      }
+      return value;
+    }
 
-      // wire toggles + profile clicks
-      $tree.querySelectorAll('.org-toggle').forEach(function (b) {
-        b.addEventListener('click', function () {
-          var t = document.querySelector(b.dataset.target);
-          if (t) t.classList.toggle('show');
-        });
-      });
-      $tree.querySelectorAll('.org-person').forEach(function (b) {
-        b.addEventListener('click', function () { openProfile(b.dataset.user); });
+    function nodeColor(depth) {
+      var colors = ['--dx-primary-bg-subtle', '--dx-orange-bg-subtle', '--dx-success-bg-subtle', '--dx-warning-bg-subtle', '--dx-pink-bg-subtle'];
+      return colors[Math.min(depth, colors.length - 1)];
+    }
+
+    function toTreeNode(node, depth) {
+      return {
+        id: String(node.id),
+        data: {
+          userId: String(node.id),
+          name: node.name || node.username || 'کاربر سازمانی',
+          jobTitle: node.job_title || '',
+          department: node.department || '',
+          imageURL: node.photo_url || defaultAvatar,
+        },
+        options: {
+          nodeBGColor: nodeColor(depth),
+          nodeBGColorHover: depth === 0 ? '--dx-primary-border-subtle' : '--dx-border-color',
+        },
+        children: (node.reports || []).map(function (child) { return toTreeNode(child, depth + 1); }),
+      };
+    }
+
+    function formatCount(value) {
+      return window.persianNumbers ? window.persianNumbers(value) : String(value);
+    }
+
+    function renderGroupFilters() {
+      $groups.innerHTML = groupRecords.map(function (group) {
+        var active = group.key === selectedGroup;
+        return '<button type="button" class="btn btn-sm org-group-filter' + (active ? ' is-active' : '') + '"' +
+          ' role="tab" aria-selected="' + (active ? 'true' : 'false') + '"' +
+          ' aria-controls="rightToLeftChart" data-org-group="' + esc(group.key) + '"' +
+          ' title="' + esc(group.description || group.label) + '">' +
+          '<i data-lucide="' + esc(group.icon || 'users') + '" class="size-4" aria-hidden="true"></i>' +
+          '<span>' + esc(group.label) + '</span>' +
+          '<span class="org-group-count">' + formatCount(group.count || 0) + '</span>' +
+          '</button>';
+      }).join('');
+      $groups.setAttribute('aria-busy', 'false');
+      $groups.querySelectorAll('[data-org-group]').forEach(function (button) {
+        button.addEventListener('click', function () { selectGroup(button.getAttribute('data-org-group')); });
       });
       icons();
-    }).catch(function (e) { $tree.innerHTML = '<div class="pen-empty">' + esc(e.message) + '</div>'; });
+    }
+
+    function selectGroup(key) {
+      var group = groupRecords.find(function (item) { return item.key === key; });
+      if (!group) return;
+      selectedGroup = group.key;
+      chartNodes = group.chart || [];
+      $activeCount.textContent = formatCount(group.count || 0) + ' نفر';
+      renderGroupFilters();
+      renderChart();
+    }
+
+    var chartOptions = {
+      contentKey: 'data',
+      width: '100%',
+      height: 600,
+      nodeWidth: 150,
+      nodeHeight: 70,
+      childrenSpacing: 70,
+      siblingSpacing: 30,
+      fontColor: '--dx-body-color',
+      borderColor: '--dx-border-color',
+      edgeColor: '--dx-border-color',
+      edgeColorHover: '--dx-primary',
+      tooltipBorderColor: '--dx-border-color',
+      direction: 'right',
+      nodeTemplate: function (content) {
+        var name = esc(content.name || 'کاربر سازمانی');
+        var title = esc(content.jobTitle || content.department || '');
+        var image = esc(content.imageURL || defaultAvatar);
+        return '<button type="button" class="org-apex-node" data-org-user="' + esc(content.userId) + '" aria-label="مشاهده پروفایل ' + name + '">' +
+          '<div class="d-flex flex-row justify-content-center align-items-center h-100 px-3 gap-2">' +
+          '<img class="rounded-circle size-10 flex-shrink-0" src="' + image + '" alt="' + name + '">' +
+          '<div class="min-w-0 text-start">' +
+          '<h6 class="mb-0 text-truncate">' + name + '</h6>' +
+          (title ? '<span class="d-block fs-13 text-muted text-truncate">' + title + '</span>' : '') +
+          '</div></div></button>';
+      },
+      canvasStyle: 'border: 1px solid var(--dx-border-color);background: var(--dx-secondary-bg);',
+    };
+
+    function renderChart() {
+      if (!chartNodes) return;
+      $tree.setAttribute('aria-busy', 'true');
+      $tree.innerHTML = '';
+      if (!chartNodes.length) {
+        $tree.setAttribute('aria-busy', 'false');
+        $tree.innerHTML = '<div class="pen-empty"><p class="mb-0">برای این گروه هنوز عضوی ثبت نشده است.</p></div>';
+        return;
+      }
+      if (typeof window.ApexTree !== 'function') {
+        $tree.setAttribute('aria-busy', 'false');
+        $tree.innerHTML = '<div class="pen-empty">کتابخانهٔ نمودار سازمانی بارگذاری نشد.</div>';
+        return;
+      }
+      var options = resolveTheme(chartOptions);
+      // Functions are intentionally restored after token resolution because a
+      // JSON-style clone would drop the node renderer.
+      options.nodeTemplate = chartOptions.nodeTemplate;
+      var data;
+      if (chartNodes.length === 1) {
+        data = resolveTheme(toTreeNode(chartNodes[0], 0));
+      } else {
+        data = resolveTheme({
+          id: 'pen-org-root',
+          data: { userId: 'pen-org-root', name: 'ساختار سازمانی', imageURL: defaultAvatar },
+          options: { nodeBGColor: '--dx-secondary-bg', nodeBGColorHover: '--dx-tertiary-bg' },
+          children: chartNodes.map(function (node) { return toTreeNode(node, 1); }),
+        });
+      }
+      new window.ApexTree($tree, options).render(data);
+      $tree.setAttribute('aria-busy', 'false');
+    }
+
+    $tree.addEventListener('click', function (event) {
+      var target = event.target.closest ? event.target.closest('[data-org-user]') : null;
+      if (target && target.getAttribute('data-org-user') !== 'pen-org-root') openProfile(target.getAttribute('data-org-user'));
+    });
+
+    get(BASE + 'chart/').then(function (d) {
+      groupRecords = d.groups || [{ key: 'all', label: 'همه اعضا', count: (d.chart || []).length, chart: d.chart || [], icon: 'network' }];
+      renderGroupFilters();
+      selectGroup(selectedGroup);
+    }).catch(function (e) {
+      $groups.setAttribute('aria-busy', 'false');
+      $groups.innerHTML = '';
+      $activeCount.textContent = '—';
+      $tree.setAttribute('aria-busy', 'false');
+      $tree.innerHTML = '<div class="pen-empty">' + esc(e.message) + '</div>';
+    });
+
+    function scheduleRender() {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(renderChart, 120);
+    }
+
+    window.addEventListener('resize', scheduleRender);
+    document.getElementById('darkModeButton')?.addEventListener('click', scheduleRender);
 
     function openProfile(id) {
       document.getElementById('profile-body').innerHTML = '<div class="pen-loading">در حال بارگذاری…</div>';
@@ -91,7 +218,7 @@
           row('سمت', esc(p.job_title || '—')) +
           row('کد پرسنلی', esc(p.employee_code || '—')) +
           row('مدیر مستقیم', p.manager ? '<a href="#" class="link-primary" data-user="' + esc(p.manager_id) + '">' + esc(p.manager) + '</a>' : '—') +
-          row('نوع شخص', esc(p.person_type_display || '—')) +
+          row('نوع کاربری', esc(p.person_type_display || '—')) +
           row('نقش‌ها', roles) +
           row('گروه‌ها', groups) +
           row('کارهای باز', window.persianNumbers(p.pending_tasks)) +
@@ -103,12 +230,6 @@
       }).catch(function (e) { document.getElementById('profile-body').innerHTML = '<div class="pen-empty">' + esc(e.message) + '</div>'; });
     }
 
-    document.getElementById('org-expand-all').addEventListener('click', function () {
-      $tree.querySelectorAll('.collapse').forEach(function (c) { c.classList.add('show'); });
-    });
-    document.getElementById('org-collapse-all').addEventListener('click', function () {
-      $tree.querySelectorAll('.collapse').forEach(function (c) { c.classList.remove('show'); });
-    });
   }
 
   // ── PERMISSIONS page (matrix + simulator) ───────────────────────────
@@ -282,7 +403,7 @@
   }
 
   // ── router: boot whichever page's root exists ───────────────────────
-  if (document.getElementById('org-tree')) bootChart();
+  if (document.getElementById('rightToLeftChart')) bootChart();
   else if (document.getElementById('matrix-wrap')) bootPermissions();
   else if (document.getElementById('perf-list')) bootResponsibilities();
   else if (document.getElementById('del-wrap')) bootDelegations();

@@ -6,19 +6,31 @@
 {% endblock %}
 
 {% block content %}
-{# ── Department cards ─────────────────────────────────────────────── #}
-<div class="row g-3 mb-4" id="org-departments"></div>
-
-<div class="card">
-  <div class="card-header d-flex align-items-center gap-2">
-    <h6 class="mb-0 card-title flex-grow-1">
-      <i data-lucide="network" class="size-4 me-1"></i> سلسله‌مراتب
-    </h6>
-    <button id="org-expand-all" class="btn btn-sm btn-light">بازکردن همه</button>
-    <button id="org-collapse-all" class="btn btn-sm btn-light">بستن همه</button>
-  </div>
-  <div class="card-body">
-    <div id="org-tree" aria-busy="false"></div>
+<div class="row">
+  <div class="col-12">
+    <div class="card card-h-100">
+      <div class="card-header">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <h6 class="card-title mb-0 flex-grow-1">نمودار سازمانی</h6>
+          <span id="org-active-count" class="badge bg-primary-subtle text-primary">در حال بارگذاری…</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="org-groups"
+             class="org-group-switcher d-flex flex-wrap gap-2 mb-3"
+             role="tablist"
+             aria-label="گروه‌های سازمانی"
+             aria-busy="true">
+          <div class="pen-loading py-2">در حال بارگذاری گروه‌ها…</div>
+        </div>
+        <div id="rightToLeftChart"
+             class="border border-light-subtle rounded-3"
+             data-avatar-default="{% static 'assets/images/avatar/user-45.png' %}"
+             aria-busy="true">
+          <div class="pen-loading">در حال بارگذاری نمودار…</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -42,5 +54,6 @@
 {% endblock %}
 
 {% block page_js %}
+<script src="{% static 'assets/libs/apextree/apextree.min.js' %}"></script>
 <script src="{% asset_v_url 'assets/pen/js/org.js' %}"></script>
 {% endblock %}

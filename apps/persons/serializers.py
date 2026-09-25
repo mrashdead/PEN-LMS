@@ -237,7 +237,6 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             "occupation": profile.occupation,
             "education_level": profile.education_level,
             "preferred_contact": profile.preferred_contact,
-            "is_primary": profile.is_primary,
         }
 
 

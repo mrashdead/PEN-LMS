@@ -253,10 +253,60 @@ html[data-sidebar="small"] .msg-badge-on-icon:not([hidden]) { display: inline-fl
 jdp-container { z-index: 1080 !important; }
 jdp-overlay   { z-index: 1075 !important; }
 
-/* ── Org chart tree ───────────────────────────────────────────────── */
-.org-children { padding-inline-start: 1.25rem; border-inline-start: 2px solid var(--dx-border-color); margin-inline-start: .5rem; }
-.org-node { margin: .25rem 0; }
-.org-node-row { padding: .25rem 0; }
+/* ── Org chart / ApexTree integration ─────────────────────────────── */
+.org-group-switcher { align-items: stretch; }
+.org-group-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  border-color: var(--dx-border-color);
+  color: var(--dx-secondary-color);
+  background: var(--dx-body-bg);
+}
+.org-group-filter:hover,
+.org-group-filter.is-active {
+  border-color: var(--dx-primary);
+  color: var(--dx-primary);
+  background: var(--dx-primary-bg-subtle);
+}
+.org-group-filter .org-group-count {
+  min-width: 1.35rem;
+  padding: .08rem .3rem;
+  border-radius: 999px;
+  color: var(--dx-secondary-color);
+  background: var(--dx-tertiary-bg);
+  font-size: .72rem;
+  line-height: 1.25;
+}
+.org-group-filter.is-active .org-group-count {
+  color: var(--dx-primary);
+  background: var(--dx-body-bg);
+}
+#rightToLeftChart { min-height: 600px; overflow: auto; }
+#rightToLeftChart #apexTreeWrapper { min-width: 100%; min-height: 600px; }
+#rightToLeftChart svg { display: block; max-width: none; }
+.org-apex-node {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+}
+.org-apex-node:hover { cursor: pointer; }
+.org-apex-node:focus-visible { outline: 2px solid var(--dx-primary); outline-offset: -3px; }
+.org-apex-node h6 { max-width: 8rem; }
+.org-apex-node .text-muted { max-width: 8rem; }
+@media (max-width: 575.98px) {
+  .org-group-switcher { flex-wrap: nowrap !important; overflow-x: auto; padding-bottom: .25rem; }
+  .org-group-filter { flex: 0 0 auto; }
+  #rightToLeftChart { min-height: 480px; }
+  #rightToLeftChart #apexTreeWrapper { min-height: 480px; }
+}
 
 /* ── Leads / placement workspace ─────────────────────────────────── */
 .lead-workspace { --lead-ink: #172033; --lead-muted: #738096; --lead-line: #e8ecf2; --lead-blue: #2f6fed; }

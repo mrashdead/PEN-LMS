@@ -30,7 +30,9 @@ from django.db import transaction
 from apps.accounts.models import Role
 from apps.workflow.models import State, Transition, WorkflowDefinition
 
-# (workflow_code, name) → list of (state_code, state_name, is_initial, is_final)
+# State specs may include an assignment policy as a fifth item.  An empty
+# policy preserves the legacy role-fanout behavior; new workflows should set
+# one explicitly so each step lands in a real individual/queue inbox.
 WORKFLOW_BLUEPRINTS: dict[str, dict[str, Any]] = {
     "form-approval": {
         "name": "تأیید فرم‌های آموزشی",
@@ -69,11 +71,34 @@ WORKFLOW_BLUEPRINTS: dict[str, dict[str, Any]] = {
         ],
         "transitions": [
             ("assess", "new", "assessed",
-             ["employee", "hr", "manager", "workflow_admin"], ""),
+             ["employee", "supervisor", "manager", "workflow_admin"], ""),
             ("enroll", "assessed", "enrolled",
-             ["employee", "hr", "manager", "workflow_admin"], "complete"),
+             ["employee", "supervisor", "manager", "workflow_admin"], "complete"),
             ("close", "assessed", "closed",
-             ["employee", "hr", "manager", "workflow_admin"], "reject"),
+             ["employee", "supervisor", "manager", "workflow_admin"], "reject"),
+        ],
+    },
+    "student-registration": {
+        "name": "ثبت‌نام دانش‌آموز",
+        "states": [
+            ("new", "درخواست جدید", True, False, {"strategy": "role", "roles": ["employee", "supervisor"], "fallback_roles": ["manager", "workflow_admin"]}),
+            ("capacity-check", "بررسی ظرفیت", False, False, {"strategy": "role", "roles": ["employee", "supervisor"], "fallback_roles": ["manager", "workflow_admin"]}),
+            ("financial-review", "بررسی مالی", False, False, {"strategy": "role", "roles": ["manager", "supervisor"], "fallback_roles": ["workflow_admin"]}),
+            ("manager-approval", "تأیید نهایی مدیر", False, False, {"strategy": "direct_manager", "fallback_roles": ["manager", "workflow_admin"]}),
+            ("changes-requested", "نیازمند اصلاح", False, False, {"strategy": "requester", "fallback_roles": ["employee", "manager"]}),
+            ("completed", "تکمیل‌شده", False, True),
+            ("rejected", "ردشده", False, True),
+        ],
+        "transitions": [
+            ("start-review", "new", "capacity-check", ["employee", "supervisor", "manager", "workflow_admin"], "submit"),
+            ("capacity-approved", "capacity-check", "financial-review", ["employee", "supervisor", "manager", "workflow_admin"], "complete"),
+            ("capacity-rejected", "capacity-check", "rejected", ["employee", "supervisor", "manager", "workflow_admin"], "reject"),
+            ("finance-approved", "financial-review", "manager-approval", ["supervisor", "manager", "workflow_admin"], "complete"),
+            ("finance-rejected", "financial-review", "rejected", ["supervisor", "manager", "workflow_admin"], "reject"),
+            ("approve", "manager-approval", "completed", ["manager", "supervisor", "workflow_admin"], "approve"),
+            ("reject", "manager-approval", "rejected", ["manager", "supervisor", "workflow_admin"], "reject"),
+            ("request-changes", "manager-approval", "changes-requested", ["manager", "supervisor", "workflow_admin"], "return"),
+            ("resubmit", "changes-requested", "capacity-check", ["employee", "manager", "supervisor", "workflow_admin"], "submit"),
         ],
     },
 }
@@ -98,7 +123,10 @@ class Command(BaseCommand):
             for _n, _f, _t, roles, *_rest in blueprint["transitions"]:
                 role_codes.update(roles)
         existing = set(Role.objects.filter(code__in=role_codes).values_list("code", flat=True))
-        missing = sorted(role_codes - existing)
+        # ``supervisor`` was introduced after the first deployment.  It is a
+        # valid optional role for newer installations, but old databases must
+        # still be able to run the seed command before that role is created.
+        missing = sorted((role_codes - existing) - {"supervisor"})
         if missing:
             problems.append(
                 f"missing role(s): {', '.join(missing)} — run `seed_roles` first."
@@ -127,24 +155,32 @@ class Command(BaseCommand):
 
         for code in wanted:
             blueprint = WORKFLOW_BLUEPRINTS[code]
-            definition, created = WorkflowDefinition.objects.get_or_create(
-                code=code,
-                defaults={
-                    "name": blueprint["name"],
-                    "is_active": True,
-                    "version": 1,
-                },
-            )
-            if created:
+            definition = WorkflowDefinition.objects.filter(
+                code=code, is_active=True,
+            ).first()
+            created = definition is None
+            if definition is None:
+                definition = WorkflowDefinition.objects.filter(
+                    code=code,
+                ).order_by("-version").first()
+            if definition is None:
+                definition = WorkflowDefinition.objects.create(
+                    code=code,
+                    name=blueprint["name"],
+                    is_active=True,
+                    version=1,
+                )
                 state = "created"
             else:
                 definition.is_active = True
                 definition.name = blueprint["name"]
                 definition.save(update_fields=["is_active", "name", "updated_at"])
-                state = "updated"
+                state = "updated" if not created else "reactivated"
 
             states: dict[str, State] = {}
-            for state_code, state_name, is_initial, is_final in blueprint["states"]:
+            for state_spec in blueprint["states"]:
+                state_code, state_name, is_initial, is_final = state_spec[:4]
+                assignment_policy = state_spec[4] if len(state_spec) > 4 else {}
                 state, _ = State.objects.get_or_create(
                     workflow_definition=definition,
                     code=state_code,
@@ -152,8 +188,15 @@ class Command(BaseCommand):
                         "name": state_name,
                         "is_initial": is_initial,
                         "is_final": is_final,
+                        "assignment_policy": assignment_policy,
                     },
                 )
+                if options["force"]:
+                    state.name = state_name
+                    state.is_initial = is_initial
+                    state.is_final = is_final
+                    state.assignment_policy = assignment_policy
+                    state.save(update_fields=["name", "is_initial", "is_final", "assignment_policy", "updated_at"])
                 states[state_code] = state
 
             for transition_spec in blueprint["transitions"]:

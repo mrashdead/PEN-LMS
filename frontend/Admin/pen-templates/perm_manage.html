@@ -10,9 +10,9 @@
   {# ── Person search ──────────────────────────────────────────────── #}
   <div class="col-12 col-lg-4">
     <div class="card">
-      <div class="card-header"><h6 class="mb-0 card-title"><i data-lucide="search" class="size-4 me-1"></i> جستجوی شخص</h6></div>
+      <div class="card-header"><h6 class="mb-0 card-title"><i data-lucide="search" class="size-4 me-1"></i> جستجوی فرد</h6></div>
       <div class="card-body">
-        <input type="search" id="pm-search" class="form-control mb-3" placeholder="نام، نام‌کاربری یا دپارتمان…" aria-label="جستجوی شخص">
+        <input type="search" id="pm-search" class="form-control mb-3" placeholder="نام، نام کاربری یا واحد سازمانی…" aria-label="جستجوی فرد">
         <div id="pm-users" class="vstack gap-2" style="max-height:60vh;overflow-y:auto" aria-busy="false">
           <div class="pen-loading">در حال بارگذاری…</div>
         </div>
@@ -24,7 +24,7 @@
   <div class="col-12 col-lg-8">
     <div id="pm-empty" class="card">
       <div class="card-body">
-        <div class="pen-empty"><i data-lucide="user-cog" class="size-8 opacity-50"></i><p class="mb-0 mt-2">یک شخص را از فهرست انتخاب کنید.</p></div>
+        <div class="pen-empty"><i data-lucide="user-cog" class="size-8 opacity-50"></i><p class="mb-0 mt-2">برای ادامه، فردی را از فهرست انتخاب کنید.</p></div>
       </div>
     </div>
 
@@ -56,7 +56,7 @@
         <div class="card-header d-flex align-items-center gap-2">
           <div class="flex-grow-1">
             <h6 class="mb-0 card-title"><i data-lucide="user-check" class="size-4 me-1"></i> دسترسی‌های صریح (ACL)</h6>
-            <p class="mb-0 text-muted fs-13">برای هر صفحه / فرم / ماژول، دقیقاً مشخص کنید این شخص چه فعلی دارد. اگر برای یک منبع دسترسی صریح تعریف شود، همان تصمیم نهایی است (نقش/گروه روی آن منبع لحاظ نمی‌شود).</p>
+            <p class="mb-0 text-muted fs-13">برای هر صفحه، فرم یا بخش، دسترسی این فرد را مشخص کنید. اگر برای بخشی دسترسی جداگانه‌ای تعیین شود، همان ملاک است و نقش‌ها یا گروه‌ها در آن بخش اعمال نمی‌شوند.</p>
           </div>
           <button id="acl-filter-clear" class="btn btn-sm btn-outline-secondary" type="button">پاک‌کردن فیلتر</button>
         </div>

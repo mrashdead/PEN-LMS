@@ -39,7 +39,9 @@ from apps.education.models import (
     Location,
 )
 
-_SAT = datetime.date(2026, 9, 19)  # a Saturday
+_today = datetime.date.today()
+_days_to_saturday = (5 - _today.weekday()) % 7
+_SAT = _today + datetime.timedelta(days=_days_to_saturday + 7)
 
 def _seed_roles():
     for code in ("manager", "workflow_admin", "employee", "teacher", "student", "hr"):
@@ -137,7 +139,12 @@ class FormationPrefillTests(TestCase):
         self.assertEqual(p.location_id, str(self.room.pk))
         self.assertEqual(p.teacher_id, str(self.teacher.pk))
         self.assertEqual(p.schedule["days"], ["sat", "wed"])
-        self.assertEqual(p.start_date, "۱۴۰۵/۰۶/۲۸")  # machine-parseable jalali input
+        from apps.core.utils import jalali_date_str, persian_numbers
+
+        self.assertEqual(
+            p.start_date,
+            persian_numbers(jalali_date_str(self.offering.start_date)),
+        )
         self.assertEqual(p.total_hours, 40)  # 20+20
 
     def test_lessons_are_the_offering_curriculum(self):
@@ -328,7 +335,7 @@ class FormationConflictTests(TestCase):
         self.assertEqual([s.session_number for s in rows], [1, 2, 3])
         dates = [s.session_date for s in rows]
         self.assertNotIn(_SAT, dates)
-        self.assertEqual(dates[0], datetime.date(2026, 9, 23))  # next wed
+        self.assertEqual(dates[0], _SAT + datetime.timedelta(days=4))  # next wed
 
     def test_reform_same_code_needs_regenerate(self):
         from apps.education.class_formation import form_class

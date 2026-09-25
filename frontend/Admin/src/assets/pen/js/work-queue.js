@@ -1,176 +1,183 @@
 /*
- * Pen LMS — کارهای من (work queue / cartable).
+ * Pen LMS — unified work queue.
  *
- * Task-oriented UI over the existing tasks API: the user sees "work waiting
- * for me", never WorkflowTask/Instance vocabulary. Tabs:
- *   pending → در حال انجام      (status=pending)
- *   soon    → نزدیک سررسید      (pending, due within 48h)
- *   overdue → تأخیرکرده         (overdue=true)
- *   drafts  → پیش‌نویس‌ها        (my draft form submissions)
- *   done    → انجام‌شده          (status=completed)
- * Each card links to the request detail (/workspace/requests/?id=…).
- * SLA coloring: server is_overdue + due window → badge text + color + icon.
+ * The inbox is backed by the same Request aggregate used by the request
+ * page. Assigned WorkflowTask rows are only the operational projection that
+ * tells us whose turn it is; drafts and completed requests stay in the same
+ * response so the UI has one contract and one vocabulary.
  */
 (function () {
   'use strict';
 
-  var TASKS = '/api/tasks/';
-  var FORMS = '/api/forms/submissions/?status=draft&ordering=-created_at';
-  var CSRF = window.getCookie ? window.getCookie('csrftoken') : '';
-
+  var API = '/api/forms/my-work/';
   var tab = 'pending';
-  var q = '';
+  var query = '';
+  var snapshot = { requests: [], tasks: [] };
   var $list = document.getElementById('wq-list');
   var $search = document.getElementById('wq-search');
 
-  function esc(s) { return window.htmlEscape ? window.htmlEscape(s) : (s == null ? '' : String(s)); }
+  var STATUS_LABELS = {
+    draft: 'پیش‌نویس', submitted: 'ارسال‌شده', in_review: 'در بررسی',
+    awaiting_action: 'منتظر اقدام', changes_requested: 'نیازمند اصلاح',
+    approved: 'تأییدشده', rejected: 'ردشده', cancelled: 'لغوشده',
+    completed: 'تکمیل‌شده', archived: 'بایگانی‌شده',
+  };
+  var STATUS_BADGES = {
+    draft: 'pen-badge-draft', submitted: 'pen-badge-submitted',
+    in_review: 'pen-badge-processing', awaiting_action: 'pen-badge-processing',
+    changes_requested: 'pen-badge-processing', approved: 'pen-badge-approved',
+    rejected: 'pen-badge-rejected', cancelled: 'pen-badge-archived',
+    completed: 'pen-badge-approved', archived: 'pen-badge-archived',
+  };
+
+  function esc(value) {
+    return window.htmlEscape ? window.htmlEscape(value) : String(value == null ? '' : value)
+      .replace(/[&<>"']/g, function (ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[ch];
+      });
+  }
+
   function headers() { return window.penCsrfHeader ? window.penCsrfHeader() : {}; }
+  function icons() { if (window.penRenderIcons) window.penRenderIcons(); }
+  function statusLabel(value) { return STATUS_LABELS[value] || value || '—'; }
+  function statusBadge(value) { return STATUS_BADGES[value] || 'pen-badge-draft'; }
 
-  function slaInfo(t) {
-    // returns {cls, icon, text} — color is never the only signal
-    if (t.is_overdue) return { cls: 'bg-danger-subtle text-danger', icon: 'alarm-minus', text: 'تأخیرکرده' };
-    if (!t.due_date) return { cls: 'bg-secondary-subtle text-secondary', icon: 'infinity', text: 'بدون سررسید' };
-    var due = new Date(String(t.due_date).replace(' ', 'T'));
-    if (isNaN(due.getTime())) return { cls: 'bg-secondary-subtle text-secondary', icon: 'clock', text: '' };
-    var hrs = (due.getTime() - Date.now()) / 3600000;
-    if (hrs <= 48) return { cls: 'bg-warning-subtle text-warning', icon: 'clock-3', text: 'نزدیک سررسید' };
-    return { cls: 'bg-success-subtle text-success', icon: 'check-circle', text: 'در محدوده' };
-  }
-
-  function cardForTask(t) {
-    var sla = slaInfo(t);
-    var stateLabel = ({ pending: 'در انتظار اقدام', completed: 'انجام شد', skipped: 'رد شد' })[t.status] || t.status;
-    return '<a class="card wq-card text-decoration-none" href="/workspace/requests/?id=' + encodeURIComponent(t.instance_id) + '">' +
-      '<div class="card-body d-flex flex-wrap align-items-center gap-3 py-3">' +
-      '<div class="avatar size-11 rounded bg-primary-subtle text-primary flex-shrink-0"><i data-lucide="clipboard-list" class="size-5"></i></div>' +
-      '<div class="flex-grow-1 overflow-hidden">' +
-      '<div class="fw-semibold text-truncate">' + esc(t.instance_title || 'بدون عنوان') + '</div>' +
-      '<div class="fs-13 text-muted">' + esc(stateLabel) + ' · مرحله: ' + esc(t.state_code || '—') + '</div>' +
-      '</div>' +
-      '<div class="text-start">' +
-      (sla.text ? '<span class="badge ' + sla.cls + ' mb-1"><i data-lucide="' + sla.icon + '" class="size-3 me-1"></i>' + sla.text + '</span>' : '') +
-      '<div class="fs-13 text-muted">سررسید: ' + esc(t.due_date || '—') + '</div>' +
-      '</div>' +
-      '<i data-lucide="chevron-left" class="size-4 text-muted"></i>' +
-      '</div></a>';
-  }
-
-  function cardForDraft(s) {
-    return '<a class="card wq-card text-decoration-none" href="/forms/submissions/' + encodeURIComponent(s.id) + '/edit/">' +
-      '<div class="card-body d-flex flex-wrap align-items-center gap-3 py-3">' +
-      '<div class="avatar size-11 rounded bg-secondary-subtle text-secondary flex-shrink-0"><i data-lucide="file-pen" class="size-5"></i></div>' +
-      '<div class="flex-grow-1 overflow-hidden">' +
-      '<div class="fw-semibold text-truncate">' + esc(s.form_schema_title || s.form_schema || 'فرم') + '</div>' +
-      '<div class="fs-13 text-muted">پیش‌نویس · ' + esc(s.created_at || '') + '</div>' +
-      '</div>' +
-      '<span class="pen-badge pen-badge-draft">پیش‌نویس</span>' +
-      '<i data-lucide="chevron-left" class="size-4 text-muted"></i>' +
-      '</div></a>';
+  function fetchJson(url) {
+    return fetch(url, { credentials: 'same-origin', headers: headers() }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (body) {
+        if (!response.ok) throw new Error(body.error || body.detail || ('خطا (' + response.status + ')'));
+        return body;
+      });
+    });
   }
 
   function setLoading() {
-    $list.innerHTML = '<div class="pen-loading">در حال بارگذاری…</div>';
-  }
-  function setEmpty(msg) {
-    $list.innerHTML = '<div class="card"><div class="pen-empty"><i data-lucide="check-circle-2" class="size-8 opacity-50"></i><p class="mb-0 mt-2">' + esc(msg) + '</p></div></div>';
-    if (window.penRenderIcons) window.penRenderIcons();
+    $list.setAttribute('aria-busy', 'true');
+    $list.innerHTML = '<div class="pen-loading">در حال بارگذاری کارهای شما…</div>';
   }
 
-  function qs(params) {
-    return new URLSearchParams(params).toString();
+  function setEmpty(message) {
+    $list.innerHTML = '<div class="card"><div class="pen-empty"><i data-lucide="check-circle-2" class="size-8 opacity-50"></i><p class="mb-0 mt-2">' + esc(message) + '</p></div></div>';
+    icons();
   }
 
-  function matches(t) {
-    if (!q) return true;
-    var hay = ((t.instance_title || '') + ' ' + (t.state_code || '') + ' ' + (t.workflow_definition_code || '')).toLowerCase();
-    return hay.indexOf(q.toLowerCase()) !== -1;
+  function searchable(value) {
+    return String(value || '').toLowerCase().indexOf(query.toLowerCase()) !== -1;
   }
 
-  function loadTasks(params) {
-    return fetch(TASKS + '?' + qs(params), { credentials: 'same-origin', headers: headers() })
-      .then(function (r) { return r.ok ? r.json() : r.json().then(function (b) { throw new Error(b.detail || ('HTTP ' + r.status)); }); });
+  function requestTitle(request) {
+    return request.request_type_title || request.request_type_code || 'درخواست';
   }
 
-  function loadDrafts() {
-    return fetch(FORMS, { credentials: 'same-origin', headers: headers() })
-      .then(function (r) { return r.ok ? r.json() : { results: [] }; });
+  function requestHref(requestId) {
+    return requestId ? '/workspace/requests/?id=' + encodeURIComponent(requestId) : '/workspace/requests/';
+  }
+
+  function cardForTask(task) {
+    var due = task.due_date ? 'سررسید: ' + task.due_date : 'بدون سررسید';
+    var tone = task.is_overdue ? 'text-danger' : 'text-muted';
+    return '<a class="card text-decoration-none wq-card" href="' + requestHref(task.request_id) + '">' +
+      '<div class="card-body d-flex flex-wrap align-items-center gap-3 py-3">' +
+      '<div class="avatar size-10 rounded bg-warning-subtle text-warning flex-shrink-0"><i data-lucide="clipboard-check" class="size-5"></i></div>' +
+      '<div class="flex-grow-1 overflow-hidden"><div class="fw-semibold text-truncate">' + esc(task.instance_title || 'کار گردش‌کار') + '</div>' +
+      '<div class="fs-13 text-muted">مرحله: ' + esc(task.state_code || '—') + ' · فرآیند: ' + esc(task.workflow_definition_code || '—') + '</div>' +
+      '<div class="fs-13 ' + tone + '">' + esc(due) + '</div></div>' +
+      '<span class="pen-badge ' + (task.is_overdue ? 'pen-badge-rejected' : 'pen-badge-processing') + '">' + (task.is_overdue ? 'تأخیرکرده' : 'منتظر اقدام') + '</span>' +
+      '<i data-lucide="chevron-left" class="size-4 text-muted"></i></div></a>';
+  }
+
+  function cardForRequest(request) {
+    return '<a class="card text-decoration-none wq-card" href="' + requestHref(request.id) + '">' +
+      '<div class="card-body d-flex flex-wrap align-items-center gap-3 py-3">' +
+      '<div class="avatar size-10 rounded bg-primary-subtle text-primary flex-shrink-0"><i data-lucide="file-clock" class="size-5"></i></div>' +
+      '<div class="flex-grow-1 overflow-hidden"><div class="fw-semibold text-truncate">' + esc(requestTitle(request)) + '</div>' +
+      '<div class="fs-13 text-muted">' + esc(request.tracking_number || request.request_number || request.id) + ' · ' + esc(request.current_state_title || request.current_state_code || 'پیش‌نویس') + '</div>' +
+      '<div class="fs-13 text-muted">' + esc(request.created_at || '—') + '</div></div>' +
+      '<span class="pen-badge ' + statusBadge(request.status) + '">' + esc(statusLabel(request.status)) + '</span>' +
+      '<i data-lucide="chevron-left" class="size-4 text-muted"></i></div></a>';
+  }
+
+  function matchesTask(task) {
+    return !query || searchable(task.instance_title) || searchable(task.state_code) || searchable(task.workflow_definition_code);
+  }
+
+  function matchesRequest(request) {
+    return !query || searchable(requestTitle(request)) || searchable(request.request_number) || searchable(request.current_state_code);
+  }
+
+  function dueWithin48Hours(task) {
+    if (!task.due_date || task.is_overdue) return false;
+    var due = new Date(String(task.due_date).replace(' ', 'T'));
+    return !isNaN(due.getTime()) && (due.getTime() - Date.now()) / 3600000 <= 48;
   }
 
   function render() {
     setLoading();
-    var p;
-    if (tab === 'pending') p = { status: 'pending', ordering: 'due_date' };
-    else if (tab === 'soon') p = { status: 'pending', ordering: 'due_date' };
-    else if (tab === 'overdue') p = { status: 'pending', overdue: 'true', ordering: 'due_date' };
-    else if (tab === 'done') p = { status: 'completed', ordering: '-created_at' };
-    else p = null;
-
-    if (tab === 'drafts') {
-      loadDrafts().then(function (d) {
-        var rows = (d.results || []).filter(function (s) {
-          return !q || ((s.form_schema_title || s.form_schema || '')).toLowerCase().indexOf(q.toLowerCase()) !== -1;
-        });
-        if (!rows.length) return setEmpty('پیش‌نویسی ندارید.');
-        $list.innerHTML = rows.map(cardForDraft).join('');
-      }).catch(function (e) { $list.innerHTML = '<div class="pen-empty">' + esc(e.message) + '</div>'; })
-        .finally(function () { if (window.penRenderIcons) window.penRenderIcons(); });
+    var rows = [];
+    if (tab === 'pending') rows = snapshot.tasks.filter(matchesTask);
+    if (tab === 'soon') rows = snapshot.tasks.filter(function (task) { return dueWithin48Hours(task) && matchesTask(task); });
+    if (tab === 'overdue') rows = snapshot.tasks.filter(function (task) { return task.is_overdue && matchesTask(task); });
+    if (tab === 'drafts') rows = snapshot.requests.filter(function (request) { return request.status === 'draft' && matchesRequest(request); });
+    if (tab === 'done') rows = snapshot.requests.filter(function (request) {
+      return ['completed', 'approved', 'rejected', 'cancelled', 'archived'].indexOf(request.status) !== -1 && matchesRequest(request);
+    });
+    if (!rows.length) {
+      setEmpty(tab === 'done' ? 'هنوز درخواست تکمیل‌شده‌ای در فهرست شما نیست.' : 'کاری منتظر شما نیست — عالی!');
       return;
     }
-
-    loadTasks(p || {}).then(function (d) {
-      var rows = (d.results || []).filter(matches);
-      if (tab === 'soon') {
-        // keep only items due within 48h (server has no window filter)
-        rows = rows.filter(function (t) {
-          if (!t.due_date || t.is_overdue) return false;
-          var due = new Date(String(t.due_date).replace(' ', 'T'));
-          return !isNaN(due.getTime()) && (due.getTime() - Date.now()) / 3600000 <= 48;
-        });
-      }
-      if (tab === 'overdue') rows = rows.filter(function (t) { return t.is_overdue; });
-      if (!rows.length) return setEmpty(tab === 'done' ? 'کاری انجام‌نشده دارید؟ همه انجام شده!' : 'کاری منتظر شما نیست — عالی!');
-      $list.innerHTML = rows.map(cardForTask).join('');
-    }).catch(function (e) {
-      $list.innerHTML = '<div class="pen-empty">' + esc(e.message) + '</div>';
-    }).finally(function () { if (window.penRenderIcons) window.penRenderIcons(); });
+    $list.innerHTML = rows.map(function (row) {
+      return tab === 'drafts' || tab === 'done' ? cardForRequest(row) : cardForTask(row);
+    }).join('');
+    $list.removeAttribute('aria-busy');
+    icons();
   }
 
-  function loadKpis() {
-    // one call each; failures leave dash placeholders
-    var set = function (id, v) { var el = document.getElementById(id); if (el) el.textContent = window.persianNumbers(v); };
-    loadTasks({ status: 'pending' }).then(function (d) {
-      var rows = d.results || [];
-      set('kpi-open', d.count != null ? d.count : rows.length);
-      var soon = 0, overdue = 0;
-      rows.forEach(function (t) {
-        if (t.is_overdue) overdue++;
-        else if (t.due_date) {
-          var due = new Date(String(t.due_date).replace(' ', 'T'));
-          if (!isNaN(due.getTime()) && (due.getTime() - Date.now()) / 3600000 <= 48) soon++;
-        }
+  function setKpi(id, value) {
+    var element = document.getElementById(id);
+    if (element) element.textContent = window.persianNumbers ? window.persianNumbers(value) : value;
+  }
+
+  function load() {
+    setLoading();
+    fetchJson(API).then(function (data) {
+      snapshot.requests = data.requests || [];
+      snapshot.tasks = data.tasks || [];
+      var soon = snapshot.tasks.filter(dueWithin48Hours).length;
+      var overdue = snapshot.tasks.filter(function (task) { return task.is_overdue; }).length;
+      setKpi('kpi-open', snapshot.tasks.length);
+      setKpi('kpi-soon', soon);
+      setKpi('kpi-overdue', overdue);
+      setKpi('kpi-drafts', snapshot.requests.filter(function (request) { return request.status === 'draft'; }).length);
+      render();
+    }).catch(function (error) {
+      $list.innerHTML = '<div class="alert alert-danger" role="alert">' + esc(error.message) + '</div>';
+      $list.removeAttribute('aria-busy');
+    }).finally(icons);
+  }
+
+  document.querySelectorAll('[data-tab]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      document.querySelectorAll('[data-tab]').forEach(function (item) {
+        item.classList.remove('active');
+        item.setAttribute('aria-selected', 'false');
       });
-      set('kpi-soon', soon);
-      set('kpi-overdue', overdue);
-    }).catch(function () { });
-    loadDrafts().then(function (d) { set('kpi-drafts', d.count != null ? d.count : (d.results || []).length); }).catch(function () { });
-  }
-
-  // tabs
-  document.querySelectorAll('[data-tab]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('[data-tab]').forEach(function (b) { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
-      btn.classList.add('active');
-      btn.setAttribute('aria-selected', 'true');
-      tab = btn.dataset.tab;
+      button.classList.add('active');
+      button.setAttribute('aria-selected', 'true');
+      tab = button.dataset.tab;
       render();
     });
   });
 
-  var timer = null;
-  $search.addEventListener('input', function () {
-    clearTimeout(timer);
-    timer = setTimeout(function () { q = $search.value.trim(); render(); }, 250);
-  });
+  if ($search) {
+    var timer = null;
+    $search.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        query = $search.value.trim();
+        render();
+      }, 250);
+    });
+  }
 
-  if ($list) { render(); loadKpis(); }
+  if ($list) load();
 })();

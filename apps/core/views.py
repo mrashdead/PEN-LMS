@@ -1,16 +1,39 @@
 from __future__ import annotations
 
+import logging
+
 from django.contrib import messages
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView
 from django.core.exceptions import PermissionDenied
+from django.db import DatabaseError, connection
+from django.http import JsonResponse
 from django.shortcuts import redirect, resolve_url
 from django.urls import reverse_lazy
 from django.views.generic import TemplateView
 
 from apps.core.utils import english_numbers
 from apps.core.login_security import blocked, clear_failures, record_failure
+
+logger = logging.getLogger(__name__)
+
+
+def healthz(request):
+    """Process liveness check. Deliberately does not depend on the database."""
+    return JsonResponse({"status": "ok"})
+
+
+def readyz(request):
+    """Readiness check that verifies the primary database is reachable."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    except DatabaseError:
+        logger.exception("readiness check failed: database unavailable")
+        return JsonResponse({"status": "not_ready", "database": "unavailable"}, status=503)
+    return JsonResponse({"status": "ready", "database": "ok"})
 
 
 SELF_PASSWORD_ROLES = {"manager", "workflow_admin", "supervisor", "employee"}

@@ -50,6 +50,7 @@ from apps.education.models import (
     CourseOffering,
     Department,
     EnrollmentWaitlist,
+    EnrollmentRefund,
     Lesson,
     Location,
     OfferingEnrollment,
@@ -75,6 +76,10 @@ from apps.education.services import (
     CapacityExceededError,
     EducationServiceError,
     bulk_attendance,
+    create_offering_enrollment,
+    convert_offering_enrollment_to_class,
+    process_enrollment_refund,
+    request_enrollment_refund,
     create_session,
     enroll_student,
     generate_sessions,
@@ -399,9 +404,20 @@ class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
         offering = serializer.validated_data["offering"]
         student = serializer.validated_data["student"]
         lead = serializer.validated_data.get("lead")
-        # capacity first (row lock) — refuse before writing the money record
         try:
-            enroll_student(offering=offering, student=student, actor=request.user)
+            enrollment = create_offering_enrollment(
+                offering=offering,
+                student=student,
+                actor=request.user,
+                course_amount=serializer.validated_data.get("course_amount"),
+                discount_type=serializer.validated_data.get("discount_type", OfferingEnrollment.DiscountType.NONE),
+                discount_value=serializer.validated_data.get("discount_value", 0),
+                payment_method=serializer.validated_data.get("payment_method", OfferingEnrollment.PaymentMethod.CASH),
+                cheque_count=serializer.validated_data.get("cheque_count", 0),
+                cheques=serializer.validated_data.get("cheques") or [],
+                reference=serializer.validated_data.get("reference", ""),
+                enrolled_at=serializer.validated_data.get("enrolled_at"),
+            )
         except CapacityExceededError:
             entry = place_on_waitlist(offering=offering, student=student, actor=request.user)
             return Response({
@@ -411,7 +427,6 @@ class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
             }, status=status.HTTP_202_ACCEPTED)
         except EducationServiceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        enrollment = serializer.save()
         if lead is not None:
             lead.enrolled_person = student
             lead.status = Lead.Status.ENROLLED
@@ -425,6 +440,73 @@ class OfferingEnrollmentDetailView(generics.RetrieveUpdateAPIView):
     queryset = OfferingEnrollment.objects.filter(is_deleted=False).select_related(
         "offering", "offering__course", "student"
     )
+
+
+class OfferingEnrollmentConvertToClassView(APIView):
+    """Create the final ClassEnrollment after a class group is formed."""
+
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
+
+    def post(self, request, pk):
+        enrollment = OfferingEnrollment.objects.filter(pk=pk, is_deleted=False).first()
+        if enrollment is None:
+            return Response({"error": "ثبت‌نام یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        from apps.academics.models import ClassGroup
+
+        class_group = ClassGroup.objects.filter(
+            pk=request.data.get("class_group"), is_deleted=False,
+        ).first()
+        if class_group is None:
+            return Response({"class_group": "کلاس معتبر یافت نشد."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            membership = convert_offering_enrollment_to_class(
+                enrollment=enrollment,
+                class_group=class_group,
+                actor=request.user,
+            )
+        except EducationServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            "offering_enrollment": str(enrollment.pk),
+            "class_enrollment": str(membership.pk),
+        }, status=status.HTTP_200_OK)
+
+
+class OfferingEnrollmentRefundView(APIView):
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
+
+    def post(self, request, pk):
+        enrollment = OfferingEnrollment.objects.filter(pk=pk, is_deleted=False).first()
+        if enrollment is None:
+            return Response({"error": "ثبت‌نام یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            refund = request_enrollment_refund(
+                enrollment=enrollment,
+                amount=request.data.get("amount"),
+                requested_by=request.user,
+                reason=request.data.get("reason", ""),
+            )
+        except (EducationServiceError, TypeError, ValueError) as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(EnrollmentRefundSerializer(refund).data, status=status.HTTP_201_CREATED)
+
+
+class EnrollmentRefundProcessView(APIView):
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
+
+    def post(self, request, pk):
+        refund = EnrollmentRefund.objects.filter(pk=pk, is_deleted=False).first()
+        if refund is None:
+            return Response({"error": "درخواست عودت یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            refund = process_enrollment_refund(
+                refund=refund,
+                processor=request.user,
+                reference=request.data.get("reference", ""),
+            )
+        except EducationServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(EnrollmentRefundSerializer(refund).data)
 
 
 class EnrollmentSoftDeleteView(SoftDeleteView):

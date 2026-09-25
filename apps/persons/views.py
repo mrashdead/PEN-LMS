@@ -305,9 +305,7 @@ class GuardianLinkView(views.APIView):
                 "relation_display": link.get_relation_display(),
                 "custody_status": link.custody_status,
                 "custody_display": link.get_custody_status_display(),
-                "is_primary": bool(
-                    getattr(g, "guardian_profile", None) and g.guardian_profile.is_primary
-                ),
+                "is_primary": link.is_primary,
                 "can_submit_requests": link.can_submit_requests,
                 "can_receive_billing": link.can_receive_billing,
                 "is_active": link.is_active,
@@ -357,6 +355,11 @@ class GuardianLinkView(views.APIView):
         if custody not in dict(StudentGuardian.Custody.choices).keys():
             custody = StudentGuardian.Custody.UNDER_CUSTODY
         with transaction.atomic():
+            is_primary = bool(request.data.get("is_primary"))
+            if is_primary:
+                StudentGuardian.objects.filter(
+                    student=student, is_primary=True, is_deleted=False,
+                ).exclude(guardian=guardian).update(is_primary=False)
             link, _ = StudentGuardian.objects.update_or_create(
                 student=student, guardian=guardian, is_deleted=False,
                 defaults={
@@ -369,6 +372,7 @@ class GuardianLinkView(views.APIView):
                     "can_receive_billing": bool(
                         request.data.get("can_receive_billing", False)
                     ),
+                    "is_primary": is_primary,
                     "is_active": True,
                 },
             )
@@ -379,10 +383,5 @@ class GuardianLinkView(views.APIView):
                     person=guardian, type_code=Person.Type.GUARDIAN,
                     assigned_by=request.user, provision_user_roles=True,
                 )
-            GuardianProfile.objects.get_or_create(
-                person=guardian,
-                defaults={"is_primary": bool(request.data.get("is_primary"))},
-            )
-            if request.data.get("is_primary"):
-                GuardianProfile.objects.filter(person=guardian).update(is_primary=True)
+            GuardianProfile.objects.get_or_create(person=guardian)
         return Response({"detail": "تکفل ذخیره شد.", "id": str(link.pk)}, status=status.HTTP_201_CREATED)

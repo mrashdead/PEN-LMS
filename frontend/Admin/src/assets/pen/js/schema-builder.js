@@ -398,6 +398,7 @@
       slug: document.getElementById('b-slug').value.trim(),
       title: document.getElementById('b-title').value.trim(),
       description: document.getElementById('b-description').value.trim(),
+      request_type_code: (document.getElementById('b-request-type') || {}).value || '',
       version: parseInt(document.getElementById('b-version').value, 10) || 1,
       is_active: true,
       fields: fields.map(cleanField),

@@ -31,6 +31,10 @@ from apps.persons.models import (
     StudentProfile,
 )
 
+_today = datetime.date.today()
+_days_to_saturday = (5 - _today.weekday()) % 7
+_FUTURE_SATURDAY = _today + datetime.timedelta(days=_days_to_saturday + 7)
+
 _nc = iter(range(700000000, 799999999))
 
 def _next_nc() -> str:
@@ -193,7 +197,9 @@ class StudentOnboardingAtomicTests(TestCase):
         self.assertEqual(StudentGuardian.objects.filter(student=student).count(), 2)
         father = student.guardians.filter(relation="father").first().guardian
         self.assertEqual(father.person_type, Person.Type.GUARDIAN)
-        self.assertTrue(father.guardian_profile.is_primary)
+        self.assertTrue(StudentGuardian.objects.get(
+            student=student, guardian=father,
+        ).is_primary)
         self.assertIsNone(father.user)  # guardians get login later, not here
         # a non-standard custody status flagged the student profile, and the
         # chosen custody value landed on the link itself
@@ -357,7 +363,7 @@ class SessionEngineTests(TestCase):
         self.room = Location.objects.create(name="کلاس ۱", capacity=30)
         self.offering = CourseOffering.objects.create(
             course=self.course, title="هندسه ۱",
-            start_date=datetime.date(2026, 9, 19),          # a Saturday
+            start_date=_FUTURE_SATURDAY,
             location=self.room,
             schedule={"days": ["sat", "tue"], "start": "16:00", "end": "17:30"},
         )
@@ -385,17 +391,18 @@ class SessionEngineTests(TestCase):
         from apps.education.models import AcademicHoliday
         from apps.education.services import generate_sessions
 
-        # institute closure over the FIRST scheduled Saturday (2026-09-19)
+        # institute closure over the first scheduled Saturday.
         AcademicHoliday.objects.create(
             name="مراسه", scope="institute",
-            date_from=datetime.date(2026, 9, 19), date_to=datetime.date(2026, 9, 20),
+            date_from=_FUTURE_SATURDAY,
+            date_to=_FUTURE_SATURDAY + datetime.timedelta(days=1),
         )
         result = generate_sessions(offering=self.offering, count=4)
         self.assertEqual(result["created"], 4)
         dates = [s.session_date for s in self._sessions()]
-        self.assertNotIn(datetime.date(2026, 9, 19), dates)
+        self.assertNotIn(_FUTURE_SATURDAY, dates)
         self.assertEqual([s.session_number for s in self._sessions()], [1, 2, 3, 4])
-        self.assertEqual(dates[0], datetime.date(2026, 9, 22))  # next tue
+        self.assertEqual(dates[0], _FUTURE_SATURDAY + datetime.timedelta(days=3))
 
     def test_room_conflict_strict_raises_and_keeps_nothing(self):
         from apps.education.models import ClassSession, CourseOffering
@@ -404,10 +411,10 @@ class SessionEngineTests(TestCase):
         # another class holds the room on the first slot (different offering)
         other = CourseOffering.objects.create(
             course=self.course, title="دیگر", location=self.room,
-            start_date=datetime.date(2026, 9, 19),
+            start_date=_FUTURE_SATURDAY,
         )
         ClassSession.objects.create(
-            offering=other, session_date=datetime.date(2026, 9, 19),
+            offering=other, session_date=_FUTURE_SATURDAY,
             start_time="16:00", end_time="17:30", location=self.room,
             session_number=1,
         )
@@ -421,10 +428,10 @@ class SessionEngineTests(TestCase):
 
         other = CourseOffering.objects.create(
             course=self.course, title="دیگر", location=self.room,
-            start_date=datetime.date(2026, 9, 19),
+            start_date=_FUTURE_SATURDAY,
         )
         ClassSession.objects.create(
-            offering=other, session_date=datetime.date(2026, 9, 19),
+            offering=other, session_date=_FUTURE_SATURDAY,
             start_time="16:00", end_time="17:30", location=self.room,
             session_number=1,
         )
@@ -432,8 +439,8 @@ class SessionEngineTests(TestCase):
         self.assertEqual(result["created"], 3)
         self.assertEqual(len(result["pushed"]), 1)
         dates = [s.session_date for s in self._sessions()]
-        self.assertIn(datetime.date(2026, 9, 26), dates)   # pushed +7d, same weekday
-        self.assertNotIn(datetime.date(2026, 9, 19), dates)
+        self.assertIn(_FUTURE_SATURDAY + datetime.timedelta(days=7), dates)
+        self.assertNotIn(_FUTURE_SATURDAY, dates)
 
     def test_regenerate_is_idempotent_rerun(self):
         from apps.education.services import generate_sessions

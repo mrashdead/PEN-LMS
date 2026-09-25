@@ -13,8 +13,13 @@
   if (!form) return;
 
   var CSRF = window.getCookie ? window.getCookie('csrftoken') : '';
-  var draftId = ctx.submissionId || null; // filled in after first save
-  var editing = function () { return !!draftId; };  // ── helpers ─────────────────────────────────────────────────────────
+  var draftId = ctx.submissionId || null; // submission id, used by attachments
+  var requestId = ctx.requestId || null; // canonical business request id
+  var createIdempotencyKey = ctx.createIdempotencyKey ||
+    ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random());
+  var editing = function () { return !!requestId || !!draftId; };
+  var usingUnifiedRequest = function () { return !!requestId || !draftId; };
+  // ── helpers ─────────────────────────────────────────────────────────
   var dirty = false;
   var saving = false;
   var saveStatus = document.getElementById('draft-save-status');
@@ -439,16 +444,18 @@
       return Promise.resolve(draftId);
     }
     var payload = { schema_slug: ctx.schemaSlug, data: collect() };
-    return postJson('/api/forms/submissions/', payload, 'POST').then(function (res) {
+    return postJson('/api/forms/requests/', payload, 'POST', createIdempotencyKey).then(function (res) {
       if (!res.ok) {
         showFieldErrors(extractErrors(res.body));
         throw new Error('ذخیره خودکار پیش‌نویس ناموفق بود');
       }
-      draftId = res.body.id;
+      requestId = res.body.id;
+      draftId = res.body.submission_id || null;
+      ctx.requestId = requestId;
       ctx.submissionId = draftId;
-      ctx.attachmentsEndpoint = '/api/forms/submissions/' + draftId + '/attachments/';
+      if (draftId) ctx.attachmentsEndpoint = '/api/forms/submissions/' + draftId + '/attachments/';
       // Point the draft button at PATCH so a later click doesn't duplicate.
-      return draftId;
+      return requestId;
     });
   }
 
@@ -553,14 +560,15 @@
 
   // ── submit / draft ──────────────────────────────────────────────────
 
-  function postJson(url, body, method) {
+  function postJson(url, body, method, idempotencyKey) {
     return fetch(url, {
       method: method || 'POST',
       credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRFToken': CSRF,
-        'Idempotency-Key': (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random()),
+        'Idempotency-Key': idempotencyKey ||
+          ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random()),
       },
       body: JSON.stringify(body || {}),
     }).then(function (resp) {
@@ -576,8 +584,9 @@
     button.setAttribute('aria-busy', busy ? 'true' : 'false');
   }
 
-  function afterSave(submission) {
-    window.location.href = '/forms/submissions/' + submission.id + '/';
+  function afterSave(payload) {
+    var target = requestId && (ctx.requestDetailUrl || ('/workspace/requests/?id=' + requestId));
+    window.location.href = target || ('/forms/submissions/' + (payload.id || draftId) + '/');
   }
 
   function setSaveStatus(text, tone) {
@@ -590,14 +599,24 @@
     if (!dirty || saving) return Promise.resolve();
     saving = true;
     setSaveStatus('در حال ذخیرهٔ پیش‌نویس…');
-    var payload = editing()
+    var unified = usingUnifiedRequest();
+    var payload = requestId
       ? { data: collect() }
       : { schema_slug: ctx.schemaSlug, data: collect() };
-    var url = editing() ? '/api/forms/submissions/' + draftId + '/' : '/api/forms/submissions/';
-    return postJson(url, payload, editing() ? 'PATCH' : 'POST')
+    var url = requestId
+      ? '/api/forms/requests/' + requestId + '/update/'
+      : (unified ? '/api/forms/requests/' : '/api/forms/submissions/');
+    return postJson(url, payload, requestId ? 'PATCH' : 'POST', requestId ? null : createIdempotencyKey)
       .then(function (res) {
         if (!res.ok) { setSaveStatus('ذخیره نشد؛ بعداً دوباره تلاش می‌کنیم.', 'danger'); return; }
-        if (!draftId) draftId = res.body.id;
+        if (!requestId && unified) {
+          requestId = res.body.id;
+          draftId = res.body.submission_id || null;
+          ctx.requestId = requestId;
+          ctx.submissionId = draftId;
+        } else if (!draftId && !unified) {
+          draftId = res.body.id;
+        }
         dirty = false;
         setSaveStatus('پیش‌نویس ذخیره شد.');
       })
@@ -611,18 +630,28 @@
   if (draftBtn) {
     draftBtn.addEventListener('click', function () {
       setBusy(draftBtn, true);
-      var payload = editing()
+      var unified = usingUnifiedRequest();
+      var payload = requestId
         ? { data: collect() }
         : { schema_slug: ctx.schemaSlug, data: collect() };
-      var url = editing() ? '/api/forms/submissions/' + draftId + '/' : '/api/forms/submissions/';
-      postJson(url, payload, editing() ? 'PATCH' : 'POST')
+      var url = requestId
+        ? '/api/forms/requests/' + requestId + '/update/'
+        : (unified ? '/api/forms/requests/' : '/api/forms/submissions/');
+      postJson(url, payload, requestId ? 'PATCH' : 'POST', requestId ? null : createIdempotencyKey)
         .then(function (res) {
           if (res.status === 409) {
             window.penToast('این فرم دیگر قابل ویرایش نیست (وضعیت تغییر کرده است).', 'danger');
             return;
           }
           if (!res.ok) { showFieldErrors(extractErrors(res.body)); return; }
-          if (!draftId) draftId = res.body.id;
+          if (!requestId && unified) {
+            requestId = res.body.id;
+            draftId = res.body.submission_id || null;
+            ctx.requestId = requestId;
+            ctx.submissionId = draftId;
+          } else if (!draftId && !unified) {
+            draftId = res.body.id;
+          }
           dirty = false;
           setSaveStatus('پیش‌نویس ذخیره شد.');
           afterSave(res.body);
@@ -637,19 +666,35 @@
     setBusy(submitBtn, true);
     var data = collect();
 
-    var firstPass = editing()
-      ? postJson('/api/forms/submissions/' + draftId + '/', { data: data }, 'PATCH')
-      : postJson('/api/forms/submissions/', { schema_slug: ctx.schemaSlug, data: data }, 'POST');
+    var unified = usingUnifiedRequest();
+    var firstPass = requestId
+      ? postJson('/api/forms/requests/' + requestId + '/update/', { data: data }, 'PATCH')
+      : postJson(
+        unified ? '/api/forms/requests/' : '/api/forms/submissions/',
+        { schema_slug: ctx.schemaSlug, data: data },
+        'POST',
+        unified ? createIdempotencyKey : null
+      );
 
     firstPass
       .then(function (res) {
         if (!res.ok) { showFieldErrors(extractErrors(res.body)); return null; }
-        if (!draftId) draftId = res.body.id; // subsequent submit-time PATCHes reuse it
+        if (!requestId && unified) {
+          requestId = res.body.id;
+          draftId = res.body.submission_id || null;
+          ctx.requestId = requestId;
+          ctx.submissionId = draftId;
+        } else if (!draftId && !unified) {
+          draftId = res.body.id;
+        }
         return res;
       })
       .then(function (saved) {
         if (!saved) return;
-        return postJson('/api/forms/submissions/' + draftId + '/submit/', {})
+        var submitUrl = requestId
+          ? '/api/forms/requests/' + requestId + '/submit/'
+          : '/api/forms/submissions/' + draftId + '/submit/';
+        return postJson(submitUrl, {}, 'POST', requestId ? createIdempotencyKey + '-submit' : null)
           .then(function (res) {
             if (res.status === 409) {
               window.penToast('این فرم قبلاً ارسال شده است.', 'danger');

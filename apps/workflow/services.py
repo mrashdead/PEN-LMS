@@ -151,13 +151,15 @@ class WorkflowEngineService:
         # 1. قفل WorkflowDefinition
         wf = (
             WorkflowDefinition.objects.select_for_update()
-            .filter(code=workflow_code.strip().lower())
+            .filter(code=workflow_code.strip().lower(), is_active=True)
             .first()
         )
         if not wf:
+            if WorkflowDefinition.objects.filter(
+                code=workflow_code.strip().lower(), is_deleted=False,
+            ).exists():
+                raise WorkflowNotActiveError(f"فرآیند '{workflow_code}' فعال نیست.")
             raise WorkflowEngineError(f"فرآیند '{workflow_code}' یافت نشد.")
-        if not wf.is_active:
-            raise WorkflowNotActiveError(f"فرآیند '{workflow_code}' فعال نیست.")
 
         # 2. یافتن State اولیه
         initial_state = (
@@ -247,7 +249,7 @@ class WorkflowEngineService:
         allowed: list[Transition] = []
         for t in transitions:
             result = validator.validate(instance, t, actor)
-            if result.is_valid:
+            if result.is_valid and self._actor_can_act_on_state(instance, actor):
                 allowed.append(t)
 
         return allowed
@@ -346,6 +348,9 @@ class WorkflowEngineService:
         except Transition.DoesNotExist:
             raise WorkflowEngineError(f"Transition {transition_id} یافت نشد.")
 
+        if not self._actor_can_act_on_state(instance, actor):
+            raise InvalidTransitionError("این درخواست در کارتابل شما قرار ندارد.")
+
         # 3. اعتبارسنجی با TransitionValidator (pure) + الزام کامنت (B6)
         validator = TransitionValidator()
         result = validator.validate(instance, transition, actor)
@@ -375,7 +380,7 @@ class WorkflowEngineService:
         # 5. ثبت ActionLog
         try:
             with transaction.atomic():
-                ActionLog.objects.create(
+                action_log = ActionLog.objects.create(
                     instance=instance,
                     from_state=old_state,
                     to_state=new_state,
@@ -439,7 +444,9 @@ class WorkflowEngineService:
         # 8. صف اعلان‌ها (outbox) — بعد از ساخت تسک‌ها، چون گیرندگانِ
         # task_created از دارندگان تسک وضعیت جدید خوانده می‌شوند. هیچ ارسال
         # بیرونی اینجا انجام نمی‌شود.
-        self._enqueue_notifications(instance, transition, actor, comment)
+        self._enqueue_notifications(
+            instance, transition, actor, comment, event_id=action_log.pk,
+        )
 
         logger.info(
             "Instance %s: transition '%s' by user %s -> %s",
@@ -601,6 +608,115 @@ class WorkflowEngineService:
     # Helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _actor_can_act_on_state(instance: Instance, actor) -> bool:
+        """Enforce user assignment only for states with an explicit policy.
+
+        Legacy workflow definitions have an empty policy and retain their old
+        role-based behavior.  New definitions opt into queue/individual task
+        semantics by setting ``State.assignment_policy``; a workflow admin is
+        always allowed to recover an unassigned or stuck request.
+        """
+        policy = getattr(instance.current_state, "assignment_policy", None) or {}
+        if not policy:
+            return True
+        if getattr(actor, "has_role", lambda _code: False)("workflow_admin"):
+            return True
+        from apps.tasks.models import WorkflowTask
+
+        return WorkflowTask.objects.filter(
+            instance=instance,
+            state=instance.current_state,
+            assignee=actor,
+            status=WorkflowTask.Status.PENDING,
+            is_deleted=False,
+        ).exists()
+
+    @staticmethod
+    def _eligible_user_ids(role_codes: set[str]) -> list:
+        from apps.accounts.models import UserRole
+
+        if not role_codes:
+            return []
+        now = timezone.now()
+        return list(
+            UserRole.objects.filter(
+                role__code__in=role_codes,
+                is_active=True,
+                role__is_active=True,
+                role__is_deleted=False,
+                user__is_active=True,
+                user__is_deleted=False,
+            )
+            .filter(models.Q(valid_from__isnull=True) | models.Q(valid_from__lte=now))
+            .filter(models.Q(valid_to__isnull=True) | models.Q(valid_to__gte=now))
+            .values_list("user_id", flat=True)
+            .distinct()
+        )
+
+    def _resolve_policy_assignees(self, instance: Instance, state: State, outgoing) -> list:
+        """Resolve one or more users from a state assignment policy."""
+        from apps.accounts.models import User
+        from apps.tasks.models import WorkflowTask
+
+        policy = state.assignment_policy or {}
+        strategy = str(policy.get("strategy") or "role").strip().lower()
+        fallback_roles = {str(code).strip().lower() for code in (policy.get("fallback_roles") or [])}
+        outgoing_roles = {
+            code
+            for transition in outgoing
+            for code in (transition.allowed_role_codes or [])
+        }
+
+        user_ids: list = []
+        if strategy in {"requester", "self"}:
+            user_ids = [instance.requester_id]
+        elif strategy in {"subject_user", "subject"}:
+            subject_user_id = getattr(instance.subject_person, "user_id", None)
+            user_ids = [subject_user_id] if subject_user_id else []
+        elif strategy in {"direct_manager", "supervisor"}:
+            manager_id = getattr(instance.requester, "manager_id", None)
+            user_ids = [manager_id] if manager_id else []
+        elif strategy in {"explicit_user", "user"}:
+            explicit_id = policy.get("user_id")
+            user_ids = [explicit_id] if explicit_id else []
+        else:
+            configured_roles = {
+                str(code).strip().lower()
+                for code in (policy.get("roles") or outgoing_roles)
+            }
+            user_ids = self._eligible_user_ids(configured_roles)
+
+        if not user_ids and fallback_roles:
+            user_ids = self._eligible_user_ids(fallback_roles)
+        if not user_ids and strategy not in {"requester", "self", "subject_user", "subject", "explicit_user", "user"}:
+            user_ids = self._eligible_user_ids(outgoing_roles)
+
+        # Discard malformed/non-existent ids and inactive users before choosing.
+        user_ids = list(
+            User.objects.filter(
+                pk__in=[uid for uid in user_ids if uid],
+                is_active=True,
+                is_deleted=False,
+            ).values_list("pk", flat=True)
+        )
+        if not user_ids:
+            return []
+        if str(policy.get("multiple") or "one").lower() == "all":
+            return user_ids
+
+        # A deterministic lightest-load choice prevents fan-out while keeping
+        # assignment fair when several supervisors/managers are eligible.
+        load = {
+            uid: WorkflowTask.objects.filter(
+                assignee_id=uid,
+                status=WorkflowTask.Status.PENDING,
+                is_deleted=False,
+            ).count()
+            for uid in user_ids
+        }
+        return [min(user_ids, key=lambda uid: (load[uid], str(uid)))]
+
     def _create_tasks_for_state(
         self,
         instance: Instance,
@@ -616,7 +732,6 @@ class WorkflowEngineService:
             state: State فعلی
             assigned_by: کاربری که تسک را ارجاع می‌دهد (اختیاری)
         """
-        from apps.accounts.models import UserRole
         from apps.tasks.models import WorkflowTask
 
         # یافتن همه Transitionهای خروجی از این State
@@ -631,11 +746,8 @@ class WorkflowEngineService:
             if t.allowed_role_codes:
                 role_codes.update(t.allowed_role_codes)
 
-        # Keep an actionable task for the system operator even when an older
-        # workflow definition only listed manager/HR in its transitions.
-        role_codes.add("workflow_admin")
-
-        if not role_codes:
+        policy = state.assignment_policy or {}
+        if not role_codes and not policy:
             logger.warning(
                 "هیچ نقش مجازی برای Transitionهای State '%s' تعریف نشده؛ "
                 "تسکی ساخته نشد.",
@@ -643,24 +755,14 @@ class WorkflowEngineService:
             )
             return
 
-        # یافتن کاربران دارای این نقش‌ها (با اعتبارسنجی تاریخ)
-        now = timezone.now()
-        user_ids = list(
-            UserRole.objects.filter(
-                role__code__in=role_codes,
-                is_active=True,
-                role__is_active=True,
-                role__is_deleted=False,
-                user__is_active=True,
-                user__is_deleted=False,
-            )
-            .filter(
-                models.Q(valid_from__isnull=True) | models.Q(valid_from__lte=now)
-            )
-            .filter(models.Q(valid_to__isnull=True) | models.Q(valid_to__gte=now))
-            .values_list("user_id", flat=True)
-            .distinct()
-        )
+        if policy:
+            user_ids = self._resolve_policy_assignees(instance, state, outgoing)
+        else:
+            # Legacy definitions retain the previous fan-out behavior. New
+            # definitions should always declare a policy and therefore use a
+            # queue/individual assignment instead.
+            role_codes.add("workflow_admin")
+            user_ids = self._eligible_user_ids(role_codes)
 
         tasks: list[WorkflowTask] = []
         # due_date is derived from the State's default_due_hours (B6 — was
@@ -683,7 +785,7 @@ class WorkflowEngineService:
             )
 
         if tasks:
-            WorkflowTask.objects.bulk_create(tasks)
+            WorkflowTask.objects.bulk_create(tasks, ignore_conflicts=True)
             logger.info(
                 "%d تسک برای Instance %s در State '%s' ساخته شد.",
                 len(tasks), instance.id, state.code,
@@ -704,6 +806,8 @@ class WorkflowEngineService:
         transition: Transition,
         actor,
         comment: str,
+        *,
+        event_id,
     ) -> None:
         """
         Enqueue IN_APP notifications for the new task holders and the original
@@ -746,6 +850,7 @@ class WorkflowEngineService:
                     "transition": transition.name,
                     "comment": comment,
                 },
+                delivery_key=f"workflow-transition:{event_id}:{uid}",
             )
             for uid in recipients
         ]
@@ -828,6 +933,7 @@ class WorkflowEngineService:
                     channel=NotificationOutbox.Channel.IN_APP,
                     template="copy_received",
                     payload={"title": instance.title, "sender": getattr(sender, "username", str(sender)), "note": note},
+                    delivery_key=f"workflow-copy:{_copy.pk}:{rid}",
                 )
         logger.info("Instance %s: %d copies by %s", instance_id, created, sender)
         return created
@@ -845,12 +951,29 @@ class WorkflowEngineService:
         به گیرنده منتقل می‌شود (گیرنده جایگزین می‌شود). یک ActionLog ثبت و
         به گیرنده اعلان صف می‌شود.
         """
+        from apps.accounts.models import User
         from apps.tasks.models import WorkflowTask
 
         instance = Instance.objects.select_for_update().filter(pk=instance_id).first()
         if instance is None:
             raise WorkflowEngineError(f"Instance {instance_id} یافت نشد.")
         recipient_id = getattr(recipient, "pk", recipient)
+        target = User.objects.filter(
+            pk=recipient_id, is_active=True, is_deleted=False,
+        ).first()
+        if target is None or target.pk == getattr(delegator, "pk", None):
+            raise InvalidTransitionError("گیرندهٔ ارجاع معتبر نیست.")
+
+        state_roles = Transition.objects.filter(
+            workflow_definition=instance.workflow_definition,
+            from_state=instance.current_state,
+        ).values_list("allowed_role_codes", flat=True)
+        eligible_codes = {code for role_list in state_roles for code in (role_list or [])}
+        eligible_codes.add("workflow_admin")
+        if not (target.role_codes() & eligible_codes):
+            raise InvalidTransitionError(
+                "گیرنده باید در وضعیت فعلی یکی از نقش‌های مجاز را داشته باشد."
+            )
 
         pending = WorkflowTask.objects.filter(
             instance=instance,
@@ -862,15 +985,32 @@ class WorkflowEngineService:
             raise InvalidTransitionError(
                 "تسک فعالی برای واگذاری در وضعیت فعلی ندارید."
             )
-        updated = pending.update(assignee_id=recipient_id, updated_at=timezone.now())
+        existing_recipient_task = WorkflowTask.objects.filter(
+            instance=instance,
+            state=instance.current_state,
+            assignee_id=recipient_id,
+            status=WorkflowTask.Status.PENDING,
+            is_deleted=False,
+        ).exists()
+        if existing_recipient_task:
+            # The recipient already holds the unique actionable task for this
+            # state. Retire the delegator's duplicate assignment as coalesced.
+            now = timezone.now()
+            updated = pending.update(
+                status=WorkflowTask.Status.SKIPPED,
+                completed_at=now,
+                updated_at=now,
+            )
+        else:
+            updated = pending.update(assignee_id=recipient_id, updated_at=timezone.now())
 
-        ActionLog.objects.create(
+        action_log = ActionLog.objects.create(
             instance=instance,
             from_state=instance.current_state,
             to_state=instance.current_state,
             action="delegate",
             actor=delegator,
-            comment=comment or f"ارجاع به {getattr(recipient, 'username', recipient_id)}",
+            comment=comment or f"ارجاع به {target.username}",
             metadata={"tasks_moved": updated, "recipient": str(recipient_id)},
         )
         NotificationOutbox.objects.create(
@@ -879,6 +1019,7 @@ class WorkflowEngineService:
             channel=NotificationOutbox.Channel.IN_APP,
             template="delegated_to_you",
             payload={"title": instance.title, "from": getattr(delegator, "username", str(delegator))},
+            delivery_key=f"workflow-delegation:{action_log.pk}:{recipient_id}",
         )
         logger.info("Instance %s: %d tasks delegated to %s", instance_id, updated, recipient_id)
         return updated

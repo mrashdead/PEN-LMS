@@ -74,8 +74,8 @@
     var button = document.getElementById('enr-create-person');
     button.disabled = true;
     fetch('/api/leads/' + encodeURIComponent(LEAD_ID) + '/create-person/', { method: 'POST', credentials: 'same-origin', headers: headers(), body: JSON.stringify({ national_code: nationalCode, student_code: studentCode, father_name: document.getElementById('enr-lead-father-name').value.trim() }) })
-      .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(Object.keys(b).map(function (k) { return Array.isArray(b[k]) ? b[k].join('، ') : b[k]; }).join(' — ') || 'ساخت شخص ناموفق بود.'); return b; }); })
-      .then(function (person) { setStudent(person.person_id, person.person_name); toast('شخص دانش‌آموز ساخته و به لید متصل شد.', 'success'); })
+      .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(Object.keys(b).map(function (k) { return Array.isArray(b[k]) ? b[k].join('، ') : b[k]; }).join(' — ') || 'افزودن دانش‌آموز انجام نشد.'); return b; }); })
+      .then(function (person) { setStudent(person.person_id, person.person_name); toast('دانش‌آموز افزوده شد و به سرنخ پیوند خورد.', 'success'); })
       .catch(function (e) { toast(e.message, 'danger'); })
       .finally(function () { button.disabled = false; });
   });

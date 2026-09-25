@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 
 from apps.core.models import DomainModel
 
@@ -63,6 +64,13 @@ class WorkflowTask(DomainModel):
             models.Index(fields=["state"]),
             # SLA scan: pending + due-date window rows.
             models.Index(fields=["status", "due_date"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["instance", "state", "assignee"],
+                condition=Q(is_deleted=False, status="pending"),
+                name="uniq_pending_task_instance_state_user",
+            ),
         ]
 
     def __str__(self) -> str:

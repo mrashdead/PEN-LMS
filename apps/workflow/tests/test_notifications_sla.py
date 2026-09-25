@@ -3,9 +3,14 @@ from __future__ import annotations
 
 import datetime
 import io
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+from unittest import skipUnless
+from unittest.mock import patch
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.db import close_old_connections, connection, connections
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
 from apps.forms.tests.factories import UserFactory
@@ -113,6 +118,49 @@ class InboxFlowTests(TestCase):
         self.assertEqual(probe.status_code, 404)
         row.refresh_from_db()
         self.assertFalse(row.is_read)
+
+    def test_outbox_retries_then_moves_to_dead_letter(self):
+        row = NotificationOutbox.objects.create(
+            instance=self._submit_flow(),
+            recipient=self.employee,
+            channel=NotificationOutbox.Channel.EMAIL,
+            template="retry-test",
+            delivery_key="test:retry:dead-letter",
+        )
+
+        call_command(
+            "flush_notifications", max_attempts=2, retry_base_seconds=1,
+            stdout=io.StringIO(),
+        )
+        row.refresh_from_db()
+        self.assertEqual(row.status, NotificationOutbox.Status.PENDING)
+        self.assertEqual(row.attempts, 1)
+        self.assertTrue(row.last_error)
+        self.assertGreater(row.next_attempt_at, timezone.now())
+
+        row.next_attempt_at = timezone.now() - datetime.timedelta(seconds=1)
+        row.save(update_fields=["next_attempt_at", "updated_at"])
+        call_command(
+            "flush_notifications", max_attempts=2, retry_base_seconds=1,
+            stdout=io.StringIO(),
+        )
+        row.refresh_from_db()
+        self.assertEqual(row.status, NotificationOutbox.Status.DEAD_LETTER)
+        self.assertEqual(row.attempts, 2)
+
+    def test_delivery_key_is_database_unique(self):
+        instance = self._submit_flow()
+        key = "test:unique:delivery"
+        NotificationOutbox.objects.create(
+            instance=instance, recipient=self.employee, delivery_key=key,
+        )
+        from django.db import IntegrityError, transaction
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                NotificationOutbox.objects.create(
+                    instance=instance, recipient=self.employee, delivery_key=key,
+                )
 
 
 class SLAScanTests(TestCase):
@@ -228,10 +276,65 @@ class SLAScanTests(TestCase):
         data = response.json()
         self.assertEqual(data["count"], 1)
         self.assertTrue(data["results"][0]["is_overdue"])
-        # non-overdue view excludes it
         response = self.client.get("/api/tasks/?overdue=false")
         ids = {r["id"] for r in response.json()["results"]}
         self.assertEqual(len(ids), 1)
-        # injection attempt on ordering falls back safely
         response = self.client.get("/api/tasks/?ordering=id),x--")
         self.assertEqual(response.status_code, 200)
+
+
+@skipUnless(
+    connection.features.has_select_for_update_skip_locked,
+    "Concurrent outbox claim requires PostgreSQL SKIP LOCKED",
+)
+class NotificationClaimConcurrencyTests(TransactionTestCase):
+    def setUp(self):
+        from apps.accounts.models import Role
+
+        Role.objects.get_or_create(code="employee", defaults={"name": "employee"})
+        self.employee = UserFactory(username="claim-race-user", roles=["employee"])
+        self.definition, self.state, _ = _wf_with_due("claim-race-wf")
+        self.instance = Instance.objects.create(
+            workflow_definition=self.definition,
+            current_state=self.state,
+            requester=self.employee,
+            title="Claim race",
+        )
+        self.row = NotificationOutbox.objects.create(
+            instance=self.instance, recipient=self.employee,
+            delivery_key="test:claim-race",
+        )
+
+    def test_two_workers_deliver_a_claimed_row_once(self):
+        from apps.workflow.management.commands.flush_notifications import Command
+
+        entered_delivery = Event()
+        release_delivery = Event()
+        delivered = []
+
+        def blocked_delivery(row):
+            delivered.append(row.pk)
+            entered_delivery.set()
+            if not release_delivery.wait(timeout=5):
+                raise AssertionError("test did not release the first worker")
+
+        def run_worker():
+            close_old_connections()
+            try:
+                call_command("flush_notifications", stdout=io.StringIO())
+            finally:
+                connections.close_all()
+
+        with patch.object(Command, "_deliver", side_effect=blocked_delivery):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(run_worker)
+                self.assertTrue(entered_delivery.wait(timeout=5))
+                second = pool.submit(run_worker)
+                second.result(timeout=5)
+                release_delivery.set()
+                first.result(timeout=5)
+
+        self.row.refresh_from_db()
+        self.assertEqual(delivered, [self.row.pk])
+        self.assertEqual(self.row.status, NotificationOutbox.Status.SENT)
+        self.assertEqual(self.row.attempts, 1)

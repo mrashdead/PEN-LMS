@@ -236,6 +236,37 @@ class DomainModel(UUIDPrimaryKeyModel, TimeStampedModel, SoftDeleteModel):
         abstract = True
 
 
+class AppendOnlyQuerySet(models.QuerySet):
+    def delete(self):
+        raise ProtectedError("این تاریخچه قابل حذف نیست.", [])
+
+
+class AppendOnlyManager(models.Manager.from_queryset(AppendOnlyQuerySet)):
+    """Manager that prevents bulk delete from bypassing model delete guards."""
+
+
+class AppendOnlyDomainModel(DomainModel):
+    """Domain record whose history must not be soft- or hard-deleted."""
+
+    objects = AppendOnlyManager()
+    all_objects = AppendOnlyManager()
+
+    def delete(self, *args, **kwargs):
+        raise ProtectedError("این تاریخچه قابل حذف نیست.", [self])
+
+    def soft_delete(self):
+        raise ProtectedError("این تاریخچه قابل حذف منطقی نیست.", [self])
+
+    def hard_delete(self, *args, **kwargs):
+        raise ProtectedError("این تاریخچه قابل حذف فیزیکی نیست.", [self])
+
+    def restore(self):
+        raise ProtectedError("تاریخچهٔ append-only بازیابی/ویرایش نمی‌شود.", [self])
+
+    class Meta:
+        abstract = True
+
+
 class AuditEvent(UUIDPrimaryKeyModel, TimeStampedModel):
     """
     حسابرسی دیتابیسیِ رخدادهای امنیتی/حساس (معیار §13-4).
@@ -272,6 +303,8 @@ class AuditEvent(UUIDPrimaryKeyModel, TimeStampedModel):
     )
     metadata = models.JSONField(default=dict, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
+    objects = AppendOnlyManager()
+    all_objects = AppendOnlyManager()
 
     class Meta:
         app_label = "core"

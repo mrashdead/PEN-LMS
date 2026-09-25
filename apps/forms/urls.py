@@ -21,8 +21,27 @@ from apps.forms.views import (
     FormWorkflowRejectView,
     FormWorkflowTransitionView,
 )
+from apps.forms.request_views import (
+    MyWorkView,
+    RequestCancelView,
+    RequestDetailView,
+    RequestListCreateView,
+    RequestSubmitView,
+    RequestTransitionView,
+    RequestTypeListView,
+    RequestUpdateView,
+)
 
 urlpatterns = [
+    # Unified business request API
+    path("request-types/", RequestTypeListView.as_view(), name="request-type-list"),
+    path("requests/", RequestListCreateView.as_view(), name="request-list-create"),
+    path("requests/<uuid:request_id>/", RequestDetailView.as_view(), name="request-detail"),
+    path("requests/<uuid:request_id>/update/", RequestUpdateView.as_view(), name="request-update"),
+    path("requests/<uuid:request_id>/submit/", RequestSubmitView.as_view(), name="request-submit"),
+    path("requests/<uuid:request_id>/transition/", RequestTransitionView.as_view(), name="request-transition"),
+    path("requests/<uuid:request_id>/cancel/", RequestCancelView.as_view(), name="request-cancel"),
+    path("my-work/", MyWorkView.as_view(), name="request-my-work"),
     # Schemas
     path("schemas/", FormSchemaListView.as_view(), name="form-schema-list"),
     path("schemas/<slug:slug>/", FormSchemaDetailView.as_view(), name="form-schema-detail"),

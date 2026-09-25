@@ -131,6 +131,12 @@ class User(AbstractUser, TimeStampedModel, SoftDeleteModel):
                 condition=Q(email__isnull=False) & ~Q(email=""),
                 name="uniq_user_email_nonempty",
             ),
+            UniqueConstraint(
+                fields=["employee_code"],
+                condition=Q(is_deleted=False, employee_code__isnull=False)
+                & ~Q(employee_code=""),
+                name="uniq_user_employee_code_alive",
+            ),
         ]
 
     def __str__(self) -> str:

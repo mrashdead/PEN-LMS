@@ -2,9 +2,13 @@
 visibility derivation, sensitive logging, checks."""
 from __future__ import annotations
 
+import datetime
+import io
 from unittest.mock import patch
 
+from django.core.management import call_command
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from apps.forms.models import FormSubmission
 from apps.forms.services import (
@@ -143,6 +147,62 @@ class DraftImmutabilityServiceTests(TestCase):
         submission = service.create_submission(schema=schema, user=owner, data={})
         with self.assertRaises(FormServiceError):
             service.submit_submission(submission=submission, user=stranger)
+
+
+class ProjectionReconciliationTests(TestCase):
+    def setUp(self):
+        self.user = UserFactory(username="projection-user", roles=["employee"])
+        self.schema = make_schema(slug="attendance")
+        self.payload = {
+            "class_group": "00000000-0000-0000-0000-000000000001",
+            "session_date": "1405-06-03",
+            "session_number": "1",
+            "session_start": "09:00",
+            "session_end": "10:00",
+            "attendance_list": [{
+                "student_id": "00000000-0000-0000-0000-000000000002",
+                "status": "present",
+            }],
+        }
+
+    def _submission(self):
+        return FormSubmission.objects.create(
+            form_schema=self.schema,
+            submitted_by=self.user,
+            data=self.payload,
+            status=FormSubmission.Status.SUBMITTED,
+            submitted_at=timezone.now(),
+            projection_status=FormSubmission.ProjectionStatus.FAILED,
+            projection_attempts=1,
+            projection_next_attempt_at=timezone.now() - datetime.timedelta(seconds=1),
+            projection_last_error="previous error",
+        )
+
+    def test_projection_failure_is_saved_without_rolling_back_submission(self):
+        submission = self._submission()
+        with patch(
+            "apps.education.services.project_attendance_submission",
+            side_effect=RuntimeError("projection unavailable"),
+        ):
+            service._project_into_education(submission, self.user)
+        submission.refresh_from_db()
+        self.assertEqual(submission.status, FormSubmission.Status.SUBMITTED)
+        self.assertEqual(submission.projection_status, FormSubmission.ProjectionStatus.FAILED)
+        self.assertEqual(submission.projection_attempts, 2)
+        self.assertIn("projection unavailable", submission.projection_last_error)
+        self.assertGreater(submission.projection_next_attempt_at, timezone.now())
+
+    def test_reconciliation_command_retries_due_submission(self):
+        submission = self._submission()
+        with patch(
+            "apps.education.services.project_attendance_submission",
+            return_value={"session_id": "test", "total": 1},
+        ):
+            call_command("reconcile_education_projections", stdout=io.StringIO())
+        submission.refresh_from_db()
+        self.assertEqual(submission.projection_status, FormSubmission.ProjectionStatus.COMPLETE)
+        self.assertEqual(submission.projection_attempts, 2)
+        self.assertIsNone(submission.projection_next_attempt_at)
 
 
 class SystemCheckTests(TestCase):

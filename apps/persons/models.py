@@ -424,11 +424,6 @@ class GuardianProfile(DomainModel):
         max_length=20, blank=True, default="",
         help_text="کانال ترجیحی اطلاع‌رسانی: sms / call / in_app",
     )
-    is_primary = models.BooleanField(
-        default=False,
-        help_text="ولی اصلی — مخاطب رسمی مؤسسه برای اعلان‌ها و صورت‌حساب.",
-    )
-
     is_active = models.BooleanField(default=True, db_index=True)
 
     class Meta:
@@ -436,7 +431,7 @@ class GuardianProfile(DomainModel):
         db_table = "persons_guardian_profile"
         verbose_name = "Guardian Profile (پروفایل ولی)"
         verbose_name_plural = "Guardian Profiles (پروفایل اولیا)"
-        ordering = ("-is_primary", "person__last_name")
+        ordering = ("person__last_name", "person__first_name")
 
     def __str__(self) -> str:
         return f"GuardianProfile({self.person})"
@@ -477,6 +472,10 @@ class StudentGuardian(DomainModel):
     can_view_attendance = models.BooleanField(default=True)
     can_submit_requests = models.BooleanField(default=True)
     can_receive_billing = models.BooleanField(default=False)
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="ولی اصلی این دانش‌آموز؛ یکتایی در سطح رابطهٔ همین دانش‌آموز اعمال می‌شود.",
+    )
     phone_override = models.CharField(
         max_length=20, blank=True, default="",
         help_text="شماره تماس این رابطه (اگر با Person.mobile متفاوت است).",
@@ -496,6 +495,11 @@ class StudentGuardian(DomainModel):
                 fields=["student", "guardian"], condition=_ALIVE,
                 name="uniq_persons_student_guardian_alive",
                 violation_error_message="این ولی قبلاً به این دانش‌آموز متصل شده است.",
+            ),
+            models.UniqueConstraint(
+                fields=["student"],
+                condition=models.Q(is_deleted=False, is_primary=True),
+                name="uniq_persons_student_primary_guardian",
             ),
             models.CheckConstraint(
                 condition=~models.Q(student=models.F("guardian")),

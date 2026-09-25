@@ -18,6 +18,7 @@ from typing import Iterable, Optional
 
 from django.db import IntegrityError, models, transaction
 from django.db.models import Q
+from django.utils import timezone
 
 from apps.core.utils import persian_date, persian_numbers
 from apps.education.models import (
@@ -25,6 +26,7 @@ from apps.education.models import (
     ClassSession,
     CourseOffering,
     EnrollmentWaitlist,
+    EnrollmentRefund,
     GradeRecord,
     OfferingEnrollment,
     SessionScheduleRevision,
@@ -76,6 +78,173 @@ def enroll_student(*, offering: CourseOffering, student, actor=None) -> CourseOf
 
 
 @transaction.atomic
+def create_offering_enrollment(
+    *,
+    offering: CourseOffering,
+    student,
+    actor=None,
+    course_amount: int | None = None,
+    discount_type: str = OfferingEnrollment.DiscountType.NONE,
+    discount_value: int = 0,
+    payment_method: str = OfferingEnrollment.PaymentMethod.CASH,
+    cheque_count: int = 0,
+    cheques=None,
+    reference: str = "",
+    enrolled_at=None,
+    lifecycle_status: str = OfferingEnrollment.LifecycleStatus.CONFIRMED,
+) -> OfferingEnrollment:
+    """Create the financial/offering registration exactly once.
+
+    ``OfferingEnrollment`` is the source of truth for the initial seat and
+    financial registration.  The operation locks the offering before checking
+    duplicates and capacity, so a retry cannot increment ``enrolled_count`` a
+    second time or create two money rows.
+    """
+    locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
+    existing = OfferingEnrollment.objects.filter(
+        offering=locked,
+        student=student,
+        is_deleted=False,
+    ).first()
+    if existing is not None:
+        return existing
+    if locked.status not in (CourseOffering.Status.DRAFT, CourseOffering.Status.OPEN):
+        raise EducationServiceError("ثبت‌نام در این برگزاری مجاز نیست.")
+    if locked.capacity and locked.enrolled_count >= locked.capacity:
+        raise CapacityExceededError(
+            f"ظرفیت این برگزاری تکمیل است ({locked.enrolled_count}/{locked.capacity})."
+        )
+
+    amount = (
+        int(course_amount)
+        if course_amount is not None
+        else sum(lesson.tuition or 0 for lesson in locked.course.lessons.all())
+    )
+    enrollment = OfferingEnrollment(
+        offering=locked,
+        student=student,
+        course_amount=max(amount, 0),
+        discount_type=discount_type or OfferingEnrollment.DiscountType.NONE,
+        discount_value=max(int(discount_value or 0), 0),
+        payment_method=payment_method or OfferingEnrollment.PaymentMethod.CASH,
+        cheque_count=max(int(cheque_count or 0), 0),
+        cheques=cheques or [],
+        reference=(reference or "")[:128],
+        enrolled_at=enrolled_at or timezone.localdate(),
+        lifecycle_status=lifecycle_status,
+    )
+    enrollment.full_clean()
+    enrollment.save()
+    locked.enrolled_count += 1
+    locked.save(update_fields=["enrolled_count", "updated_at"])
+    logger.info("offering enrollment %s created for %s by %s", enrollment.pk, student, actor)
+    return enrollment
+
+
+@transaction.atomic
+def convert_offering_enrollment_to_class(
+    *,
+    enrollment: OfferingEnrollment,
+    class_group,
+    actor=None,
+):
+    """Create the final ``academics.ClassEnrollment`` membership idempotently.
+
+    A student may be financially registered before a class group exists.  This
+    operation is the explicit boundary at which that preliminary registration
+    becomes a real class membership; the source financial row remains linked
+    for reporting, transfer and refund audit.
+    """
+    from apps.academics.models import ClassEnrollment, ClassGroup
+
+    locked = OfferingEnrollment.objects.select_for_update().get(pk=enrollment.pk)
+    if locked.lifecycle_status in {
+        OfferingEnrollment.LifecycleStatus.CANCELLED,
+        OfferingEnrollment.LifecycleStatus.REFUNDED,
+    }:
+        raise EducationServiceError("این ثبت‌نام قابل تبدیل به عضویت کلاس نیست.")
+    group = ClassGroup.objects.select_for_update().get(pk=class_group.pk)
+    if not group.is_active or group.is_deleted:
+        raise EducationServiceError("کلاس انتخاب‌شده فعال نیست.")
+    if group.capacity and group.enrollments.filter(is_active=True, is_deleted=False).count() >= group.capacity:
+        raise CapacityExceededError("ظرفیت کلاس تشکیل‌شده تکمیل است.")
+
+    if locked.final_class_enrollment_id:
+        return locked.final_class_enrollment
+
+    membership = ClassEnrollment.objects.filter(
+        class_group=group,
+        student=locked.student,
+        is_deleted=False,
+    ).first()
+    if membership is None:
+        membership = ClassEnrollment.objects.create(
+            class_group=group,
+            student=locked.student,
+        )
+    locked.final_class_enrollment = membership
+    locked.lifecycle_status = OfferingEnrollment.LifecycleStatus.CONFIRMED
+    locked.save(update_fields=["final_class_enrollment", "lifecycle_status", "updated_at"])
+    logger.info("offering enrollment %s converted to class %s by %s", locked.pk, group.pk, actor)
+    return membership
+
+
+@transaction.atomic
+def request_enrollment_refund(*, enrollment: OfferingEnrollment, amount: int, requested_by, reason: str = "") -> EnrollmentRefund:
+    """Create a bounded refund request without mutating financial history."""
+    locked = OfferingEnrollment.objects.select_for_update().get(pk=enrollment.pk)
+    amount = int(amount or 0)
+    if amount <= 0:
+        raise EducationServiceError("مبلغ عودت باید بیشتر از صفر باشد.")
+    already_reserved = sum(
+        row.amount
+        for row in locked.refunds.filter(
+            status__in=[EnrollmentRefund.Status.REQUESTED, EnrollmentRefund.Status.APPROVED, EnrollmentRefund.Status.PROCESSED],
+            is_deleted=False,
+        )
+    )
+    if already_reserved + amount > locked.final_amount:
+        raise EducationServiceError("مجموع عودت‌ها نمی‌تواند از مبلغ نهایی ثبت‌نام بیشتر باشد.")
+    return EnrollmentRefund.objects.create(
+        enrollment=locked,
+        amount=amount,
+        requested_by=requested_by,
+        reason=(reason or "")[:5000],
+    )
+
+
+@transaction.atomic
+def process_enrollment_refund(*, refund: EnrollmentRefund, processor, reference: str = "") -> EnrollmentRefund:
+    """Mark a refund as processed and update the enrollment projection."""
+    refund = EnrollmentRefund.objects.select_for_update().select_related("enrollment").get(pk=refund.pk)
+    if refund.status == EnrollmentRefund.Status.PROCESSED:
+        return refund
+    if refund.status not in {EnrollmentRefund.Status.REQUESTED, EnrollmentRefund.Status.APPROVED}:
+        raise EducationServiceError("این درخواست عودت قابل پردازش نیست.")
+    now = dt.datetime.now(dt.timezone.utc)
+    refund.status = EnrollmentRefund.Status.PROCESSED
+    refund.processed_by = processor
+    refund.processed_at = now
+    refund.reference = (reference or refund.reference or "")[:128]
+    refund.save(update_fields=["status", "processed_by", "processed_at", "reference", "updated_at"])
+
+    enrollment = OfferingEnrollment.objects.select_for_update().get(pk=refund.enrollment_id)
+    processed_total = sum(
+        row.amount
+        for row in enrollment.refunds.filter(status=EnrollmentRefund.Status.PROCESSED, is_deleted=False)
+    )
+    enrollment.lifecycle_status = (
+        OfferingEnrollment.LifecycleStatus.REFUNDED
+        if processed_total >= enrollment.final_amount
+        else OfferingEnrollment.LifecycleStatus.PARTIALLY_REFUNDED
+    )
+    if enrollment.lifecycle_status == OfferingEnrollment.LifecycleStatus.REFUNDED:
+        enrollment.is_active = False
+    enrollment.save(update_fields=["lifecycle_status", "is_active", "updated_at"])
+    return refund
+
+
+@transaction.atomic
 def place_on_waitlist(*, offering: CourseOffering, student, actor=None) -> EnrollmentWaitlist:
     """Place a student in the FIFO queue, idempotently."""
     locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
@@ -98,7 +267,6 @@ def promote_next_waitlist(*, offering: CourseOffering, actor=None) -> Enrollment
         return None
     entry = (
         EnrollmentWaitlist.objects.select_for_update()
-        .select_related("student", "student__user")
         .filter(
             offering=locked, status=EnrollmentWaitlist.Status.WAITING,
             is_deleted=False,
@@ -108,6 +276,12 @@ def promote_next_waitlist(*, offering: CourseOffering, actor=None) -> Enrollment
     )
     if entry is None:
         return None
+    # Lock only the waitlist row above. PostgreSQL rejects FOR UPDATE over
+    # nullable joins such as student.user; load related display fields after
+    # acquiring the row lock.
+    entry = EnrollmentWaitlist.objects.select_related("student", "student__user").get(
+        pk=entry.pk,
+    )
     entry.status = EnrollmentWaitlist.Status.OFFERED
     entry.offered_at = dt.datetime.now(dt.timezone.utc)
     entry.save(update_fields=["status", "offered_at", "updated_at"])

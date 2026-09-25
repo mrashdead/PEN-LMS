@@ -29,9 +29,9 @@ class PersonsPage(StaffRequiredMixin, TemplateView):
     template_name = "persons.html"
 
     def dispatch(self, request, *args, **kwargs):
-        roles = set(request.user.role_codes()) if request.user.is_authenticated else set()
-        if not (request.user.is_superuser or roles & {"manager", "workflow_admin"}):
-            raise PermissionDenied("فهرست اشخاص فقط برای مدیر سیستم در دسترس است.")
+        form = PersonDefinitionForm(actor=request.user)
+        if not form.allowed_targets:
+            raise PermissionDenied("شما مجوز ایجاد شخص را ندارید.")
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):

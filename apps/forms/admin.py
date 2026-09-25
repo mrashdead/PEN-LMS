@@ -8,6 +8,8 @@ from apps.forms.models import (
     FormComment,
     FormSchema,
     FormSubmission,
+    Request,
+    RequestType,
     SubmissionSequence,
 )
 
@@ -35,7 +37,7 @@ class FormSchemaAdmin(JalaliAdminMixin, admin.ModelAdmin):
     readonly_fields = ("published_at", "created_at_jalali_display", "updated_at_jalali_display")
     fieldsets = (
         ("مشخصات فرم", {"fields": ("slug", "title", "description", "version", "is_active")}),
-        ("دسترسی", {"fields": ("allowed_roles", "workflow_definition", "created_by")}),
+        ("دسترسی و کسب‌وکار", {"fields": ("allowed_roles", "request_type", "workflow_definition", "created_by")}),
         ("تعریف فیلدها (JSON)", {"fields": ("fields", "metadata")}),
         ("سیستمی", {"fields": ("published_at", "created_at_jalali_display", "updated_at_jalali_display")}),
     )
@@ -45,14 +47,17 @@ class FormSchemaAdmin(JalaliAdminMixin, admin.ModelAdmin):
 class FormSubmissionAdmin(JalaliAdminMixin, admin.ModelAdmin):
     list_display = (
         "submission_number", "form_schema", "submitted_by", "status",
-        "submitted_at", "created_at_jalali_display",
+        "projection_status", "projection_attempts", "submitted_at",
+        "created_at_jalali_display",
     )
-    list_filter = ("status", "form_schema__slug")
+    list_filter = ("status", "projection_status", "form_schema__slug")
     search_fields = ("submission_number", "submitted_by__username", "notes")
     autocomplete_fields = ("submitted_by", "reviewed_by")
     readonly_fields = (
         "submission_number", "version_snapshot", "schema_version_snapshot",
-        "client_ip", "created_at_jalali_display", "updated_at_jalali_display",
+        "client_ip", "projection_status", "projection_attempts",
+        "projection_next_attempt_at", "projection_last_error",
+        "created_at_jalali_display", "updated_at_jalali_display",
     )
     inlines = (FormAttachmentInline, FormCommentInline)
     fieldsets = (
@@ -60,6 +65,10 @@ class FormSubmissionAdmin(JalaliAdminMixin, admin.ModelAdmin):
         ("داده پویا", {"fields": ("data", "notes")}),
         ("گردش کار", {"fields": ("workflow_instance", "reviewed_by", "reviewed_at", "submitted_at")}),
         ("اسنپ‌شات نسخه", {"fields": ("schema_version_snapshot", "version_snapshot")}),
+        ("Projection", {"fields": (
+            "projection_status", "projection_attempts", "projection_next_attempt_at",
+            "projection_last_error",
+        )}),
         ("سیستمی", {"fields": ("client_ip", "created_at_jalali_display", "updated_at_jalali_display")}),
     )
 
@@ -67,6 +76,36 @@ class FormSubmissionAdmin(JalaliAdminMixin, admin.ModelAdmin):
         # Audit trail: submissions are soft-deleted via restore/soft_delete,
         # never hard-deleted from admin.
         return False
+
+
+@admin.register(RequestType)
+class RequestTypeAdmin(JalaliAdminMixin, admin.ModelAdmin):
+    list_display = ("code", "title", "kind", "workflow_definition", "is_active", "created_at_jalali_display")
+    list_filter = ("kind", "is_active")
+    search_fields = ("code", "title", "description")
+    filter_horizontal = ("allowed_roles",)
+    autocomplete_fields = ("workflow_definition",)
+    readonly_fields = ("created_at_jalali_display", "updated_at_jalali_display")
+
+
+@admin.register(Request)
+class RequestAdmin(JalaliAdminMixin, admin.ModelAdmin):
+    list_display = (
+        "request_number", "request_type", "requester", "status",
+        "subject_person", "submitted_at", "created_at_jalali_display",
+    )
+    list_filter = ("status", "request_type__code")
+    search_fields = (
+        "request_number", "request_type__code", "requester__username",
+        "subject_person__first_name", "subject_person__last_name",
+    )
+    autocomplete_fields = ("request_type", "form_submission", "requester", "subject_person")
+    readonly_fields = (
+        "request_number", "status", "submitted_at", "completed_at",
+        "last_action_at", "metadata", "created_at_jalali_display",
+        "updated_at_jalali_display",
+    )
+    can_delete = False
 
 
 @admin.register(FormAttachment)

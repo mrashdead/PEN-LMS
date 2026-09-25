@@ -17,7 +17,10 @@
     return fetch(url, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      headers: Object.assign(
+        { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        window.penCsrfHeader ? window.penCsrfHeader() : {}
+      ),
       body: JSON.stringify(body || {}),
     }).then(function (resp) {
       return resp.json().catch(function () { return {}; }).then(function (payload) {
@@ -44,7 +47,7 @@
   submitBtn && submitBtn.addEventListener('click', function () {
     submitBtn.disabled = true;
     submitBtn.setAttribute('aria-busy', 'true');
-    postJson(ctx.submitUrl, {})
+    postJson(ctx.requestId ? '/api/forms/requests/' + ctx.requestId + '/submit/' : ctx.submitUrl, {})
       .then(function (res) {
         if (res.status === 409) {
           window.penToast('این فرم قبلاً ارسال شده است.', 'danger');
@@ -69,7 +72,7 @@
     var comment = document.getElementById('transition-comment');
     if (!select || !select.value) return;
     transitionBtn.disabled = true;
-    postJson(ctx.transitionUrl, {
+    postJson(ctx.requestId ? '/api/forms/requests/' + ctx.requestId + '/transition/' : ctx.transitionUrl, {
       transition_id: select.value,
       comment: comment ? comment.value : '',
     })

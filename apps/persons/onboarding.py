@@ -158,7 +158,7 @@ _GUARDIAN_ROW = (
     FormField("custody_status", "وضعیت تکفل", type="select",
               choices=tuple(StudentGuardian.Custody.choices),
               help_text="تحت تکفل / تکفل با والد دیگر / ولایت کامل / فقط ملاقات."),
-    FormField("is_primary", "ولی اصلی (مخاطب رسمی)", type="checkbox"),
+    FormField("is_primary", "ولی اصلی این دانش‌آموز", type="checkbox"),
     FormField("can_submit_requests", "اجازه ثبت درخواست", type="checkbox"),
     FormField("can_receive_billing", "دریافت اعلان مالی", type="checkbox"),
 )
@@ -276,7 +276,7 @@ FIELD_SPECS: dict[str, tuple[FormSection, ...]] = {
                       choices=tuple(GuardianProfile.Relation.choices)),
             FormField("custody_status", "وضعیت تکفل", type="select",
                       choices=tuple(StudentGuardian.Custody.choices)),
-            FormField("is_primary", "ولی اصلی", type="checkbox"),
+            FormField("is_primary", "ولی اصلی این دانش‌آموز", type="checkbox"),
         )),
         FormSection("account", "حساب کاربری", _ACCOUNT),
     ),
@@ -592,7 +592,6 @@ class PersonOnboardingService:
                 person=person,
                 occupation=payload.get("occupation") or "",
                 education_level=payload.get("education_level") or "",
-                is_primary=bool(payload.get("is_primary")),
             )
         if target in ("teacher", "employee", "supervisor", "manager"):
             department = self._resolve_department(payload.get("department") or "")
@@ -635,11 +634,19 @@ class PersonOnboardingService:
         always (re)written so the intake's تکفل answer is never lost.
         """
         created: list[Person] = []
+        if sum(bool(item.get("is_primary")) for item in rows if isinstance(item, dict)) > 1:
+            raise OnboardingValidationError(
+                {"guardians": "برای هر دانش‌آموز فقط یک ولی اصلی انتخاب کنید."}
+            )
         for raw in rows:
             gi = GuardianInput.from_payload(raw)
             if not (gi.first_name or gi.mobile):
                 continue
             guardian = self._find_or_create_guardian(gi, actor=actor, student=student)
+            if gi.is_primary:
+                StudentGuardian.objects.filter(
+                    student=student, is_primary=True, is_deleted=False,
+                ).exclude(guardian=guardian).update(is_primary=False)
             link, _c = StudentGuardian.objects.update_or_create(
                 student=student, guardian=guardian, is_deleted=False,
                 defaults={
@@ -649,6 +656,7 @@ class PersonOnboardingService:
                     "phone_override": gi.mobile if gi.mobile != guardian.mobile else "",
                     "can_submit_requests": gi.can_submit_requests,
                     "can_receive_billing": gi.can_receive_billing,
+                    "is_primary": gi.is_primary,
                     "is_active": True,
                 },
             )
@@ -657,12 +665,8 @@ class PersonOnboardingService:
                 defaults={
                     "occupation": gi.occupation,
                     "education_level": gi.education_level,
-                    "is_primary": gi.is_primary,
                 },
             )
-            if gi.is_primary and not profile.is_primary:
-                profile.is_primary = True
-                profile.save(update_fields=["is_primary", "updated_at"])
             # student_profile is created earlier in the same transaction for
             # target=student; getattr only guards a hand-misused caller.
             profile_row = getattr(student, "student_profile", None)
@@ -771,11 +775,13 @@ class PersonOnboardingService:
             raise OnboardingValidationError(
                 {"guards_student": "دانش‌آموزی با این شناسه یافت نشد."}
             )
+        if is_primary:
+            StudentGuardian.objects.filter(
+                student=student, is_primary=True, is_deleted=False,
+            ).exclude(guardian=guardian).update(is_primary=False)
         link, _ = StudentGuardian.objects.update_or_create(
             student=student, guardian=guardian, is_deleted=False,
             defaults={"relation": relation, "custody_status": custody_status,
-                      "is_active": True},
+                      "is_primary": is_primary, "is_active": True},
         )
-        if is_primary:
-            GuardianProfile.objects.filter(person=guardian).update(is_primary=True)
         return link

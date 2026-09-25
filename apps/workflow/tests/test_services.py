@@ -220,6 +220,12 @@ class SemanticOperationTests(TestCase):
         with self.assertRaises(InvalidTransitionError):
             self.engine.delegate(self.instance.pk, third, self.other_manager)
 
+    def test_delegate_recipient_must_hold_a_role_for_current_state(self):
+        self._submit()
+        teacher = UserFactory(username="sem-ineligible-teacher", roles=["teacher"])
+        with self.assertRaises(InvalidTransitionError):
+            self.engine.delegate(self.instance.pk, self.manager, teacher)
+
     # ── outbox is write-only in the transaction ─────────────────────────
 
     def test_transition_never_sends_outside_outbox(self):

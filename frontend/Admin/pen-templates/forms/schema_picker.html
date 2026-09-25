@@ -8,9 +8,12 @@
 <div class="row">
   <div class="col-12 col-lg-9">
     <div class="card">
-      <div class="card-header">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <div class="flex-grow-1">
         <h6 class="mb-0 card-title">یک فرم را انتخاب کنید</h6>
         <p class="mb-0 text-muted fs-14">فقط فرم‌های فعالی که برای نقش شما تعریف شده‌اند نمایش داده می‌شوند.</p>
+        </div>
+        <span class="badge bg-primary-subtle text-primary">شروع یک درخواست</span>
       </div>
       <div class="card-body">
         <div class="row g-3">
@@ -25,6 +28,18 @@
                     </div>
                     <div class="flex-grow-1 overflow-hidden">
                       <h6 class="mb-1 text-truncate">{{ schema.title }}</h6>
+                      <div class="d-flex flex-wrap gap-1 mb-2">
+                        {% if schema.request_type %}
+                          <span class="badge bg-info-subtle text-info">{{ schema.request_type.title }}</span>
+                        {% else %}
+                          <span class="badge bg-secondary-subtle text-secondary">فرم عمومی</span>
+                        {% endif %}
+                        {% if schema.workflow_definition %}
+                          <span class="badge bg-success-subtle text-success">دارای گردش‌کار</span>
+                        {% else %}
+                          <span class="badge bg-warning-subtle text-warning">بدون گردش‌کار</span>
+                        {% endif %}
+                      </div>
                       {% if schema.description %}
                         <p class="mb-2 text-muted fs-14">{{ schema.description|truncatechars:120 }}</p>
                       {% endif %}

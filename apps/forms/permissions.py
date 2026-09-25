@@ -24,14 +24,15 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 from rest_framework.request import Request
 from rest_framework.views import View
 
-from apps.forms.models import FormSchema, FormSubmission
+from apps.forms.models import FormSchema, FormSubmission, Request, RequestType
 
 #: Institutional roles that may see every submission and every schema.
-ELEVATED_ROLES = {"manager", "workflow_admin", "hr"}
+ELEVATED_ROLES = {"manager", "workflow_admin"}
+LEGACY_ELEVATED_ROLES = {"hr"}
 
 #: Roles that may read internal comments: elevated staff + teachers.
 #: Plain employees (ordinary submitters) and students/parents cannot.
-INTERNAL_COMMENT_ROLES = ELEVATED_ROLES | {"teacher"}
+INTERNAL_COMMENT_ROLES = ELEVATED_ROLES | LEGACY_ELEVATED_ROLES | {"teacher"}
 
 
 def _person_of(user):
@@ -39,9 +40,29 @@ def _person_of(user):
 
 
 def visible_schemas_for(user) -> "FormSchema.objects":
-    """Schemas whose allowed_roles intersect the user's roles (empty = public)."""
-    qs = FormSchema.objects.filter(is_active=True)
+    """Schemas allowed by both the form and its business request catalog."""
+    qs = FormSchema.objects.filter(is_active=True, is_deleted=False)
     roles = user.role_codes()
+    public = qs.filter(
+        allowed_roles__isnull=True,
+    ).filter(
+        Q(request_type__isnull=True) | Q(request_type__allowed_roles__isnull=True)
+    )
+    restricted = (
+        qs.filter(
+            Q(allowed_roles__code__in=roles)
+            | Q(request_type__allowed_roles__code__in=roles)
+        )
+        if roles
+        else qs.none()
+    )
+    return (public | restricted).distinct()
+
+
+def visible_request_types_for(user):
+    """Request catalog visible to a user; empty role M2M means public."""
+    roles = user.role_codes()
+    qs = RequestType.objects.filter(is_active=True, is_deleted=False)
     public = qs.filter(allowed_roles__isnull=True)
     restricted = qs.filter(allowed_roles__code__in=roles) if roles else qs.none()
     return (public | restricted).distinct()
@@ -55,7 +76,8 @@ def visible_submissions_for(user):
       - the submitter → own submissions (any status);
       - teacher → submissions scoped to class groups THEY teach
         (ClassGroup.teacher == their Person — role code alone is insufficient);
-      - student → submissions about them (subject_person == their Person).
+      - student → submissions about them (subject_person == their Person);
+      - guardian → submissions about an active ward, subject to the relation.
     """
     roles = user.role_codes()
     if roles & ELEVATED_ROLES:
@@ -69,8 +91,36 @@ def visible_submissions_for(user):
             condition |= Q(class_group__teacher=person)
         if "student" in roles:
             condition |= Q(subject_person=person)
+        if "guardian" in roles:
+            condition |= Q(
+                subject_person__guardians__guardian=person,
+                subject_person__guardians__is_active=True,
+                subject_person__guardians__is_deleted=False,
+            )
 
     return FormSubmission.objects.filter(condition).distinct()
+
+
+def visible_requests_for(user):
+    """Return requests visible through form ownership *or* assigned work.
+
+    A modern workflow inbox must not require an employee to be the original
+    submitter in order to open the work item assigned to them.  The form
+    visibility rules remain the canonical audience boundary; an active
+    pending task adds the assignee as a legitimate operational audience.
+    """
+    visible_submission_ids = visible_submissions_for(user).values("pk")
+    condition = Q(form_submission_id__in=visible_submission_ids)
+    condition |= Q(
+        form_submission__workflow_instance__tasks__assignee=user,
+        form_submission__workflow_instance__tasks__status="pending",
+        form_submission__workflow_instance__tasks__is_deleted=False,
+    )
+    return (
+        Request.objects.filter(condition, is_deleted=False)
+        .select_related("request_type", "requester", "subject_person", "form_submission")
+        .distinct()
+    )
 
 
 def can_view_internal_comments(user) -> bool:
@@ -96,6 +146,12 @@ class CanAccessForms(BasePermission):
 
         if isinstance(obj, FormSchema):
             return visible_schemas_for(user).filter(pk=obj.pk).exists()
+
+        if isinstance(obj, RequestType):
+            return visible_request_types_for(user).filter(pk=obj.pk).exists()
+
+        if isinstance(obj, Request):
+            return visible_requests_for(user).filter(pk=obj.pk).exists()
 
         if isinstance(obj, FormSubmission):
             if not visible_submissions_for(user).filter(pk=obj.pk).exists():

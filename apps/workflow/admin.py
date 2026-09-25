@@ -8,7 +8,10 @@ from __future__ import annotations
 from django.contrib import admin
 
 from apps.core.admin import JalaliAdminMixin
-from apps.workflow.models import ActionLog, EntityWorkflow, Instance, State, Transition, WorkflowDefinition
+from apps.workflow.models import (
+    ActionLog, EntityWorkflow, Instance, NotificationOutbox,
+    State, Transition, WorkflowDefinition,
+)
 
 
 class StateInline(admin.TabularInline):
@@ -77,6 +80,41 @@ class ActionLogAdmin(JalaliAdminMixin, admin.ModelAdmin):
     search_fields = ("instance__title", "actor__username", "action")
     autocomplete_fields = ("instance", "from_state", "to_state", "actor")
     readonly_fields = ("created_at_jalali_display", "updated_at_jalali_display", "created_at", "updated_at")
+    can_delete = False
+
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(field.name for field in self.model._meta.concrete_fields) + (
+            "created_at_jalali_display", "updated_at_jalali_display",
+        )
+
+
+@admin.register(NotificationOutbox)
+class NotificationOutboxAdmin(JalaliAdminMixin, admin.ModelAdmin):
+    list_display = (
+        "id", "channel", "template", "recipient", "status", "attempts",
+        "next_attempt_at", "created_at_jalali_display",
+    )
+    list_filter = ("status", "channel", "template")
+    search_fields = ("delivery_key", "recipient__username", "template", "last_error")
+    readonly_fields = tuple(field.name for field in NotificationOutbox._meta.concrete_fields)
+    can_delete = False
+
+    @admin.action(description="بازگردانی اعلان‌های صف مرده برای تلاش دوباره")
+    def retry_dead_letters(self, request, queryset):
+        from django.utils import timezone
+
+        return queryset.filter(
+            status=NotificationOutbox.Status.DEAD_LETTER,
+        ).update(
+            status=NotificationOutbox.Status.PENDING,
+            attempts=0,
+            next_attempt_at=timezone.now(),
+            claimed_at=None,
+            last_error="",
+            updated_at=timezone.now(),
+        )
+
+    actions = (retry_dead_letters,)
 
 
 @admin.register(EntityWorkflow)

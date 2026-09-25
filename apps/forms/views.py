@@ -171,6 +171,7 @@ class FormSchemaAdminView(generics.ListCreateAPIView):
         from django.db import IntegrityError
 
         from apps.forms.schema_validation import SchemaDefinitionError, validate_form_fields
+        from apps.forms.models import RequestType
 
         payload = request.data or {}
         slug = str(payload.get("slug") or "").strip()
@@ -185,6 +186,18 @@ class FormSchemaAdminView(generics.ListCreateAPIView):
         except SchemaDefinitionError as exc:
             return Response({"fields": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+        request_type = None
+        request_type_code = str(payload.get("request_type_code") or "").strip().lower()
+        if request_type_code:
+            request_type = RequestType.objects.filter(
+                code=request_type_code, is_active=True, is_deleted=False,
+            ).first()
+            if request_type is None:
+                return Response(
+                    {"request_type_code": "نوع درخواست فعال یافت نشد."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         try:
             with transaction.atomic():
                 schema = FormSchema.objects.create(
@@ -194,6 +207,7 @@ class FormSchemaAdminView(generics.ListCreateAPIView):
                     version=version,
                     is_active=bool(payload.get("is_active", True)),
                     fields=ordered,
+                    request_type=request_type,
                     metadata=payload.get("metadata") or {},
                     created_by=request.user,
                 )

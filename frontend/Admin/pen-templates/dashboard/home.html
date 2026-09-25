@@ -37,7 +37,7 @@
         </div>
         <div class="min-w-0">
           <div class="d-flex align-items-baseline gap-2"><h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="persons">—</h2><span class="pen-stat-caption">زنده</span></div>
-          <p class="mb-0 text-muted fs-14">{% if is_manager %}ظرفیت پرشده{% else %}اشخاص{% endif %}</p>
+          <p class="mb-0 text-muted fs-14">{% if is_manager %}ظرفیت تکمیل‌شده{% else %}افراد{% endif %}</p>
         </div>
       </div>
     </div>
@@ -136,8 +136,8 @@ document.addEventListener('DOMContentLoaded', function () {
     terms: '/api/reports/dashboard/?period=month'
   }{% else %}{
     persons: '/api/persons/?limit=1',
-    instances: '/api/workflow/instances/?limit=1',
-    tasks: '/api/tasks/?limit=1',
+    instances: '/api/forms/requests/?limit=1',
+    tasks: '/api/forms/my-work/',
     terms: '/api/academics/terms/?limit=1'
   }{% endif %};
   Object.keys(endpoints).forEach(function (key) {
@@ -155,7 +155,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (managerEl && managerValue != null) managerEl.textContent = key === 'persons' ? window.persianNumbers(Number(managerValue).toFixed(1)) + '٪' : window.persianNumbers(managerValue);
         {% else %}
         var el = document.querySelector('[data-stat="' + key + '"]');
-        if (el) el.textContent = (d && d.count != null) ? window.persianNumbers(d.count) : '—';
+        var count = key === 'tasks'
+          ? ((d && d.tasks) ? d.tasks.length : null)
+          : (d && d.count != null ? d.count : null);
+        if (el) el.textContent = count != null ? window.persianNumbers(count) : '—';
         {% endif %}
       })
       .catch(function () {

@@ -68,7 +68,7 @@ class GuardianProfileInline(admin.StackedInline):
     extra = 0
     can_delete = False
     fields = ("occupation", "education_level", "preferred_contact",
-              "is_primary", "is_active")
+              "is_active")
 
 
 class WardenLinkInline(admin.TabularInline):
@@ -136,7 +136,7 @@ class StudentGuardianAdmin(JalaliAdminMixin, admin.ModelAdmin):
     """
 
     list_display = ("student", "relation", "guardian", "custody_status",
-                    "is_primary_flag", "is_active")
+                    "is_primary", "is_active")
     list_filter = ("relation", "custody_status", "is_active")
     autocomplete_fields = ("student", "guardian")
     search_fields = (
@@ -144,8 +144,3 @@ class StudentGuardianAdmin(JalaliAdminMixin, admin.ModelAdmin):
         "guardian__national_code", "guardian__last_name",
     )
     readonly_fields = ("created_at", "updated_at")
-
-    @admin.display(boolean=True, description="ولی اصلی")
-    def is_primary_flag(self, obj) -> bool:
-        profile = GuardianProfile.objects.filter(person=obj.guardian).first()
-        return bool(profile and profile.is_primary)

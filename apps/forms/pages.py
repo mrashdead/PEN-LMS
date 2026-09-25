@@ -24,6 +24,7 @@ from apps.forms.models import FormSchema, FormSubmission
 from apps.forms.permissions import (
     ELEVATED_ROLES,
     can_view_internal_comments,
+    visible_request_types_for,
     visible_schemas_for,
     visible_submissions_for,
 )
@@ -53,7 +54,14 @@ class SchemaPickerPage(FormsPageMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["schemas"] = visible_schemas_for(self.request.user).order_by("slug")
+        context["schemas"] = (
+            visible_schemas_for(self.request.user)
+            .select_related("request_type", "workflow_definition")
+            .order_by("request_type__title", "title", "slug", "-version")
+        )
+        context["request_types"] = visible_request_types_for(self.request.user).order_by(
+            "title", "code"
+        )
         return context
 
 
@@ -64,7 +72,8 @@ class SubmissionListPage(FormsPageMixin, ListView):
 
     def get_queryset(self):
         qs = visible_submissions_for(self.request.user).select_related(
-            "form_schema", "submitted_by"
+            "form_schema", "form_schema__request_type", "form_schema__workflow_definition",
+            "submitted_by", "business_request"
         )
         status_param = self.request.GET.get("status")
         if status_param:
@@ -158,6 +167,8 @@ class SubmissionCreatePage(FormsPageMixin, TemplateView):
         context["form_data"] = {}
         context["errors"] = {}
         context["relation_options"] = _relation_options(schema, self.request.user)
+        context["request_type"] = schema.request_type
+        context["request_id"] = ""
         return context
 
 
@@ -180,6 +191,9 @@ class SubmissionEditPage(FormsPageMixin, TemplateView):
         context["errors"] = {}
         context["relation_options"] = _relation_options(schema, self.request.user)
         context["submission"] = submission
+        context["request_type"] = schema.request_type
+        business_request = getattr(submission, "business_request", None)
+        context["request_id"] = str(business_request.pk) if business_request else ""
         return context
 
 
@@ -206,6 +220,7 @@ class SubmissionDetailPage(FormsPageMixin, DetailView):
         if not can_view_internal_comments(self.request.user):
             comments = comments.exclude(is_internal=True)
         context["comments"] = comments
+        context["business_request"] = getattr(submission, "business_request", None)
         context["can_edit"] = (
             submission.status == FormSubmission.Status.DRAFT
             and submission.submitted_by_id == self.request.user.pk
@@ -252,6 +267,7 @@ class SchemaAdminPage(SchemaAdminRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         schemas = (
             FormSchema.objects.all()
+            .select_related("request_type", "workflow_definition")
             .prefetch_related("allowed_roles", "submissions")
             .order_by("slug", "-version")
         )
@@ -300,6 +316,9 @@ class SchemaBuilderPage(SchemaAdminRequiredMixin, TemplateView):
             if source is None:
                 raise Http404
         context["schema"] = source
+        context["request_types"] = visible_request_types_for(self.request.user).order_by(
+            "title", "code"
+        )
         context["fields_json"] = json.dumps(
             source.fields if source else [], ensure_ascii=False, indent=2
         )
@@ -311,8 +330,15 @@ class SchemaBuilderPage(SchemaAdminRequiredMixin, TemplateView):
             "slug": slug or "",
             "title": source.title if source else "",
             "description": source.description if source else "",
+            "requestTypeCode": (
+                source.request_type.code if source and source.request_type else ""
+            ),
             "nextVersion": context["next_version"],
             "fields": source.fields if source else [],
+            "requestTypes": [
+                {"code": item.code, "title": item.title, "kind": item.kind}
+                for item in context["request_types"]
+            ],
             "relationRegistry": context["relation_registry"],
             "adminApiUrl": "/api/forms/admin/schemas/",
             "djangoAdminUrl": "/admin/forms/formschema/",

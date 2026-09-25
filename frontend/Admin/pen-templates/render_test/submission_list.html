@@ -112,12 +112,12 @@
     
     <a href="" class="navbar-brand" title="Pen LMS">
       <div class="logo-lg">
-        <img src="../src/assets/images/main-logo.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
-        <img src="../src/assets/images/logo-white.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+        <img src="../src/assets/images/pen_logo_clean.svg" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
+        <img src="../src/assets/images/pen_logo_clean.svg" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
       </div>
       <div class="logo-sm">
-        <img src="../src/assets/images/logo-sm-dark.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
-        <img src="../src/assets/images/logo-sm-white.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+        <img src="../src/assets/images/pen_logo_clean.svg" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
+        <img src="../src/assets/images/pen_logo_clean.svg" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
       </div>
     </a>
 
@@ -243,7 +243,7 @@
           <div class="collapse show" id="collapseEdu">
             <ul class="nav-menu-sub">
               
-              <li><a href="" class="nav-link active"><span>اشخاص</span></a></li>
+              <li><a href="" class="nav-link active"><span>افراد</span></a></li>
               
               <li><a href="" class="nav-link active"><span>دپارتمان‌ها</span></a></li>
               <li><a href="" class="nav-link active"><span>درس‌ها</span></a></li>
@@ -290,6 +290,24 @@
              aria-current="page">
             <span class="icons"><i data-lucide="toy-brick"></i></span>
             <span class="content">خانه بازی</span>
+          </a>
+        </li>
+        
+        
+        <li class="nav-item">
+          <a href="" title="گزارش مالی خانه بازی"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="chart-no-axes-combined"></i></span>
+            <span class="content">گزارش مالی خانه بازی</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="" title="تنظیمات خانه بازی"
+             class="nav-link active"
+             aria-current="page">
+            <span class="icons"><i data-lucide="settings"></i></span>
+            <span class="content">تنظیمات خانه بازی</span>
           </a>
         </li>
         
@@ -436,7 +454,7 @@
       <div class="card-header d-flex flex-column flex-md-row gap-3">
         <div>
           <h6 class="mb-0 card-title">درخواست‌های ثبت‌شده</h6>
-          <p class="mb-0 text-muted fs-14">فهرست فرم‌هایی که به شما دسترسی دیدن داده شده است.</p>
+            <p class="mb-0 text-muted fs-14">فهرست فرم‌ها و درخواست‌های شما؛ هر فرم متصل به فرآیند از همین‌جا قابل پیگیری است.</p>
         </div>
         <a href="" class="btn btn-primary flex-shrink-0 ms-md-auto">
           <i data-lucide="file-plus-2" class="size-4 me-2"></i> فرم جدید
@@ -483,8 +501,8 @@
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
-                <th scope="col">شماره</th>
-                <th scope="col">فرم</th>
+                <th scope="col">شماره درخواست</th>
+                <th scope="col">فرم / نوع درخواست</th>
                 <th scope="col">وضعیت</th>
                 <th scope="col">تاریخ</th>
                 <th scope="col">فرستنده</th>
@@ -495,11 +513,22 @@
               
                 <tr>
                   <td>
-                    <a class="fw-medium link link-primary" href="">
-                      …
-                    </a>
+                    
+                      <a class="fw-medium link link-primary" href="/workspace/requests/?id=…">
+                        …
+                      </a>
+                    
+                      <a class="fw-medium link link-primary" href="">
+                        …
+                      </a>
+                    
                   </td>
-                  <td>…</td>
+                  <td>
+                    <div>…</div>
+                    
+                      <span class="badge bg-info-subtle text-info fs-12">…</span>
+                    
+                  </td>
                   <td><span class="pen-badge pen-badge-…">…</span></td>
                   <td class="text-nowrap">…</td>
                   <td>…</td>

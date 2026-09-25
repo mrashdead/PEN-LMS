@@ -1,7 +1,7 @@
 """
 Organizational API (read-models + delegation).
 
-  GET  /api/org/chart/                 → clickable org tree + departments
+  GET  /api/org/chart/                 → clickable org tree + role groups + departments
   GET  /api/org/profile/<uuid>/         → one user's org profile
   GET  /api/org/permissions/matrix/     → group × resource × verb matrix
   POST /api/org/permissions/simulate/   → {user, resource, verb} → verdict+why
@@ -49,8 +49,10 @@ class OrgChartView(_StaffGate, APIView):
         denied = self._deny(request)
         if denied:
             return denied
+        groups = services.org_chart_groups()
         return Response({
-            "chart": services.org_chart(),
+            "chart": next((group["chart"] for group in groups if group["key"] == "all"), []),
+            "groups": groups,
             "departments": services.departments(),
         })
 

@@ -33,6 +33,7 @@ INSTALLED_APPS: list[str] = [
     "rest_framework.authtoken",
     "django_filters",
     "corsheaders",
+    "drf_spectacular",
     "apps.core",
     "apps.accounts",
     "apps.workflow",
@@ -49,6 +50,7 @@ INSTALLED_APPS: list[str] = [
 ]
 
 MIDDLEWARE: list[str] = [
+    "apps.core.middleware.RequestIDMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -156,6 +158,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "apps.core.authentication.ExpiringTokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
@@ -182,6 +185,13 @@ REST_FRAMEWORK = {
         "password": "5/minute",
         "form_write": "30/minute",
     },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Pen LMS API",
+    "DESCRIPTION": "قرارداد رسمی API پن",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -222,6 +232,32 @@ SLA_REMINDER_LEAD_HOURS = env.int("SLA_REMINDER_LEAD_HOURS", default=4)
 # Escalation target role when a task blows its deadline (empty = no escalate).
 SLA_ESCALATION_ROLE = env("SLA_ESCALATION_ROLE", default="manager")
 
+# The only supported production scheduler/worker is Celery with Redis. The
+# management commands remain the task bodies and local/manual entry points.
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://127.0.0.1:6379/1")
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_BEAT_SCHEDULE = {
+    "flush-notifications-every-minute": {
+        "task": "pen.workflow.flush_notifications",
+        "schedule": 60.0,
+        "options": {"expires": 55},
+    },
+    "scan-workflow-sla-every-five-minutes": {
+        "task": "pen.workflow.scan_sla",
+        "schedule": 300.0,
+        "options": {"expires": 290},
+    },
+    "reconcile-attendance-projections-every-five-minutes": {
+        "task": "pen.forms.reconcile_education_projections",
+        "schedule": 300.0,
+        "options": {"expires": 290},
+    },
+}
+
 # CORS: deny cross-origin requests by default. Add trusted frontend origins
 # through the environment variable in deployments.
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
@@ -253,7 +289,7 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "verbose": {
-            "format": "[{asctime}] {levelname} {name} {message}",
+            "format": "[{asctime}] {levelname} request_id={request_id} {name} {message}",
             "style": "{",
         },
     },
@@ -261,7 +297,11 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
+            "filters": ["request_id"],
         },
+    },
+    "filters": {
+        "request_id": {"()": "apps.core.middleware.RequestIDLogFilter"},
     },
     "root": {
         "handlers": ["console"],

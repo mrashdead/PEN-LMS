@@ -11,22 +11,11 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE)
 
 try:
-    from django.template import engines
-    from django.conf import settings
-
-    settings.configure(
-        TEMPLATES=[{
-            "BACKEND": "django.template.backends.django.DjangoTemplates",
-            "DIRS": [os.path.join(BASE, "frontend", "Admin", "pen-templates")],
-            "APP_DIRS": False,
-            "OPTIONS": {"libraries": {
-                "forms_extras": "apps.forms.templatetags.forms_extras",
-            }},
-        }],
-        INSTALLED_APPS=[],
-    )
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "pen.settings")
     import django
+
     django.setup()
+    from django.template import engines
 except ImportError:
     print("django not importable in this environment; parse audit skipped")
     sys.exit(0)

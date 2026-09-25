@@ -18,8 +18,9 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
-from apps.core.models import DomainModel
+from apps.core.models import AppendOnlyDomainModel, DomainModel
 
 
 class WorkflowDefinition(DomainModel):
@@ -34,7 +35,6 @@ class WorkflowDefinition(DomainModel):
 
     code = models.SlugField(
         max_length=64,
-        unique=True,
         help_text="Business key / شناسه یکتای فرآیند — مثلاً leave-request, grade-submission",
     )
     name = models.CharField(
@@ -60,6 +60,17 @@ class WorkflowDefinition(DomainModel):
         indexes = [
             models.Index(fields=["code", "is_active"]),
             models.Index(fields=["version"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["code", "version"],
+                name="uniq_workflow_code_version",
+            ),
+            models.UniqueConstraint(
+                fields=["code"],
+                condition=models.Q(is_active=True, is_deleted=False),
+                name="uniq_active_workflow_code",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -112,6 +123,15 @@ class State(DomainModel):
         blank=True,
         help_text="مهلت پیش‌فرض تسک‌های این وضعیت (ساعت). خالی = بدون مهلت.",
     )
+    assignment_policy = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "سیاست تخصیص تسک به‌صورت JSON. مثال: "
+            '{"strategy": "direct_manager", "fallback_roles": ["manager"]}. '
+            "خالی = رفتار سازگار با گردش‌کارهای قدیمی."
+        ),
+    )
 
     class Meta:
         app_label = "workflow"
@@ -123,6 +143,11 @@ class State(DomainModel):
             models.UniqueConstraint(
                 fields=["workflow_definition", "code"],
                 name="uniq_workflow_state_code_per_wf",
+            ),
+            models.UniqueConstraint(
+                fields=["workflow_definition"],
+                condition=models.Q(is_initial=True, is_deleted=False),
+                name="uniq_workflow_initial_state",
             ),
         ]
         indexes = [
@@ -223,6 +248,18 @@ class Transition(DomainModel):
         indexes = [
             models.Index(fields=["workflow_definition", "from_state"]),
             models.Index(fields=["workflow_definition", "to_state"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workflow_definition", "from_state", "name"],
+                condition=models.Q(is_deleted=False),
+                name="uniq_workflow_transition_route_name",
+            ),
+            models.UniqueConstraint(
+                fields=["workflow_definition", "from_state", "kind"],
+                condition=models.Q(is_deleted=False) & ~models.Q(kind=""),
+                name="uniq_workflow_transition_route_kind",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -343,7 +380,7 @@ class Instance(DomainModel):
         return f"{self.workflow_definition.code}/{self.title} [{self.status}]"
 
 
-class ActionLog(DomainModel):
+class ActionLog(AppendOnlyDomainModel):
     """
     تاریخچه قطعی هر اقدام روی یک Instance.
 
@@ -357,7 +394,7 @@ class ActionLog(DomainModel):
 
     instance = models.ForeignKey(
         Instance,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="action_logs",
     )
     from_state = models.ForeignKey(
@@ -464,6 +501,7 @@ class EntityWorkflow(DomainModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["content_type", "object_id"],
+                condition=models.Q(is_deleted=False),
                 name="uniq_workflow_entity_link",
                 violation_error_message="این موجودیت قبلاً به یک Instance دیگر متصل شده است.",
             ),
@@ -476,7 +514,7 @@ class EntityWorkflow(DomainModel):
         return f"{self.instance_id} ↔ {self.content_type}.{self.object_id}"
 
 
-class ApprovalRecord(DomainModel):
+class ApprovalRecord(AppendOnlyDomainModel):
     """
     رکورد تایید مستقل از status (§14.5 گزارش مهندسی / B6).
 
@@ -490,7 +528,7 @@ class ApprovalRecord(DomainModel):
 
     instance = models.ForeignKey(
         Instance,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="approvals",
     )
     transition = models.ForeignKey(
@@ -601,8 +639,9 @@ class NotificationOutbox(DomainModel):
 
     class Status(models.TextChoices):
         PENDING = "pending", "در انتظار ارسال"
+        PROCESSING = "processing", "در حال ارسال"
         SENT = "sent", "ارسال‌شده"
-        FAILED = "failed", "ناموفق"
+        DEAD_LETTER = "dead_letter", "صف مرده"
 
     instance = models.ForeignKey(
         Instance,
@@ -627,6 +666,12 @@ class NotificationOutbox(DomainModel):
     )
     attempts = models.PositiveSmallIntegerField(default=0)
     last_error = models.TextField(blank=True, default="")
+    delivery_key = models.CharField(
+        max_length=200, null=True, blank=True, unique=True,
+        help_text="کلید تکرارنشدن رخداد؛ null برای داده‌های قدیمی.",
+    )
+    next_attempt_at = models.DateTimeField(default=timezone.now, db_index=True)
+    claimed_at = models.DateTimeField(null=True, blank=True, db_index=True)
     sent_at = models.DateTimeField(null=True, blank=True)
     # Read receipt for in-app notifications (delivery status ≠ viewed).
     is_read = models.BooleanField(default=False, db_index=True)
@@ -639,7 +684,7 @@ class NotificationOutbox(DomainModel):
         verbose_name_plural = "Notification Outbox (اعلان‌های خروجی)"
         ordering = ("-created_at",)
         indexes = [
-            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["status", "next_attempt_at"]),
             models.Index(fields=["recipient", "status"]),
             # User inbox queries: "my in-app, unread, newest first".
             models.Index(fields=["recipient", "channel", "is_read"]),

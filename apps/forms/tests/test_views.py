@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
@@ -342,6 +344,19 @@ class AttachmentAPITests(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, 201)
         self.assertNotIn("file", response.data)  # storage path never exposed
         self.assertTrue(response.data["checksum"].startswith("sha256:"))
+
+    @override_settings(**FILE_SETTINGS)
+    def test_uploaded_file_is_private_and_has_no_public_url(self):
+        from apps.forms.models import FormAttachment
+
+        response = self._upload(self.user, _png_bytes())
+        self.assertEqual(response.status_code, 201)
+        attachment = FormAttachment.objects.get(pk=response.data["id"])
+        private_root = (Path(settings.MEDIA_ROOT) / "private").resolve()
+
+        self.assertTrue(Path(attachment.file.path).resolve().is_relative_to(private_root))
+        with self.assertRaises(ValueError):
+            attachment.file.url
 
     @override_settings(**FILE_SETTINGS)
     def test_mime_spoofing_rejected(self):

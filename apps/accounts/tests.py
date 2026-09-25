@@ -2,11 +2,33 @@ import io
 from datetime import timedelta
 
 from django.core.management import call_command
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
 
 from apps.accounts.admin import UserRoleAdminForm
 from apps.accounts.models import Role, User, UserRole
+
+
+class OfficialCodeConstraintTests(TestCase):
+    def test_live_user_employee_code_is_unique_in_database(self):
+        User.objects.create_user(
+            username="employee-code-one", password="x", employee_code="EMP-42",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                User.objects.create_user(
+                    username="employee-code-two", password="x", employee_code="EMP-42",
+                )
+
+    def test_soft_deleted_user_does_not_reserve_employee_code(self):
+        User.objects.create_user(
+            username="employee-code-deleted", password="x",
+            employee_code="EMP-43", is_deleted=True,
+        )
+        User.objects.create_user(
+            username="employee-code-reused", password="x", employee_code="EMP-43",
+        )
 
 
 class LegacyRoleLifecycleTests(TestCase):

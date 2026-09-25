@@ -76,7 +76,7 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
         "title": "تعریف درس",
         "description": "فرم تعریف درس، سرفصل و مشخصات آموزشی آن.",
         "version": 1,
-        "allowed_roles": ["manager", "hr", "workflow_admin"],
+        "allowed_roles": ["manager", "supervisor", "workflow_admin"],
         "workflow_code": "form-approval",
         "fields": [
             _f("lesson_title", "text", 1, "عنوان درس", required=True,
@@ -123,7 +123,7 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
         "title": "تعریف دوره",
         "description": "فرم تعریف دوره آموزشی و دروس آن.",
         "version": 1,
-        "allowed_roles": ["manager", "hr", "workflow_admin"],
+        "allowed_roles": ["manager", "supervisor", "workflow_admin"],
         "workflow_code": "form-approval",
         "fields": [
             _f("course_title", "text", 1, "عنوان دوره", required=True,
@@ -141,7 +141,7 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
         "title": "برگزاری دوره",
         "description": "فرم برگزاری یک دوره: ظرفیت، تاریخ، محل، استاد و زمان‌بندی.",
         "version": 1,
-        "allowed_roles": ["manager", "hr", "workflow_admin", "employee"],
+        "allowed_roles": ["manager", "supervisor", "workflow_admin", "employee"],
         "workflow_code": "form-approval",
         "fields": [
             _f("course", "relation", 1, "انتخاب دوره", required=True,
@@ -170,7 +170,7 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
         "title": "تشکیل کلاس",
         "description": "نهایی‌سازی کلاس: برگزاری، درس، استاد، محل و زمان قطعی.",
         "version": 1,
-        "allowed_roles": ["manager", "hr", "workflow_admin"],
+        "allowed_roles": ["manager", "supervisor", "workflow_admin"],
         "workflow_code": "form-approval",
         "fields": [
             _f("course_offering", "relation", 1, "برگزاری دوره", required=True,
@@ -244,7 +244,7 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
         "title": "لید و تعیین سطح",
         "description": "ثبت لید، تعیین نوبت و جلسه تعیین سطح، ارزیابی و معرفی دوره.",
         "version": 1,
-        "allowed_roles": ["employee", "hr", "manager", "workflow_admin"],
+        "allowed_roles": ["employee", "supervisor", "manager", "workflow_admin"],
         "workflow_code": "lead-assessment",
         "fields": [
             _f("student_name", "text", 1, "نام دانش‌آموز", required=True,
@@ -272,6 +272,37 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
             _f("recommended_lesson", "relation", 11, "درس مورد نظر",
                relation={"registry_key": "academic.lesson", "lookup": "id",
                          "required": False}),
+        ],
+    },
+    # ── فرم ثبت‌نام دانش‌آموز — Request → workflow → domain action ───────
+    "student-registration": {
+        "title": "ثبت‌نام دانش‌آموز در برگزاری",
+        "description": "درخواست ثبت‌نام، بررسی ظرفیت و مالی، تأیید نهایی و ایجاد عضویت کلاس.",
+        "version": 1,
+        "allowed_roles": ["student", "employee", "supervisor", "manager", "workflow_admin"],
+        "workflow_code": "student-registration",
+        "metadata": {"domain_action": "student_registration", "subject_field": "student"},
+        "fields": [
+            _f("offering", "relation", 1, "برگزاری دوره", required=True,
+               relation={"registry_key": "academic.course_offering", "lookup": "id"}),
+            _f("student", "relation", 2, "دانش‌آموز", required=True,
+               relation={"registry_key": "persons.person", "lookup": "id",
+                         "filter": {"person_type": "student", "is_active": True}}),
+            _f("class_group", "relation", 3, "کلاس قطعی (اختیاری تا زمان تشکیل کلاس)",
+               relation={"registry_key": "academic.class_group", "lookup": "id",
+                         "required": False, "filter": {"is_active": True}}),
+            _f("discount_type", "select", 4, "نوع تخفیف", options=[
+                {"value": "none", "label": "بدون تخفیف"},
+                {"value": "percent", "label": "درصدی"},
+                {"value": "amount", "label": "مبلغ ثابت"},
+            ]),
+            _f("discount_value", "number", 5, "مقدار تخفیف", validators={"min_value": 0}),
+            _f("payment_method", "select", 6, "روش پرداخت", options=[
+                {"value": "cash", "label": "نقدی"},
+                {"value": "pos", "label": "کارت‌خوان"},
+                {"value": "cheque", "label": "چک"},
+            ]),
+            _f("payment_reference", "text", 7, "کد پیگیری پرداخت", max_length=128),
         ],
     },
 }
@@ -372,7 +403,11 @@ class Command(BaseCommand):
                 "fields": ordered,
                 "allowed_roles": list(entry.get("allowed_roles", [])),
                 "workflow_code": entry.get("workflow_code"),
-                "metadata": {"relation_fallbacks": fallback_notes} if fallback_notes else {},
+                "metadata": {
+                    **dict(entry.get("metadata") or {}),
+                    **({"relation_fallbacks": fallback_notes} if fallback_notes else {}),
+                },
+                "request_type_code": entry.get("request_type_code", slug),
             })
 
         return prepared, problems
@@ -402,7 +437,11 @@ class Command(BaseCommand):
         # Role codes must exist (run seed_roles first) — actionable, not invented.
         wanted_roles = sorted({code for item in prepared for code in item["allowed_roles"]})
         existing = set(Role.objects.filter(code__in=wanted_roles).values_list("code", flat=True))
-        missing_roles = sorted(set(wanted_roles) - existing)
+        # supervisor is an additive role; keep old installations seedable and
+        # attach it automatically once seed_roles creates it.
+        missing_roles = sorted(
+            (set(wanted_roles) - existing) - {"supervisor", "student", "guardian"}
+        )
         if missing_roles:
             raise CommandError(
                 f"missing role(s): {', '.join(missing_roles)} — run "
@@ -412,6 +451,7 @@ class Command(BaseCommand):
         # Workflow definitions referenced by the catalog must exist or be
         # created by seed_form_workflows — a dangling FK would break submit.
         from apps.workflow.models import WorkflowDefinition
+        from apps.forms.models import RequestType
 
         wanted_workflows = sorted({item["workflow_code"] for item in prepared if item["workflow_code"]})
         existing_workflows = set(
@@ -454,6 +494,27 @@ class Command(BaseCommand):
                     code=item["workflow_code"], is_active=True
                 )
 
+            request_type, _ = RequestType.objects.get_or_create(
+                code=item["request_type_code"],
+                defaults={
+                    "title": item["title"],
+                    "description": item["description"],
+                    "kind": RequestType.Kind.REQUEST,
+                    "workflow_definition": workflow,
+                    "metadata": item["metadata"],
+                },
+            )
+            if options["force"]:
+                request_type.title = item["title"]
+                request_type.description = item["description"]
+                request_type.workflow_definition = workflow
+                request_type.metadata = item["metadata"]
+                request_type.is_active = True
+                request_type.save(update_fields=[
+                    "title", "description", "workflow_definition", "metadata", "is_active", "updated_at"
+                ])
+            request_type.allowed_roles.set(Role.objects.filter(code__in=item["allowed_roles"]))
+
             schema, created = FormSchema.objects.get_or_create(
                 slug=item["slug"],
                 version=item["version"],
@@ -464,6 +525,7 @@ class Command(BaseCommand):
                     "is_active": True,
                     "metadata": item["metadata"],
                     "workflow_definition": workflow,
+                    "request_type": request_type,
                 },
             )
             if not created:
@@ -472,6 +534,8 @@ class Command(BaseCommand):
                     schema.description = item["description"]
                     schema.fields = item["fields"]
                     schema.metadata = item["metadata"]
+                    schema.workflow_definition = workflow
+                    schema.request_type = request_type
                     schema.is_active = True
                     schema.full_clean()
                     schema.save()

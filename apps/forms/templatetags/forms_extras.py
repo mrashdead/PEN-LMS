@@ -129,8 +129,14 @@ STATUS_LABELS_FA = {
     "draft": "پیش‌نویس",
     "submitted": "ارسال‌شده",
     "processing": "در حال بررسی",
+    "in_review": "در بررسی",
+    "awaiting_action": "منتظر اقدام",
+    "changes_requested": "نیازمند اصلاح",
     "approved": "تأییدشده",
     "rejected": "ردشده",
+    "cancelled": "لغوشده",
+    "completed": "تکمیل‌شده",
+    "blocked_assignment": "بدون مسئول",
     "archived": "بایگانی",
 }
 

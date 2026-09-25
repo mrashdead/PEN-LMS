@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from datetime import timedelta
 from typing import Any, Callable, Optional
 
 from django.db import IntegrityError, transaction
@@ -34,6 +35,8 @@ from apps.forms.models import (
     FormComment,
     FormSchema,
     FormSubmission,
+    Request,
+    RequestType,
     SubmissionSequence,
 )
 from apps.forms.validation import FormDataValidator, FormDataInvalid
@@ -46,6 +49,139 @@ NUMBER_RETRY_LIMIT = 5
 #: Registry keys copied into the denormalized visibility columns.
 CLASS_GROUP_KEYS = {"academic.class_group"}
 PERSON_KEYS = {"persons.person"}
+
+
+def request_type_for_schema(schema: FormSchema) -> RequestType:
+    """Return the business request type for a schema, creating a legacy bridge.
+
+    Older installations predate ``RequestType`` and only store a workflow on
+    ``FormSchema``.  The bridge is deliberately deterministic and idempotent so
+    those installations can adopt the unified request model without losing
+    their existing schemas or requiring an unsafe data rewrite at runtime.
+    """
+    request_type = getattr(schema, "request_type", None)
+    if request_type is not None:
+        return request_type
+
+    code = f"form-{schema.slug}"[:120]
+    request_type, _created = RequestType.objects.get_or_create(
+        code=code,
+        defaults={
+            "title": schema.title,
+            "description": schema.description,
+            "kind": RequestType.Kind.REQUEST,
+            "workflow_definition_id": schema.workflow_definition_id,
+            "metadata": {"legacy_schema_bridge": True},
+        },
+    )
+    changed: list[str] = []
+    if not request_type.workflow_definition_id and schema.workflow_definition_id:
+        request_type.workflow_definition_id = schema.workflow_definition_id
+        changed.append("workflow_definition")
+    if changed:
+        request_type.save(update_fields=[*changed, "updated_at"])
+    if schema.request_type_id != request_type.pk:
+        schema.request_type = request_type
+        schema.save(update_fields=["request_type", "updated_at"])
+    return request_type
+
+
+def request_status_from_submission(submission: FormSubmission) -> str:
+    """Map the compatibility form status to the unified request lifecycle."""
+    mapping = {
+        FormSubmission.Status.DRAFT: Request.Status.DRAFT,
+        FormSubmission.Status.SUBMITTED: Request.Status.SUBMITTED,
+        FormSubmission.Status.PROCESSING: Request.Status.IN_REVIEW,
+        FormSubmission.Status.APPROVED: Request.Status.APPROVED,
+        FormSubmission.Status.REJECTED: Request.Status.REJECTED,
+        FormSubmission.Status.ARCHIVED: Request.Status.ARCHIVED,
+    }
+    instance = submission.workflow_instance
+    if instance is not None:
+        state_code = getattr(getattr(instance, "current_state", None), "code", "") or ""
+        if state_code in {"changes-requested", "changes_requested"}:
+            return Request.Status.CHANGES_REQUESTED
+        if instance.status == "running":
+            if any(token in state_code for token in ("approval", "review", "check", "pending", "financial")):
+                return Request.Status.AWAITING_ACTION
+            return Request.Status.IN_REVIEW
+        if instance.status == "completed":
+            if (submission.form_schema.metadata or {}).get("domain_action"):
+                return Request.Status.COMPLETED
+            return Request.Status.APPROVED
+        if instance.status == "rejected":
+            return Request.Status.REJECTED
+        if instance.status == "cancelled":
+            return Request.Status.CANCELLED
+    return mapping.get(submission.status, Request.Status.SUBMITTED)
+
+
+@transaction.atomic
+def sync_request_from_submission(
+    submission: FormSubmission,
+    *,
+    create: bool = True,
+) -> Request | None:
+    """Create/update the unified Request projection for a submission.
+
+    ``FormSubmission`` remains the backward-compatible storage of form data;
+    this function is the single synchronization point for the new business
+    request aggregate.  It is safe to call after every form lifecycle action.
+    """
+    request_type = request_type_for_schema(submission.form_schema)
+    request_status = request_status_from_submission(submission)
+    completed_at = timezone.now() if request_status in {
+        Request.Status.APPROVED,
+        Request.Status.COMPLETED,
+        Request.Status.REJECTED,
+        Request.Status.CANCELLED,
+        Request.Status.ARCHIVED,
+    } else None
+    defaults = {
+        "request_type": request_type,
+        "requester": submission.submitted_by,
+        "subject_person": submission.subject_person,
+        "request_number": submission.submission_number or None,
+        "status": request_status,
+        "submitted_at": submission.submitted_at,
+        "completed_at": completed_at,
+        "last_action_at": submission.last_action_at or submission.updated_at,
+        "metadata": {
+            "schema_slug": submission.form_schema.slug,
+            "schema_version": submission.schema_version_snapshot,
+        },
+    }
+    if not create and not hasattr(submission, "business_request"):
+        return None
+
+    business_request, _created = Request.objects.get_or_create(
+        form_submission=submission,
+        defaults=defaults,
+    )
+    updates: list[str] = []
+    for field in ("request_type", "requester", "subject_person"):
+        value = defaults[field]
+        current_id = getattr(business_request, f"{field}_id")
+        value_id = getattr(value, "pk", None)
+        if current_id != value_id:
+            setattr(business_request, field, value)
+            updates.append(field)
+    for field in ("status", "submitted_at", "completed_at", "last_action_at"):
+        value = defaults[field]
+        if field == "completed_at" and value is not None and getattr(business_request, field) is not None:
+            continue
+        if getattr(business_request, field) != value:
+            setattr(business_request, field, value)
+            updates.append(field)
+    if not business_request.request_number and defaults["request_number"]:
+        business_request.request_number = defaults["request_number"]
+        updates.append("request_number")
+    if updates:
+        business_request.last_action_at = defaults["last_action_at"]
+        if "last_action_at" not in updates:
+            updates.append("last_action_at")
+        business_request.save(update_fields=[*dict.fromkeys(updates), "updated_at"])
+    return business_request
 
 
 class FormServiceError(Exception):
@@ -278,6 +414,9 @@ class FormSubmissionService:
             }
 
         submission = _create_with_unique_number(fill)
+        # New unified request layer.  This is a projection over the existing
+        # submission record and therefore keeps legacy form APIs compatible.
+        sync_request_from_submission(submission)
         self._log(submission, action="form_create", actor=user)
         return submission
 
@@ -293,8 +432,18 @@ class FormSubmissionService:
         notes: Optional[str] = None,
         request=None,
         attachment_keys: Optional[set[str]] = None,
+        allow_changes_requested: bool = False,
     ) -> FormSubmission:
-        if submission.is_immutable:
+        def changes_requested_state(value) -> bool:
+            instance = getattr(value, "workflow_instance", None)
+            return bool(
+                allow_changes_requested
+                and value.status == FormSubmission.Status.PROCESSING
+                and getattr(getattr(instance, "current_state", None), "code", "")
+                in {"changes-requested", "changes_requested"}
+            )
+
+        if submission.is_immutable and not changes_requested_state(submission):
             raise ImmutableSubmissionError(
                 "Submitted forms are immutable and cannot be edited."
             )
@@ -302,7 +451,7 @@ class FormSubmissionService:
         # (e.g. submitted by another request after it was loaded). Never trust
         # the passed object's status for the immutability decision.
         submission = FormSubmission.objects.select_for_update().get(pk=submission.pk)
-        if submission.is_immutable:
+        if submission.is_immutable and not changes_requested_state(submission):
             raise ImmutableSubmissionError(
                 "Submitted forms are immutable and cannot be edited."
             )
@@ -388,8 +537,16 @@ class FormSubmissionService:
         submission.status = FormSubmission.Status.SUBMITTED
         submission.submitted_at = timezone.now()
         submission.last_action_at = submission.submitted_at
+        if schema.slug == "attendance":
+            submission.projection_status = FormSubmission.ProjectionStatus.PENDING
+            submission.projection_next_attempt_at = submission.submitted_at
 
-        if schema.workflow_definition_id:
+        workflow_definition = schema.workflow_definition
+        if schema.request_type_id:
+            request_type = request_type_for_schema(schema)
+            workflow_definition = request_type.workflow_definition or workflow_definition
+
+        if workflow_definition is not None:
             instance = self._start_workflow(submission, user)
             submission.workflow_instance = instance
             synced = self._status_from_workflow(instance)
@@ -400,6 +557,7 @@ class FormSubmissionService:
             update_fields=[
                 "submission_number", "version_snapshot", "schema_version_snapshot",
                 "status", "submitted_at", "last_action_at", "workflow_instance",
+                "projection_status", "projection_next_attempt_at",
                 "updated_at",
             ]
         )
@@ -409,6 +567,7 @@ class FormSubmissionService:
         # Fail-soft: a projection problem is logged for reconciliation and
         # never loses the submission itself.
         self._project_into_education(submission, user)
+        sync_request_from_submission(submission)
         return submission
 
     def _project_into_education(self, submission: FormSubmission, user) -> None:
@@ -423,10 +582,15 @@ class FormSubmissionService:
 
         if submission.form_schema.slug != "attendance":
             return
+        submission.projection_attempts += 1
         data = submission.data or {}
         required = ("class_group", "session_date", "session_number",
                     "session_start", "session_end", "attendance_list")
         if any(data.get(k) in (None, "", []) for k in required):
+            self._mark_projection_failed(
+                submission,
+                "attendance submission is missing required projection fields",
+            )
             logger.warning(
                 "attendance projection skipped (missing keys) submission=%s",
                 submission.pk,
@@ -450,10 +614,30 @@ class FormSubmissionService:
                 rows=rows,
                 actor=user,
             )
-        except Exception:  # noqa: BLE001 - reporting projection must never break submit
+            submission.projection_status = FormSubmission.ProjectionStatus.COMPLETE
+            submission.projection_last_error = ""
+            submission.projection_next_attempt_at = None
+            submission.save(update_fields=[
+                "projection_status", "projection_attempts", "projection_last_error",
+                "projection_next_attempt_at", "updated_at",
+            ])
+        except Exception as exc:  # noqa: BLE001 - reporting projection must never break submit
+            self._mark_projection_failed(submission, str(exc or "projection failed"))
             logger.exception(
                 "attendance projection failed submission=%s", submission.pk
             )
+
+    @staticmethod
+    def _mark_projection_failed(submission: FormSubmission, error: str) -> None:
+        attempts = max(submission.projection_attempts, 1)
+        retry_seconds = min(60 * (2 ** min(attempts - 1, 8)), 21600)
+        submission.projection_status = FormSubmission.ProjectionStatus.FAILED
+        submission.projection_last_error = error[:2000]
+        submission.projection_next_attempt_at = timezone.now() + timedelta(seconds=retry_seconds)
+        submission.save(update_fields=[
+            "projection_status", "projection_attempts", "projection_last_error",
+            "projection_next_attempt_at", "updated_at",
+        ])
 
     # ── workflow integration (uses the real engine service) ──────────────
 
@@ -461,6 +645,12 @@ class FormSubmissionService:
         from apps.workflow.services import WorkflowEngineError, WorkflowEngineService
 
         schema = submission.form_schema
+        request_type = request_type_for_schema(schema)
+        workflow_definition = request_type.workflow_definition or schema.workflow_definition
+        if workflow_definition is None:
+            raise WorkflowIntegrationError(
+                f"برای نوع درخواست «{request_type.code}» گردش‌کار فعال تعریف نشده است."
+            )
         engine = WorkflowEngineService()
         # subject_person از داده‌ی فرم استخراج و در submit_submission
         # به submission.subject_person_id ست شده — همین FK را به Instance
@@ -471,7 +661,7 @@ class FormSubmissionService:
             subject_person_kwargs["subject_person"] = submission.subject_person
         try:
             instance = engine.create_instance(
-                workflow_code=schema.workflow_definition.code,
+                workflow_code=workflow_definition.code,
                 requester=user,
                 title=f"{schema.title} — {submission.submission_number}",
                 description=submission.notes or "",
@@ -532,6 +722,7 @@ class FormSubmissionService:
                     update_fields.append("reviewed_by")
                 update_fields.append("reviewed_at")
             submission.save(update_fields=update_fields)
+        sync_request_from_submission(submission)
         return submission
 
     # ── comments ─────────────────────────────────────────────────────────
@@ -661,3 +852,159 @@ def _safe_original_name(name: str) -> str:
     base = (name or "file").replace("\\", "/").split("/")[-1]
     cleaned = "".join(ch for ch in base if ch.isprintable() and ch not in "\x00\r\n")
     return cleaned[:255] or "file"
+
+
+class RequestService:
+    """Canonical application service for the unified request pipeline.
+
+    The service intentionally delegates form validation to
+    ``FormSubmissionService`` and state changes to ``WorkflowEngineService``.
+    It is the boundary that future UI/API clients should use instead of
+    coupling themselves to either implementation detail.
+    """
+
+    def __init__(self) -> None:
+        self.forms = FormSubmissionService()
+
+    @transaction.atomic
+    def create_draft(
+        self,
+        *,
+        schema: FormSchema,
+        requester,
+        data: Any,
+        request=None,
+        notes: str = "",
+        attachment_keys: Optional[set[str]] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Request:
+        if idempotency_key:
+            existing = Request.objects.filter(
+                requester=requester,
+                metadata__client_idempotency_key=idempotency_key,
+            ).first()
+            if existing is not None:
+                return existing
+        submission = self.forms.create_submission(
+            schema=schema,
+            user=requester,
+            data=data,
+            request=request,
+            notes=notes,
+            attachment_keys=attachment_keys,
+        )
+        business_request = sync_request_from_submission(submission)
+        if idempotency_key:
+            metadata = dict(business_request.metadata or {})
+            metadata["client_idempotency_key"] = idempotency_key
+            business_request.metadata = metadata
+            business_request.save(update_fields=["metadata", "updated_at"])
+        return business_request
+
+    @transaction.atomic
+    def update_data(
+        self,
+        business_request: Request,
+        *,
+        actor,
+        data: Any = None,
+        notes: Optional[str] = None,
+        request=None,
+    ) -> Request:
+        business_request = Request.objects.select_for_update().select_related(
+            "form_submission", "form_submission__workflow_instance",
+        ).get(pk=business_request.pk)
+        if business_request.requester_id != actor.pk:
+            raise FormServiceError("فقط درخواست‌کننده می‌تواند اطلاعات درخواست را اصلاح کند.")
+        if business_request.status not in {
+            Request.Status.DRAFT,
+            Request.Status.CHANGES_REQUESTED,
+        }:
+            raise FormServiceError("این درخواست در وضعیت قابل اصلاح نیست.")
+        self.forms.update_submission(
+            submission=business_request.form_submission,
+            user=actor,
+            data=data,
+            notes=notes,
+            request=request,
+            allow_changes_requested=True,
+        )
+        business_request.refresh_from_db()
+        return sync_request_from_submission(business_request.form_submission)
+
+    @transaction.atomic
+    def submit(self, business_request: Request, *, actor, request=None, attachment_keys=None) -> Request:
+        submission = business_request.form_submission
+        self.forms.submit_submission(
+            submission=submission,
+            user=actor,
+            request=request,
+            attachment_keys=attachment_keys,
+        )
+        business_request.refresh_from_db()
+        return sync_request_from_submission(business_request.form_submission)
+
+    @transaction.atomic
+    def transition(
+        self,
+        business_request: Request,
+        *,
+        actor,
+        transition_id,
+        comment: str = "",
+        metadata: Optional[dict] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Request:
+        business_request = Request.objects.select_for_update().select_related(
+            "request_type", "form_submission", "form_submission__form_schema"
+        ).get(pk=business_request.pk)
+        submission = business_request.form_submission
+        if submission is None or not submission.workflow_instance_id:
+            raise FormServiceError("این درخواست گردش‌کار فعالی ندارد.")
+
+        from apps.workflow.services import WorkflowEngineService
+
+        instance = WorkflowEngineService().execute_transition(
+            instance_id=submission.workflow_instance_id,
+            transition_id=transition_id,
+            actor=actor,
+            comment=comment,
+            metadata=metadata or {},
+            idempotency_key=idempotency_key,
+        )
+        submission.refresh_from_db()
+        self.forms.sync_status_from_workflow(submission, actor=actor)
+        submission.refresh_from_db()
+        if instance.status == instance.Status.COMPLETED:
+            from apps.forms.domain_actions import DomainActionError, execute_domain_action
+
+            try:
+                execute_domain_action(
+                    business_request=business_request,
+                    actor=actor,
+                    transition=None,
+                )
+            except DomainActionError as exc:
+                # The surrounding transaction rolls back the approval, so the
+                # request cannot appear approved while its domain side-effect
+                # is missing.
+                raise FormServiceError(str(exc)) from exc
+            business_request.refresh_from_db()
+        return sync_request_from_submission(submission)
+
+    @transaction.atomic
+    def cancel(self, business_request: Request, *, actor, reason: str = "") -> Request:
+        submission = business_request.form_submission
+        if submission is None or not submission.workflow_instance_id:
+            raise FormServiceError("این درخواست گردش‌کار فعالی ندارد.")
+        from apps.workflow.services import WorkflowEngineService
+
+        WorkflowEngineService().cancel_instance(
+            submission.workflow_instance_id,
+            actor,
+            reason=reason,
+        )
+        submission.refresh_from_db()
+        self.forms.sync_status_from_workflow(submission, actor=actor)
+        submission.refresh_from_db()
+        return sync_request_from_submission(submission)

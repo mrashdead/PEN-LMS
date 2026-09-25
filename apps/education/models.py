@@ -703,6 +703,13 @@ class OfferingEnrollment(DomainModel):
         PERCENT = "percent", "درصدی"
         AMOUNT = "amount", "مبلغ ثابت"
 
+    class LifecycleStatus(models.TextChoices):
+        PENDING = "pending", "در انتظار تأیید"
+        CONFIRMED = "confirmed", "تأییدشده"
+        CANCELLED = "cancelled", "لغوشده"
+        PARTIALLY_REFUNDED = "partially_refunded", "عودت جزئی"
+        REFUNDED = "refunded", "عودت کامل"
+
     offering = models.ForeignKey(
         CourseOffering, on_delete=models.PROTECT, related_name="enrollments"
     )
@@ -736,6 +743,21 @@ class OfferingEnrollment(DomainModel):
     )
     enrolled_at = models.DateField(default=timezone.localdate)
     is_active = models.BooleanField(default=True, db_index=True)
+    lifecycle_status = models.CharField(
+        max_length=24,
+        choices=LifecycleStatus.choices,
+        default=LifecycleStatus.CONFIRMED,
+        db_index=True,
+        help_text="وضعیت چرخهٔ ثبت‌نام مستقل از وضعیت عضویت نهایی در کلاس.",
+    )
+    final_class_enrollment = models.OneToOneField(
+        "academics.ClassEnrollment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="source_offering_enrollment",
+        help_text="عضویت قطعی در کلاس که پس از تشکیل کلاس ایجاد می‌شود.",
+    )
 
     class Meta:
         app_label = "education"
@@ -777,6 +799,63 @@ class OfferingEnrollment(DomainModel):
             if self.cheque_count and self.cheque_count != len(self.cheques):
                 raise ValidationError({"cheque_count": "تعداد چک با فهرست چک‌ها هم‌خوان نیست."})
         self.final_amount = self.compute_final()
+
+
+class EnrollmentRefund(DomainModel):
+    """ثبت غیرقابل‌حذف رویدادهای عودت وجه ثبت‌نام."""
+
+    class Status(models.TextChoices):
+        REQUESTED = "requested", "درخواست‌شده"
+        APPROVED = "approved", "تأییدشده"
+        PROCESSED = "processed", "پردازش‌شده"
+        REJECTED = "rejected", "ردشده"
+
+    enrollment = models.ForeignKey(
+        OfferingEnrollment,
+        on_delete=models.PROTECT,
+        related_name="refunds",
+    )
+    amount = models.PositiveIntegerField(help_text="مبلغ عودت به تومان")
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.REQUESTED,
+        db_index=True,
+    )
+    reason = models.TextField(blank=True, default="")
+    reference = models.CharField(max_length=128, blank=True, default="")
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="requested_enrollment_refunds",
+    )
+    processed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="processed_enrollment_refunds",
+    )
+    processed_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        app_label = "education"
+        db_table = "education_enrollment_refund"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(
+                fields=["enrollment", "status"],
+                name="edu_refund_enroll_status_idx",
+            ),
+            models.Index(
+                fields=["status", "created_at"],
+                name="edu_refund_status_created_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.enrollment_id} → {self.amount} [{self.status}]"
 
     @property
     def final_amount_jalali_date(self) -> str:

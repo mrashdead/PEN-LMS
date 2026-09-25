@@ -7,10 +7,15 @@ from django.urls import include, path
 from django.urls import reverse_lazy
 from django.views.generic import RedirectView
 from rest_framework.authtoken.views import obtain_auth_token
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from apps.core import views as core_views
 
 urlpatterns = [
+    path('healthz/', core_views.healthz, name='healthz'),
+    path('readyz/', core_views.readyz, name='readyz'),
+    path('api/schema/', SpectacularAPIView.as_view(permission_classes=[]), name='api-schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='api-schema'), name='api-docs'),
     path('admin/', admin.site.urls),
 
     # API Auth

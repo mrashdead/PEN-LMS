@@ -16,10 +16,16 @@
       <div class="d-flex flex-wrap gap-2">
         <select id="req-status" class="form-select form-select-sm" aria-label="فیلتر وضعیت" style="min-width:140px">
           <option value="">همه وضعیت‌ها</option>
-          <option value="running">در جریان</option>
+          <option value="draft">پیش‌نویس</option>
+          <option value="submitted">ارسال‌شده</option>
+          <option value="in_review">در بررسی</option>
+          <option value="awaiting_action">منتظر اقدام</option>
+          <option value="changes_requested">نیازمند اصلاح</option>
+          <option value="approved">تأییدشده</option>
           <option value="completed">تکمیل‌شده</option>
           <option value="rejected">ردشده</option>
           <option value="cancelled">لغوشده</option>
+          <option value="archived">بایگانی‌شده</option>
         </select>
         <div class="position-relative">
           <input type="search" id="req-search" class="form-control form-control-sm ps-9" placeholder="جستجو…" aria-label="جستجو">
@@ -39,7 +45,7 @@
 
 {# ── DETAIL view (?id=) ───────────────────────────────────────────── #}
 <div id="req-detail-view" hidden>
-  <a href="/workspace/requests/" class="btn btn-sm btn-light mb-3">
+  <a href="{% url 'workspace-requests' %}" class="btn btn-sm btn-light mb-3">
     <i data-lucide="arrow-right" class="size-4 me-1"></i> بازگشت به فهرست
   </a>
   <div class="row g-4">
@@ -71,8 +77,8 @@
       <div class="card">
         <div class="card-header"><h6 class="mb-0 card-title">اقدامات</h6></div>
         <div class="card-body">
-          <button type="button" class="btn btn-outline-danger w-100 mb-2" id="rd-delete" data-delete-action hidden>
-            <i data-lucide="trash-2" class="size-4 me-1"></i> حذف نرم درخواست
+          <button type="button" class="btn btn-outline-danger w-100 mb-2" id="rd-cancel" hidden>
+            <i data-lucide="ban" class="size-4 me-1"></i> لغو درخواست
           </button>
           <div id="rd-actions" class="vstack gap-2">
             <p class="text-muted mb-0 fs-14">اقدامی برای شما مجاز نیست.</p>

@@ -12,7 +12,7 @@
       <div class="card-header d-flex flex-column flex-md-row gap-3">
         <div>
           <h6 class="mb-0 card-title">درخواست‌های ثبت‌شده</h6>
-          <p class="mb-0 text-muted fs-14">فهرست فرم‌هایی که به شما دسترسی دیدن داده شده است.</p>
+            <p class="mb-0 text-muted fs-14">فهرست فرم‌ها و درخواست‌های شما؛ هر فرم متصل به فرآیند از همین‌جا قابل پیگیری است.</p>
         </div>
         <a href="{% url 'submission-picker' %}" class="btn btn-primary flex-shrink-0 ms-md-auto">
           <i data-lucide="file-plus-2" class="size-4 me-2"></i> فرم جدید
@@ -59,8 +59,8 @@
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
-                <th scope="col">شماره</th>
-                <th scope="col">فرم</th>
+                <th scope="col">شماره درخواست</th>
+                <th scope="col">فرم / نوع درخواست</th>
                 <th scope="col">وضعیت</th>
                 <th scope="col">تاریخ</th>
                 <th scope="col">فرستنده</th>
@@ -71,12 +71,23 @@
               {% for s in submission_list %}
                 <tr>
                   <td>
-                    <a class="fw-medium link link-primary" href="{% url 'submission-detail-page' s.id %}">
-                      {{ s.submission_number|default:'—' }}
-                    </a>
+                    {% if s.business_request %}
+                      <a class="fw-medium link link-primary" href="/workspace/requests/?id={{ s.business_request.id }}">
+                        {{ s.business_request.request_number|default:s.submission_number|default:'—' }}
+                      </a>
+                    {% else %}
+                      <a class="fw-medium link link-primary" href="{% url 'submission-detail-page' s.id %}">
+                        {{ s.submission_number|default:'—' }}
+                      </a>
+                    {% endif %}
                   </td>
-                  <td>{{ s.form_schema.title }}</td>
-                  <td><span class="pen-badge pen-badge-{{ s.status }}">{{ s.status|status_label }}</span></td>
+                  <td>
+                    <div>{{ s.form_schema.title }}</div>
+                    {% if s.form_schema.request_type %}
+                      <span class="badge bg-info-subtle text-info fs-12">{{ s.form_schema.request_type.title }}</span>
+                    {% endif %}
+                  </td>
+                  <td><span class="pen-badge pen-badge-{{ s.business_request.status|default:s.status }}">{{ s.business_request.status|default:s.status|status_label }}</span></td>
                   <td class="text-nowrap">{{ s.created_at|date:"Y/m/d H:i" }}</td>
                   <td>{{ s.submitted_by.get_full_name|default:s.submitted_by.username }}</td>
                   <td class="text-end">
@@ -88,9 +99,9 @@
                         {% can_crud "view" "submissions" s as can_view_submission %}
                         {% if can_view_submission %}<li><a class="dropdown-item" href="{% url 'submission-detail-page' s.id %}"><i data-lucide="eye" class="size-4"></i> مشاهده</a></li>{% endif %}
                         {% can_crud "edit" "submissions" s as can_edit_submission %}
-                        {% if can_edit_submission %}<li><a class="dropdown-item" href="{% url 'submission-edit-page' s.id %}"><i data-lucide="pencil" class="size-4"></i> ویرایش</a></li>{% endif %}
+                        {% if can_edit_submission and s.submitted_by_id == request.user.id %}<li><a class="dropdown-item" href="{% url 'submission-edit-page' s.id %}"><i data-lucide="pencil" class="size-4"></i> ویرایش</a></li>{% endif %}
                         {% can_crud "delete" "submissions" s as can_delete_submission %}
-                        {% if can_delete_submission %}
+                        {% if can_delete_submission and not s.business_request %}
                           <li><hr class="dropdown-divider"></li>
                           <li><button type="button" class="dropdown-item text-danger" data-delete-action
                             data-delete-url="/api/forms/submissions/{{ s.id }}/delete/"

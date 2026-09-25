@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load asset_v rbac %}
-{% block title %}اشخاص و کاربران{% endblock %}
+{% block title %}افراد{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="اشخاص و کاربران" section="مدیریت کاربران" %}
+  {% include "partials/page-heading.html" with title="افراد" section="مدیریت کاربران" %}
 {% endblock %}
 
 {% block content %}
@@ -13,12 +13,12 @@
     <div class="card">
       <div class="card-header d-flex flex-column flex-xl-row gap-3 align-items-xl-center">
         <div class="flex-grow-1">
-          <h6 class="mb-1 card-title">فهرست اشخاص</h6>
-          <p class="mb-0 text-muted fs-14">جستجو و مدیریت حساب‌های کاربری با صفحه‌بندی سریع.</p>
+          <h6 class="mb-1 card-title">فهرست افراد</h6>
+          <p class="mb-0 text-muted fs-14">افراد را جستجو کنید و اطلاعات حساب کاربری‌شان را مدیریت کنید.</p>
         </div>
         {% if person_page_context.can_create %}
           <button type="button" id="person-add" class="btn btn-primary flex-shrink-0">
-            <i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> تعریف شخص
+            <i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> افزودن فرد
           </button>
         {% endif %}
         {% if person_page_context.can_manage_passwords %}
@@ -29,7 +29,7 @@
       </div>
 
       <div class="card-body pt-0">
-        <form id="person-filter-form" class="row g-2 align-items-end mb-3" method="get" aria-label="جستجو و فیلتر اشخاص">
+        <form id="person-filter-form" class="row g-2 align-items-end mb-3" method="get" aria-label="جستجو و فیلتر افراد">
           <div class="col-12 col-md-3">
             <label for="person-filter-national-code" class="form-label">کد ملی دقیق</label>
             <input type="text" id="person-filter-national-code" name="national_code" class="form-control"
@@ -94,7 +94,7 @@
             <p id="person-page-status" class="text-muted text-center text-md-start mb-0"></p>
           </div>
           <div class="col-md-6">
-            <nav aria-label="صفحه‌بندی اشخاص">
+            <nav aria-label="صفحه‌بندی افراد">
               <ul class="pagination justify-content-center justify-content-md-end mb-0" id="person-pager"></ul>
             </nav>
           </div>
@@ -111,7 +111,7 @@
       <form id="person-create-form" method="post" action="/workspace/persons/create/" novalidate>
         {% csrf_token %}
         <div class="modal-header">
-          <h5 class="modal-title" id="person-create-title">تعریف شخص جدید</h5>
+          <h5 class="modal-title" id="person-create-title">افزودن فرد جدید</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
         </div>
         <div class="modal-body">
@@ -134,7 +134,7 @@
           </section>
 
           <section id="person-step-two" data-person-step="2" aria-labelledby="person-step-two-title" hidden>
-            <h6 id="person-step-two-title" class="fw-semibold mb-3">گام دوم: اطلاعات شخص</h6>
+            <h6 id="person-step-two-title" class="fw-semibold mb-3">گام دوم: اطلاعات فرد</h6>
             <div class="row g-3">
               <div class="col-12 col-md-6">
                 <label class="form-label" for="id_first_name">نام <span class="text-danger">*</span></label>
@@ -232,7 +232,7 @@
 
             <div class="alert alert-info d-flex align-items-start gap-2 mt-4 mb-0" role="note">
               <i data-lucide="shield-check" class="size-4 flex-shrink-0 mt-1" aria-hidden="true"></i>
-              <span>برای هر شخص حساب داشبورد ساخته می‌شود. نام کاربری کد ملی است؛ رمز پیش‌فرض دانش‌آموز و استاد کد ملی است و کارمند/مدیریت با رمز اختصاصی وارد می‌شوند.</span>
+              <span>برای هر فرد یک حساب کاربری ساخته می‌شود. نام کاربری و رمز پیش‌فرض دانش‌آموزان و مدرسان، کد ملی است. کارکنان و مدیران با رمز اختصاصی وارد می‌شوند.</span>
             </div>
           </section>
         </div>
@@ -241,7 +241,7 @@
           <button type="button" class="btn btn-outline-primary" id="person-step-back" hidden>بازگشت</button>
           <button type="button" class="btn btn-primary" id="person-step-next">ادامه</button>
           <button type="submit" class="btn btn-primary" id="person-submit" hidden>
-            <i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> ثبت شخص
+            <i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> ثبت فرد
           </button>
         </div>
       </form>
@@ -253,7 +253,7 @@
 <div class="modal fade" id="person-detail-modal" tabindex="-1" aria-labelledby="person-detail-title" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title" id="person-detail-title">جزئیات شخص</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div>
+      <div class="modal-header"><h5 class="modal-title" id="person-detail-title">جزئیات فرد</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div>
       <div class="modal-body" id="person-detail-body"></div>
       <div class="modal-footer" id="person-detail-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button></div>
     </div>
@@ -264,14 +264,14 @@
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <form id="person-edit-form" novalidate>
-        <div class="modal-header"><h5 class="modal-title" id="person-edit-title">ویرایش شخص</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div>
+        <div class="modal-header"><h5 class="modal-title" id="person-edit-title">ویرایش اطلاعات فرد</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div>
         <div class="modal-body">
           <div id="person-edit-errors" class="alert alert-danger" role="alert" hidden></div>
           <div class="row g-3">
             <div class="col-md-6"><label class="form-label" for="person-edit-first-name">نام</label><input class="form-control" id="person-edit-first-name" name="first_name" required></div>
             <div class="col-md-6"><label class="form-label" for="person-edit-last-name">نام خانوادگی</label><input class="form-control" id="person-edit-last-name" name="last_name" required></div>
             <div class="col-md-6"><label class="form-label" for="person-edit-national-code">کد ملی</label><input class="form-control" id="person-edit-national-code" name="national_code" readonly disabled></div>
-            <div class="col-md-6"><label class="form-label" for="person-edit-person-type">نوع شخص</label><input class="form-control" id="person-edit-person-type" readonly disabled></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-person-type">نوع کاربری</label><input class="form-control" id="person-edit-person-type" readonly disabled></div>
             <div class="col-md-6"><label class="form-label" for="person-edit-father">نام پدر</label><input class="form-control" id="person-edit-father" name="father_name"></div>
             <div class="col-md-6"><label class="form-label" for="person-edit-mobile">موبایل</label><input class="form-control" id="person-edit-mobile" name="mobile" dir="ltr" required></div>
             <div class="col-md-6"><label class="form-label" for="person-edit-email">ایمیل</label><input class="form-control" id="person-edit-email" name="email" dir="ltr"></div>

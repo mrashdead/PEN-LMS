@@ -155,6 +155,9 @@ Desktop.ini
 
 docs/_build/
 *.md
+CI-TEST-DESIGN.md
+OPERATIONS.md
+ACCESS-MATRIX-REVIEW.md
 
 # =========================================================
 # MkDocs
@@ -196,6 +199,7 @@ docker-compose.override.yml
 *.sh
 # Keep the provider-neutral test gate and its CI contract reviewable in Git.
 scripts/test_ci.sh
+scripts/smoke_deploy.sh
 CI-TEST-DESIGN.md
 
 # Secrets committed accidentally to the index; refresh after-unstage.
@@ -213,3 +217,6 @@ CI-TEST-DESIGN.md
 
 # Stray sqlite file (see memory: DB_ENGINE fix)
 pen_db
+
+python
+

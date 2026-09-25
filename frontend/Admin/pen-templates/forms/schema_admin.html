@@ -43,6 +43,7 @@
                     <th scope="col">نسخه</th>
                     <th scope="col">فیلدها</th>
                     <th scope="col">نقش‌های مجاز</th>
+                    <th scope="col">نوع درخواست</th>
                     <th scope="col">گردش کار</th>
                     <th scope="col">وضعیت</th>
                     <th scope="col">سابمیشن‌ها</th>
@@ -59,6 +60,14 @@
                           {% for r in s.allowed_roles.all %}<span class="badge bg-light text-dark border me-1">{{ r.name }}</span>{% endfor %}
                         {% else %}
                           <span class="badge bg-secondary-subtle text-secondary">همه (عمومی)</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if s.request_type %}
+                          <span class="badge bg-info-subtle text-info">{{ s.request_type.title }}</span>
+                          <code class="d-block fs-12 text-muted mt-1">{{ s.request_type.code }}</code>
+                        {% else %}
+                          <span class="text-muted">عمومی</span>
                         {% endif %}
                       </td>
                       <td>{{ s.workflow_definition.name|default:'—' }}</td>
