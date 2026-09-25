@@ -645,7 +645,7 @@ class RequestsPage(LoginRequiredMixin, TemplateView):
 
 
 class OrgManagerMixin(LoginRequiredMixin):
-    """Org screens are an admin tool — mirror the elevated-role trio.
+    """Org screens are an admin tool for elevated roles and site superusers.
 
     Presentation gate only; the /api/org/* endpoints enforce the same roles
     server-side, so a hidden page is not the security boundary.
@@ -655,7 +655,7 @@ class OrgManagerMixin(LoginRequiredMixin):
         if not request.user.is_authenticated:
             return super().dispatch(request, *args, **kwargs)
         roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
-        if not roles & _ORG_ROLES:
+        if not request.user.is_superuser and not roles & _ORG_ROLES:
             raise Http404
         return super().dispatch(request, *args, **kwargs)
 

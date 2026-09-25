@@ -22,6 +22,9 @@ from apps.org.views import (
     PermissionRolesView,
     PermissionUserView,
     ResponsibilitiesView,
+    SidebarVisibilityCatalogView,
+    SidebarVisibilityRoleView,
+    SidebarVisibilityUserView,
     UnitPerformanceView,
 )
 
@@ -41,6 +44,10 @@ urlpatterns = [
     path("acl/user/<uuid:pk>/grant/", AclGrantView.as_view(), name="org-acl-grant"),
     path("acl/user/<uuid:pk>/revoke/", AclRevokeView.as_view(), name="org-acl-revoke"),
     path("acl/user/<uuid:pk>/bulk/", AclBulkView.as_view(), name="org-acl-bulk"),
+    # Site-admin-only sidebar display rules (role defaults + per-user overrides)
+    path("sidebar-visibility/catalog/", SidebarVisibilityCatalogView.as_view(), name="org-sidebar-visibility-catalog"),
+    path("sidebar-visibility/role/<slug:role_code>/", SidebarVisibilityRoleView.as_view(), name="org-sidebar-visibility-role"),
+    path("sidebar-visibility/user/<uuid:pk>/", SidebarVisibilityUserView.as_view(), name="org-sidebar-visibility-user"),
     # Permission management (roles + groups + effective model perms)
     path("perm/directory/", PermissionDirectoryView.as_view(), name="org-perm-directory"),
     path("perm/options/", PermissionOptionsView.as_view(), name="org-perm-options"),

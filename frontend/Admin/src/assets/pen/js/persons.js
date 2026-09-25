@@ -109,6 +109,18 @@
         ? '<div class="mt-4 pt-3 border-top"><h6 class="fw-semibold mb-2">سوابق تغییرات</h6><ol class="pen-timeline mb-0">' + person.audit_trail.map(function (event) { return '<li class="pen-timeline-item"><div class="fw-semibold fs-14">' + esc(event.summary || event.kind) + '</div><div class="fs-13 text-muted">' + esc(event.actor || 'سامانه') + ' · ' + esc(event.created_at || '—') + '</div></li>'; }).join('') + '</ol></div>' : '';
       var profile = person.student_profile_summary || person.staff_profile_summary || person.guardian_profile_summary;
       var profileHtml = profile ? '<div class="mt-4 pt-3 border-top"><h6 class="fw-semibold mb-2">اطلاعات اختصاصی نقش</h6><div class="row g-2">' + Object.keys(profile).filter(function (key) { return typeof profile[key] !== 'object'; }).map(function (key) { return '<div class="col-md-6"><span class="text-muted fs-14">' + esc(key) + ':</span> ' + esc(profile[key] == null || profile[key] === '' ? '—' : profile[key]) + '</div>'; }).join('') + '</div></div>' : '';
+      var student = person.student_profile || {};
+      var familyRows = [
+        ['پدر', [student.father_first_name, student.father_last_name].filter(Boolean).join(' '), student.father_phone],
+        ['مادر', [student.mother_first_name, student.mother_last_name].filter(Boolean).join(' '), student.mother_phone],
+      ].filter(function (item) { return item[1] || item[2]; });
+      var familyHtml = personHasType(person, 'student') ? '<div class="mt-4 pt-3 border-top"><h6 class="fw-semibold mb-2">والدین و تکفل</h6>' +
+        (familyRows.length ? '<div class="row g-2">' + familyRows.map(function (item) {
+          return '<div class="col-md-6"><span class="text-muted fs-14">' + esc(item[0]) + ':</span> ' + esc(item[1] || '—') +
+            (item[2] ? ' <span class="text-muted" dir="ltr">' + esc(item[2]) + '</span>' : '') + '</div>';
+        }).join('') + '</div>' : '<p class="text-muted fs-14 mb-0">اطلاعات والدین ثبت نشده است.</p>') +
+        '<div class="mt-2"><span class="text-muted fs-14">وضعیت تکفل:</span> ' +
+        esc(student.is_custody_case ? (student.custody_note || 'ویژه') : 'عادی') + '</div></div>' : '';
       var body = '<div class="pen-detail-meta">' +
         '<div><small>وضعیت</small><strong>' + esc(status) + '</strong></div>' +
         '<div><small>نوع</small><strong>' + esc(person.person_types_display || person.person_type_display || '—') + '</strong></div>' +
@@ -122,7 +134,7 @@
          ['کد دانش‌آموزی', person.student_code], ['کد پرسنلی', person.employee_code],
          ['دپارتمان', person.department], ['سمت', person.job_title], ['نام کاربری', person.username]]
         .map(function (item) { return '<div class="row g-2"><div class="col-5 text-muted fs-14">' + esc(item[0]) + '</div><div class="col-7">' + esc(item[1] || '—') + '</div></div>'; }).join('') +
-        '</div>' + profileHtml + history;
+        '</div>' + profileHtml + familyHtml + history;
       document.getElementById('person-detail-body').innerHTML = body;
       var footer = document.getElementById('person-detail-footer');
       footer.innerHTML = '<button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button>';
@@ -146,19 +158,90 @@
   var $editEl = document.getElementById('person-edit-modal');
   var editModal = $editEl && window.bootstrap ? window.bootstrap.Modal.getOrCreateInstance($editEl) : null;
   var editingPerson = null;
+  var initialEmployeeKind = null;
+
+  function setEditRoleState(person) {
+    var typeCodes = person.person_type_codes && person.person_type_codes.length
+      ? person.person_type_codes : [person.person_type || ''];
+    var userRoles = person.user_role_codes || [];
+    var visibleRoles = typeCodes.join(' ');
+    if (typeCodes.indexOf('employee') !== -1) {
+      if (userRoles.indexOf('manager') !== -1) visibleRoles += ' manager';
+      else if (userRoles.indexOf('supervisor') !== -1) visibleRoles += ' supervisor';
+    }
+    $editEl.querySelectorAll('[data-person-edit-role-fields]').forEach(function (wrapper) {
+      var visible = roleMatchesAny(visibleRoles, wrapper.dataset.personEditRoleFields || '');
+      wrapper.hidden = !visible;
+      wrapper.querySelectorAll('input, select, textarea').forEach(function (field) {
+        field.disabled = !visible;
+      });
+    });
+    var employeeKind = document.getElementById('person-edit-employee-kind');
+    initialEmployeeKind = userRoles.indexOf('supervisor') !== -1 ? 'supervisor' : 'ordinary';
+    if (employeeKind) {
+      employeeKind.value = initialEmployeeKind;
+      employeeKind.disabled = !person.can_manage_supervisor_role || !person.has_user;
+    }
+    if (window.penRenderIcons) window.penRenderIcons();
+  }
+
+  function roleMatchesAny(current, expected) {
+    var currentRoles = current.split(/\s+/);
+    return expected.split(/\s+/).some(function (role) { return currentRoles.indexOf(role) !== -1; });
+  }
+
+  function setValue(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.value = value == null ? '' : value;
+  }
+
+  function personHasType(person, code) {
+    var types = person.person_type_codes && person.person_type_codes.length
+      ? person.person_type_codes : [person.person_type || ''];
+    return types.indexOf(code) !== -1;
+  }
+
+  function editRoleLabel(person) {
+    var roles = person.user_role_codes || [];
+    if (roles.indexOf('manager') !== -1) return 'مدیریت';
+    if (roles.indexOf('supervisor') !== -1) return 'کارمند سرپرست';
+    return person.person_types_display || person.person_type_display || person.person_type || '—';
+  }
 
   function openPersonEdit(person) {
     editingPerson = person;
     if (detailModal) detailModal.hide();
     [['person-edit-first-name', person.first_name], ['person-edit-last-name', person.last_name],
-     ['person-edit-national-code', person.national_code || person.display_national_code], ['person-edit-person-type', person.person_type_display],
-     ['person-edit-father', person.father_name], ['person-edit-mobile', person.mobile], ['person-edit-email', person.email],
-     ['person-edit-phone', person.phone], ['person-edit-address', person.address], ['person-edit-birth-date', person.birth_date],
-     ['person-edit-department', person.department], ['person-edit-job-title', person.job_title]].forEach(function (item) { var el = document.getElementById(item[0]); if (el) el.value = item[1] || ''; });
-    document.getElementById('person-edit-gender').value = person.gender || 'unspecified';
+     ['person-edit-national-code', person.national_code || person.display_national_code], ['person-edit-person-type', editRoleLabel(person)],
+     ['person-edit-mobile', person.mobile], ['person-edit-email', person.email], ['person-edit-birth-date', person.birth_date],
+     ['person-edit-job-title', person.job_title]].forEach(function (item) { setValue(item[0], item[1]); });
+    setValue('person-edit-gender', person.gender || 'unspecified');
+    var student = person.student_profile || {};
+    [['person-edit-father-first', student.father_first_name], ['person-edit-father-last', student.father_last_name],
+     ['person-edit-father-phone', student.father_phone], ['person-edit-mother-first', student.mother_first_name],
+     ['person-edit-mother-last', student.mother_last_name], ['person-edit-mother-phone', student.mother_phone],
+     ['person-edit-custody-note', student.custody_note]].forEach(function (item) { setValue(item[0], item[1]); });
+    var staff = person.staff_profile || {};
+    setValue('person-edit-specialization', staff.specialization);
+    var custody = document.getElementById('person-edit-custody');
+    if (custody) custody.checked = !!student.is_custody_case;
     document.getElementById('person-edit-active').checked = person.is_active !== false;
     document.getElementById('person-edit-errors').hidden = true;
+    var piiNote = document.getElementById('person-edit-pii-note');
+    if (piiNote) {
+      piiNote.hidden = [person.mobile, person.email, student.father_phone, student.mother_phone]
+        .some(function (value) { return typeof value === 'string' && value.indexOf('*') !== -1; });
+    }
+    setEditRoleState(person);
     if (editModal) editModal.show();
+  }
+
+  function addIfChanged(payload, key, inputId, originalValue) {
+    var field = document.getElementById(inputId);
+    if (!field || field.disabled) return;
+    var value = field.value;
+    var original = originalValue == null ? '' : String(originalValue);
+    if (value !== original) payload[key] = value;
   }
 
   function pageLink(label, url, disabled, onClick) {
@@ -444,8 +527,36 @@
       event.preventDefault();
       if (!editingPerson) return;
       var payload = {};
-      new FormData($editForm).forEach(function (value, key) { payload[key] = value; });
-      payload.is_active = document.getElementById('person-edit-active').checked;
+      addIfChanged(payload, 'first_name', 'person-edit-first-name', editingPerson.first_name);
+      addIfChanged(payload, 'last_name', 'person-edit-last-name', editingPerson.last_name);
+      addIfChanged(payload, 'mobile', 'person-edit-mobile', editingPerson.mobile);
+      addIfChanged(payload, 'email', 'person-edit-email', editingPerson.email);
+      addIfChanged(payload, 'gender', 'person-edit-gender', editingPerson.gender || 'unspecified');
+      addIfChanged(payload, 'birth_date', 'person-edit-birth-date', editingPerson.birth_date);
+      addIfChanged(payload, 'job_title', 'person-edit-job-title', editingPerson.job_title);
+      var active = document.getElementById('person-edit-active').checked;
+      if (active !== (editingPerson.is_active !== false)) payload.is_active = active;
+      var selectedEmployeeKind = document.getElementById('person-edit-employee-kind').value;
+      if (selectedEmployeeKind !== initialEmployeeKind) payload.employee_kind = selectedEmployeeKind;
+      if (personHasType(editingPerson, 'student')) {
+        var profile = editingPerson.student_profile || {};
+        var studentData = {};
+        addIfChanged(studentData, 'father_first_name', 'person-edit-father-first', profile.father_first_name);
+        addIfChanged(studentData, 'father_last_name', 'person-edit-father-last', profile.father_last_name);
+        addIfChanged(studentData, 'father_phone', 'person-edit-father-phone', profile.father_phone);
+        addIfChanged(studentData, 'mother_first_name', 'person-edit-mother-first', profile.mother_first_name);
+        addIfChanged(studentData, 'mother_last_name', 'person-edit-mother-last', profile.mother_last_name);
+        addIfChanged(studentData, 'mother_phone', 'person-edit-mother-phone', profile.mother_phone);
+        var custody = document.getElementById('person-edit-custody').checked;
+        if (custody !== !!profile.is_custody_case) studentData.is_custody_case = custody;
+        addIfChanged(studentData, 'custody_note', 'person-edit-custody-note', profile.custody_note);
+        if (Object.keys(studentData).length) payload.student_profile = studentData;
+      }
+      if (personHasType(editingPerson, 'teacher') || personHasType(editingPerson, 'employee')) {
+        var staffData = {};
+        addIfChanged(staffData, 'specialization', 'person-edit-specialization', (editingPerson.staff_profile || {}).specialization);
+        if (Object.keys(staffData).length) payload.staff_profile = staffData;
+      }
       fetch(ctx.api_url + editingPerson.id + '/', {
         method: 'PATCH', credentials: 'same-origin',
         headers: Object.assign({'Content-Type': 'application/json'}, window.penCsrfHeader ? window.penCsrfHeader() : {}),

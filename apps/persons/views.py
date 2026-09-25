@@ -70,6 +70,7 @@ class PersonListCreateView(generics.ListCreateAPIView):
         ).only(
             "id", "national_code", "first_name", "last_name", "person_type",
             "birth_date", "mobile", "email", "is_active", "created_at", "user_id",
+            "user__id",
         )
 
         # فیلتر بر اساس نوع شخص

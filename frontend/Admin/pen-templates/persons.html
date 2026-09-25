@@ -225,6 +225,16 @@
                       <label class="form-label" for="id_mother_phone_number">شماره موبایل مادر</label>
                       {{ person_form.mother_phone_number }}
                     </div>
+                    <div class="col-12 col-md-4">
+                      <div class="form-check mt-md-4 pt-md-2">
+                        {{ person_form.is_custody_case }}
+                        <label class="form-check-label" for="id_is_custody_case">وضعیت تکفل ویژه دارد</label>
+                      </div>
+                    </div>
+                    <div class="col-12 col-md-8">
+                      <label class="form-label" for="id_custody_note">توضیحات وضعیت تکفل</label>
+                      {{ person_form.custody_note }}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -261,26 +271,56 @@
 </div>
 
 <div class="modal fade" id="person-edit-modal" tabindex="-1" aria-labelledby="person-edit-title" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <form id="person-edit-form" novalidate>
         <div class="modal-header"><h5 class="modal-title" id="person-edit-title">ویرایش اطلاعات فرد</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div>
         <div class="modal-body">
           <div id="person-edit-errors" class="alert alert-danger" role="alert" hidden></div>
+          <div id="person-edit-pii-note" class="alert alert-info fs-14" role="note" hidden>بعضی اطلاعات تماس به‌دلیل سطح دسترسی پوشانده شده‌اند؛ برای تغییر آن‌ها مقدار کامل را وارد کنید.</div>
           <div class="row g-3">
+            <div class="col-12"><h6 class="fw-semibold mb-0">مشخصات فردی</h6></div>
             <div class="col-md-6"><label class="form-label" for="person-edit-first-name">نام</label><input class="form-control" id="person-edit-first-name" name="first_name" required></div>
             <div class="col-md-6"><label class="form-label" for="person-edit-last-name">نام خانوادگی</label><input class="form-control" id="person-edit-last-name" name="last_name" required></div>
-            <div class="col-md-6"><label class="form-label" for="person-edit-national-code">کد ملی</label><input class="form-control" id="person-edit-national-code" name="national_code" readonly disabled></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-national-code">کد ملی</label><input class="form-control" id="person-edit-national-code" readonly disabled></div>
             <div class="col-md-6"><label class="form-label" for="person-edit-person-type">نوع کاربری</label><input class="form-control" id="person-edit-person-type" readonly disabled></div>
-            <div class="col-md-6"><label class="form-label" for="person-edit-father">نام پدر</label><input class="form-control" id="person-edit-father" name="father_name"></div>
-            <div class="col-md-6"><label class="form-label" for="person-edit-mobile">موبایل</label><input class="form-control" id="person-edit-mobile" name="mobile" dir="ltr" required></div>
-            <div class="col-md-6"><label class="form-label" for="person-edit-email">ایمیل</label><input class="form-control" id="person-edit-email" name="email" dir="ltr"></div>
-            <div class="col-md-6"><label class="form-label" for="person-edit-phone">تلفن ثابت</label><input class="form-control" id="person-edit-phone" name="phone" dir="ltr"></div>
-            <div class="col-12"><label class="form-label" for="person-edit-address">آدرس</label><textarea class="form-control" id="person-edit-address" name="address" rows="2"></textarea></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-mobile">شماره موبایل</label><input class="form-control" id="person-edit-mobile" name="mobile" dir="ltr" inputmode="numeric" maxlength="11" pattern="09[0-9۰-۹]{9}" required></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-email">ایمیل (اختیاری)</label><input class="form-control" id="person-edit-email" name="email" dir="ltr" type="email"></div>
             <div class="col-md-6"><label class="form-label" for="person-edit-gender">جنسیت</label><select class="form-select" id="person-edit-gender" name="gender"><option value="unspecified">مشخص نشده</option><option value="male">مرد</option><option value="female">زن</option></select></div>
-            <div class="col-md-6"><label class="form-label" for="person-edit-birth-date">تاریخ تولد</label><input class="form-control" id="person-edit-birth-date" name="birth_date" dir="ltr"></div>
-            <div class="col-md-6"><label class="form-label" for="person-edit-department">دپارتمان</label><input class="form-control" id="person-edit-department" name="department"></div>
-            <div class="col-md-6"><label class="form-label" for="person-edit-job-title">سمت</label><input class="form-control" id="person-edit-job-title" name="job_title"></div>
+            <div class="col-md-6"><label class="form-label" for="person-edit-birth-date">تاریخ تولد</label><input class="form-control" id="person-edit-birth-date" name="birth_date" dir="ltr" inputmode="numeric"></div>
+
+            <div class="col-12" data-person-edit-role-fields="employee manager">
+              <div class="border rounded p-3 bg-body-tertiary">
+                <h6 class="fw-semibold mb-3">اطلاعات شغلی و دسترسی</h6>
+                <div class="row g-3">
+                  <div class="col-md-6" data-person-edit-role-fields="employee supervisor">
+                    <label class="form-label" for="person-edit-employee-kind">نوع کاربری کارمند</label>
+                    <select class="form-select" id="person-edit-employee-kind" name="employee_kind"><option value="ordinary">عادی</option><option value="supervisor">سرپرست</option></select>
+                  </div>
+                  <div class="col-md-6"><label class="form-label" for="person-edit-job-title">عنوان سمت / پست سازمانی</label><input class="form-control" id="person-edit-job-title" name="job_title"></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-12" data-person-edit-role-fields="teacher">
+              <label class="form-label" for="person-edit-specialization">تخصص‌ها / دروس قابل تدریس</label>
+              <input class="form-control" id="person-edit-specialization" name="specialization" placeholder="مثال: ریاضی، فیزیک، پایتون">
+            </div>
+            <div class="col-12" data-person-edit-role-fields="student">
+              <div class="border rounded p-3 bg-body-tertiary">
+                <h6 class="fw-semibold mb-1">اطلاعات والدین و تکفل</h6>
+                <p class="text-muted fs-14 mb-3">اطلاعات ثبت‌شدهٔ پدر و مادر و وضعیت تکفل دانش‌آموز.</p>
+                <div class="row g-3">
+                  <div class="col-md-4"><label class="form-label" for="person-edit-father-first">نام پدر</label><input class="form-control" id="person-edit-father-first"></div>
+                  <div class="col-md-4"><label class="form-label" for="person-edit-father-last">نام خانوادگی پدر</label><input class="form-control" id="person-edit-father-last"></div>
+                  <div class="col-md-4"><label class="form-label" for="person-edit-father-phone">موبایل پدر</label><input class="form-control" id="person-edit-father-phone" dir="ltr" inputmode="numeric" maxlength="11" pattern="09[0-9۰-۹]{9}"></div>
+                  <div class="col-md-4"><label class="form-label" for="person-edit-mother-first">نام مادر</label><input class="form-control" id="person-edit-mother-first"></div>
+                  <div class="col-md-4"><label class="form-label" for="person-edit-mother-last">نام خانوادگی مادر</label><input class="form-control" id="person-edit-mother-last"></div>
+                  <div class="col-md-4"><label class="form-label" for="person-edit-mother-phone">موبایل مادر</label><input class="form-control" id="person-edit-mother-phone" dir="ltr" inputmode="numeric" maxlength="11" pattern="09[0-9۰-۹]{9}"></div>
+                  <div class="col-md-4"><div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="person-edit-custody"><label class="form-check-label" for="person-edit-custody">وضعیت تکفل ویژه دارد</label></div></div>
+                  <div class="col-md-8"><label class="form-label" for="person-edit-custody-note">توضیحات وضعیت تکفل</label><input class="form-control" id="person-edit-custody-note" maxlength="256"></div>
+                </div>
+              </div>
+            </div>
             <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="person-edit-active" name="is_active"><label class="form-check-label" for="person-edit-active">رکورد فعال باشد</label></div></div>
           </div>
         </div>

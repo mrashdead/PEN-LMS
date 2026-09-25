@@ -6,6 +6,33 @@
 {% endblock %}
 
 {% block content %}
+{% if user.is_superuser %}
+<div class="card mb-4" id="sidebar-role-admin">
+  <div class="card-header d-flex flex-wrap align-items-center gap-3">
+    <div class="flex-grow-1">
+      <h6 class="mb-1 card-title"><i data-lucide="panel-left" class="size-4 me-1"></i> نمایش سایدبار بر اساس نقش</h6>
+      <p class="mb-0 text-muted fs-13">منوهای قابل‌نمایش برای هر نقش را تنظیم کنید. این گزینه فقط نمایش منو را کنترل می‌کند و مجوز صفحه را تغییر نمی‌دهد.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <label class="form-label mb-0 fs-13" for="sidebar-role-select">نقش</label>
+      <select id="sidebar-role-select" class="form-select form-select-sm" style="min-width:12rem" disabled aria-label="انتخاب نقش"></select>
+    </div>
+  </div>
+  <div class="card-body">
+    <div id="sidebar-role-grid" class="vstack gap-2" aria-live="polite">
+      <div class="pen-loading">در حال بارگذاری نقش‌ها…</div>
+    </div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+      <span id="sidebar-role-status" class="text-muted fs-13" aria-live="polite"></span>
+      <div class="d-flex gap-2">
+        <button id="sidebar-role-reset" class="btn btn-sm btn-outline-secondary" type="button" disabled>بازگردانی پیش‌فرض نقش</button>
+        <button id="sidebar-role-save" class="btn btn-sm btn-primary" type="button" disabled><i data-lucide="save" class="size-4 me-1"></i> ذخیرهٔ نمایش نقش</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-4">
   {# ── Person search ──────────────────────────────────────────────── #}
   <div class="col-12 col-lg-4">
@@ -50,6 +77,29 @@
           <button id="pm-save-groups" class="btn btn-sm btn-primary"><i data-lucide="save" class="size-4 me-1"></i> ذخیرهٔ گروه‌ها</button>
         </div>
       </div>
+
+      {% if user.is_superuser %}
+      <div class="card mb-4" id="sidebar-user-admin">
+        <div class="card-header d-flex align-items-center gap-2">
+          <div class="flex-grow-1">
+            <h6 class="mb-1 card-title"><i data-lucide="panel-left" class="size-4 me-1"></i> نمایش سایدبار برای این کاربر</h6>
+            <p class="mb-0 text-muted fs-13">می‌توانید نمایش هر بخش را از تنظیم نقش‌ها به ارث ببرید یا برای این فرد جداگانه تعیین کنید.</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="sidebar-user-grid" class="vstack gap-2" aria-live="polite">
+            <div class="text-muted fs-13">برای بارگذاری، فردی را انتخاب کنید.</div>
+          </div>
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+            <span id="sidebar-user-status" class="text-muted fs-13" aria-live="polite"></span>
+            <div class="d-flex gap-2">
+              <button id="sidebar-user-reset" class="btn btn-sm btn-outline-secondary" type="button" disabled>پیروی از تنظیم نقش‌ها</button>
+              <button id="sidebar-user-save" class="btn btn-sm btn-primary" type="button" disabled><i data-lucide="save" class="size-4 me-1"></i> ذخیرهٔ نمایش کاربر</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
 
       {# ── Explicit ACL (manual per-user grants) ───────────────────── #}
       <div class="card mt-4">

@@ -11,6 +11,7 @@
 
   var ACL_BASE = '/api/org/acl/';
   var PERM_BASE = '/api/org/perm/';
+  var SIDEBAR_BASE = '/api/org/sidebar-visibility/';
 
   var $search = document.getElementById('pm-search');
   var $users = document.getElementById('pm-users');
@@ -115,6 +116,7 @@
       renderGroups();
       renderPerms();
       renderAclGrid();
+      loadSidebarUserSettings(id);
       $users.querySelectorAll('.pm-user').forEach(function (b) { b.classList.toggle('active', b.dataset.id === id); });
     }).catch(function (e) { toast(e.message, 'danger'); });
   }
@@ -366,7 +368,171 @@
     });
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // Sidebar visibility (site-superuser controls only)
+  // ══════════════════════════════════════════════════════════════════
+
+  var $sidebarRoleAdmin = document.getElementById('sidebar-role-admin');
+  var $sidebarRoleSelect = document.getElementById('sidebar-role-select');
+  var $sidebarRoleGrid = document.getElementById('sidebar-role-grid');
+  var $sidebarRoleStatus = document.getElementById('sidebar-role-status');
+  var $sidebarRoleSave = document.getElementById('sidebar-role-save');
+  var $sidebarRoleReset = document.getElementById('sidebar-role-reset');
+  var $sidebarUserAdmin = document.getElementById('sidebar-user-admin');
+  var $sidebarUserGrid = document.getElementById('sidebar-user-grid');
+  var $sidebarUserStatus = document.getElementById('sidebar-user-status');
+  var $sidebarUserSave = document.getElementById('sidebar-user-save');
+  var $sidebarUserReset = document.getElementById('sidebar-user-reset');
+
+  function groupSidebarItems(items) {
+    var groups = [];
+    (items || []).forEach(function (item) {
+      var group = groups.filter(function (g) { return g.name === item.section; })[0];
+      if (!group) {
+        group = { name: item.section, items: [] };
+        groups.push(group);
+      }
+      group.items.push(item);
+    });
+    return groups;
+  }
+
+  function renderRoleSidebarItems(items) {
+    if (!$sidebarRoleGrid) return;
+    $sidebarRoleGrid.innerHTML = groupSidebarItems(items).map(function (group) {
+      return '<section class="border rounded p-3">' +
+        '<h6 class="fw-semibold fs-14 mb-2">' + esc(group.name) + '</h6>' +
+        '<div class="row g-2">' + group.items.map(function (item) {
+          var defaultLabel = item.default_visible ? 'پیش‌فرض: نمایش' : 'پیش‌فرض: پنهان';
+          return '<div class="col-12 col-md-6 col-xl-4">' +
+            '<label class="d-flex align-items-start gap-2 border rounded p-2 h-100">' +
+            '<input class="form-check-input mt-1 flex-shrink-0 sidebar-role-item" type="checkbox" data-key="' + esc(item.key) + '"' + (item.visible ? ' checked' : '') + '>' +
+            '<span class="fs-13 flex-grow-1">' + esc(item.title) + '<small class="d-block text-muted">' + defaultLabel + '</small></span>' +
+            '</label></div>';
+        }).join('') + '</div></section>';
+    }).join('');
+    if ($sidebarRoleSave) $sidebarRoleSave.disabled = false;
+    if ($sidebarRoleReset) $sidebarRoleReset.disabled = false;
+    if ($sidebarRoleStatus) $sidebarRoleStatus.textContent = 'وضعیت نمایش برای نقش انتخاب‌شده.';
+  }
+
+  function loadRoleSidebarSettings(roleCode) {
+    if (!roleCode || !$sidebarRoleGrid) return;
+    $sidebarRoleGrid.innerHTML = '<div class="pen-loading">در حال بارگذاری تنظیمات نقش…</div>';
+    if ($sidebarRoleSave) $sidebarRoleSave.disabled = true;
+    if ($sidebarRoleReset) $sidebarRoleReset.disabled = true;
+    get(SIDEBAR_BASE + 'role/' + encodeURIComponent(roleCode) + '/').then(function (data) {
+      renderRoleSidebarItems(data.items || []);
+    }).catch(function (e) {
+      $sidebarRoleGrid.innerHTML = '<div class="text-danger fs-14">' + esc(e.message) + '</div>';
+    });
+  }
+
+  function saveRoleSidebarSettings(reset) {
+    if (!$sidebarRoleSelect || !$sidebarRoleSelect.value) return;
+    var rules = {};
+    $sidebarRoleGrid.querySelectorAll('.sidebar-role-item').forEach(function (cb) {
+      rules[cb.dataset.key] = reset ? null : cb.checked;
+    });
+    if ($sidebarRoleSave) $sidebarRoleSave.disabled = true;
+    if ($sidebarRoleReset) $sidebarRoleReset.disabled = true;
+    put(SIDEBAR_BASE + 'role/' + encodeURIComponent($sidebarRoleSelect.value) + '/', { rules: rules }).then(function (res) {
+      if (!res.ok) throw new Error(res.b.error || res.b.detail || 'ذخیرهٔ تنظیمات نقش انجام نشد.');
+      toast(reset ? 'نمایش پیش‌فرض نقش بازیابی شد.' : 'نمایش سایدبار برای نقش ذخیره شد.', 'success');
+      renderRoleSidebarItems(res.b.items || []);
+    }).catch(function (e) {
+      toast(e.message, 'danger');
+      if ($sidebarRoleSave) $sidebarRoleSave.disabled = false;
+      if ($sidebarRoleReset) $sidebarRoleReset.disabled = false;
+    });
+  }
+
+  function renderUserSidebarItems(data) {
+    if (!$sidebarUserGrid) return;
+    $sidebarUserGrid.innerHTML = groupSidebarItems(data.items || []).map(function (group) {
+      return '<section class="border rounded p-3">' +
+        '<h6 class="fw-semibold fs-14 mb-2">' + esc(group.name) + '</h6>' +
+        '<div class="vstack gap-2">' + group.items.map(function (item) {
+          var override = item.override === null ? 'inherit' : (item.override ? 'show' : 'hide');
+          var effective = item.effective_visible ? 'در سایدبار نمایش داده می‌شود' : 'در سایدبار پنهان است';
+          return '<label class="d-flex flex-wrap align-items-center gap-2 border rounded p-2">' +
+            '<span class="flex-grow-1 fs-13">' + esc(item.title) + '<small class="d-block text-muted sidebar-user-effective">' + effective + '</small></span>' +
+            '<select class="form-select form-select-sm sidebar-user-item" data-key="' + esc(item.key) + '" style="width:auto;min-width:10rem">' +
+            '<option value="inherit"' + (override === 'inherit' ? ' selected' : '') + '>پیروی از نقش‌ها</option>' +
+            '<option value="show"' + (override === 'show' ? ' selected' : '') + '>نمایش</option>' +
+            '<option value="hide"' + (override === 'hide' ? ' selected' : '') + '>پنهان</option>' +
+            '</select></label>';
+        }).join('') + '</div></section>';
+    }).join('');
+    if ($sidebarUserSave) $sidebarUserSave.disabled = false;
+    if ($sidebarUserReset) $sidebarUserReset.disabled = false;
+    if ($sidebarUserStatus) $sidebarUserStatus.textContent = 'تنظیم‌های این فرد؛ «پیروی از نقش‌ها» مقدار جداگانه را حذف می‌کند.';
+  }
+
+  function loadSidebarUserSettings(userId) {
+    if (!$sidebarUserAdmin || !userId) return;
+    $sidebarUserGrid.innerHTML = '<div class="pen-loading">در حال بارگذاری نمایش سایدبار…</div>';
+    if ($sidebarUserSave) $sidebarUserSave.disabled = true;
+    if ($sidebarUserReset) $sidebarUserReset.disabled = true;
+    get(SIDEBAR_BASE + 'user/' + encodeURIComponent(userId) + '/').then(function (data) {
+      renderUserSidebarItems(data);
+    }).catch(function (e) {
+      $sidebarUserGrid.innerHTML = '<div class="text-danger fs-14">' + esc(e.message) + '</div>';
+    });
+  }
+
+  function saveUserSidebarSettings(reset) {
+    if (!current || !$sidebarUserAdmin) return;
+    var rules = {};
+    $sidebarUserGrid.querySelectorAll('.sidebar-user-item').forEach(function (select) {
+      rules[select.dataset.key] = reset || select.value === 'inherit' ? null : select.value === 'show';
+    });
+    if ($sidebarUserSave) $sidebarUserSave.disabled = true;
+    if ($sidebarUserReset) $sidebarUserReset.disabled = true;
+    put(SIDEBAR_BASE + 'user/' + encodeURIComponent(current.id) + '/', { rules: rules }).then(function (res) {
+      if (!res.ok) throw new Error(res.b.error || res.b.detail || 'ذخیرهٔ نمایش کاربر انجام نشد.');
+      toast(reset ? 'تنظیم نمایش این فرد از نقش‌ها پیروی می‌کند.' : 'نمایش سایدبار برای کاربر ذخیره شد.', 'success');
+      renderUserSidebarItems(res.b);
+    }).catch(function (e) {
+      toast(e.message, 'danger');
+      if ($sidebarUserSave) $sidebarUserSave.disabled = false;
+      if ($sidebarUserReset) $sidebarUserReset.disabled = false;
+    });
+  }
+
+  function initSidebarVisibility() {
+    if ($sidebarRoleAdmin && $sidebarRoleSelect) {
+      get(SIDEBAR_BASE + 'catalog/').then(function (data) {
+        var roles = data.roles || [];
+        if (!roles.length) {
+          $sidebarRoleGrid.innerHTML = '<div class="pen-empty py-3">نقش فعالی برای تنظیم وجود ندارد.</div>';
+          return;
+        }
+        $sidebarRoleSelect.innerHTML = roles.map(function (role) {
+          return '<option value="' + esc(role.code) + '">' + esc(role.name) + ' (' + esc(role.code) + ')</option>';
+        }).join('');
+        $sidebarRoleSelect.disabled = false;
+        loadRoleSidebarSettings($sidebarRoleSelect.value);
+      }).catch(function (e) {
+        $sidebarRoleGrid.innerHTML = '<div class="text-danger fs-14">' + esc(e.message) + '</div>';
+      });
+      $sidebarRoleSelect.addEventListener('change', function () {
+        loadRoleSidebarSettings($sidebarRoleSelect.value);
+      });
+      $sidebarRoleGrid.addEventListener('change', function (e) {
+        if (e.target.matches('.sidebar-role-item')) $sidebarRoleStatus.textContent = 'تغییر ذخیره‌نشده است.';
+      });
+      $sidebarRoleSave.addEventListener('click', function () { saveRoleSidebarSettings(false); });
+      $sidebarRoleReset.addEventListener('click', function () { saveRoleSidebarSettings(true); });
+    }
+    if ($sidebarUserAdmin) {
+      $sidebarUserSave.addEventListener('click', function () { saveUserSidebarSettings(false); });
+      $sidebarUserReset.addEventListener('click', function () { saveUserSidebarSettings(true); });
+    }
+  }
+
   // ── Init ───────────────────────────────────────────────────────────
+  initSidebarVisibility();
   loadUsers('');
 
 })();

@@ -2,9 +2,8 @@
 {% comment %}
 Pen LMS sidebar — task-oriented, role-filtered (v3, UX vision).
 
-All role/section flags come precomputed from apps.core.context_processors
-.user_flags (sidebar_urlname, sidebar_is_forms/edu/req, is_staff_user,
-is_unit_manager, is_schema_admin). This keeps the template free of
+Visibility decisions come precomputed from apps.core.context_processors
+.user_flags (sidebar_visibility and sidebar_sections). This keeps the template free of
 multi-line {% with %} (fragile across Django versions) and of access logic —
 visibility is still enforced by the views/APIs; a hidden link is not a
 security control.
@@ -32,6 +31,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
     <div class="navbar-menu px-5" id="navbar-menu-list" data-simplebar>
       <ul class="list-unstyled p-0 navbar-nav-menu">
 
+        {% if sidebar_visibility.dashboard_home %}
         <li class="nav-item">
           <a href="{% url 'dashboard-home' %}" title="داشبورد"
              class="nav-link{% if urlname == 'dashboard-home' %} active{% endif %}"
@@ -40,10 +40,12 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">داشبورد</span>
           </a>
         </li>
+        {% endif %}
 
-        {# ══ TEACHER PORTAL (teacher-only: nothing else) ══════════════ #}
-        {% if is_teacher_only %}
+        {# ══ TEACHER PORTAL ═══════════════════════════════════════════ #}
+        {% if sidebar_sections.teacher %}
         <li class="nav-menu-title">پنل مدرس</li>
+        {% if sidebar_visibility.workspace_teacher %}
         <li class="nav-item">
           <a href="{% url 'workspace-teacher' %}" title="داشبورد مدرس"
              class="nav-link{% if urlname == 'workspace-teacher' %} active{% endif %}"
@@ -52,6 +54,8 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">داشبورد و دوره‌های من</span>
           </a>
         </li>
+        {% endif %}
+        {% if sidebar_visibility.workspace_timetable %}
         <li class="nav-item">
           <a href="{% url 'workspace-timetable' %}" title="تقویم"
              class="nav-link{% if urlname == 'workspace-timetable' %} active{% endif %}"
@@ -60,6 +64,8 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">تقویم و برنامه</span>
           </a>
         </li>
+        {% endif %}
+        {% if sidebar_visibility.workspace_teacher_attendance %}
         <li class="nav-item">
           <a href="{% url 'workspace-teacher-attendance' %}" title="حضور و غیاب"
              class="nav-link{% if urlname == 'workspace-teacher-attendance' %} active{% endif %}"
@@ -68,6 +74,8 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">حضور و غیاب</span>
           </a>
         </li>
+        {% endif %}
+        {% if sidebar_visibility.workspace_teacher_report_cards %}
         <li class="nav-item">
           <a href="{% url 'workspace-teacher-report-cards' %}" title="کارنامه توصیفی"
              class="nav-link{% if urlname == 'workspace-teacher-report-cards' %} active{% endif %}"
@@ -76,7 +84,8 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">کارنامه توصیفی</span>
           </a>
         </li>
-        {% if is_lead_teacher %}
+        {% endif %}
+        {% if sidebar_visibility.leads_teacher_assessments %}
         <li class="nav-item">
           <a href="{% url 'leads-teacher-assessments' %}" title="تعیین‌سطح‌های من"
              class="nav-link{% if urlname == 'leads-teacher-assessments' %} active{% endif %}"
@@ -89,7 +98,8 @@ Add a page: one nav-item; add a section: copy a collapse block.
         {% endif %}
 
         {# ══ LEARNER PORTAL (student/parent) ══════════════════════════ #}
-        {% if is_learner %}
+        {% if sidebar_sections.learner or sidebar_sections.learner_requests %}
+        {% if sidebar_visibility.workspace_learner_portal %}
         <li class="nav-item">
           <a href="{% url 'workspace-learner-portal' %}" title="پورتال من"
              class="nav-link{% if urlname == 'workspace-learner-portal' %} active{% endif %}"
@@ -98,6 +108,8 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">حضور و کارنامه من</span>
           </a>
         </li>
+        {% endif %}
+        {% if sidebar_sections.learner_requests %}
         <li class="nav-item">
           <a href="{% url 'workspace-requests' %}" title="درخواست‌های من"
              class="nav-link{% if urlname == 'workspace-requests' %} active{% endif %}"
@@ -107,9 +119,10 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
         </li>
         {% endif %}
+        {% endif %}
 
-        {# ══ FULL STAFF / MANAGEMENT (hidden from teacher-only) ═══════ #}
-        {% if is_staff_user and not is_teacher_only %}
+        {# ══ WORKSPACE MENU ═══════════════════════════════════════════ #}
+        {% if sidebar_visibility.workspace_work %}
         <li class="nav-item">
           <a href="{% url 'workspace-work' %}" title="کارهای من"
              class="nav-link{% if urlname == 'workspace-work' %} active{% endif %}"
@@ -118,8 +131,10 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">کارهای من</span>
           </a>
         </li>
+        {% endif %}
 
         {# ── درخواست‌ها (collapsible) ─────────────────────────────── #}
+        {% if sidebar_sections.requests %}
         <li class="nav-item">
           <a href="#collapseRequests" title="درخواست‌ها"
              class="nav-link{% if sidebar_is_req %} active{% else %} collapsed{% endif %}"
@@ -131,13 +146,19 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
           <div class="collapse{% if sidebar_is_req %} show{% endif %}" id="collapseRequests">
             <ul class="nav-menu-sub">
+              {% if sidebar_visibility.workspace_requests %}
               <li><a href="{% url 'workspace-requests' %}" class="nav-link{% if urlname == 'workspace-requests' %} active{% endif %}"><span>درخواست‌های من</span></a></li>
+              {% endif %}
+              {% if sidebar_visibility.submission_picker %}
               <li><a href="{% url 'submission-picker' %}" class="nav-link{% if urlname == 'schema-picker' or urlname == 'submission-create' %} active{% endif %}"><span>درخواست جدید</span></a></li>
+              {% endif %}
             </ul>
           </div>
         </li>
+        {% endif %}
 
         {# ── آموزشگاه (collapsible) ───────────────────────────────── #}
+        {% if sidebar_sections.education %}
         <li class="nav-item">
           <a href="#collapseEdu" title="آموزشگاه"
              class="nav-link{% if sidebar_is_edu %} active{% else %} collapsed{% endif %}"
@@ -149,21 +170,39 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
           <div class="collapse{% if sidebar_is_edu %} show{% endif %}" id="collapseEdu">
             <ul class="nav-menu-sub">
-              {% if is_sys_admin %}
+              {% if sidebar_visibility.workspace_persons %}
               <li><a href="{% url 'workspace-persons' %}" class="nav-link{% if urlname == 'workspace-persons' %} active{% endif %}"><span>افراد</span></a></li>
               {% endif %}
+              {% if sidebar_visibility.workspace_departments %}
               <li><a href="{% url 'workspace-departments' %}" class="nav-link{% if urlname == 'workspace-departments' %} active{% endif %}"><span>دپارتمان‌ها</span></a></li>
+              {% endif %}
+              {% if sidebar_visibility.workspace_lessons %}
               <li><a href="{% url 'workspace-lessons' %}" class="nav-link{% if urlname == 'workspace-lessons' %} active{% endif %}"><span>درس‌ها</span></a></li>
+              {% endif %}
+              {% if sidebar_visibility.workspace_courses %}
               <li><a href="{% url 'workspace-courses' %}" class="nav-link{% if urlname == 'workspace-courses' %} active{% endif %}"><span>دوره‌ها</span></a></li>
+              {% endif %}
+              {% if sidebar_visibility.workspace_offerings %}
               <li><a href="{% url 'workspace-offerings' %}" class="nav-link{% if urlname == 'workspace-offerings' %} active{% endif %}"><span>برگزاری‌ها</span></a></li>
+              {% endif %}
+              {% if sidebar_visibility.workspace_sessions %}
               <li><a href="{% url 'workspace-sessions' %}" class="nav-link{% if urlname == 'workspace-sessions' %} active{% endif %}"><span>کلاس‌ها و جلسات</span></a></li>
+              {% endif %}
+              {% if sidebar_visibility.workspace_locations %}
               <li><a href="{% url 'workspace-locations' %}" class="nav-link{% if urlname == 'workspace-locations' %} active{% endif %}"><span>محل‌های آموزش</span></a></li>
+              {% endif %}
+              {% if sidebar_visibility.workspace_enrollments %}
               <li><a href="{% url 'workspace-enrollments' %}" class="nav-link{% if urlname == 'workspace-enrollments' %} active{% endif %}"><span>ثبت‌نام</span></a></li>
+              {% endif %}
+              {% if sidebar_sections.education_timetable %}
               <li><a href="{% url 'workspace-timetable' %}" class="nav-link{% if urlname == 'workspace-timetable' %} active{% endif %}"><span>تقویم و برنامه</span></a></li>
+              {% endif %}
             </ul>
           </div>
         </li>
+        {% endif %}
 
+        {% if sidebar_visibility.workspace_messages %}
         <li class="nav-item">
           <a href="{% url 'workspace-messages' %}" title="پیام‌ها"
              class="nav-link{% if urlname == 'workspace-messages' %} active{% endif %}"
@@ -178,8 +217,9 @@ Add a page: one nav-item; add a section: copy a collapse block.
             </span>
           </a>
         </li>
+        {% endif %}
 
-        {% if is_reports_user %}
+        {% if sidebar_visibility.workspace_reports and is_staff_user %}
         <li class="nav-item">
           <a href="{% url 'workspace-reports' %}" title="گزارش‌ها و تحلیل‌ها"
              class="nav-link{% if urlname == 'workspace-reports' %} active{% endif %}"
@@ -190,7 +230,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
         </li>
         {% endif %}
 
-        {% if is_playhouse_user %}
+        {% if sidebar_visibility.playhouse_dashboard %}
         <li class="nav-item">
           <a href="{% url 'playhouse-dashboard' %}" title="خانه بازی"
              class="nav-link{% if urlname == 'playhouse-dashboard' %} active{% endif %}"
@@ -200,7 +240,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
         </li>
         {% endif %}
-        {% if is_playhouse_finance %}
+        {% if sidebar_visibility.playhouse_finance %}
         <li class="nav-item">
           <a href="{% url 'playhouse-finance' %}" title="گزارش مالی خانه بازی"
              class="nav-link{% if urlname == 'playhouse-finance' %} active{% endif %}"
@@ -209,6 +249,8 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">گزارش مالی خانه بازی</span>
           </a>
         </li>
+        {% endif %}
+        {% if sidebar_visibility.playhouse_settings %}
         <li class="nav-item">
           <a href="{% url 'playhouse-settings' %}" title="تنظیمات خانه بازی"
              class="nav-link{% if urlname == 'playhouse-settings' %} active{% endif %}"
@@ -218,7 +260,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
         </li>
         {% endif %}
-        {% if is_lead_teacher %}
+        {% if sidebar_visibility.leads_teacher_assessments and not sidebar_sections.teacher %}
         <li class="nav-item">
           <a href="{% url 'leads-teacher-assessments' %}" title="تعیین‌سطح‌های من"
              class="nav-link{% if urlname == 'leads-teacher-assessments' %} active{% endif %}"
@@ -228,7 +270,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
         </li>
         {% endif %}
-        {% if is_lead_operator %}
+        {% if sidebar_visibility.leads_dashboard %}
         <li class="nav-item">
           <a href="{% url 'leads-dashboard' %}" title="مدیریت لیدها"
              class="nav-link{% if urlname == 'leads-dashboard' %} active{% endif %}"
@@ -238,9 +280,8 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
         </li>
         {% endif %}
-        {% endif %}
 
-        {% if is_reports_user and not is_staff_user %}
+        {% if sidebar_visibility.workspace_reports and not is_staff_user %}
         <li class="nav-item">
           <a href="{% url 'workspace-reports' %}" title="گزارش‌ها و تحلیل‌ها"
              class="nav-link{% if urlname == 'workspace-reports' %} active{% endif %}"
@@ -251,9 +292,10 @@ Add a page: one nav-item; add a section: copy a collapse block.
         </li>
         {% endif %}
 
-        {% if is_unit_manager %}
+        {% if sidebar_sections.organization %}
         <li class="nav-menu-title">مدیریت سازمان</li>
 
+        {% if sidebar_visibility.workspace_org_chart %}
         <li class="nav-item">
           <a href="{% url 'workspace-org-chart' %}" title="نمودار سازمانی"
              class="nav-link{% if urlname == 'workspace-org-chart' %} active{% endif %}"
@@ -262,7 +304,9 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">نمودار سازمانی</span>
           </a>
         </li>
+        {% endif %}
 
+        {% if sidebar_visibility.workspace_org_permissions %}
         <li class="nav-item">
           <a href="{% url 'workspace-org-permissions' %}" title="مجوزها"
              class="nav-link{% if urlname == 'workspace-org-permissions' %} active{% endif %}"
@@ -271,7 +315,9 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">ماتریس و شبیه‌ساز</span>
           </a>
         </li>
+        {% endif %}
 
+        {% if sidebar_visibility.workspace_perm_manage %}
         <li class="nav-item">
           <a href="{% url 'workspace-perm-manage' %}" title="مدیریت مجوز کاربران"
              class="nav-link{% if urlname == 'workspace-perm-manage' %} active{% endif %}"
@@ -280,7 +326,9 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">مدیریت مجوز کاربران</span>
           </a>
         </li>
+        {% endif %}
 
+        {% if sidebar_visibility.workspace_org_responsibilities %}
         <li class="nav-item">
           <a href="{% url 'workspace-org-responsibilities' %}" title="مسئولیت‌ها"
              class="nav-link{% if urlname == 'workspace-org-responsibilities' %} active{% endif %}"
@@ -289,7 +337,9 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">مسئولیت‌ها و عملکرد</span>
           </a>
         </li>
+        {% endif %}
 
+        {% if sidebar_visibility.workspace_org_delegations %}
         <li class="nav-item">
           <a href="{% url 'workspace-org-delegations' %}" title="جانشینی"
              class="nav-link{% if urlname == 'workspace-org-delegations' %} active{% endif %}"
@@ -298,8 +348,9 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">جانشینی</span>
           </a>
         </li>
+        {% endif %}
 
-        {% if is_schema_admin %}
+        {% if sidebar_visibility.schema_admin %}
         <li class="nav-item">
           <a href="{% url 'schema-admin' %}" title="طراح فرم‌ها"
              class="nav-link{% if urlname == 'schema-admin' or urlname == 'schema-builder' or urlname == 'schema-builder-create' %} active{% endif %}"

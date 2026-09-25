@@ -1,11 +1,10 @@
 """
 Organizational models.
 
-Only ONE new persisted concept is needed for the org UX: ``Delegation``
-(جانشینی) — a time-bound grant of a person's cartable to a substitute, fully
-auditable. Everything else the org screens show (chart, effective
-permissions, responsibilities, unit performance) is DERIVED read-only from
-existing models (User.manager/department, Role/UserRole, Group permissions,
+The org UX persists ``Delegation`` (جانشینی) and sidebar visibility rules.
+Everything else the org screens show (chart, effective permissions,
+responsibilities, unit performance) is derived from existing models
+(User.manager/department, Role/UserRole, Group permissions,
 Workflow Transition.allowed_role_codes, WorkflowTask). Deriving instead of
 duplicating keeps a single source of truth.
 """
@@ -184,3 +183,48 @@ class PersonACLEntry(DomainModel):
     @property
     def verb_set(self) -> set[str]:
         return set(self.verbs or [])
+
+
+class SidebarVisibilityRule(DomainModel):
+    """A stored sidebar visibility override for one role or one user."""
+
+    role_code = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="sidebar_visibility_rules",
+    )
+    item_key = models.CharField(max_length=120, db_index=True)
+    is_visible = models.BooleanField(default=True)
+
+    class Meta:
+        app_label = "org"
+        db_table = "org_sidebar_visibility_rule"
+        verbose_name = "Sidebar visibility rule (قانون نمایش سایدبار)"
+        verbose_name_plural = "Sidebar visibility rules (قوانین نمایش سایدبار)"
+        ordering = ("role_code", "item_key")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["role_code", "item_key"],
+                condition=models.Q(user__isnull=True, is_deleted=False),
+                name="uniq_org_sidebar_role_item_live",
+            ),
+            models.UniqueConstraint(
+                fields=["user", "item_key"],
+                condition=models.Q(user__isnull=False, is_deleted=False),
+                name="uniq_org_sidebar_user_item_live",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    (models.Q(user__isnull=True) & ~models.Q(role_code=""))
+                    | (models.Q(user__isnull=False, role_code=""))
+                ),
+                name="org_sidebar_visibility_scope_valid",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        subject = self.role_code or str(self.user_id)
+        return f"{subject} → {self.item_key} ({'show' if self.is_visible else 'hide'})"

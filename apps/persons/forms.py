@@ -140,6 +140,14 @@ class PersonDefinitionForm(forms.Form):
         label="شماره موبایل مادر", max_length=20, required=False,
         widget=_text_widget(direction="ltr", inputmode="numeric", maxlength="11", pattern="09[0-9۰-۹]{9}"),
     )
+    is_custody_case = forms.BooleanField(
+        label="پرونده دارای وضعیت تکفل ویژه است", required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    custody_note = forms.CharField(
+        label="توضیحات وضعیت تکفل", max_length=256, required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
 
     def __init__(self, *args, actor=None, **kwargs):
         super().__init__(*args, **kwargs)

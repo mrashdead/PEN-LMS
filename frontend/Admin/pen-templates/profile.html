@@ -1,7 +1,13 @@
 {% extends "base.html" %}
-{% block title %}پنل کاربری من{% endblock %}
+{% block title %}{% if "دانش‌آموز" in profile_roles %}پروفایل دانش‌آموز{% elif "مدرس" in profile_roles %}پروفایل مدرس{% else %}پنل کاربری من{% endif %}{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="پنل کاربری من" section="حساب کاربری" icon="user-round" subtitle="اطلاعات حساب و پروندهٔ فردی شما" %}
+  {% if "دانش‌آموز" in profile_roles %}
+    {% include "partials/page-heading.html" with title="پروفایل دانش‌آموز" section="حساب کاربری" icon="graduation-cap" subtitle="نمای کلی پرونده و اطلاعات آموزشی شما" %}
+  {% elif "مدرس" in profile_roles %}
+    {% include "partials/page-heading.html" with title="پروفایل مدرس" section="حساب کاربری" icon="book-open-check" subtitle="نمای کلی پرونده و اطلاعات حرفه‌ای شما" %}
+  {% else %}
+    {% include "partials/page-heading.html" with title="پنل کاربری من" section="حساب کاربری" icon="user-round" subtitle="اطلاعات حساب و پروندهٔ فردی شما" %}
+  {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -19,7 +25,29 @@
             <span class="badge bg-primary-subtle text-primary">{{ role }}</span>
           {% endfor %}
         </div>
+        {% for section in profile_sections %}
+          {% if section.title == "اطلاعات آموزشی" and "دانش‌آموز" in profile_roles or section.title == "اطلاعات شغلی" and "مدرس" in profile_roles %}
+            <div class="border rounded bg-light-subtle p-3 mt-4 text-start">
+              <h6 class="fs-13 mb-3">{% if section.title == "اطلاعات آموزشی" %}خلاصهٔ تحصیلی{% else %}خلاصهٔ حرفه‌ای{% endif %}</h6>
+              {% for item in section.items %}
+                <div class="d-flex align-items-start justify-content-between gap-3{% if not forloop.last %} mb-2{% endif %}">
+                  <span class="text-muted fs-13">{{ item.label }}</span>
+                  <span class="fw-semibold fs-13 text-end">{{ item.value }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endfor %}
         <div class="d-grid gap-2 mt-4">
+          {% if "دانش‌آموز" in profile_roles %}
+            <a href="{% url 'workspace-learner-portal' %}" class="btn btn-primary">
+              <i data-lucide="layout-dashboard" class="size-4 me-1"></i> ورود به پنل آموزشی
+            </a>
+          {% elif "مدرس" in profile_roles %}
+            <a href="{% url 'workspace-teacher' %}" class="btn btn-primary">
+              <i data-lucide="layout-dashboard" class="size-4 me-1"></i> ورود به پنل مدرس
+            </a>
+          {% endif %}
           {% if can_change_own_password %}
             <a href="{% url 'password-change' %}" class="btn btn-primary">
               <i data-lucide="key-round" class="size-4 me-1"></i> تغییر رمز عبور
@@ -37,10 +65,46 @@
   </div>
 
   <div class="col-12 col-xl-8">
-    <div class="card mb-4">
+    {% if "دانش‌آموز" in profile_roles %}
+      <nav class="card mb-4" aria-label="بخش‌های پروفایل دانش‌آموز">
+        <div class="card-body py-3">
+          <ul class="nav nav-pills gap-2">
+            <li class="nav-item"><a class="nav-link active" href="#profile-overview">نمای کلی</a></li>
+            {% if profile_personal %}<li class="nav-item"><a class="nav-link" href="#student-admission">پروندهٔ پذیرش</a></li>{% endif %}
+            {% for section in profile_sections %}
+              {% if section.title == "اطلاعات آموزشی" %}<li class="nav-item"><a class="nav-link" href="#student-education">اطلاعات آموزشی</a></li>{% endif %}
+            {% endfor %}
+            <li class="nav-item"><a class="nav-link" href="#student-documents">مدارک</a></li>
+            <li class="nav-item"><a class="nav-link" href="#student-application">وضعیت پرونده</a></li>
+          </ul>
+        </div>
+      </nav>
+    {% elif "مدرس" in profile_roles %}
+      <nav class="card mb-4" aria-label="بخش‌های پروفایل مدرس">
+        <div class="card-body py-3">
+          <ul class="nav nav-pills gap-2">
+            <li class="nav-item"><a class="nav-link active" href="#profile-overview">نمای کلی</a></li>
+            {% for section in profile_sections %}
+              {% if section.title == "اطلاعات شغلی" %}<li class="nav-item"><a class="nav-link" href="#teacher-information">اطلاعات حرفه‌ای</a></li>{% endif %}
+            {% endfor %}
+            <li class="nav-item"><a class="nav-link" href="#teacher-directory">فهرست مشخصات</a></li>
+          </ul>
+        </div>
+      </nav>
+    {% endif %}
+
+    <div class="card mb-4" id="profile-overview">
       <div class="card-header">
-        <h6 class="card-title mb-1">اطلاعات حساب</h6>
-        <p class="text-muted fs-14 mb-0">اطلاعاتی که برای حساب ورود شما ثبت شده است.</p>
+        <h6 class="card-title mb-1">
+          {% if "دانش‌آموز" in profile_roles %}نمای کلی دانش‌آموز
+          {% elif "مدرس" in profile_roles %}نمای کلی مدرس
+          {% else %}اطلاعات حساب{% endif %}
+        </h6>
+        <p class="text-muted fs-14 mb-0">
+          {% if "دانش‌آموز" in profile_roles %}مشخصات حساب و راه‌های ارتباطی ثبت‌شده برای شما.
+          {% elif "مدرس" in profile_roles %}مشخصات حساب و راه‌های ارتباطی ثبت‌شده برای شما.
+          {% else %}اطلاعاتی که برای حساب ورود شما ثبت شده است.{% endif %}
+        </p>
       </div>
       <div class="card-body">
         <div class="row g-3">
@@ -57,10 +121,14 @@
     </div>
 
     {% if profile_personal %}
-      <div class="card mb-4">
+      <div class="card mb-4"{% if "دانش‌آموز" in profile_roles %} id="student-admission"{% endif %}>
         <div class="card-header">
-          <h6 class="card-title mb-1">اطلاعات فردی</h6>
-          <p class="text-muted fs-14 mb-0">اطلاعات هویتی ثبت‌شده در پروندهٔ شما.</p>
+          <h6 class="card-title mb-1">
+            {% if "دانش‌آموز" in profile_roles %}پروندهٔ پذیرش و اطلاعات هویتی
+            {% elif "مدرس" in profile_roles %}اطلاعات فردی مدرس
+            {% else %}اطلاعات فردی{% endif %}
+          </h6>
+          <p class="text-muted fs-14 mb-0">اطلاعات ثبت‌شده در پروندهٔ شما؛ برای اصلاح آن با مدیریت آموزشگاه تماس بگیرید.</p>
         </div>
         <div class="card-body">
           <div class="row g-3">
@@ -86,8 +154,14 @@
     {% endif %}
 
     {% for section in profile_sections %}
-      <div class="card mb-4">
-        <div class="card-header"><h6 class="card-title mb-0">{{ section.title }}</h6></div>
+      <div class="card mb-4"{% if section.title == "اطلاعات آموزشی" and "دانش‌آموز" in profile_roles %} id="student-education"{% elif section.title == "اطلاعات شغلی" and "مدرس" in profile_roles %} id="teacher-information"{% endif %}>
+        <div class="card-header">
+          <h6 class="card-title mb-0">
+            {% if section.title == "اطلاعات آموزشی" and "دانش‌آموز" in profile_roles %}پیشینهٔ تحصیلی
+            {% elif section.title == "اطلاعات شغلی" and "مدرس" in profile_roles %}اطلاعات حرفه‌ای
+            {% else %}{{ section.title }}{% endif %}
+          </h6>
+        </div>
         <div class="card-body">
           <div class="row g-3">
             {% for item in section.items %}
@@ -100,6 +174,130 @@
         </div>
       </div>
     {% endfor %}
+
+    {% if "دانش‌آموز" in profile_roles %}
+      <div class="row g-4 mb-4">
+        <div class="col-12 col-md-6">
+          <div class="card h-100">
+            <div class="card-body">
+              <div class="d-flex align-items-center gap-3 mb-3">
+                <span class="avatar rounded-2 size-12 bg-primary-subtle text-primary"><i data-lucide="calendar-check"></i></span>
+                <div>
+                  <h6 class="mb-1">حضور و غیاب</h6>
+                  <span class="badge bg-light-subtle text-muted border">آمادهٔ نمایش</span>
+                </div>
+              </div>
+              <p class="text-muted fs-14 mb-0">هنوز داده‌ای از حضور و غیاب به پروفایل شما متصل نشده است.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="card h-100">
+            <div class="card-body">
+              <div class="d-flex align-items-center gap-3 mb-3">
+                <span class="avatar rounded-2 size-12 bg-success-subtle text-success"><i data-lucide="chart-no-axes-combined"></i></span>
+                <div>
+                  <h6 class="mb-1">پیشرفت تحصیلی</h6>
+                  <span class="badge bg-light-subtle text-muted border">آمادهٔ نمایش</span>
+                </div>
+              </div>
+              <p class="text-muted fs-14 mb-0">نمودار نمره‌ها و پیشرفت پس از اتصال اطلاعات آموزشی نمایش داده می‌شود.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-4 mb-4">
+        <div class="col-12 col-lg-6">
+          <div class="card h-100" id="student-documents">
+            <div class="card-header d-flex align-items-center justify-content-between gap-3">
+              <h6 class="card-title mb-0">مدارک پذیرش</h6>
+              <span class="badge bg-light-subtle text-muted border">نمایش پرونده</span>
+            </div>
+            <div class="card-body py-5 text-center">
+              <i data-lucide="folder-open" class="size-8 text-muted mb-3"></i>
+              <h6>مدرکی برای نمایش ثبت نشده است</h6>
+              <p class="text-muted fs-14 mb-0">فهرست و بارگذاری مدارک در این پروفایل فعال نیست.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-6">
+          <div class="card h-100" id="student-application">
+            <div class="card-header"><h6 class="card-title mb-0">وضعیت پروندهٔ دانش‌آموز</h6></div>
+            <div class="card-body">
+              {% if profile_personal %}
+                <div class="d-flex align-items-start gap-3">
+                  <span class="avatar rounded-circle size-10 bg-success-subtle text-success"><i data-lucide="user-check"></i></span>
+                  <div>
+                    <h6 class="mb-1">پروندهٔ فردی متصل است</h6>
+                    <p class="text-muted fs-14 mb-0">مشخصات ثبت‌شده در بخش پذیرش و اطلاعات هویتی قابل مشاهده است.</p>
+                  </div>
+                </div>
+              {% else %}
+                <div class="d-flex align-items-start gap-3">
+                  <span class="avatar rounded-circle size-10 bg-warning-subtle text-warning"><i data-lucide="user-round-search"></i></span>
+                  <div>
+                    <h6 class="mb-1">پروندهٔ فردی متصل نشده است</h6>
+                    <p class="text-muted fs-14 mb-0">برای پیوند پرونده با مدیریت آموزشگاه تماس بگیرید.</p>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if "مدرس" in profile_roles %}
+      <div class="card mb-4" id="teacher-directory">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div>
+            <h6 class="card-title mb-1">فهرست مشخصات مدرس</h6>
+            <p class="text-muted fs-14 mb-0">نمای جدولی اطلاعات پروندهٔ حرفه‌ای حساب فعلی.</p>
+          </div>
+          <span class="badge bg-primary-subtle text-primary">پروفایل شما</span>
+        </div>
+        {% if profile_personal or profile_sections %}
+          <div class="table-responsive">
+            <table class="table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col">مشخصه</th>
+                  <th scope="col">مقدار ثبت‌شده</th>
+                  <th scope="col">وضعیت</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in profile_personal %}
+                  <tr>
+                    <th scope="row" class="fw-medium">{{ item.label }}</th>
+                    <td{% if item.dir %} dir="{{ item.dir }}"{% endif %}>{{ item.value }}</td>
+                    <td><span class="badge bg-light-subtle text-muted border">پروندهٔ جاری</span></td>
+                  </tr>
+                {% endfor %}
+                {% for section in profile_sections %}
+                  {% if section.title == "اطلاعات شغلی" %}
+                    {% for item in section.items %}
+                      <tr>
+                        <th scope="row" class="fw-medium">{{ item.label }}</th>
+                        <td>{{ item.value }}</td>
+                        <td><span class="badge bg-light-subtle text-muted border">پروندهٔ جاری</span></td>
+                      </tr>
+                    {% endfor %}
+                  {% endif %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="card-body py-5 text-center">
+            <i data-lucide="list-filter" class="size-8 text-muted mb-3"></i>
+            <h6>اطلاعات حرفه‌ای ثبت نشده است</h6>
+            <p class="text-muted fs-14 mb-0">برای تکمیل پرونده با مدیریت آموزشگاه تماس بگیرید.</p>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

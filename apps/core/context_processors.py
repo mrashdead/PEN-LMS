@@ -1,11 +1,8 @@
 """Context processors for the dashboard shell.
 
-``user_flags`` exposes cheap, render-time role flags the sidebar/topbar use to
-show/hide surfaces per role (task-oriented UX: a teacher never sees the org
-menu; a student never sees the form builder). This is **presentation only** —
-it mirrors the role trios in apps.forms.permissions / apps.messaging.services /
-apps.core.permissions so no template ever decides access by itself; the
-views/APIs still 403/404. A hidden link is not a security control.
+``user_flags`` exposes render-time role flags and stored sidebar visibility
+overrides. These control presentation only; the views/APIs still enforce
+access independently. A hidden link is not a security control.
 """
 from __future__ import annotations
 
@@ -14,6 +11,7 @@ from apps.forms.templatetags.forms_extras import FORMS_URL_NAMES
 from apps.playhouse.permissions import FINANCE_ROLES, OPERATOR_ROLES
 from apps.leads.permissions import LEAD_OPERATOR_ROLES
 from apps.reports.permissions import REPORT_ACCESS_ROLES
+from apps.core.sidebar import SIDEBAR_ITEMS, visibility_flags_for, visible_sidebar_sections
 
 STAFF_ROLES = {"manager", "workflow_admin", "hr", "employee", "teacher"}
 
@@ -29,6 +27,7 @@ REQ_URLS = FORMS_URL_NAMES | {"workspace-requests", "schema-picker", "submission
 def user_flags(request):
     user = getattr(request, "user", None)
     if user is None or not getattr(user, "is_authenticated", False):
+        sidebar_visibility = {item["flag"]: False for item in SIDEBAR_ITEMS}
         return {
             "is_schema_admin": False, "is_staff_user": False,
             "is_manager": False, "is_unit_manager": False,
@@ -44,6 +43,9 @@ def user_flags(request):
             "can_change_own_password": False,
             "sidebar_urlname": "", "sidebar_is_forms": False,
             "sidebar_is_edu": False, "sidebar_is_req": False,
+            "is_site_admin": False,
+            "sidebar_visibility": sidebar_visibility,
+            "sidebar_sections": {"teacher": False, "education": False, "organization": False, "learner": False, "requests": False, "learner_requests": False, "education_timetable": False},
         }
     try:
         roles = set(user.role_codes())
@@ -54,6 +56,7 @@ def user_flags(request):
     # A teacher who holds NO management/staff-admin role gets the restricted
     # teacher portal only (dashboard/timetable, attendance, report cards).
     is_teacher_only = is_teacher and not (roles & (ELEVATED_ROLES | {"employee", "supervisor"}))
+    sidebar_visibility = visibility_flags_for(user, roles=roles)
     return {
         "is_schema_admin": bool(roles & ELEVATED_ROLES),
         "is_staff_user": bool(roles & STAFF_ROLES),
@@ -76,4 +79,7 @@ def user_flags(request):
         "sidebar_is_forms": urlname in FORMS_URL_NAMES,
         "sidebar_is_edu": urlname in EDU_URLS,
         "sidebar_is_req": urlname in REQ_URLS,
+        "is_site_admin": bool(getattr(user, "is_superuser", False)),
+        "sidebar_visibility": sidebar_visibility,
+        "sidebar_sections": visible_sidebar_sections(sidebar_visibility, roles),
     }

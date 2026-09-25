@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from django.db import transaction
 from rest_framework import serializers
 
 from apps.core.fields import JalaliDateField, PersianCharField
 from apps.core.serializers import CRUDActionsMixin
-from apps.persons.models import Person
+from apps.persons.models import Person, StaffProfile, StudentGuardian, StudentProfile
 from apps.persons.services import (
     can_view_full_person_detail,
     mask_address,
@@ -84,6 +85,43 @@ class PersonPIIMaskingMixin:
         return data
 
 
+class StudentProfileEditSerializer(serializers.ModelSerializer):
+    """Editable fields collected by the student create form."""
+
+    class Meta:
+        model = StudentProfile
+        fields = (
+            "father_first_name", "father_last_name", "father_phone",
+            "mother_first_name", "mother_last_name", "mother_phone",
+            "is_custody_case", "custody_note",
+        )
+
+    @staticmethod
+    def _validate_parent_phone(value):
+        from apps.core.utils import english_numbers
+
+        normalized = english_numbers(value or "").strip()
+        if normalized and (
+            len(normalized) != 11 or not normalized.isdigit() or not normalized.startswith("09")
+        ):
+            raise serializers.ValidationError("شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.")
+        return normalized
+
+    def validate_father_phone(self, value):
+        return self._validate_parent_phone(value)
+
+    def validate_mother_phone(self, value):
+        return self._validate_parent_phone(value)
+
+
+class StaffProfileEditSerializer(serializers.ModelSerializer):
+    """Editable role-specific fields collected by the staff create form."""
+
+    class Meta:
+        model = StaffProfile
+        fields = ("specialization",)
+
+
 class PersonListSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializers.ModelSerializer):
     actions = serializers.SerializerMethodField()
     """سریالایزر خلاصه برای لیست اشخاص (PII ماسک‌شده برای غیرمتولیان)."""
@@ -154,6 +192,17 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
     student_profile_summary = serializers.SerializerMethodField()
     staff_profile_summary = serializers.SerializerMethodField()
     guardian_profile_summary = serializers.SerializerMethodField()
+    student_profile = StudentProfileEditSerializer(required=False, allow_null=True)
+    staff_profile = StaffProfileEditSerializer(required=False, allow_null=True)
+    person_type_codes = serializers.SerializerMethodField()
+    user_role_codes = serializers.SerializerMethodField()
+    can_manage_supervisor_role = serializers.SerializerMethodField()
+    employee_kind = serializers.ChoiceField(
+        choices=(("ordinary", "عادی"), ("supervisor", "سرپرست")),
+        required=False,
+        write_only=True,
+    )
+    mobile = serializers.CharField(max_length=11, required=False)
 
     class Meta:
         model = Person
@@ -189,6 +238,8 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             "created_at",
             "updated_at", "actions",
             "student_profile_summary", "staff_profile_summary", "guardian_profile_summary",
+            "student_profile", "staff_profile", "person_type_codes", "user_role_codes",
+            "can_manage_supervisor_role", "employee_kind",
         )
         read_only_fields = (
             "created_at",
@@ -199,7 +250,33 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             "national_code",
             "person_type",
             "actions",
+            "person_type_codes",
+            "user_role_codes",
+            "can_manage_supervisor_role",
         )
+
+    def get_person_type_codes(self, obj):
+        return sorted(obj.type_codes())
+
+    def get_user_role_codes(self, obj):
+        return sorted(obj.user.role_codes()) if obj.user_id else []
+
+    def get_can_manage_supervisor_role(self, obj):
+        from apps.persons import hierarchy
+
+        actor = _request_user(self)
+        actor_roles = set(actor.role_codes()) if actor and hasattr(actor, "role_codes") else set()
+        return hierarchy.can_grant_role(
+            actor_roles, "supervisor", is_superuser=bool(getattr(actor, "is_superuser", False))
+        )
+
+    def validate_mobile(self, value: str) -> str:
+        from apps.core.utils import english_numbers
+
+        normalized = english_numbers(value).strip()
+        if len(normalized) != 11 or not normalized.isdigit() or not normalized.startswith("09"):
+            raise serializers.ValidationError("شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.")
+        return normalized
 
     def get_student_profile_summary(self, obj):
         profile = getattr(obj, "student_profile", None)
@@ -215,7 +292,126 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             },
             "has_special_needs": profile.has_special_needs,
             "is_custody_case": profile.is_custody_case,
+            "custody_note": profile.custody_note,
         }
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        student_data = validated_data.pop("student_profile", None)
+        staff_data = validated_data.pop("staff_profile", None)
+        employee_kind = validated_data.pop("employee_kind", None)
+
+        instance = super().update(instance, validated_data)
+
+        if student_data is not None:
+            if not instance.has_type(Person.Type.STUDENT):
+                raise serializers.ValidationError({
+                    "student_profile": "این بخش فقط برای دانش‌آموز قابل ویرایش است."
+                })
+            profile, _ = StudentProfile.objects.get_or_create(person=instance)
+            for field, value in student_data.items():
+                setattr(profile, field, value)
+            profile.save(update_fields=[*student_data.keys(), "updated_at"])
+            self._sync_parent_contacts(instance, profile, student_data)
+
+        if staff_data is not None:
+            if not (instance.has_type(Person.Type.TEACHER) or instance.has_type(Person.Type.EMPLOYEE)):
+                raise serializers.ValidationError({
+                    "staff_profile": "این بخش فقط برای مدرس یا کارمند قابل ویرایش است."
+                })
+            profile, _ = StaffProfile.objects.get_or_create(
+                person=instance,
+                defaults={
+                    "kind": (StaffProfile.Kind.TEACHING
+                             if instance.person_type == Person.Type.TEACHER
+                             else StaffProfile.Kind.ADMINISTRATIVE),
+                },
+            )
+            for field, value in staff_data.items():
+                setattr(profile, field, value)
+            profile.save(update_fields=[*staff_data.keys(), "updated_at"])
+
+        if employee_kind is not None:
+            if not instance.has_type(Person.Type.EMPLOYEE) or not instance.user_id:
+                raise serializers.ValidationError({
+                    "employee_kind": "نقش سرپرستی فقط برای کارمند دارای حساب کاربری قابل تغییر است."
+                })
+            from apps.persons import hierarchy
+
+            actor = _request_user(self)
+            actor_roles = set(actor.role_codes()) if actor and hasattr(actor, "role_codes") else set()
+            if not hierarchy.can_grant_role(
+                actor_roles, "supervisor", is_superuser=bool(getattr(actor, "is_superuser", False))
+            ):
+                raise serializers.ValidationError({
+                    "employee_kind": "شما مجاز به تغییر نقش سرپرستی نیستید."
+                })
+            if employee_kind == "supervisor":
+                instance.user.assign_role("supervisor", assigned_by=actor)
+            else:
+                instance.user.revoke_role("supervisor")
+        return instance
+
+    @staticmethod
+    def _sync_parent_contacts(student, profile, changed_fields):
+        """Keep linked father/mother records aligned with the student editor."""
+        if not set(changed_fields).intersection({
+            "father_first_name", "father_last_name", "father_phone",
+            "mother_first_name", "mother_last_name", "mother_phone",
+        }):
+            return
+        links = StudentGuardian.objects.filter(
+            student=student,
+            relation__in=("father", "mother"),
+            is_deleted=False,
+            is_active=True,
+        ).select_related("guardian")
+        for link in links:
+            prefix = "father" if link.relation == "father" else "mother"
+            guardian = link.guardian
+            identity_fields = []
+            for field in ("first_name", "last_name"):
+                profile_field = f"{prefix}_{field}"
+                if profile_field in changed_fields:
+                    setattr(guardian, field, getattr(profile, profile_field))
+                    identity_fields.append(field)
+            if identity_fields:
+                guardian.save(update_fields=[*identity_fields, "updated_at"])
+            phone_field = f"{prefix}_phone"
+            if phone_field in changed_fields:
+                phone = getattr(profile, phone_field)
+                link.phone_override = phone if phone and phone != guardian.mobile else ""
+                link.save(update_fields=["phone_override", "updated_at"])
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        profile_data = data.get("student_profile")
+        if instance.has_type(Person.Type.STUDENT):
+            if profile_data is None:
+                profile_data = {
+                    "father_first_name": "", "father_last_name": "", "father_phone": "",
+                    "mother_first_name": "", "mother_last_name": "", "mother_phone": "",
+                    "is_custody_case": False, "custody_note": "",
+                }
+                data["student_profile"] = profile_data
+            links = StudentGuardian.objects.filter(
+                student=instance, is_deleted=False, is_active=True,
+                relation__in=("father", "mother"),
+            ).select_related("guardian")
+            for link in links:
+                prefix = "father" if link.relation == "father" else "mother"
+                guardian = link.guardian
+                for field, value in (
+                    (f"{prefix}_first_name", guardian.first_name),
+                    (f"{prefix}_last_name", guardian.last_name),
+                    (f"{prefix}_phone", link.phone_override or guardian.mobile),
+                ):
+                    profile_data[field] = value
+        if not can_view_full_person_detail(_request_user(self), instance):
+            if profile_data:
+                for field in ("father_phone", "mother_phone"):
+                    if profile_data.get(field):
+                        profile_data[field] = mask_identifier(profile_data[field])
+        return data
 
     def get_staff_profile_summary(self, obj):
         profile = getattr(obj, "staff_profile", None)
