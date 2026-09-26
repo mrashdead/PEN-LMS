@@ -80,8 +80,8 @@ class PersonDefinitionForm(forms.Form):
     birth_date = forms.CharField(
         label="تاریخ تولد", required=False,
         widget=_text_widget(
-            direction="ltr", inputmode="numeric", placeholder="۱۴۰۵/۰۱/۰۱",
-            autocomplete="bday",
+            direction="ltr", inputmode="numeric", placeholder="سال/ماه/روز",
+            autocomplete="off", **{"data-jalali": ""},
         ),
     )
 

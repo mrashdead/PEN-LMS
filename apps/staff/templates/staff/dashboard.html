@@ -1,38 +1,84 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}کارکرد و مرخصی کارکنان{% endblock %}
-{% block page_heading %}{% include "partials/page-heading.html" with title="کارکرد و مرخصی کارکنان" section="کارکنان" %}{% endblock %}
+{% block title %}کارکرد و مرخصی{% endblock %}
+{% block page_heading %}{% include "partials/page-heading.html" with title="کارکرد و مرخصی" section="کارکنان" %}{% endblock %}
 {% block content %}
-<main class="container-fluid" id="staff-app" data-reviewer="{{ staff_is_reviewer|yesno:'true,false' }}">
-  <div class="row g-3 mb-4">
-    <div class="col-12 col-xl-4"><section class="card h-100"><div class="card-body">
-      <h2 class="h5">ثبت ساعت امروز</h2><p id="clock-state" class="text-muted" role="status">در حال دریافت وضعیت…</p>
-      <div class="d-flex gap-2"><button class="btn btn-primary" id="clock-in">ثبت ورود</button><button class="btn btn-outline-primary" id="clock-out">ثبت خروج</button></div>
-    </div></section></div>
-    <div class="col-12 col-xl-4"><section class="card h-100"><div class="card-body">
-      <h2 class="h5">درخواست مرخصی</h2><form id="leave-form" class="vstack gap-2">
-        <label class="form-label mb-0" for="leave-type">نوع مرخصی</label><select class="form-select" id="leave-type" required></select>
-        <div class="row"><div class="col"><label class="form-label" for="leave-start">از تاریخ</label><input class="form-control" id="leave-start" data-jalali required placeholder="۱۴۰۵/۰۷/۰۱"></div><div class="col"><label class="form-label" for="leave-end">تا تاریخ</label><input class="form-control" id="leave-end" data-jalali required placeholder="۱۴۰۵/۰۷/۰۱"></div></div>
-        <select class="form-select" id="leave-unit"><option value="day">روز کامل</option><option value="half_day">نیم‌روز</option></select>
-        <textarea class="form-control" id="leave-description" placeholder="توضیحات"></textarea><button class="btn btn-outline-primary" type="submit">ثبت درخواست</button>
+<main class="staff-page" id="staff-app" data-reviewer="{{ staff_is_reviewer|yesno:'true,false' }}">
+  <div id="staff-message" class="alert" role="status" aria-live="polite" hidden></div>
+
+  <section class="staff-today" aria-labelledby="staff-today-title">
+    <div class="staff-today-copy">
+      <span class="staff-overline">امروز</span>
+      <h2 id="staff-today-title">ساعت کاری</h2>
+      <p id="clock-state" role="status" aria-live="polite">در حال دریافت وضعیت…</p>
+    </div>
+    <div class="staff-clock-actions">
+      <button class="btn btn-primary" id="clock-in" type="button" disabled>ثبت ورود</button>
+      <button class="btn btn-primary" id="clock-out" type="button" hidden disabled>ثبت خروج</button>
+    </div>
+  </section>
+
+  <section class="staff-create" aria-labelledby="staff-create-title">
+    <div class="staff-section-heading">
+      <div><h2 id="staff-create-title">ثبت جدید</h2><p>درخواست مرخصی یا گزارش کار خود را ثبت کنید.</p></div>
+    </div>
+    <div class="staff-choice" role="tablist" aria-label="نوع ثبت">
+      <button id="staff-leave-tab" type="button" role="tab" aria-selected="false" aria-controls="staff-leave-panel">درخواست مرخصی</button>
+      <button id="staff-work-tab" type="button" role="tab" aria-selected="false" aria-controls="staff-work-panel">گزارش کاری</button>
+    </div>
+    <div id="staff-leave-panel" class="staff-form-panel" role="tabpanel" aria-labelledby="staff-leave-tab" hidden>
+      <form id="leave-form">
+        <div class="staff-form-grid">
+          <div><label class="form-label" for="leave-type">نوع مرخصی</label><select class="form-select" id="leave-type" required><option value="">انتخاب کنید</option></select></div>
+          <div><label class="form-label" for="leave-unit">مدت</label><select class="form-select" id="leave-unit"><option value="day">روز کامل</option><option value="half_day">نیم‌روز</option></select></div>
+          <div><label class="form-label" for="leave-start">از تاریخ</label><input class="form-control" id="leave-start" data-jalali dir="ltr" autocomplete="off" required placeholder="سال/ماه/روز"></div>
+          <div><label class="form-label" for="leave-end">تا تاریخ</label><input class="form-control" id="leave-end" data-jalali dir="ltr" autocomplete="off" required placeholder="سال/ماه/روز"></div>
+          <div class="staff-form-wide"><label class="form-label" for="leave-description">توضیحات <span class="staff-optional">اختیاری</span></label><textarea class="form-control" id="leave-description" rows="2"></textarea></div>
+        </div>
+        <div class="staff-form-footer"><button class="btn btn-primary" type="submit">ثبت درخواست مرخصی</button></div>
       </form>
-    </div></section></div>
-    <div class="col-12 col-xl-4"><section class="card h-100"><div class="card-body">
-      <h2 class="h5">گزارش کاری</h2><form id="work-form" class="vstack gap-2">
-        <label class="form-label mb-0" for="work-date">تاریخ</label><input class="form-control" id="work-date" data-jalali required>
-        <input class="form-control" id="work-title" required maxlength="256" placeholder="عنوان فعالیت">
-        <textarea class="form-control" id="work-description" placeholder="توضیحات"></textarea>
-        <input class="form-control" id="work-minutes" type="number" min="0" max="1440" placeholder="مدت (دقیقه)">
-        <button class="btn btn-outline-primary" type="submit">ثبت گزارش</button>
+    </div>
+    <div id="staff-work-panel" class="staff-form-panel" role="tabpanel" aria-labelledby="staff-work-tab" hidden>
+      <form id="work-form">
+        <div class="staff-form-grid">
+          <div><label class="form-label" for="work-date">تاریخ</label><input class="form-control" id="work-date" data-jalali dir="ltr" autocomplete="off" required placeholder="سال/ماه/روز"></div>
+          <div><label class="form-label" for="work-minutes">مدت به دقیقه <span class="staff-optional">اختیاری</span></label><input class="form-control" id="work-minutes" type="number" min="0" max="1440" placeholder="مثلاً 60"></div>
+          <div class="staff-form-wide"><label class="form-label" for="work-title">عنوان فعالیت</label><input class="form-control" id="work-title" required maxlength="256" placeholder="چه کاری انجام شد؟"></div>
+          <div class="staff-form-wide"><label class="form-label" for="work-description">توضیحات <span class="staff-optional">اختیاری</span></label><textarea class="form-control" id="work-description" rows="2"></textarea></div>
+        </div>
+        <div class="staff-form-footer"><button class="btn btn-primary" type="submit">ثبت گزارش کاری</button></div>
       </form>
-    </div></section></div>
-  </div>
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3"><h2 class="h4 mb-0">سوابق و درخواست‌ها</h2><div class="d-flex gap-2"><input class="form-control" id="staff-from" data-jalali placeholder="از تاریخ"><input class="form-control" id="staff-to" data-jalali placeholder="تا تاریخ"><button class="btn btn-light" id="staff-refresh">به‌روزرسانی</button></div></div>
-  <div id="staff-message" class="alert" role="status" hidden></div>
-  <section class="card mb-4"><div class="card-body"><h3 class="h5">ساعت‌های کاری</h3><div class="table-responsive"><table class="table"><thead><tr><th>کارمند</th><th>روز</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th><th></th></tr></thead><tbody id="timesheets"></tbody></table></div></div></section>
-  <section class="card mb-4"><div class="card-body"><h3 class="h5">درخواست‌های مرخصی</h3><div class="table-responsive"><table class="table"><thead><tr><th>کارمند</th><th>نوع</th><th>بازه</th><th>مدت</th><th>وضعیت</th><th></th></tr></thead><tbody id="leaves"></tbody></table></div></div></section>
-  <section class="card"><div class="card-body"><h3 class="h5">گزارش‌های کاری</h3><div class="table-responsive"><table class="table"><thead><tr><th>کارمند</th><th>تاریخ</th><th>فعالیت</th><th>مدت</th><th>وضعیت</th><th></th></tr></thead><tbody id="work-reports"></tbody></table></div></div></section>
+    </div>
+  </section>
+
+  <section class="staff-history" aria-labelledby="staff-history-title">
+    <div class="staff-section-heading"><div><h2 id="staff-history-title">سوابق و درخواست‌ها</h2><p>جزئیات و وضعیت ثبت‌های خود را ببینید.</p></div></div>
+    <div class="staff-history-toolbar">
+      <div class="staff-history-tabs" role="tablist" aria-label="نوع سوابق">
+        <button id="staff-timesheets-tab" class="is-active" type="button" role="tab" aria-selected="true" aria-controls="staff-timesheets-panel">ساعت‌های کاری</button>
+        <button id="staff-leaves-tab" type="button" role="tab" aria-selected="false" aria-controls="staff-leaves-panel">مرخصی‌ها</button>
+        <button id="staff-reports-tab" type="button" role="tab" aria-selected="false" aria-controls="staff-reports-panel">گزارش‌ها</button>
+      </div>
+      <details class="staff-filter"><summary>بازهٔ زمانی</summary><div class="staff-filter-fields"><label>از تاریخ<input class="form-control" id="staff-from" data-jalali dir="ltr" autocomplete="off" placeholder="سال/ماه/روز"></label><label>تا تاریخ<input class="form-control" id="staff-to" data-jalali dir="ltr" autocomplete="off" placeholder="سال/ماه/روز"></label><button class="btn btn-outline-primary" type="button" id="staff-refresh">اعمال</button></div></details>
+    </div>
+    <div id="staff-timesheets-panel" class="staff-table-panel" role="tabpanel" aria-labelledby="staff-timesheets-tab"><div class="table-responsive"><table class="table align-middle"><thead><tr>{% if staff_is_reviewer %}<th>کارمند</th>{% endif %}<th>روز</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th>{% if staff_is_reviewer %}<th><span class="visually-hidden">اقدام</span></th>{% endif %}</tr></thead><tbody id="timesheets"></tbody></table></div></div>
+    <div id="staff-leaves-panel" class="staff-table-panel" role="tabpanel" aria-labelledby="staff-leaves-tab" hidden><div class="table-responsive"><table class="table align-middle"><thead><tr>{% if staff_is_reviewer %}<th>کارمند</th>{% endif %}<th>نوع</th><th>بازه</th><th>مدت</th><th>وضعیت</th>{% if staff_is_reviewer %}<th><span class="visually-hidden">اقدام</span></th>{% endif %}</tr></thead><tbody id="leaves"></tbody></table></div></div>
+    <div id="staff-reports-panel" class="staff-table-panel" role="tabpanel" aria-labelledby="staff-reports-tab" hidden><div class="table-responsive"><table class="table align-middle"><thead><tr>{% if staff_is_reviewer %}<th>کارمند</th>{% endif %}<th>تاریخ</th><th>فعالیت</th><th>مدت</th><th>وضعیت</th>{% if staff_is_reviewer %}<th><span class="visually-hidden">اقدام</span></th>{% endif %}</tr></thead><tbody id="work-reports"></tbody></table></div></div>
+  </section>
 </main>
+<dialog id="staff-reject-dialog" class="staff-reject-dialog" aria-labelledby="staff-reject-title" aria-describedby="staff-reject-help">
+  <form id="staff-reject-form">
+    <h2 id="staff-reject-title">دلیل رد</h2>
+    <p id="staff-reject-help">دلیل را کوتاه و روشن بنویسید تا برای فرد قابل پیگیری باشد.</p>
+    <label class="form-label" for="staff-reject-reason">دلیل رد</label>
+    <textarea id="staff-reject-reason" class="form-control" rows="3" required aria-describedby="staff-reject-error"></textarea>
+    <p id="staff-reject-error" class="staff-reject-error" role="alert" hidden>دلیل رد را وارد کنید.</p>
+    <div class="staff-reject-actions">
+      <button id="staff-reject-cancel" class="btn btn-outline-secondary" type="button">انصراف</button>
+      <button class="btn btn-primary" type="submit">ثبت دلیل رد</button>
+    </div>
+  </form>
+</dialog>
 <script>
 (() => {
   const root = document.getElementById('staff-app');
@@ -45,46 +91,105 @@
     if (!response.ok) throw new Error(body.error || body.detail || 'درخواست انجام نشد.');
     return body;
   };
-  const show = text => { message.hidden = false; message.textContent = text; message.className = 'alert alert-info'; };
+  const show = (text, error = false) => { message.hidden = false; message.textContent = text; message.className = `alert ${error ? 'alert-danger' : 'alert-success'}`; };
   const cell = (row, value) => { const item = document.createElement('td'); item.textContent = value ?? '—'; row.append(item); return item; };
+  const rejectDialog = document.getElementById('staff-reject-dialog');
+  const rejectForm = document.getElementById('staff-reject-form');
+  const rejectInput = document.getElementById('staff-reject-reason');
+  const rejectError = document.getElementById('staff-reject-error');
+  let rejectResolve = null;
+  let rejectTrigger = null;
+  let rejectResult = null;
+  const requestRejectionReason = trigger => new Promise(resolve => {
+    rejectResolve = resolve;
+    rejectTrigger = trigger;
+    rejectResult = null;
+    rejectForm.reset();
+    rejectError.hidden = true;
+    rejectInput.removeAttribute('aria-invalid');
+    rejectDialog.showModal();
+    rejectInput.focus();
+  });
+  rejectInput.addEventListener('input', () => {
+    rejectError.hidden = true;
+    rejectInput.removeAttribute('aria-invalid');
+  });
+  rejectForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const reason = rejectInput.value.trim();
+    if (!reason) {
+      rejectError.hidden = false;
+      rejectInput.setAttribute('aria-invalid', 'true');
+      rejectInput.focus();
+      return;
+    }
+    rejectResult = reason;
+    rejectDialog.close();
+  });
+  document.getElementById('staff-reject-cancel').addEventListener('click', () => rejectDialog.close());
+  rejectDialog.addEventListener('close', () => {
+    if (rejectResolve) rejectResolve(rejectResult);
+    rejectResolve = null;
+    rejectTrigger?.focus();
+    rejectTrigger = null;
+    rejectResult = null;
+  });
+  const selectTab = (buttons, panels, index) => {
+    buttons.forEach((button, i) => { button.classList.toggle('is-active', i === index); button.setAttribute('aria-selected', String(i === index)); panels[i].hidden = i !== index; });
+  };
+  const formTabs = ['staff-leave', 'staff-work'];
+  formTabs.forEach((name, index) => document.getElementById(`${name}-tab`).addEventListener('click', () => {
+    const active = document.getElementById(`${name}-tab`).getAttribute('aria-selected') === 'true';
+    selectTab(formTabs.map(id => document.getElementById(`${id}-tab`)), formTabs.map(id => document.getElementById(`${id}-panel`)), active ? -1 : index);
+  }));
+  const historyTabs = ['staff-timesheets', 'staff-leaves', 'staff-reports'];
+  historyTabs.forEach((name, index) => document.getElementById(`${name}-tab`).addEventListener('click', () =>
+    selectTab(historyTabs.map(id => document.getElementById(`${id}-tab`)), historyTabs.map(id => document.getElementById(`${id}-panel`)), index)));
   const dateFilters = () => { const params = new URLSearchParams(); if (document.getElementById('staff-from').value) params.set('from', document.getElementById('staff-from').value); if (document.getElementById('staff-to').value) params.set('to', document.getElementById('staff-to').value); return params.toString(); };
   const rows = async (endpoint, target, mapper, reviewType) => {
     const body = await api(`${endpoint}?${dateFilters()}`);
     const list = Array.isArray(body) ? body : body.results || [];
     const table = document.getElementById(target); table.replaceChildren();
+    if (!list.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = table.closest('table').querySelectorAll('th').length; td.className = 'staff-no-records'; td.textContent = 'در این بازه موردی ثبت نشده است.'; tr.append(td); table.append(tr); return; }
     list.forEach(item => {
       const tr = document.createElement('tr'); mapper(tr, item);
       const actions = document.createElement('td');
       if (reviewer && item.status === 'pending') {
         for (const [decision, label] of [['approved', 'تأیید'], ['rejected', 'رد']]) {
-          const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary me-1'; button.textContent = label;
+          const button = document.createElement('button'); button.type = 'button'; button.className = `btn btn-sm ${decision === 'approved' ? 'btn-outline-primary' : 'btn-link'} me-1`; button.textContent = label;
           button.addEventListener('click', async () => {
-            const reason = decision === 'rejected' ? prompt('دلیل رد را وارد کنید:') : '';
-            if (decision === 'rejected' && !reason) return;
-            try { await api(`${reviewType}/${item.id}/review/`, {method: 'POST', body: JSON.stringify({decision, rejection_reason: reason || ''})}); await refresh(); } catch (error) { show(error.message); }
+            const reason = decision === 'rejected' ? await requestRejectionReason(button) : '';
+            if (decision === 'rejected' && reason === null) return;
+            try { await api(`${reviewType}/${item.id}/review/`, {method: 'POST', body: JSON.stringify({decision, rejection_reason: reason || ''})}); await refresh(); } catch (error) { show(error.message, true); }
           }); actions.append(button);
         }
       }
-      tr.append(actions); table.append(tr);
+      if (reviewer) tr.append(actions);
+      table.append(tr);
     });
   };
   const refresh = async () => {
     try {
-      const [status] = await Promise.all([api('timesheet/status/')]);
-      document.getElementById('clock-state').textContent = status.rows?.length ? `${status.rows.length} ثبت امروز · ${status.total_minutes} دقیقه` : 'برای امروز هنوز ورودی ثبت نشده است.';
+      const status = await api('timesheet/status/');
+      const open = Boolean(status.rows?.some(row => row.kind === 'regular' && !row.check_out));
+      const complete = !open && Boolean(status.rows?.some(row => row.kind === 'regular' && row.check_out));
+      document.getElementById('clock-state').textContent = open ? 'ورود امروز ثبت شده است. هنگام پایان کار، خروج را ثبت کنید.' : complete ? 'ورود و خروج امروز ثبت شده است.' : 'هنوز برای امروز ورودی ثبت نشده است.';
+      const clockIn = document.getElementById('clock-in'); const clockOut = document.getElementById('clock-out');
+      clockIn.hidden = open || complete; clockIn.disabled = open || complete;
+      clockOut.hidden = !open; clockOut.disabled = !open;
       await Promise.all([
-        rows('timesheets/', 'timesheets', (tr, item) => { cell(tr, item.user_display || item.user); cell(tr, item.work_date); cell(tr, item.check_in); cell(tr, item.check_out); cell(tr, item.duration_minutes == null ? 'باز' : `${item.duration_minutes} دقیقه`); cell(tr, item.status_display || item.status); }, 'timesheets'),
-        rows('leave-requests/', 'leaves', (tr, item) => { cell(tr, item.user_display); cell(tr, item.leave_type_name); cell(tr, `${item.start_date} تا ${item.end_date}`); cell(tr, item.duration_display); cell(tr, item.status_display); }, 'leave-requests'),
-        rows('work-reports/', 'work-reports', (tr, item) => { cell(tr, item.user_display); cell(tr, item.report_date); cell(tr, item.title); cell(tr, item.spent_hours == null ? '—' : `${item.spent_hours} ساعت`); cell(tr, item.status_display); }, 'work-reports')
+        rows('timesheets/', 'timesheets', (tr, item) => { if (reviewer) cell(tr, item.user_display || item.user); cell(tr, item.work_date); cell(tr, item.check_in); cell(tr, item.check_out); cell(tr, item.duration_minutes == null ? 'باز' : `${item.duration_minutes} دقیقه`); cell(tr, item.status_display || item.status); }, 'timesheets'),
+        rows('leave-requests/', 'leaves', (tr, item) => { if (reviewer) cell(tr, item.user_display); cell(tr, item.leave_type_name); cell(tr, `${item.start_date} تا ${item.end_date}`); cell(tr, item.duration_display); cell(tr, item.status_display); }, 'leave-requests'),
+        rows('work-reports/', 'work-reports', (tr, item) => { if (reviewer) cell(tr, item.user_display); cell(tr, item.report_date); cell(tr, item.title); cell(tr, item.spent_hours == null ? '—' : `${item.spent_hours} ساعت`); cell(tr, item.status_display); }, 'work-reports')
       ]);
-    } catch (error) { show(error.message); }
+    } catch (error) { show(error.message, true); }
   };
-  document.getElementById('clock-in').onclick = async () => { try { await api('timesheet/clock-in/', {method: 'POST', body: '{}'}); await refresh(); } catch (error) { show(error.message); } };
-  document.getElementById('clock-out').onclick = async () => { try { await api('timesheet/clock-out/', {method: 'POST', body: '{}'}); await refresh(); } catch (error) { show(error.message); } };
+  document.getElementById('clock-in').onclick = async () => { try { await api('timesheet/clock-in/', {method: 'POST', body: '{}'}); await refresh(); } catch (error) { show(error.message, true); } };
+  document.getElementById('clock-out').onclick = async () => { try { await api('timesheet/clock-out/', {method: 'POST', body: '{}'}); await refresh(); } catch (error) { show(error.message, true); } };
   document.getElementById('staff-refresh').onclick = refresh;
-  document.getElementById('leave-form').onsubmit = async event => { event.preventDefault(); try { await api('leave-requests/', {method: 'POST', body: JSON.stringify({leave_type: document.getElementById('leave-type').value, start_date: document.getElementById('leave-start').value, end_date: document.getElementById('leave-end').value, unit: document.getElementById('leave-unit').value, description: document.getElementById('leave-description').value})}); show('درخواست مرخصی ثبت شد.'); await refresh(); } catch (error) { show(error.message); } };
-  document.getElementById('work-form').onsubmit = async event => { event.preventDefault(); try { await api('work-reports/', {method: 'POST', body: JSON.stringify({report_date: document.getElementById('work-date').value, title: document.getElementById('work-title').value, description: document.getElementById('work-description').value, spent_minutes: document.getElementById('work-minutes').value || null})}); show('گزارش کاری ثبت شد.'); await refresh(); } catch (error) { show(error.message); } };
-  api('leave-types/').then(body => { const select = document.getElementById('leave-type'); (body.results || body).forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; select.append(option); }); }).catch(error => show(error.message));
+  document.getElementById('leave-form').onsubmit = async event => { event.preventDefault(); try { await api('leave-requests/', {method: 'POST', body: JSON.stringify({leave_type: document.getElementById('leave-type').value, start_date: document.getElementById('leave-start').value, end_date: document.getElementById('leave-end').value, unit: document.getElementById('leave-unit').value, description: document.getElementById('leave-description').value})}); show('درخواست مرخصی ثبت شد.'); event.target.reset(); selectTab(formTabs.map(id => document.getElementById(`${id}-tab`)), formTabs.map(id => document.getElementById(`${id}-panel`)), -1); await refresh(); } catch (error) { show(error.message, true); } };
+  document.getElementById('work-form').onsubmit = async event => { event.preventDefault(); try { await api('work-reports/', {method: 'POST', body: JSON.stringify({report_date: document.getElementById('work-date').value, title: document.getElementById('work-title').value, description: document.getElementById('work-description').value, spent_minutes: document.getElementById('work-minutes').value || null})}); show('گزارش کاری ثبت شد.'); event.target.reset(); selectTab(formTabs.map(id => document.getElementById(`${id}-tab`)), formTabs.map(id => document.getElementById(`${id}-panel`)), -1); await refresh(); } catch (error) { show(error.message, true); } };
+  api('leave-types/').then(body => { const select = document.getElementById('leave-type'); (body.results || body).forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; select.append(option); }); }).catch(error => show(error.message, true));
   refresh();
 })();
 </script>

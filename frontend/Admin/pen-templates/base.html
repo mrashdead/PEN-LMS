@@ -92,8 +92,9 @@ Blocks:
   {# demo runs. Rebuild: cd frontend/Admin && npx vite build --config     #}
   {# vite.pen.config.js                                                    #}
   <script src="{% asset_v_url 'assets/pen/dist/pen.bundle.js' %}"></script>
-  {# Jalali datepicker (theme lib) — armed per-page via pen-core.js helper. #}
+  {# Shared Jalali datepicker and conversion for static and dynamic fields. #}
   <script src="{% static 'assets/js/jalalidatepicker.min.js' %}"></script>
+  <script src="{% asset_v_url 'assets/pen/js/pen-jalali.js' %}"></script>
   {# Layout helpers (sidebar toggle, dark mode, toast, CSRF). #}
   <script src="{% asset_v_url 'assets/pen/js/pen-core.js' %}"></script>
   <script src="{% static 'assets/pen/js/pen-palette.js' %}"></script>

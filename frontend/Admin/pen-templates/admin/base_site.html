@@ -1,0 +1,16 @@
+{% extends "admin/base_site.html" %}
+{% load static asset_v %}
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'assets/css/jalalidatepicker.min.css' %}">
+  <style>
+    /* Replace the admin's Gregorian calendar shortcut; time controls remain. */
+    .vDateField + .datetimeshortcuts { display: none; }
+  </style>
+{% endblock %}
+{% block extrahead %}
+  {{ block.super }}
+  <script defer src="{% static 'assets/js/jalalidatepicker.min.js' %}"></script>
+  <script defer src="{% asset_v_url 'assets/pen/js/pen-jalali.js' %}"></script>
+  <script defer src="{% asset_v_url 'assets/pen/js/admin-jalali.js' %}"></script>
+{% endblock %}

@@ -44,8 +44,8 @@
   function apiUrlWithParams() {
     var url = new URL(ctx.api_url, window.location.href);
     var params = new URLSearchParams(new FormData($filters));
-    params.forEach(function (value, key) {
-      if (!String(value).trim()) params.delete(key);
+    Array.from(params.entries()).forEach(function (entry) {
+      if (!String(entry[1]).trim()) params.delete(entry[0]);
     });
     if (!params.has('page_size')) params.set('page_size', '50');
     url.search = params.toString();
@@ -55,13 +55,11 @@
   function renderRows(data) {
     var rows = data.results || [];
     if (!rows.length) {
-      $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-empty"><p class="mb-0">موردی یافت نشد؛ جست‌وجو را تغییر دهید یا فیلترها را پاک کنید.</p></div></td></tr>';
+      $tbody.innerHTML = '<tr><td colspan="5"><div class="pen-empty"><p class="mb-0">موردی یافت نشد؛ جست‌وجو را تغییر دهید یا فیلترها را پاک کنید.</p></div></td></tr>';
       return;
     }
     $tbody.innerHTML = rows.map(function (row) {
-      var login = row.has_user
-        ? '<span class="badge bg-success-subtle text-success">دارای حساب</span>'
-        : '<span class="badge bg-light text-muted border">بدون حساب</span>';
+      var login = row.has_user ? 'دارای حساب' : 'بدون حساب';
       var actions = row.actions || {view: true, edit: false, delete: false};
       var label = (row.first_name || '') + ' ' + (row.last_name || '');
       var menu = '<div class="dropdown pen-actions-dropdown text-end">' +
@@ -72,13 +70,10 @@
         (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(ctx.api_url + row.id + '/delete/') + '" data-delete-name="' + esc(label.trim()) + '" data-delete-code="' + esc(row.national_code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف نرم</button></li>' : '') +
         '</ul></div>';
       return '<tr>' +
-        '<td>' + esc(row.first_name || '—') + '</td>' +
-        '<td>' + esc(row.last_name || '—') + '</td>' +
-        '<td dir="ltr">' + esc(row.national_code || '—') + '</td>' +
-        '<td><span class="badge bg-primary-subtle text-primary">' + esc(row.role_display || row.person_type_display || row.person_type || '—') + '</span></td>' +
-        '<td dir="ltr">' + esc(row.mobile || '—') + '</td>' +
-        '<td class="text-nowrap">' + esc(row.created_at || '—') + '</td>' +
-        '<td>' + login + '</td>' +
+        '<td><strong class="persons-name">' + esc(label.trim() || '—') + '</strong><small class="persons-secondary" dir="ltr">' + esc(row.national_code || '—') + '</small></td>' +
+        '<td>' + esc(row.role_display || row.person_type_display || row.person_type || '—') + '</td>' +
+        '<td><span dir="ltr">' + esc(row.mobile || '—') + '</span><small class="persons-secondary">' + login + '</small></td>' +
+        '<td class="text-nowrap">' + esc(String(row.created_at || '—').split(' — ')[0]) + '</td>' +
         '<td class="text-end">' + menu + '</td>' +
         '</tr>';
     }).join('');
@@ -108,7 +103,7 @@
     personRequest(row.id).then(function (person) {
       var status = person.is_active ? 'فعال' : 'غیرفعال';
       var history = Array.isArray(person.audit_trail) && person.audit_trail.length
-        ? '<div class="mt-4 pt-3 border-top"><h6 class="fw-semibold mb-2">سوابق تغییرات</h6><ol class="pen-timeline mb-0">' + person.audit_trail.map(function (event) { return '<li class="pen-timeline-item"><div class="fw-semibold fs-14">' + esc(event.summary || event.kind) + '</div><div class="fs-13 text-muted">' + esc(event.actor || 'سامانه') + ' · ' + esc(event.created_at || '—') + '</div></li>'; }).join('') + '</ol></div>' : '';
+        ? '<details class="persons-detail-history"><summary>سوابق تغییرات</summary><ol class="pen-timeline mb-0 mt-3">' + person.audit_trail.map(function (event) { return '<li class="pen-timeline-item"><div class="fw-semibold fs-14">' + esc(event.summary || event.kind) + '</div><div class="fs-13 text-muted">' + esc(event.actor || 'سامانه') + ' · ' + esc(event.created_at || '—') + '</div></li>'; }).join('') + '</ol></details>' : '';
       var profile = person.student_profile_summary || person.staff_profile_summary || person.guardian_profile_summary;
       var profileHtml = profile ? '<div class="mt-4 pt-3 border-top"><h6 class="fw-semibold mb-2">اطلاعات اختصاصی نقش</h6><div class="row g-2">' + Object.keys(profile).filter(function (key) { return typeof profile[key] !== 'object'; }).map(function (key) { return '<div class="col-md-6"><span class="text-muted fs-14">' + esc(key) + ':</span> ' + esc(profile[key] == null || profile[key] === '' ? '—' : profile[key]) + '</div>'; }).join('') + '</div></div>' : '';
       var student = person.student_profile || {};
@@ -131,15 +126,16 @@
         '<div><small>نوع</small><strong>' + esc(person.person_types_display || person.person_type_display || '—') + '</strong></div>' +
         '<div><small>ایجاد</small><strong dir="ltr">' + esc(person.created_at || '—') + '</strong></div>' +
         '<div><small>آخرین تغییر</small><strong dir="ltr">' + esc(person.updated_at || '—') + '</strong></div>' +
-        '</div><div class="vstack gap-1">' +
-        [['نام کامل', person.display_name || ((person.first_name || '') + ' ' + (person.last_name || ''))],
-         ['کد ملی', person.display_national_code || person.national_code],
-         ['نام پدر', person.father_name], ['موبایل', person.display_mobile || person.mobile],
+        '</div><div class="vstack gap-2 persons-detail-fields">' +
+        [['کد ملی', person.display_national_code || person.national_code],
+         ['موبایل', person.display_mobile || person.mobile], ['نام پدر', person.father_name],
          ['ایمیل', person.email], ['تلفن ثابت', person.phone], ['آدرس', person.address],
          ['کد دانش‌آموزی', person.student_code], ['کد پرسنلی', person.employee_code],
          ['دپارتمان', person.department], ['سمت', person.job_title], ['نام کاربری', person.username]]
-        .map(function (item) { return '<div class="row g-2"><div class="col-5 text-muted fs-14">' + esc(item[0]) + '</div><div class="col-7">' + esc(item[1] || '—') + '</div></div>'; }).join('') +
+        .filter(function (item) { return item[1] != null && String(item[1]).trim() && item[1] !== '—'; })
+        .map(function (item) { return '<div class="row g-2"><div class="col-5 text-muted fs-14">' + esc(item[0]) + '</div><div class="col-7">' + esc(item[1]) + '</div></div>'; }).join('') +
         '</div>' + profileHtml + familyHtml + enrollmentHtml + history;
+      document.getElementById('person-detail-title').textContent = person.display_name || labelForPerson(person);
       document.getElementById('person-detail-body').innerHTML = body;
       if (hasStudentRole) {
         fetch('/api/education/registration-directory/context/person/' + encodeURIComponent(person.id) + '/', {
@@ -255,9 +251,10 @@
     if (custody) custody.checked = !!student.is_custody_case;
     document.getElementById('person-edit-active').checked = person.is_active !== false;
     document.getElementById('person-edit-errors').hidden = true;
+    $editEl.querySelectorAll('details.persons-optional-fields').forEach(function (details) { details.open = false; });
     var piiNote = document.getElementById('person-edit-pii-note');
     if (piiNote) {
-      piiNote.hidden = [person.mobile, person.email, student.father_phone, student.mother_phone]
+      piiNote.hidden = ![person.mobile, person.email, student.father_phone, student.mother_phone]
         .some(function (value) { return typeof value === 'string' && value.indexOf('*') !== -1; });
     }
     setEditRoleState(person);
@@ -302,7 +299,7 @@
     $table.setAttribute('aria-busy', 'true');
     $status.textContent = 'در حال بارگذاری…';
     $pageStatus.textContent = '';
-    $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-loading">در حال بارگذاری…</div></td></tr>';
+    $tbody.innerHTML = '<tr><td colspan="5"><div class="pen-loading">در حال بارگذاری…</div></td></tr>';
     return fetch(url, {
       credentials: 'same-origin', signal: request.signal,
       headers: window.penCsrfHeader ? window.penCsrfHeader() : {},
@@ -317,7 +314,7 @@
         ? window.persianNumbers(data.results.length) + ' نفر در این صفحه' : 'نتیجه‌ای پیدا نشد.';
     }).catch(function (error) {
       if (state.request !== request || error.name === 'AbortError') return;
-      $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-empty text-danger">بارگذاری فهرست ناموفق بود.</div></td></tr>';
+      $tbody.innerHTML = '<tr><td colspan="5"><div class="pen-empty text-danger">بارگذاری فهرست ناموفق بود.</div></td></tr>';
       $status.textContent = 'اتصال را بررسی کنید و دوباره تلاش کنید.';
       $retry.hidden = false;
     }).finally(function () {
@@ -352,10 +349,16 @@
     var all = errorLines(errors);
     list.innerHTML = all.map(function (line) { return '<li>' + esc(line) + '</li>'; }).join('');
     box.hidden = false;
+    if (errors.non_field_errors && document.getElementById('id_target').value === 'student') {
+      var studentDetails = document.querySelector('#person-step-two [data-person-role-fields="student"] details');
+      if (studentDetails) studentDetails.open = true;
+    }
     Object.keys(errors || {}).forEach(function (key) {
       if (key === 'non_field_errors') return;
       var field = document.getElementById('id_' + key);
       if (!field) return;
+      var disclosure = field.closest('details');
+      if (disclosure) disclosure.open = true;
       field.classList.add('is-invalid');
       field.setAttribute('aria-invalid', 'true');
       var errorId = 'person-error-' + key;
@@ -417,8 +420,7 @@
     back.hidden = step !== 2;
     next.hidden = step !== 1;
     submit.hidden = step !== 2;
-    var bars = document.querySelectorAll('#person-progress span');
-    bars.forEach(function (bar, index) { bar.classList.toggle('done', index < step); });
+    document.getElementById('person-progress').textContent = 'مرحلهٔ ' + window.persianNumbers(step) + ' از ۲';
     if (step === 2) applyRoleState();
   }
 
@@ -442,6 +444,7 @@
   function resetWizard() {
     if (!$createForm) return;
     $createForm.reset();
+    $createForm.querySelectorAll('details.persons-optional-fields').forEach(function (details) { details.open = false; });
     clearFormErrors();
     showStep(1);
     applyRoleState();
@@ -455,6 +458,8 @@
     clearFormErrors();
     validateParents();
     if (!$createForm.checkValidity()) {
+      var invalid = $createForm.querySelector(':invalid');
+      if (invalid && invalid.closest('details')) invalid.closest('details').open = true;
       $createForm.reportValidity();
       return;
     }
@@ -496,15 +501,26 @@
     document.querySelectorAll('[data-person-group]').forEach(function (button) {
       var active = button.dataset.personGroup === $filters.elements.role.value;
       button.setAttribute('aria-pressed', String(active));
-      button.classList.toggle('btn-primary', active);
-      button.classList.toggle('btn-outline-primary', !active);
     });
+    var advanced = document.getElementById('person-more-filters');
+    var count = Array.from($filters.elements).filter(function (field) {
+      return ['national_code', 'first_name', 'last_name', 'is_active'].indexOf(field.name) !== -1 && field.value.trim();
+    }).length;
+    if ($filters.elements.ordering.value !== '-created_at') count += 1;
+    if ($filters.elements.page_size.value !== '50') count += 1;
+    if ($filters.elements.role.value === 'manager') count += 1;
+    var badge = document.getElementById('person-filter-count');
+    badge.hidden = !count;
+    badge.textContent = count ? window.persianNumbers(count) : '';
+    if (advanced && count) advanced.dataset.hasFilters = 'true';
+    else if (advanced) delete advanced.dataset.hasFilters;
   }
 
   function applyFilters() {
     clearTimeout(searchTimer);
     if (!$filters.reportValidity()) return;
     syncGroups();
+    if (document.getElementById('person-more-filters').dataset.hasFilters) document.getElementById('person-more-filters').open = true;
     var url = apiUrlWithParams();
     var browserUrl = new URL(window.location.href);
     browserUrl.search = new URL(url).search;
@@ -521,6 +537,7 @@
       field.value = value;
     });
     syncGroups();
+    if (document.getElementById('person-more-filters').dataset.hasFilters) document.getElementById('person-more-filters').open = true;
     $filters.addEventListener('submit', function (event) { event.preventDefault(); applyFilters(); });
     $filters.addEventListener('change', function (event) {
       if (event.target.tagName === 'SELECT') applyFilters();
@@ -603,6 +620,7 @@
         toast('اطلاعات فرد به‌روز شد ✓', 'success');
         loadList(apiUrlWithParams(), true);
       }).catch(function (e) {
+        $editEl.querySelectorAll('details.persons-optional-fields').forEach(function (details) { details.open = true; });
         var box = document.getElementById('person-edit-errors'); box.textContent = e.message; box.hidden = false;
       });
     });
