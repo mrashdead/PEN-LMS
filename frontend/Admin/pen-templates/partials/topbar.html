@@ -10,8 +10,8 @@ were sample content and are intentionally omitted.
   <div class="navbar-brand">
     <div class="logos">
       <a href="{% url 'dashboard-home' %}" aria-label="Pen LMS">
-        <img src="{% static 'assets/images/main-logo.png' %}" loading="lazy" height="24" alt="Pen LMS" class="logo-dark">
-        <img src="{% static 'assets/images/logo-white.png' %}" loading="lazy" height="24" alt="Pen LMS" class="logo-light">
+        <img src="{% static 'assets/images/pen-logo.png' %}" loading="lazy" height="24" alt="Pen LMS" class="logo-dark">
+        <img src="{% static 'assets/images/pen-logo.png' %}" loading="lazy" height="24" alt="Pen LMS" class="logo-light">
       </a>
     </div>
     <button type="button" id="toggleSidebar" class="sidebar-toggle btn p-0" aria-label="باز و بسته کردن منوی کناری">
@@ -39,6 +39,36 @@ were sample content and are intentionally omitted.
       </div>
     </div>
     {% endif %}
+
+    <div class="dropdown pen-palette-menu">
+      <button type="button" class="btn topbar-link pen-palette-trigger" id="penPaletteButton"
+              data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+              aria-label="تنظیم موقت رنگ‌های داشبورد" title="تنظیم رنگ‌ها">
+        <i data-lucide="palette" class="size-4" aria-hidden="true"></i>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end pen-palette-panel p-3" aria-labelledby="penPaletteButton">
+        <h6 class="mb-1 fw-semibold">رنگ‌های داشبورد</h6>
+        <p class="fs-13 text-muted mb-3">انتخاب شما تا پایان این نشست می‌ماند.</p>
+        <div class="d-grid gap-2" role="group" aria-label="ترکیب رنگ">
+          <button type="button" class="pen-palette-choice" data-palette-choice="balanced" aria-pressed="true">
+            <span class="pen-palette-swatch" style="--swatch-a:#0B2A79;--swatch-b:#56A8FD;--swatch-c:#F98AAE"></span>
+            <span>متعادل <small>سرمه‌ای / آبی</small></span>
+            <i data-lucide="check" class="size-4 pen-palette-check" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="pen-palette-choice" data-palette-choice="sky" aria-pressed="false">
+            <span class="pen-palette-swatch" style="--swatch-a:#56A8FD;--swatch-b:#0B2A79;--swatch-c:#F98AAE"></span>
+            <span>آبی روشن <small>آبی / سرمه‌ای</small></span>
+            <i data-lucide="check" class="size-4 pen-palette-check" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="pen-palette-choice" data-palette-choice="rose" aria-pressed="false">
+            <span class="pen-palette-swatch" style="--swatch-a:#F98AAE;--swatch-b:#0B2A79;--swatch-c:#56A8FD"></span>
+            <span>صورتی ملایم <small>صورتی / آبی</small></span>
+            <i data-lucide="check" class="size-4 pen-palette-check" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="pen-palette-note mt-3">زمینه ۶۰٪ · سطح و ناوبری ۳۰٪ · تأکید ۱۰٪</div>
+      </div>
+    </div>
 
     <button type="button" id="darkModeButton" class="topbar-link topbar-mode btn" aria-label="تغییر حالت روشن/تاریک">
       <i data-lucide="moon" class="size-4 dark"></i>

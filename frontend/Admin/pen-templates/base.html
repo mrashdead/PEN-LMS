@@ -31,6 +31,11 @@ Blocks:
 
   {# Anti-flicker: applies stored layout/theme attrs before first paint. #}
   <script src="{% static 'assets/js/layout.js' %}"></script>
+  <script>
+    try {
+      document.documentElement.dataset.penPalette = sessionStorage.getItem('pen-palette') || 'balanced';
+    } catch (e) { document.documentElement.dataset.penPalette = 'balanced'; }
+  </script>
 
   {% block head_css %}
     <link href="{% static 'assets/css/bootstrap.rtl.css' %}" rel="stylesheet" type="text/css">
@@ -41,6 +46,7 @@ Blocks:
     <link href="{% static 'assets/css/jalalidatepicker.min.css' %}" rel="stylesheet" type="text/css">
     <link href="{% asset_v_url 'assets/pen/dist/pen.bundle.css' %}" rel="stylesheet" type="text/css">
     <link href="{% asset_v_url 'assets/pen/css/pen.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% static 'assets/pen/css/pen-palette.css' %}" rel="stylesheet" type="text/css">
   {% endblock %}
 
   {% block extra_head %}{% endblock %}
@@ -90,6 +96,7 @@ Blocks:
   <script src="{% static 'assets/js/jalalidatepicker.min.js' %}"></script>
   {# Layout helpers (sidebar toggle, dark mode, toast, CSRF). #}
   <script src="{% asset_v_url 'assets/pen/js/pen-core.js' %}"></script>
+  <script src="{% static 'assets/pen/js/pen-palette.js' %}"></script>
 
   {% block page_js %}{% endblock %}
 </body>

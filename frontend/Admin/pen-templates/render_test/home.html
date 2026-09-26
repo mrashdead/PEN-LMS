@@ -18,6 +18,11 @@
 
   
   <script src="../src/assets/js/layout.js"></script>
+  <script>
+    try {
+      document.documentElement.dataset.penPalette = sessionStorage.getItem('pen-palette') || 'balanced';
+    } catch (e) { document.documentElement.dataset.penPalette = 'balanced'; }
+  </script>
 
   
 
@@ -34,8 +39,8 @@
   <div class="navbar-brand">
     <div class="logos">
       <a href="" aria-label="Pen LMS">
-        <img src="../src/assets/images/main-logo.png" loading="lazy" height="24" alt="Pen LMS" class="logo-dark">
-        <img src="../src/assets/images/logo-white.png" loading="lazy" height="24" alt="Pen LMS" class="logo-light">
+        <img src="../src/assets/images/pen-logo.png" loading="lazy" height="24" alt="Pen LMS" class="logo-dark">
+        <img src="../src/assets/images/pen-logo.png" loading="lazy" height="24" alt="Pen LMS" class="logo-light">
       </a>
     </div>
     <button type="button" id="toggleSidebar" class="sidebar-toggle btn p-0" aria-label="باز و بسته کردن منوی کناری">
@@ -63,6 +68,36 @@
       </div>
     </div>
     
+
+    <div class="dropdown pen-palette-menu">
+      <button type="button" class="btn topbar-link pen-palette-trigger" id="penPaletteButton"
+              data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+              aria-label="تنظیم موقت رنگ‌های داشبورد" title="تنظیم رنگ‌ها">
+        <i data-lucide="palette" class="size-4" aria-hidden="true"></i>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end pen-palette-panel p-3" aria-labelledby="penPaletteButton">
+        <h6 class="mb-1 fw-semibold">رنگ‌های داشبورد</h6>
+        <p class="fs-13 text-muted mb-3">انتخاب شما تا پایان این نشست می‌ماند.</p>
+        <div class="d-grid gap-2" role="group" aria-label="ترکیب رنگ">
+          <button type="button" class="pen-palette-choice" data-palette-choice="balanced" aria-pressed="true">
+            <span class="pen-palette-swatch" style="--swatch-a:#0B2A79;--swatch-b:#56A8FD;--swatch-c:#F98AAE"></span>
+            <span>متعادل <small>سرمه‌ای / آبی</small></span>
+            <i data-lucide="check" class="size-4 pen-palette-check" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="pen-palette-choice" data-palette-choice="sky" aria-pressed="false">
+            <span class="pen-palette-swatch" style="--swatch-a:#56A8FD;--swatch-b:#0B2A79;--swatch-c:#F98AAE"></span>
+            <span>آبی روشن <small>آبی / سرمه‌ای</small></span>
+            <i data-lucide="check" class="size-4 pen-palette-check" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="pen-palette-choice" data-palette-choice="rose" aria-pressed="false">
+            <span class="pen-palette-swatch" style="--swatch-a:#F98AAE;--swatch-b:#0B2A79;--swatch-c:#56A8FD"></span>
+            <span>صورتی ملایم <small>صورتی / آبی</small></span>
+            <i data-lucide="check" class="size-4 pen-palette-check" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="pen-palette-note mt-3">زمینه ۶۰٪ · سطح و ناوبری ۳۰٪ · تأکید ۱۰٪</div>
+      </div>
+    </div>
 
     <button type="button" id="darkModeButton" class="topbar-link topbar-mode btn" aria-label="تغییر حالت روشن/تاریک">
       <i data-lucide="moon" class="size-4 dark"></i>
@@ -112,12 +147,12 @@
     
     <a href="" class="navbar-brand" title="Pen LMS">
       <div class="logo-lg">
-        <img src="../src/assets/images/pen_logo_clean.svg" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
-        <img src="../src/assets/images/pen_logo_clean.svg" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+        <img src="../src/assets/images/pen-logo.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
+        <img src="../src/assets/images/pen-logo.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
       </div>
       <div class="logo-sm">
-        <img src="../src/assets/images/pen_logo_clean.svg" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
-        <img src="../src/assets/images/pen_logo_clean.svg" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+        <img src="../src/assets/images/pen-logo.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
+        <img src="../src/assets/images/pen-logo.png" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
       </div>
     </a>
 
@@ -125,6 +160,7 @@
     <div class="navbar-menu px-5" id="navbar-menu-list" data-simplebar>
       <ul class="list-unstyled p-0 navbar-nav-menu">
 
+        
         <li class="nav-item">
           <a href="" title="داشبورد"
              class="nav-link active"
@@ -133,10 +169,12 @@
             <span class="content">داشبورد</span>
           </a>
         </li>
+        
 
         
         
         <li class="nav-menu-title">پنل مدرس</li>
+        
         <li class="nav-item">
           <a href="" title="داشبورد مدرس"
              class="nav-link active"
@@ -145,6 +183,8 @@
             <span class="content">داشبورد و دوره‌های من</span>
           </a>
         </li>
+        
+        
         <li class="nav-item">
           <a href="" title="تقویم"
              class="nav-link active"
@@ -153,6 +193,8 @@
             <span class="content">تقویم و برنامه</span>
           </a>
         </li>
+        
+        
         <li class="nav-item">
           <a href="" title="حضور و غیاب"
              class="nav-link active"
@@ -161,6 +203,8 @@
             <span class="content">حضور و غیاب</span>
           </a>
         </li>
+        
+        
         <li class="nav-item">
           <a href="" title="کارنامه توصیفی"
              class="nav-link active"
@@ -169,6 +213,7 @@
             <span class="content">کارنامه توصیفی</span>
           </a>
         </li>
+        
         
         <li class="nav-item">
           <a href="" title="تعیین‌سطح‌های من"
@@ -183,6 +228,7 @@
 
         
         
+        
         <li class="nav-item">
           <a href="" title="پورتال من"
              class="nav-link active"
@@ -191,6 +237,8 @@
             <span class="content">حضور و کارنامه من</span>
           </a>
         </li>
+        
+        
         <li class="nav-item">
           <a href="" title="درخواست‌های من"
              class="nav-link active"
@@ -199,6 +247,7 @@
             <span class="content">درخواست‌های من</span>
           </a>
         </li>
+        
         
 
         
@@ -211,7 +260,16 @@
             <span class="content">کارهای من</span>
           </a>
         </li>
+        
 
+        
+        <li class="nav-item"><a href="" title="کارکرد و مرخصی" class="nav-link active"><span class="icons"><i data-lucide="calendar-check"></i></span><span class="content">کارکرد و مرخصی</span></a></li>
+        
+        
+        <li class="nav-item"><a href="" title="ثبت تماس‌ها" class="nav-link active"><span class="icons"><i data-lucide="phone"></i></span><span class="content">ثبت تماس‌ها</span></a></li>
+        
+
+        
         
         <li class="nav-item">
           <a href="#collapseRequests" title="درخواست‌ها"
@@ -224,12 +282,18 @@
           </a>
           <div class="collapse show" id="collapseRequests">
             <ul class="nav-menu-sub">
+              
               <li><a href="" class="nav-link active"><span>درخواست‌های من</span></a></li>
+              
+              
               <li><a href="" class="nav-link active"><span>درخواست جدید</span></a></li>
+              
             </ul>
           </div>
         </li>
+        
 
+        
         
         <li class="nav-item">
           <a href="#collapseEdu" title="آموزشگاه"
@@ -245,18 +309,36 @@
               
               <li><a href="" class="nav-link active"><span>افراد</span></a></li>
               
+              
               <li><a href="" class="nav-link active"><span>دپارتمان‌ها</span></a></li>
+              
+              
               <li><a href="" class="nav-link active"><span>درس‌ها</span></a></li>
+              
+              
               <li><a href="" class="nav-link active"><span>دوره‌ها</span></a></li>
+              
+              
               <li><a href="" class="nav-link active"><span>برگزاری‌ها</span></a></li>
+              
+              
               <li><a href="" class="nav-link active"><span>کلاس‌ها و جلسات</span></a></li>
+              
+              
               <li><a href="" class="nav-link active"><span>محل‌های آموزش</span></a></li>
+              
+              
               <li><a href="" class="nav-link active"><span>ثبت‌نام</span></a></li>
+              
+              
               <li><a href="" class="nav-link active"><span>تقویم و برنامه</span></a></li>
+              
             </ul>
           </div>
         </li>
+        
 
+        
         <li class="nav-item">
           <a href="" title="پیام‌ها"
              class="nav-link active"
@@ -271,6 +353,16 @@
             </span>
           </a>
         </li>
+        
+
+        
+        <li class="nav-item">
+          <a href="" class="nav-link active" aria-current="page">
+            <span class="icons"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span>
+            <span class="content">ثبت‌نام و ظرفیت کلاس‌ها</span>
+          </a>
+        </li>
+        
 
         
         <li class="nav-item">
@@ -302,6 +394,8 @@
             <span class="content">گزارش مالی خانه بازی</span>
           </a>
         </li>
+        
+        
         <li class="nav-item">
           <a href="" title="تنظیمات خانه بازی"
              class="nav-link active"
@@ -331,7 +425,6 @@
           </a>
         </li>
         
-        
 
         
         <li class="nav-item">
@@ -347,6 +440,7 @@
         
         <li class="nav-menu-title">مدیریت سازمان</li>
 
+        
         <li class="nav-item">
           <a href="" title="نمودار سازمانی"
              class="nav-link active"
@@ -355,7 +449,9 @@
             <span class="content">نمودار سازمانی</span>
           </a>
         </li>
+        
 
+        
         <li class="nav-item">
           <a href="" title="مجوزها"
              class="nav-link active"
@@ -364,7 +460,9 @@
             <span class="content">ماتریس و شبیه‌ساز</span>
           </a>
         </li>
+        
 
+        
         <li class="nav-item">
           <a href="" title="مدیریت مجوز کاربران"
              class="nav-link active"
@@ -373,7 +471,9 @@
             <span class="content">مدیریت مجوز کاربران</span>
           </a>
         </li>
+        
 
+        
         <li class="nav-item">
           <a href="" title="مسئولیت‌ها"
              class="nav-link active"
@@ -382,7 +482,9 @@
             <span class="content">مسئولیت‌ها و عملکرد</span>
           </a>
         </li>
+        
 
+        
         <li class="nav-item">
           <a href="" title="جانشینی"
              class="nav-link active"
@@ -391,6 +493,7 @@
             <span class="content">جانشینی</span>
           </a>
         </li>
+        
 
         
         <li class="nav-item">
@@ -419,8 +522,28 @@
         
         
   
-<div class="gap-2 page-heading mb-3 flex-column flex-md-row">
-  <h1 class="flex-grow-1 mb-0">…</h1>
+<div class="gap-3 page-heading mb-4 flex-column flex-md-row pen-page-heading">
+  <div class="pen-page-heading-main">
+    <span class="pen-page-heading-icon" aria-hidden="true">
+      <i data-lucide="…" class="size-5"></i>
+      <i data-lucide="file-stack" class="size-5"></i>
+      <i data-lucide="network" class="size-5"></i>
+      <i data-lucide="users" class="size-5"></i>
+      <i data-lucide="graduation-cap" class="size-5"></i>
+      <i data-lucide="user-round" class="size-5"></i>
+      <i data-lucide="school" class="size-5"></i>
+      <i data-lucide="chart-no-axes-combined" class="size-5"></i>
+      <i data-lucide="clipboard-check" class="size-5"></i>
+      <i data-lucide="file-cog" class="size-5"></i>
+      <i data-lucide="sparkles" class="size-5"></i>
+      <i data-lucide="layout-dashboard" class="size-5"></i>
+    </span>
+    <div class="pen-page-heading-copy">
+      <div class="pen-page-heading-eyebrow">…</div>
+      <h1 class="h3 mb-0">…</h1>
+      <p class="pen-page-heading-subtitle">…</p>
+    </div>
+  </div>
   <nav aria-label="مسیر صفحه">
   <ol class="breadcrumb flex-shrink-0 mb-0">
     <li class="breadcrumb-item"><a href="">داشبورد</a></li>
@@ -473,56 +596,152 @@
 
 <div class="row g-4 mb-4" id="pen-stats" aria-label="خلاصهٔ وضعیت سامانه">
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-primary-subtle text-primary flex-shrink-0">
-          <i data-lucide="building-2users" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <div class="d-flex align-items-baseline gap-2"><h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="persons">—</h2><span class="pen-stat-caption">زنده</span></div>
-          <p class="mb-0 text-muted fs-14">ظرفیت تکمیل‌شدهافراد</p>
-        </div>
+    
+      
+<div class="card card-h-100 pen-stat-card">
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="avatar size-14 rounded bg-…-subtle text-… flex-shrink-0" aria-hidden="true">
+      <i data-lucide="…" class="size-6"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="d-flex align-items-baseline gap-2">
+        <h2 class="h4 mb-0 fw-bold tabular-nums pen-stat-value" id="…" data-stat="…" data-td-stat="…">…</h2>
+        <span class="pen-stat-caption">…</span>
       </div>
+      <p class="mb-0 text-muted fs-14">…</p>
     </div>
   </div>
-  <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-secondary-subtle text-secondary flex-shrink-0">
-          <i data-lucide="inboxworkflow" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="instances">—</h2>
-          <p class="mb-0 text-muted fs-14">درخواست‌های منتظر اقدامفرآیندها</p>
-        </div>
+</div>
+
+    
+      
+<div class="card card-h-100 pen-stat-card">
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="avatar size-14 rounded bg-…-subtle text-… flex-shrink-0" aria-hidden="true">
+      <i data-lucide="…" class="size-6"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="d-flex align-items-baseline gap-2">
+        <h2 class="h4 mb-0 fw-bold tabular-nums pen-stat-value" id="…" data-stat="…" data-td-stat="…">…</h2>
+        <span class="pen-stat-caption">…</span>
       </div>
+      <p class="mb-0 text-muted fs-14">…</p>
     </div>
   </div>
-  <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-success-subtle text-success flex-shrink-0">
-          <i data-lucide="user-pluslist-checks" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="tasks">—</h2>
-          <p class="mb-0 text-muted fs-14">ثبت‌نام جدیدوظایف در دست من</p>
-        </div>
-      </div>
-    </div>
+</div>
+
+    
   </div>
   <div class="col-12 col-sm-6 col-xl-3">
-    <div class="card card-h-100 pen-stat-card">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="avatar size-14 rounded bg-warning-subtle text-warning flex-shrink-0">
-          <i data-lucide="trending-upcalendar-days" class="size-6"></i>
-        </div>
-        <div class="min-w-0">
-          <h2 class="h4 mb-0 fw-bold tabular-nums" data-stat="terms">—</h2>
-          <p class="mb-0 text-muted fs-14">روند ثبت‌نام ۳۰ روزهترم‌های تحصیلی</p>
-        </div>
-      </div>
+    
+      
+<div class="card card-h-100 pen-stat-card">
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="avatar size-14 rounded bg-…-subtle text-… flex-shrink-0" aria-hidden="true">
+      <i data-lucide="…" class="size-6"></i>
     </div>
+    <div class="min-w-0">
+      <div class="d-flex align-items-baseline gap-2">
+        <h2 class="h4 mb-0 fw-bold tabular-nums pen-stat-value" id="…" data-stat="…" data-td-stat="…">…</h2>
+        <span class="pen-stat-caption">…</span>
+      </div>
+      <p class="mb-0 text-muted fs-14">…</p>
+    </div>
+  </div>
+</div>
+
+    
+      
+<div class="card card-h-100 pen-stat-card">
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="avatar size-14 rounded bg-…-subtle text-… flex-shrink-0" aria-hidden="true">
+      <i data-lucide="…" class="size-6"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="d-flex align-items-baseline gap-2">
+        <h2 class="h4 mb-0 fw-bold tabular-nums pen-stat-value" id="…" data-stat="…" data-td-stat="…">…</h2>
+        <span class="pen-stat-caption">…</span>
+      </div>
+      <p class="mb-0 text-muted fs-14">…</p>
+    </div>
+  </div>
+</div>
+
+    
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    
+      
+<div class="card card-h-100 pen-stat-card">
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="avatar size-14 rounded bg-…-subtle text-… flex-shrink-0" aria-hidden="true">
+      <i data-lucide="…" class="size-6"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="d-flex align-items-baseline gap-2">
+        <h2 class="h4 mb-0 fw-bold tabular-nums pen-stat-value" id="…" data-stat="…" data-td-stat="…">…</h2>
+        <span class="pen-stat-caption">…</span>
+      </div>
+      <p class="mb-0 text-muted fs-14">…</p>
+    </div>
+  </div>
+</div>
+
+    
+      
+<div class="card card-h-100 pen-stat-card">
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="avatar size-14 rounded bg-…-subtle text-… flex-shrink-0" aria-hidden="true">
+      <i data-lucide="…" class="size-6"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="d-flex align-items-baseline gap-2">
+        <h2 class="h4 mb-0 fw-bold tabular-nums pen-stat-value" id="…" data-stat="…" data-td-stat="…">…</h2>
+        <span class="pen-stat-caption">…</span>
+      </div>
+      <p class="mb-0 text-muted fs-14">…</p>
+    </div>
+  </div>
+</div>
+
+    
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    
+      
+<div class="card card-h-100 pen-stat-card">
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="avatar size-14 rounded bg-…-subtle text-… flex-shrink-0" aria-hidden="true">
+      <i data-lucide="…" class="size-6"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="d-flex align-items-baseline gap-2">
+        <h2 class="h4 mb-0 fw-bold tabular-nums pen-stat-value" id="…" data-stat="…" data-td-stat="…">…</h2>
+        <span class="pen-stat-caption">…</span>
+      </div>
+      <p class="mb-0 text-muted fs-14">…</p>
+    </div>
+  </div>
+</div>
+
+    
+      
+<div class="card card-h-100 pen-stat-card">
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="avatar size-14 rounded bg-…-subtle text-… flex-shrink-0" aria-hidden="true">
+      <i data-lucide="…" class="size-6"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="d-flex align-items-baseline gap-2">
+        <h2 class="h4 mb-0 fw-bold tabular-nums pen-stat-value" id="…" data-stat="…" data-td-stat="…">…</h2>
+        <span class="pen-stat-caption">…</span>
+      </div>
+      <p class="mb-0 text-muted fs-14">…</p>
+    </div>
+  </div>
+</div>
+
+    
   </div>
 </div>
 
@@ -623,6 +842,7 @@
   <script src="../src/assets/js/jalalidatepicker.min.js"></script>
   
   <script src=""></script>
+  <script src="../src/assets/pen/js/pen-palette.js"></script>
 
   
 <script>

@@ -1,0 +1,143 @@
+/* Temporary dashboard palettes. Domiex variables keep existing components in sync. */
+:root[data-pen-palette] {
+  --pen-cream: #fcf9ea;
+  --pen-blue: #56a8fd;
+  --pen-navy: #0b2a79;
+  --pen-pink: #f98aae;
+  --dx-body-bg: var(--pen-cream);
+  --dx-secondary-bg: #fffdf5;
+  --dx-tertiary-bg: #f3f0e3;
+  --dx-body-color: #142b5c;
+  --dx-secondary-color: #52617e;
+  --dx-border-color: #e6e6da;
+  --dx-card-bg: var(--dx-secondary-bg);
+  --dx-primary: var(--pen-navy);
+  --dx-primary-rgb: 11, 42, 121;
+  --dx-link-color: var(--dx-primary);
+  --dx-sidebar-bg: var(--pen-navy);
+  --dx-topbar-bg: #fffdf5;
+  --dx-topbar-color: var(--pen-navy);
+  --dx-topbar-hover-color: var(--pen-navy);
+  --dx-topbar-border: #e9e6da;
+  color-scheme: light;
+}
+
+:root[data-pen-palette="sky"] {
+  --dx-sidebar-bg: var(--pen-blue);
+  --dx-primary: var(--pen-navy);
+  --dx-topbar-bg: #edf5fe;
+}
+:root[data-pen-palette="rose"] {
+  --dx-sidebar-bg: var(--pen-pink);
+  --dx-primary: var(--pen-navy);
+  --dx-topbar-bg: #fff0f4;
+}
+
+:root[data-pen-palette="sky"], :root[data-pen-palette="rose"] {
+  --dx-sidebar-border: color-mix(in srgb, var(--dx-sidebar-bg) 70%, var(--pen-navy));
+  --dx-sidebar-menu-title: #173461;
+  --dx-sidebar-link-color: #0b2a79;
+  --dx-sidebar-link-hover-color: #0b2a79;
+  --dx-sidebar-link-bg-hover-color: rgba(255,255,255,.32);
+  --dx-sidebar-link-active-color: #0b2a79;
+  --dx-sidebar-link-bg-active-color: rgba(255,255,255,.48);
+  --dx-sidebar-link-sub-color: #173461;
+  --dx-sidebar-link-sub-hover-color: #0b2a79;
+  --dx-sidebar-link-sub-active-color: #0b2a79;
+  --dx-sidebar-link-sub-effect-color: rgba(255,255,255,.3);
+}
+
+:root[data-bs-theme="dark"][data-pen-palette] {
+  --dx-body-bg: #091631;
+  --dx-secondary-bg: #122246;
+  --dx-tertiary-bg: #1a3055;
+  --dx-body-color: #fcf9ea;
+  --dx-secondary-color: #bac8e1;
+  --dx-border-color: #2a416b;
+  --dx-card-bg: var(--dx-secondary-bg);
+  --dx-primary: #77b8ff;
+  --dx-primary-rgb: 119, 184, 255;
+  --dx-link-color: #8cc3ff;
+  --dx-sidebar-bg: #0b2a79;
+  --dx-topbar-bg: #102042;
+  --dx-topbar-border: #29416c;
+  --dx-topbar-color: #fcf9ea;
+  --dx-topbar-hover-color: #fff;
+  color-scheme: dark;
+}
+:root[data-bs-theme="dark"][data-pen-palette="sky"] {
+  --dx-sidebar-bg: #163f87;
+  --dx-topbar-bg: #132d5b;
+}
+:root[data-bs-theme="dark"][data-pen-palette="rose"] {
+  --dx-sidebar-bg: #562d61;
+  --dx-topbar-bg: #3a244e;
+}
+:root[data-bs-theme="dark"][data-pen-palette="sky"],
+:root[data-bs-theme="dark"][data-pen-palette="rose"] {
+  --dx-sidebar-menu-title: #dce6fa;
+  --dx-sidebar-link-color: #fcf9ea;
+  --dx-sidebar-link-hover-color: #fff;
+  --dx-sidebar-link-bg-hover-color: rgba(255,255,255,.1);
+  --dx-sidebar-link-active-color: #fff;
+  --dx-sidebar-link-bg-active-color: rgba(255,255,255,.15);
+  --dx-sidebar-link-sub-color: #e2eafb;
+  --dx-sidebar-link-sub-hover-color: #fff;
+  --dx-sidebar-link-sub-active-color: #fff;
+  --dx-sidebar-link-sub-effect-color: rgba(255,255,255,.08);
+}
+:root[data-bs-theme="dark"][data-pen-palette] .main-sidebar .nav-link.active {
+  box-shadow: inset -3px 0 0 var(--pen-pink);
+}
+
+/* Strong colors stay in navigation and actions; pink highlights stay sparse. */
+:root[data-pen-palette] .main-sidebar .nav-link.active { border-radius: .6rem; }
+:root[data-pen-palette="balanced"] .main-sidebar .nav-link.active {
+  box-shadow: inset -3px 0 0 var(--pen-pink);
+}
+:root[data-pen-palette] .page-heading { border-bottom-color: var(--dx-border-color); }
+:root[data-pen-palette] .card { box-shadow: 0 6px 24px rgba(11,42,121,.045); }
+:root[data-bs-theme="dark"][data-pen-palette] .card { box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+:root[data-pen-palette] .pen-stat-card:nth-child(1) .avatar,
+:root[data-pen-palette] #pen-stats > :first-child .avatar { background: color-mix(in srgb, var(--pen-blue) 20%, var(--dx-secondary-bg)) !important; color: var(--pen-navy) !important; }
+:root[data-pen-palette] #pen-stats > :last-child .avatar { background: color-mix(in srgb, var(--pen-pink) 23%, var(--dx-secondary-bg)) !important; color: var(--pen-navy) !important; }
+:root[data-bs-theme="dark"][data-pen-palette] #pen-stats .avatar {
+  color: #a4d2ff !important;
+  background: rgba(86,168,253,.2) !important;
+}
+:root[data-bs-theme="dark"][data-pen-palette] #pen-stats > :last-child .avatar {
+  color: #f98aae !important;
+  background: rgba(249,138,174,.18) !important;
+}
+:root[data-pen-palette] .btn-primary {
+  --dx-btn-bg: var(--pen-navy);
+  --dx-btn-border-color: var(--pen-navy);
+  --dx-btn-color: #fff;
+  --dx-btn-hover-bg: #173f9c;
+  --dx-btn-hover-border-color: #173f9c;
+  --dx-btn-hover-color: #fff;
+}
+:root[data-pen-palette] .btn-outline-primary {
+  --dx-btn-color: var(--pen-navy);
+  --dx-btn-border-color: var(--pen-navy);
+  --dx-btn-hover-bg: var(--pen-navy);
+  --dx-btn-hover-border-color: var(--pen-navy);
+  --dx-btn-hover-color: #fff;
+}
+:root[data-bs-theme="dark"][data-pen-palette] .btn-outline-primary {
+  --dx-btn-color: #a4d2ff;
+  --dx-btn-border-color: #77b8ff;
+  --dx-btn-hover-bg: #77b8ff;
+  --dx-btn-hover-color: #0b2a79;
+}
+
+.pen-palette-panel { width: min(19rem, calc(100vw - 1.5rem)); border: 1px solid var(--dx-border-color); border-radius: .9rem; background: var(--dx-secondary-bg); color: var(--dx-body-color); box-shadow: 0 16px 40px rgba(11,42,121,.16); }
+.pen-palette-choice { display: flex; width: 100%; gap: .7rem; align-items: center; padding: .55rem .65rem; text-align: start; border: 1px solid var(--dx-border-color); border-radius: .65rem; background: var(--dx-secondary-bg); color: var(--dx-body-color); font: inherit; cursor: pointer; }
+.pen-palette-choice:hover, .pen-palette-choice:focus-visible { border-color: var(--pen-blue); background: var(--dx-tertiary-bg); }
+.pen-palette-choice:focus-visible { outline: 2px solid var(--pen-blue); outline-offset: 2px; }
+.pen-palette-choice[aria-pressed="true"] { border-color: var(--pen-blue); box-shadow: inset 0 0 0 1px var(--pen-blue); }
+.pen-palette-choice small { display: block; font-size: .72rem; color: var(--dx-secondary-color); }
+.pen-palette-swatch { flex: 0 0 2.4rem; height: 1.8rem; border-radius: .45rem; background: linear-gradient(110deg, var(--swatch-a) 55%, var(--swatch-b) 55% 82%, var(--swatch-c) 82%); border: 1px solid rgba(11,42,121,.12); }
+.pen-palette-check { margin-inline-start: auto; opacity: 0; color: var(--dx-primary); }
+.pen-palette-choice[aria-pressed="true"] .pen-palette-check { opacity: 1; }
+.pen-palette-note { border-top: 1px solid var(--dx-border-color); padding-top: .7rem; color: var(--dx-secondary-color); font-size: .74rem; }
