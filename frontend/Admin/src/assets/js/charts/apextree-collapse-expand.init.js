@@ -78,7 +78,7 @@ document.getElementById('darkModeButton')?.addEventListener('click', function ()
 const data = {
     id: 'ms',
     data: {
-        imageURL: 'assets/images/avatar/user-45.png',
+        imageURL: 'assets/images/avatar/user-no.png',
         name: 'جمشید بهاری‌فر',
     },
     options: {

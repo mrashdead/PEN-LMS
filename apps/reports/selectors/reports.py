@@ -248,6 +248,8 @@ def _report_enrollments(filters: ReportFilters):
 def filter_options() -> dict[str, list[dict[str, str]]]:
     """Small option lists for the filter toolbar; no PII is exposed."""
     from apps.education.models import Course, Department, Location
+    from apps.forms.models import FormSchema, RequestType
+    from apps.workflow.models import WorkflowDefinition
 
     return {
         "departments": [
@@ -267,6 +269,24 @@ def filter_options() -> dict[str, list[dict[str, str]]]:
             for row in Location.objects.filter(is_deleted=False, is_active=True)
             .order_by("name")
             .values("id", "name")
+        ],
+        "request_types": [
+            {"id": row["code"], "title": row["title"]}
+            for row in RequestType.objects.filter(is_deleted=False, is_active=True)
+            .order_by("title", "code")
+            .values("code", "title")
+        ],
+        "workflows": [
+            {"id": row["code"], "name": row["name"]}
+            for row in WorkflowDefinition.objects.filter(is_deleted=False, is_active=True)
+            .order_by("name", "code")
+            .values("code", "name")
+        ],
+        "forms": [
+            {"id": row["slug"], "title": row["title"]}
+            for row in FormSchema.objects.filter(is_deleted=False, is_active=True)
+            .order_by("title", "slug")
+            .values("slug", "title")
         ],
     }
 
@@ -669,8 +689,16 @@ def dashboard_data(user, filters: ReportFilters) -> dict[str, Any]:
     }
 
 
-def export_rows(data: dict[str, Any], report: str) -> list[tuple[str, list[str], list[list[Any]]]]:
+def export_rows(
+    data: dict[str, Any],
+    report: str,
+    *,
+    workflow_rows: list[dict[str, Any]] | None = None,
+) -> list[tuple[str, list[str], list[list[Any]]]]:
     """Convert the JSON read model to Excel-friendly sheet definitions."""
+    def excel_value(value):
+        return value.isoformat() if hasattr(value, "isoformat") else value
+
     sheets: list[tuple[str, list[str], list[list[Any]]]] = []
     if report in {"all", "financial"} and data["financial"].get("visible"):
         section = data["financial"]
@@ -781,6 +809,39 @@ def export_rows(data: dict[str, Any], report: str) -> list[tuple[str, list[str],
                 [[row["label"], row["value"]] for row in section["form_types"]],
             )
         )
+        if workflow_rows is not None:
+            sheets.append(
+                (
+                    "جزئیات درخواست",
+                    [
+                        "شماره", "نوع درخواست", "فرآیند", "عنوان", "وضعیت گردش‌کار",
+                        "وضعیت درخواست", "مرحله", "ثبت‌کننده", "واحد ثبت‌کننده",
+                        "مسئول فعلی", "واحد مسئول", "فرم", "تاریخ ایجاد", "تاریخ ثبت",
+                        "تاریخ بررسی", "بررسی‌کننده", "تاریخ تأیید", "تاریخ رد", "تاریخچه اقدامات",
+                    ],
+                    [
+                        [
+                            row.get("request_number") or row.get("tracking_number") or row.get("id"),
+                            row.get("request_type_title"), row.get("workflow_name"), row.get("title"),
+                            row.get("status"), row.get("request_status"), row.get("current_step"),
+                            row.get("requester_name"), row.get("requester_department"),
+                            ", ".join(item.get("name") or item.get("username", "") for item in row.get("assigned_users", [])),
+                            ", ".join(sorted({item.get("department", "") for item in row.get("assigned_users", []) if item.get("department")})),
+                            row.get("form_title"), excel_value(row.get("created_at")),
+                            excel_value(row.get("form_submitted_at")),
+                            excel_value(row.get("reviewed_at") or row.get("last_reviewed_at")),
+                            row.get("reviewed_by"), excel_value(row.get("approved_at")),
+                            excel_value(row.get("rejected_at")),
+                            " | ".join(
+                                f"{item.get('action', '')}: {item.get('actor_name') or item.get('actor', '')}"
+                                f" ({item.get('created_at', '')}) {item.get('comment', '')}"
+                                for item in row.get("action_history", [])
+                            )[:32000],
+                        ]
+                        for row in workflow_rows
+                    ],
+                )
+            )
     if report in {"all", "communications"}:
         section = data["communications"]
         channel_rows = []

@@ -146,6 +146,71 @@ class DataScopeTests(TestCase):
         self.assertIn(my_session, visible)
         self.assertNotIn(session, visible)
 
+    def test_reference_read_permission_does_not_grant_create(self):
+        from django.contrib.auth.models import Permission
+
+        employee = UserFactory(username="sc-reference-employee", roles=["employee"])
+        employee.user_permissions.set(Permission.objects.filter(
+            codename__in=("view_course", "view_classgroup"),
+        ))
+        self.client.force_login(employee)
+
+        self.assertEqual(self.client.get("/api/education/courses/").status_code, 200)
+        self.assertEqual(self.client.get("/api/academics/class-groups/").status_code, 200)
+
+        manager = UserFactory(username="sc-read-only-manager", roles=["manager"])
+        manager.user_permissions.set(Permission.objects.filter(codename="view_course"))
+        self.client.force_login(manager)
+        self.assertEqual(self.client.get("/api/education/courses/").status_code, 200)
+        self.assertEqual(self.client.post("/api/education/courses/", {}, format="json").status_code, 403)
+
+    def test_teacher_course_and_offering_lists_stay_scoped(self):
+        from django.contrib.auth.models import Permission
+
+        from apps.education.models import ClassSession, Course, CourseOffering
+        from apps.forms.tests.factories import make_person
+
+        teacher = UserFactory(username="sc-course-teacher", roles=["teacher"])
+        teacher_person = make_person(teacher, "teacher", national_code=_nc())
+        other_teacher = make_person(None, "teacher", national_code=_nc())
+        own_course = Course.objects.create(title="دورهٔ مدرس", code="teacher-course-own")
+        foreign_course = Course.objects.create(title="دورهٔ دیگر", code="teacher-course-foreign")
+        own_offering = CourseOffering.objects.create(course=own_course, instructor=other_teacher)
+        foreign_offering = CourseOffering.objects.create(course=foreign_course, instructor=other_teacher)
+        self.my_group.offering = own_offering
+        self.my_group.teacher = teacher_person
+        self.my_group.save()
+        ClassSession.objects.create(
+            offering=own_offering, class_code="OWN-CLASS", teacher=teacher_person,
+            session_date=datetime.date(2026, 9, 20), start_time="08:00", end_time="09:00",
+        )
+        ClassSession.objects.create(
+            offering=own_offering, class_code="FOREIGN-CLASS", teacher=other_teacher,
+            session_date=datetime.date(2026, 9, 21), start_time="08:00", end_time="09:00",
+        )
+        teacher.user_permissions.set(Permission.objects.filter(
+            codename__in=("view_course", "view_courseoffering"),
+        ))
+        self.client.force_login(teacher)
+
+        courses = self.client.get("/api/education/courses/").json()["results"]
+        offerings = self.client.get("/api/education/offerings/").json()["results"]
+        self.assertEqual({row["id"] for row in courses}, {str(own_course.pk)})
+        self.assertEqual({row["id"] for row in offerings}, {str(own_offering.pk)})
+        self.assertNotIn(str(foreign_offering.pk), {row["id"] for row in offerings})
+        own_row = next(row for row in offerings if row["id"] == str(own_offering.pk))
+        self.assertEqual([row["class_code"] for row in own_row["classes"]], ["OWN-CLASS"])
+
+    def test_supervisor_can_read_class_reference_with_view_permission(self):
+        from django.contrib.auth.models import Permission
+
+        supervisor = UserFactory(username="sc-reference-supervisor", roles=["supervisor"])
+        supervisor.user_permissions.set(Permission.objects.filter(codename="view_classgroup"))
+        self.client.force_login(supervisor)
+
+        response = self.client.get("/api/academics/class-groups/")
+        self.assertEqual(response.status_code, 200, response.content)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # §13-1 Multi-type person

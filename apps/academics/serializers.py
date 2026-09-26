@@ -99,6 +99,7 @@ class ClassGroupListSerializer(CRUDActionsMixin, serializers.ModelSerializer):
             "name",
             "display_name",
             "term",
+            "offering",
             "term_title",
             "teacher",
             "teacher_name",
@@ -133,6 +134,7 @@ class ClassGroupDetailSerializer(CRUDActionsMixin, serializers.ModelSerializer):
             "name",
             "display_name",
             "term",
+            "offering",
             "term_title",
             "teacher",
             "teacher_name",
@@ -157,6 +159,7 @@ class ClassGroupCreateSerializer(serializers.ModelSerializer):
         model = ClassGroup
         fields = (
             "term",
+            "offering",
             "code",
             "name",
             "teacher",

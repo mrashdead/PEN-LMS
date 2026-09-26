@@ -220,7 +220,8 @@ class CourseOfferingSerializer(CRUDActionsMixin, serializers.ModelSerializer):
 
     def get_classes(self, obj) -> list:
         """Formed classes under this offering (فرم تشکیل کلاس) — grouped rows."""
-        return classes_of_offering(obj)
+        request = self.context.get("request")
+        return classes_of_offering(obj, user=request.user if request else None)
 
     def validate_code(self, value: str) -> str:
         """Alive-unique, exact-cased business key (the DB constraint is the
@@ -270,20 +271,25 @@ def validate_schedule_payload(value: dict, *, required: bool = False) -> dict:
     return value
 
 
-def classes_of_offering(offering) -> list:
+def classes_of_offering(offering, *, user=None) -> list:
     """
     The classes formed inside one offering (grouped by class_code), newest
     form first. Powers the offering detail page and the «مدیریت جلسات» table.
     """
     from django.db.models import Count, Min, Max
 
+    sessions = ClassSession.objects.filter(offering=offering, is_deleted=False)
+    if user is not None:
+        from apps.academics.scoping import education_sessions_visible_to
+
+        sessions = education_sessions_visible_to(user).filter(offering=offering)
+
     rows = (
-        ClassSession.objects
-        .filter(offering=offering, is_deleted=False)
+        sessions
         .values("class_code", "lesson", "lesson__title", "teacher",
                 "location")
         .annotate(
-            session_count=Count("id"),
+            session_count=Count("id", distinct=True),
             first_date=Min("session_date"),
             last_date=Max("session_date"),
             first_number=Min("session_number"),

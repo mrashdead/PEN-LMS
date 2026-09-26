@@ -34,7 +34,7 @@ var swiper = new Swiper(".previewImages", {
     },
 });
 
-//Product Size 
+//Product Size
 document.addEventListener('DOMContentLoaded', function () {
     const sizeLinks = document.querySelectorAll('.product-size a');
 
@@ -580,7 +580,7 @@ class ProductOverview {
             this.config.reviewsData[this.state.editingReviewIndex] = reviewData;
         } else {
             // Use default image for new review
-            reviewData.image = "assets/images/avatar/user-45.png";
+            reviewData.image = "assets/images/avatar/user-no.png";
             this.config.reviewsData.unshift(reviewData);
         }
 

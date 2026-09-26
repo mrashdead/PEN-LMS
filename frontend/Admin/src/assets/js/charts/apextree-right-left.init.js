@@ -79,7 +79,7 @@ const data = {
     id: 'Lucas_Alex',
     data: {
         name: 'لوکاس الکس',
-        imageURL: 'assets/images/avatar/user-45.png',
+        imageURL: 'assets/images/avatar/user-no.png',
     },
     options: {
         nodeBGColor: '--dx-primary-bg-subtle',

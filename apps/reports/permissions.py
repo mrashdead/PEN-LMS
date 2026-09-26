@@ -44,3 +44,28 @@ class CanAccessReports(BasePermission):
             and not getattr(user, "is_deleted", False)
             and can_access_reports(user)
         )
+
+
+CAPACITY_REPORT_RESOURCE = "workspace-enrollment-capacity"
+
+
+def can_access_capacity_report(user) -> bool:
+    """Explicit user ACL overrides the default management/supervisor grant.
+
+    This grants aggregate reporting only. Selectors still limit teachers to
+    their classes; student/guardian accounts never receive institution totals.
+    """
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    if not user.is_active or getattr(user, "is_deleted", False):
+        return False
+    from apps.core.access_enforcer import acl_strict
+    return acl_strict(user, "page", CAPACITY_REPORT_RESOURCE, "view",
+                      baseline=bool(role_codes(user) & REPORT_ACCESS_ROLES))
+
+
+class CanAccessCapacityReport(BasePermission):
+    message = "دسترسی به گزارش ثبت‌نام و ظرفیت کلاس‌ها مجاز نیست."
+
+    def has_permission(self, request, view):
+        return can_access_capacity_report(request.user)

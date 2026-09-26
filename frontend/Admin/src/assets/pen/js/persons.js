@@ -16,7 +16,9 @@
   var modal = $modalEl && window.bootstrap
     ? window.bootstrap.Modal.getOrCreateInstance($modalEl)
     : null;
-  var state = { pages: [], index: 0, request: null };
+  var state = { index: 0, request: null };
+  var searchTimer;
+  var $retry = document.getElementById("person-list-retry");
 
   function esc(value) {
     if (window.htmlEscape) return window.htmlEscape(value);
@@ -45,7 +47,7 @@
     params.forEach(function (value, key) {
       if (!String(value).trim()) params.delete(key);
     });
-    params.set('page_size', '50');
+    if (!params.has('page_size')) params.set('page_size', '50');
     url.search = params.toString();
     return url.toString();
   }
@@ -53,13 +55,13 @@
   function renderRows(data) {
     var rows = data.results || [];
     if (!rows.length) {
-      $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-empty"><p class="mb-0">موردی یافت نشد.</p></div></td></tr>';
+      $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-empty"><p class="mb-0">موردی یافت نشد؛ جست‌وجو را تغییر دهید یا فیلترها را پاک کنید.</p></div></td></tr>';
       return;
     }
     $tbody.innerHTML = rows.map(function (row) {
       var login = row.has_user
-        ? '<span class="badge bg-success-subtle text-success">فعال</span>'
-        : '<span class="badge bg-light text-muted border">—</span>';
+        ? '<span class="badge bg-success-subtle text-success">دارای حساب</span>'
+        : '<span class="badge bg-light text-muted border">بدون حساب</span>';
       var actions = row.actions || {view: true, edit: false, delete: false};
       var label = (row.first_name || '') + ' ' + (row.last_name || '');
       var menu = '<div class="dropdown pen-actions-dropdown text-end">' +
@@ -121,6 +123,9 @@
         }).join('') + '</div>' : '<p class="text-muted fs-14 mb-0">اطلاعات والدین ثبت نشده است.</p>') +
         '<div class="mt-2"><span class="text-muted fs-14">وضعیت تکفل:</span> ' +
         esc(student.is_custody_case ? (student.custody_note || 'ویژه') : 'عادی') + '</div></div>' : '';
+      var hasStudentRole = personHasType(person, 'student');
+      var enrollmentUrl = '/workspace/enrollments/person/' + encodeURIComponent(person.id) + '/';
+      var enrollmentHtml = hasStudentRole ? '<section class="mt-4 pt-3 border-top" aria-labelledby="person-enrollments-title"><div class="d-flex align-items-center justify-content-between gap-2 mb-2"><h6 class="fw-semibold mb-0" id="person-enrollments-title">ثبت‌نام‌ها و دوره‌های آموزشی</h6><a class="btn btn-sm btn-outline-primary" href="' + esc(enrollmentUrl) + '">مشاهده همه</a></div><div id="person-enrollment-preview" data-person-id="' + esc(person.id) + '" class="text-muted fs-14" role="status" aria-live="polite">در حال دریافت سابقهٔ ثبت‌نام…</div></section>' : '';
       var body = '<div class="pen-detail-meta">' +
         '<div><small>وضعیت</small><strong>' + esc(status) + '</strong></div>' +
         '<div><small>نوع</small><strong>' + esc(person.person_types_display || person.person_type_display || '—') + '</strong></div>' +
@@ -134,8 +139,31 @@
          ['کد دانش‌آموزی', person.student_code], ['کد پرسنلی', person.employee_code],
          ['دپارتمان', person.department], ['سمت', person.job_title], ['نام کاربری', person.username]]
         .map(function (item) { return '<div class="row g-2"><div class="col-5 text-muted fs-14">' + esc(item[0]) + '</div><div class="col-7">' + esc(item[1] || '—') + '</div></div>'; }).join('') +
-        '</div>' + profileHtml + familyHtml + history;
+        '</div>' + profileHtml + familyHtml + enrollmentHtml + history;
       document.getElementById('person-detail-body').innerHTML = body;
+      if (hasStudentRole) {
+        fetch('/api/education/registration-directory/context/person/' + encodeURIComponent(person.id) + '/', {
+          credentials: 'same-origin',
+          headers: window.penCsrfHeader ? window.penCsrfHeader() : {},
+        }).then(function (response) {
+          return response.json().then(function (data) {
+            if (!response.ok) throw new Error(data.detail || data.error || 'سابقهٔ ثبت‌نام دریافت نشد.');
+            return data;
+          });
+        }).then(function (data) {
+          var preview = document.getElementById('person-enrollment-preview');
+          if (!preview || preview.dataset.personId !== String(person.id)) return;
+          var records = data.registrations && data.registrations.results || [];
+          if (!records.length) { preview.textContent = 'برای این دانش‌آموز ثبت‌نامی ثبت نشده است.'; return; }
+          preview.innerHTML = '<ul class="list-unstyled vstack gap-2 mb-0">' + records.slice(0, 3).map(function (record) {
+            var target = record.class_group || record.offering || record.course;
+            return '<li><a href="' + esc(target && target.url || enrollmentUrl) + '">' + esc(target && target.title || 'دورهٔ آموزشی') + '</a><span class="text-muted"> · ' + esc(record.status_label || 'نامشخص') + ' · ' + esc(record.date_label || record.date || '') + '</span></li>';
+          }).join('') + '</ul>';
+        }).catch(function () {
+          var preview = document.getElementById('person-enrollment-preview');
+          if (preview && preview.dataset.personId === String(person.id)) preview.textContent = 'سابقهٔ ثبت‌نام در دسترس نیست.';
+        });
+      }
       var footer = document.getElementById('person-detail-footer');
       footer.innerHTML = '<button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button>';
       if (person.actions && person.actions.edit) {
@@ -244,84 +272,59 @@
     if (value !== original) payload[key] = value;
   }
 
-  function pageLink(label, url, disabled, onClick) {
+  function pageLink(label, url, index) {
     var li = document.createElement('li');
-    li.className = 'page-item' + (disabled ? ' disabled' : '');
-    var a = document.createElement('a');
-    a.className = 'page-link';
-    a.href = url || '#';
-    a.textContent = label;
-    if (disabled) {
-      a.setAttribute('aria-disabled', 'true');
-      a.tabIndex = -1;
-    } else {
-      a.addEventListener('click', function (event) {
-        event.preventDefault();
-        onClick();
-      });
-    }
-    li.appendChild(a);
-    return li;
+    li.className = 'page-item';
+    var button = document.createElement('button');
+    button.type = 'button'; button.className = 'page-link';
+    button.textContent = label; button.disabled = !url;
+    button.addEventListener('click', function () { loadList(url, false, index); });
+    li.appendChild(button); return li;
   }
 
   function renderPager(data) {
     $pager.innerHTML = '';
-    var previous = state.index > 0 ? state.pages[state.index - 1] : null;
-    var next = data.next || null;
-    if (!previous && !next) {
-      $pageStatus.textContent = data.results && data.results.length
-        ? 'یک صفحه نتیجه نمایش داده شد.' : '';
-      return;
-    }
-    $pager.appendChild(pageLink('قبلی', previous, !previous, function () {
-      state.index -= 1;
-      loadList(state.pages[state.index]);
-    }));
-    $pager.appendChild(pageLink('بعدی', next, !next, function () {
-      state.pages[state.index + 1] = next;
-      state.index += 1;
-      loadList(next);
-    }));
-    $pageStatus.textContent = 'صفحهٔ ' + window.persianNumbers(state.index + 1) +
-      (next ? ' — برای ادامه «بعدی» را بزنید.' : ' — آخرین صفحه.');
+    $pager.appendChild(pageLink('صفحه اول', state.index > 0 ? apiUrlWithParams() : null, 0));
+    $pager.appendChild(pageLink('قبلی', data.previous, Math.max(0, state.index - 1)));
+    $pager.appendChild(pageLink('بعدی', data.next, state.index + 1));
+    $pageStatus.textContent = (data.results || []).length ? 'صفحهٔ ' + window.persianNumbers(state.index + 1) +
+      (data.next ? '' : ' · آخرین صفحه') : '';
   }
 
-  function loadList(url, reset) {
-    if (reset) {
-      state.pages = [url];
-      state.index = 0;
-    }
+  function loadList(url, reset, index) {
     if (state.request) state.request.abort();
-    state.request = new AbortController();
+    var request = new AbortController();
+    state.request = request;
+    var targetIndex = reset ? 0 : (index == null ? state.index : index);
+    $retry.hidden = true;
+    $retry.onclick = function () { loadList(url, reset, targetIndex); };
+    $pager.querySelectorAll('button').forEach(function (button) { button.disabled = true; });
     $table.setAttribute('aria-busy', 'true');
     $status.textContent = 'در حال بارگذاری…';
+    $pageStatus.textContent = '';
     $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-loading">در حال بارگذاری…</div></td></tr>';
-    fetch(url, {
-      credentials: 'same-origin',
-      signal: state.request.signal,
+    return fetch(url, {
+      credentials: 'same-origin', signal: request.signal,
       headers: window.penCsrfHeader ? window.penCsrfHeader() : {},
-    })
-      .then(function (response) {
-        return response.json().then(function (body) {
-          if (!response.ok) throw new Error(errorLines(body).join(' — '));
-          return body;
-        });
-      })
-      .then(function (data) {
-        renderRows(data);
-        renderPager(data);
-        $status.textContent = (data.results || []).length
-          ? window.persianNumbers(data.results.length) + ' رکورد در این صفحه'
-          : 'نتیجه‌ای پیدا نشد.';
-      })
-      .catch(function (error) {
-        if (error.name === 'AbortError') return;
-        $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-empty text-danger">' + esc(error.message) + '</div></td></tr>';
-        $status.textContent = 'بارگذاری فهرست ناموفق بود.';
-      })
-      .finally(function () {
-        $table.setAttribute('aria-busy', 'false');
-      });
+    }).then(function (response) {
+      if (!response.ok) throw new Error('دریافت فهرست ناموفق بود.');
+      return response.json();
+    }).then(function (data) {
+      if (state.request !== request) return;
+      state.index = targetIndex;
+      renderRows(data); renderPager(data);
+      $status.textContent = (data.results || []).length
+        ? window.persianNumbers(data.results.length) + ' نفر در این صفحه' : 'نتیجه‌ای پیدا نشد.';
+    }).catch(function (error) {
+      if (state.request !== request || error.name === 'AbortError') return;
+      $tbody.innerHTML = '<tr><td colspan="8"><div class="pen-empty text-danger">بارگذاری فهرست ناموفق بود.</div></td></tr>';
+      $status.textContent = 'اتصال را بررسی کنید و دوباره تلاش کنید.';
+      $retry.hidden = false;
+    }).finally(function () {
+      if (state.request !== request) return;
+      state.request = null;
+      $table.setAttribute('aria-busy', 'false');
+    });
   }
 
   function clearFormErrors() {
@@ -489,16 +492,48 @@
       });
   }
 
+  function syncGroups() {
+    document.querySelectorAll('[data-person-group]').forEach(function (button) {
+      var active = button.dataset.personGroup === $filters.elements.role.value;
+      button.setAttribute('aria-pressed', String(active));
+      button.classList.toggle('btn-primary', active);
+      button.classList.toggle('btn-outline-primary', !active);
+    });
+  }
+
+  function applyFilters() {
+    clearTimeout(searchTimer);
+    if (!$filters.reportValidity()) return;
+    syncGroups();
+    var url = apiUrlWithParams();
+    var browserUrl = new URL(window.location.href);
+    browserUrl.search = new URL(url).search;
+    window.history.replaceState({}, '', browserUrl.toString());
+    loadList(url, true);
+  }
+
   if ($filters) {
-    $filters.addEventListener('submit', function (event) {
-      event.preventDefault();
-      var url = apiUrlWithParams();
-      var browserUrl = new URL(window.location.href);
-      browserUrl.search = new URL(url).search;
-      browserUrl.searchParams.delete('page_size');
-      browserUrl.searchParams.delete('cursor');
-      window.history.replaceState({}, '', browserUrl.toString());
-      loadList(url, true);
+    var saved = new URLSearchParams(window.location.search);
+    Array.from($filters.elements).forEach(function (field) {
+      if (!field.name || !saved.has(field.name)) return;
+      var value = saved.get(field.name);
+      if (field.tagName === 'SELECT' && !Array.from(field.options).some(function (option) { return option.value === value; })) return;
+      field.value = value;
+    });
+    syncGroups();
+    $filters.addEventListener('submit', function (event) { event.preventDefault(); applyFilters(); });
+    $filters.addEventListener('change', function (event) {
+      if (event.target.tagName === 'SELECT') applyFilters();
+    });
+    document.getElementById('person-filter-search').addEventListener('input', function (event) {
+      clearTimeout(searchTimer);
+      if (!event.isComposing) searchTimer = setTimeout(applyFilters, 350);
+    });
+    document.getElementById('person-filter-reset').addEventListener('click', function () { $filters.reset(); applyFilters(); });
+    document.querySelectorAll('[data-person-group]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        $filters.elements.role.value = button.dataset.personGroup; applyFilters();
+      });
     });
   }
 

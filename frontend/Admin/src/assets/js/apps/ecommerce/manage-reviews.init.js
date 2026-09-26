@@ -601,7 +601,7 @@ document.getElementById('addReviewBtn').addEventListener('click', function () {
         // (Do not reset to page 1)
     } else {
         // Use default image for new review
-        reviewData.image = "assets/images/avatar/user-45.png";
+        reviewData.image = "assets/images/avatar/user-no.png";
         reviews.unshift(reviewData);
 
         // Only for new reviews, reset to page 1

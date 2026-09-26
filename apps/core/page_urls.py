@@ -4,7 +4,9 @@ from __future__ import annotations
 from django.urls import path
 
 from apps.core.pages import (
+    EnrollmentEntityPage,
     EnrollmentPage,
+    EnrollmentRecordPage,
     LearnerPortalPage,
     MessagesPage,
     OrgChartPage,
@@ -24,6 +26,7 @@ from apps.core.pages import (
 )
 from apps.persons.page_views import PersonCreatePageView, PersonsPage
 from apps.reports.views.reports import ReportsPage
+from apps.reports.views.enrollment_capacity import EnrollmentCapacityPage
 
 urlpatterns = [
     path("profile/", ProfilePage.as_view(), name="workspace-profile"),
@@ -31,6 +34,8 @@ urlpatterns = [
     path("work/", WorkQueuePage.as_view(), name="workspace-work"),
     path("requests/", RequestsPage.as_view(), name="workspace-requests"),
     path("enrollments/", EnrollmentPage.as_view(), name="workspace-enrollments"),
+    path("enrollments/records/<str:source>/<uuid:pk>/", EnrollmentRecordPage.as_view(), name="workspace-enrollment-record"),
+    path("enrollments/<str:kind>/<uuid:pk>/", EnrollmentEntityPage.as_view(), name="workspace-enrollment-entity"),
     path("org/chart/", OrgChartPage.as_view(), name="workspace-org-chart"),
     path("org/permissions/", OrgPermissionsPage.as_view(), name="workspace-org-permissions"),
     path("org/responsibilities/", OrgResponsibilitiesPage.as_view(), name="workspace-org-responsibilities"),
@@ -47,6 +52,7 @@ urlpatterns = [
     path("timetable/", TimetablePage.as_view(), name="workspace-timetable"),
     path("messages/", MessagesPage.as_view(), name="workspace-messages"),
     path("reports/", ReportsPage.as_view(), name="workspace-reports"),
+    path("reports/enrollment-capacity/", EnrollmentCapacityPage.as_view(), name="workspace-enrollment-capacity"),
     # Teacher portal
     path("teacher/", TeacherDashboardPage.as_view(), name="workspace-teacher"),
     path("teacher/attendance/", TeacherAttendancePage.as_view(), name="workspace-teacher-attendance"),

@@ -12,6 +12,19 @@
   var charts = {};
   var lastData = null;
   var state = { query: new URLSearchParams(window.location.search), period: new URLSearchParams(window.location.search).get('period') || '' };
+  var workflowReportPage = 1;
+  var workflowReportHasNext = false;
+  var workflowReportHasPrevious = false;
+  var workflowFilterFields = [
+    { key: 'request_type', id: 'workflow-filter-request-type' },
+    { key: 'workflow', id: 'workflow-filter-workflow' },
+    { key: 'status', id: 'workflow-filter-status' },
+    { key: 'request_status', id: 'workflow-filter-request-status' },
+    { key: 'form', id: 'workflow-filter-form' },
+    { key: 'user', id: 'workflow-filter-user' },
+    { key: 'department', apiKey: 'request_department', id: 'workflow-filter-department' },
+    { key: 'step', id: 'workflow-filter-step' },
+  ];
 
   var labels = {
     draft: 'پیش‌نویس', open: 'باز', running: 'در حال برگزاری', closed: 'بسته',
@@ -19,6 +32,8 @@
     held: 'برگزارشده', deferred: 'معوقه', present: 'حاضر', absent: 'غایب',
     late: 'تأخیر', excused: 'موجه', paid: 'پرداخت‌شده', partial: 'ناقص', pending: 'در انتظار',
     submitted: 'ثبت‌شده', approved: 'تأییدشده', rejected: 'ردشده', completed: 'تکمیل‌شده',
+    in_review: 'در حال بررسی', awaiting_action: 'منتظر اقدام', changes_requested: 'نیازمند اصلاح',
+    blocked_assignment: 'بدون مسئول', archived: 'بایگانی‌شده',
     in_app: 'درون‌برنامه', email: 'ایمیل', sms: 'پیامک',
   };
   var palette = ['#0f6b67', '#123b5d', '#e5a83b', '#934b70', '#ef6a5b', '#5b7c99'];
@@ -68,6 +83,32 @@
       if (value) query.set(key, value);
     });
     return query;
+  }
+  function workflowRequestQuery(base) {
+    var source = base || currentQuery();
+    var query = new URLSearchParams();
+    ['from', 'to', 'period'].forEach(function (key) {
+      if (source.get(key)) query.set(key, source.get(key));
+    });
+    if (!query.has('from') && !query.has('to') && !query.has('period')) query.set('period', state.period || 'month');
+    workflowFilterFields.forEach(function (field) {
+      var value = (document.getElementById(field.id).value || '').trim();
+      if (value) query.set(field.apiKey || field.key, value);
+    });
+    query.set('page', String(workflowReportPage));
+    return query;
+  }
+  function updateReportUrl() {
+    var query = new URLSearchParams(state.query);
+    workflowFilterFields.forEach(function (field) {
+      var value = (document.getElementById(field.id).value || '').trim();
+      var key = 'workflow_' + field.key;
+      if (value) query.set(key, value);
+      else query.delete(key);
+    });
+    if (workflowReportPage > 1) query.set('workflow_page', String(workflowReportPage));
+    else query.delete('workflow_page');
+    history.replaceState(null, '', window.location.pathname + (query.toString() ? '?' + query.toString() : ''));
   }
   function api(url, query) {
     var target = url + (query && query.toString() ? '?' + query.toString() : '');
@@ -228,6 +269,64 @@
       return '<div class="report-form-row"><div class="d-flex justify-content-between gap-2 mb-1"><span>' + esc(row.label) + '</span><strong>' + faNumber(row.value) + '</strong></div><div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div></div>';
     }).join('');
   }
+  function formatDateTime(value) {
+    if (!value) return '—';
+    var date = new Date(value);
+    return Number.isNaN(date.getTime()) ? esc(value) : esc(date.toLocaleString('fa-IR'));
+  }
+  function renderWorkflowRequests(data) {
+    var body = document.getElementById('workflow-request-rows');
+    var rows = data.results || [];
+    document.getElementById('workflow-request-count').textContent = faNumber(data.count || rows.length) + ' درخواست';
+    document.getElementById('workflow-request-page-info').textContent = 'صفحهٔ ' + faNumber(workflowReportPage);
+    workflowReportHasNext = Boolean(data.next);
+    workflowReportHasPrevious = Boolean(data.previous);
+    document.getElementById('workflow-request-next').disabled = !workflowReportHasNext;
+    document.getElementById('workflow-request-previous').disabled = !workflowReportHasPrevious;
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="7"><div class="pen-empty">درخواستی با این فیلترها پیدا نشد.</div></td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function (row) {
+      var historyRows = (row.action_history || []).map(function (action) {
+        var transition = [action.from_state, action.to_state].filter(Boolean).join(' → ');
+        return '<li><strong>' + esc(action.action) + '</strong> · ' + esc(action.actor_name || action.actor) +
+          (transition ? ' · ' + esc(transition) : '') + ' · ' + formatDateTime(action.created_at) +
+          (action.comment ? '<div class="text-muted">' + esc(action.comment) + '</div>' : '') + '</li>';
+      }).join('');
+      var historyCell = '<details><summary>' + faNumber(row.action_count || 0) + ' اقدام</summary>' +
+        (historyRows ? '<ol class="mt-2 mb-0 ps-3">' + historyRows + '</ol>' : '<div class="text-muted mt-2">اقدامی ثبت نشده است.</div>') + '</details>';
+      var number = row.request_number || row.tracking_number || row.id;
+      var type = row.request_type_title || row.workflow_name || row.workflow_code || '—';
+      var requester = '<strong>' + esc(row.requester_name || '—') + '</strong>' +
+        (row.requester_department ? '<div class="text-muted fs-13">' + esc(row.requester_department) + '</div>' : '');
+      var assigned = row.assigned_users && row.assigned_users.length ? row.assigned_users.map(function (person) {
+        return '<div><strong>' + esc(person.name || person.username) + '</strong>' +
+          (person.department ? '<div class="text-muted fs-13">' + esc(person.department) + '</div>' : '') + '</div>';
+      }).join('') : '<span class="text-muted">بدون مسئول</span>';
+      var dates = '<div>' + formatDateTime(row.created_at) + '</div>' +
+        (row.form_submitted_at ? '<div class="text-muted fs-13">ثبت فرم: ' + formatDateTime(row.form_submitted_at) + '</div>' : '');
+      var reviews = '<div>بررسی: ' + formatDateTime(row.reviewed_at || row.last_reviewed_at) + '</div>' +
+        '<div class="text-muted fs-13">تأیید: ' + formatDateTime(row.approved_at) + '</div>' +
+        '<div class="text-muted fs-13">رد: ' + formatDateTime(row.rejected_at) + '</div>';
+      return '<tr><td><strong>' + esc(number) + '</strong><div>' + esc(type) + '</div>' +
+        (row.form_title ? '<div class="text-muted fs-13">' + esc(row.form_title) + '</div>' : '') +
+        '</td><td><strong>' + esc(displayLabel(row.request_status || row.status)) + '</strong>' +
+        '<div class="text-muted fs-13">' + esc(displayLabel(row.status)) + ' · ' + esc(row.current_step || '—') + '</div></td>' +
+        '<td>' + requester + '</td><td>' + assigned + '</td><td class="text-nowrap">' + dates +
+        '</td><td class="text-nowrap">' + reviews + '</td><td>' + historyCell + '</td></tr>';
+    }).join('');
+  }
+  function loadWorkflowRequests(base) {
+    var error = document.getElementById('workflow-report-error');
+    error.hidden = true;
+    updateReportUrl();
+    api(endpoints.workflow_requests, workflowRequestQuery(base)).then(renderWorkflowRequests).catch(function (problem) {
+      error.textContent = problem.message || 'بارگذاری گزارش درخواست‌ها ناموفق بود.';
+      error.hidden = false;
+      document.getElementById('workflow-request-rows').innerHTML = '<tr><td colspan="7"><div class="pen-empty">گزارش بارگذاری نشد.</div></td></tr>';
+    });
+  }
   function renderCommunications(data) {
     document.getElementById('communications-total').textContent = faNumber(data.total);
     document.getElementById('communications-unread').textContent = faNumber(data.unread_in_app);
@@ -254,18 +353,37 @@
   function load(query) {
     hideError(); setLoading(true);
     state.query = query || currentQuery();
-    history.replaceState(null, '', window.location.pathname + (state.query.toString() ? '?' + state.query.toString() : ''));
+    workflowReportPage = Number(state.query.get('workflow_page') || 1);
+    updateReportUrl();
     api(endpoints.dashboard, state.query).then(render).catch(function (error) { showError(error.message); }).finally(function () { setLoading(false); });
+    loadWorkflowRequests(state.query);
   }
   function exportReport(kind) {
     var query = currentQuery();
     query.set('report', kind);
+    if (kind === 'workflow') {
+      workflowFilterFields.forEach(function (field) {
+        var value = (document.getElementById(field.id).value || '').trim();
+        if (value) query.set(field.apiKey || field.key, value);
+      });
+    }
     window.location.href = endpoints.export + '?' + query.toString();
   }
 
   fillSelect('report-department', options.departments, 'name', state.query.get('department'));
   fillSelect('report-course', options.courses, 'title', state.query.get('course'));
   fillSelect('report-location', options.locations, 'name', state.query.get('location'));
+  fillSelect('workflow-filter-request-type', options.request_types, 'title', state.query.get('workflow_request_type'));
+  fillSelect('workflow-filter-workflow', options.workflows, 'name', state.query.get('workflow_workflow'));
+  fillSelect('workflow-filter-form', options.forms, 'title', state.query.get('workflow_form'));
+  workflowFilterFields.forEach(function (field) {
+    var value = state.query.get('workflow_' + field.key);
+    if (value && field.key !== 'request_type' && field.key !== 'workflow' && field.key !== 'form') {
+      document.getElementById(field.id).value = value;
+    }
+  });
+  document.getElementById('workflow-filter-status').value = state.query.get('workflow_status') || '';
+  document.getElementById('workflow-filter-request-status').value = state.query.get('workflow_request_status') || '';
   applyQueryToForm(state.query);
   if (window.penAttachJalaliPickers) window.penAttachJalaliPickers();
   document.getElementById('report-filter-form').addEventListener('submit', function (event) { event.preventDefault(); load(currentQuery()); });
@@ -283,7 +401,28 @@
     state.period = '';
     ['report-from', 'report-to'].forEach(function (id) { document.getElementById(id).value = ''; });
     ['report-department', 'report-course', 'report-location'].forEach(function (id) { document.getElementById(id).value = ''; });
+    workflowFilterFields.forEach(function (field) { document.getElementById(field.id).value = ''; });
     load(new URLSearchParams());
+  });
+  document.getElementById('workflow-report-filter-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    workflowReportPage = 1;
+    loadWorkflowRequests(currentQuery());
+  });
+  document.getElementById('workflow-filter-reset').addEventListener('click', function () {
+    workflowFilterFields.forEach(function (field) { document.getElementById(field.id).value = ''; });
+    workflowReportPage = 1;
+    loadWorkflowRequests(currentQuery());
+  });
+  document.getElementById('workflow-request-previous').addEventListener('click', function () {
+    if (!workflowReportHasPrevious) return;
+    workflowReportPage = Math.max(workflowReportPage - 1, 1);
+    loadWorkflowRequests(currentQuery());
+  });
+  document.getElementById('workflow-request-next').addEventListener('click', function () {
+    if (!workflowReportHasNext) return;
+    workflowReportPage += 1;
+    loadWorkflowRequests(currentQuery());
   });
   document.getElementById('report-print').addEventListener('click', function () { window.print(); });
   document.querySelectorAll('[data-report-export]').forEach(function (button) { button.addEventListener('click', function () { if (!button.disabled) exportReport(button.dataset.reportExport); }); });

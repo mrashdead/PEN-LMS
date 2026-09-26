@@ -1,0 +1,21 @@
+.capacity-report { font-variant-numeric: tabular-nums; }
+.capacity-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5rem; }
+.capacity-metrics dt { color: var(--bs-secondary-color); font-size: .875rem; font-weight: 400; }
+.capacity-metrics dd { font-size: 1.875rem; font-weight: 700; margin: .5rem 0 0; }
+.capacity-metrics > div + div { border-inline-start: 1px solid var(--bs-border-color); padding-inline-start: 1.5rem; }
+.capacity-table th { white-space: nowrap; font-size: .875rem; }
+.capacity-table td { min-width: 7rem; font-size: .875rem; }
+.capacity-table td:first-child { min-width: 13rem; max-width: 22rem; overflow-wrap: anywhere; }
+.capacity-table td:nth-child(2) { min-width: 10rem; max-width: 18rem; overflow-wrap: anywhere; }
+.capacity-table .capacity-meter { width: 8rem; height: .5rem; accent-color: var(--bs-primary); display: block; margin-bottom: .35rem; }
+.capacity-chart { min-height: 14rem; overflow-x: auto; }
+.capacity-chart svg { display: block; width: 100%; height: 14rem; color: var(--bs-primary); }
+.capacity-trend-table { max-height: 20rem; }
+.capacity-report [hidden] { display: none !important; }
+.capacity-report [aria-busy="true"] { opacity: .55; }
+.capacity-report summary { cursor: pointer; }
+@media (max-width: 575.98px) {
+  .capacity-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+  .capacity-metrics > div + div { padding-inline-start: 0; border-inline-start: 0; }
+  .capacity-metrics dd { font-size: 1.5rem; }
+}

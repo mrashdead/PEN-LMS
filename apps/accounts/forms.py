@@ -7,14 +7,35 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
 
+class UserSelect(forms.Select):
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        user = getattr(value, "instance", None)
+        if user is not None:
+            option["attrs"]["data-username"] = user.username
+        return option
+
+
+class PersonNamedUserChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, user):
+        person = getattr(user, "person", None)
+        first_name = person.first_name if person else user.first_name
+        last_name = person.last_name if person else user.last_name
+        full_name = " ".join(part for part in (first_name, last_name) if part).strip()
+        return full_name or user.username
+
+
 class AdminPasswordResetForm(forms.Form):
     """Set a new password for a user who cannot change it themselves."""
 
-    target_user = forms.ModelChoiceField(
+    target_user = PersonNamedUserChoiceField(
         label="کاربر",
         queryset=get_user_model().objects.none(),
         empty_label="کاربر را انتخاب کنید",
-        widget=forms.Select(attrs={"class": "form-select"}),
+        widget=UserSelect(attrs={
+            "class": "form-select",
+            "data-password-user-select": "",
+        }),
     )
     new_password1 = forms.CharField(
         label="رمز عبور جدید",

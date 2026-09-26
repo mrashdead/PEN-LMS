@@ -31,6 +31,15 @@ class ProfileAndPasswordPageTests(TestCase):
         self.assertEqual(self.client.get("/workspace/password-management/").status_code, 403)
 
         self.client.force_login(self.admin)
+        response = self.client.get("/workspace/password-management/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "سارا آزمون")
+        self.assertContains(response, f'data-username="{self.student.username}"')
+        self.assertRegex(
+            response.content.decode(),
+            r'<input[^>]*id="password-target-username"[^>]*readonly',
+        )
+
         response = self.client.post(
             "/workspace/password-management/",
             {

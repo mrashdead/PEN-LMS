@@ -1,0 +1,62 @@
+.registration-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 1px;
+  margin: 0;
+  background: var(--bs-border-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.registration-metrics > div {
+  min-width: 0;
+  padding: 0.8rem 1rem;
+  background: var(--bs-body-bg);
+}
+
+.registration-metrics dt {
+  color: var(--bs-secondary-color);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.registration-metrics dd {
+  margin: 0.25rem 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.registration-context-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 0.75rem 1.25rem;
+}
+
+.registration-context-meta > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.registration-context-meta small {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--bs-secondary-color);
+}
+
+.registration-workspace .table {
+  min-width: 760px;
+}
+
+.registration-status {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+  .registration-metrics > div {
+    padding: 0.65rem 0.75rem;
+  }
+}

@@ -32,7 +32,7 @@
     var $tree = document.getElementById('rightToLeftChart');
     var profileModalElement = document.getElementById('profile-modal');
     var profileModal = window.bootstrap && profileModalElement ? new window.bootstrap.Modal(profileModalElement) : null;
-    var defaultAvatar = $tree.getAttribute('data-avatar-default') || '/static/assets/images/avatar/user-45.png';
+    var defaultAvatar = $tree.getAttribute('data-avatar-default') || '/static/assets/images/avatar/user-no.png';
     var $groups = document.getElementById('org-groups');
     var $activeCount = document.getElementById('org-active-count');
     var groupRecords = [];

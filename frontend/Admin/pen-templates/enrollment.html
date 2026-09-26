@@ -1,11 +1,53 @@
 {% extends "base.html" %}
 {% load static asset_v %}
 {% block title %}ثبت‌نام در دوره{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% asset_v_url 'assets/pen/css/registration-directory.css' %}">{% endblock %}
 {% block page_heading %}
   {% include "partials/page-heading.html" with title="ثبت‌نام" section="آموزشگاه" icon="user-round-plus" subtitle="انتخاب دانش‌آموز و ثبت او در دورهٔ مناسب" %}
 {% endblock %}
 
 {% block content %}
+<section id="registration-directory" class="card mb-4" aria-labelledby="registration-title">
+  <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div><h2 class="h6 mb-1 card-title" id="registration-title">مدیریت ثبت‌نام‌ها</h2><p class="text-muted fs-14 mb-0">ثبت‌نام دوره و عضویت کلاس را در یک فهرست ببینید.</p></div>
+    <a class="btn btn-outline-primary btn-sm" href="#enr-form"><i data-lucide="user-round-plus" class="size-4 me-1" aria-hidden="true"></i> ثبت‌نام جدید</a>
+  </div>
+  <div class="card-body">
+    <dl class="registration-metrics mb-4" aria-label="خلاصه ثبت‌نام‌ها">
+      <div><dt>کل ثبت‌نام‌ها</dt><dd id="reg-total">—</dd></div>
+      <div><dt>فعال</dt><dd id="reg-active">—</dd></div>
+      <div><dt>غیرفعال / لغوشده</dt><dd id="reg-inactive">—</dd></div>
+      <div><dt>در انتظار تأیید</dt><dd id="reg-pending">—</dd></div>
+    </dl>
+    <form id="registration-filters" class="row g-3 align-items-end mb-3">
+      <div class="col-12 col-lg-4"><label for="reg-search" class="form-label">جست‌وجو</label><input id="reg-search" name="search" class="form-control" type="search" placeholder="نام، نام خانوادگی یا کد دانش‌آموزی" autocomplete="off"></div>
+      <div class="col-6 col-lg-2"><label for="reg-course" class="form-label">دوره</label><input class="form-control form-control-sm mb-1" type="search" data-picker-search="course" placeholder="جست‌وجوی دوره" aria-label="جست‌وجوی دوره"><select id="reg-course" name="course" class="form-select" data-picker="course"><option value="">همهٔ دوره‌ها</option></select></div>
+      <div class="col-6 col-lg-2"><label for="reg-offering" class="form-label">برگزاری</label><input class="form-control form-control-sm mb-1" type="search" data-picker-search="offering" placeholder="جست‌وجوی برگزاری" aria-label="جست‌وجوی برگزاری"><select id="reg-offering" name="offering" class="form-select" data-picker="offering"><option value="">همهٔ برگزاری‌ها</option></select></div>
+      <div class="col-6 col-lg-2"><label for="reg-class" class="form-label">کلاس</label><input class="form-control form-control-sm mb-1" type="search" data-picker-search="class_group" placeholder="جست‌وجوی کلاس" aria-label="جست‌وجوی کلاس"><select id="reg-class" name="class_group" class="form-select" data-picker="class_group"><option value="">همهٔ کلاس‌ها</option></select></div>
+      <div class="col-6 col-lg-2"><label for="reg-student" class="form-label">شخص / دانش‌آموز</label><input class="form-control form-control-sm mb-1" type="search" data-picker-search="student" placeholder="جست‌وجوی شخص" aria-label="جست‌وجوی شخص"><select id="reg-student" name="student" class="form-select" data-picker="student"><option value="">همهٔ اشخاص</option></select></div>
+      <div class="col-6 col-lg-3"><label for="reg-status" class="form-label">وضعیت ثبت‌نام</label><select id="reg-status" name="status" class="form-select"><option value="">همهٔ وضعیت‌ها</option><option value="confirmed">تأییدشده</option><option value="pending">در انتظار تأیید</option><option value="cancelled">لغوشده</option><option value="partially_refunded">عودت جزئی</option><option value="refunded">عودت کامل</option><option value="inactive">غیرفعال</option></select></div>
+      <div class="col-6 col-lg-2"><label for="reg-from" class="form-label">از تاریخ</label><input id="reg-from" name="from" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۱/۰۱"></div>
+      <div class="col-6 col-lg-2"><label for="reg-to" class="form-label">تا تاریخ</label><input id="reg-to" name="to" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۱۲/۲۹"></div>
+      <div class="col-6 col-lg-2"><label for="reg-page-size" class="form-label">تعداد ردیف</label><select id="reg-page-size" name="page_size" class="form-select"><option value="25">۲۵</option><option value="50">۵۰</option><option value="100">۱۰۰</option></select></div>
+      <div class="col-12 col-lg-3 d-flex gap-2"><button type="submit" class="btn btn-primary flex-grow-1">اعمال فیلتر</button><button type="reset" id="reg-reset" class="btn btn-outline-secondary">پاک‌کردن</button></div>
+    </form>
+    <div id="reg-error" class="alert alert-danger" role="alert" hidden></div>
+    <button type="button" id="reg-retry" class="btn btn-outline-primary btn-sm mb-3" hidden>تلاش دوباره</button>
+    <p id="reg-load-status" class="text-muted fs-14" role="status" aria-live="polite">در حال بارگذاری…</p>
+  </div>
+  <div class="table-responsive" id="reg-results" aria-busy="true">
+    <table class="table table-hover align-middle mb-0">
+      <caption class="visually-hidden">ثبت‌نام اشخاص در دوره‌ها و کلاس‌ها</caption>
+      <thead class="table-light"><tr><th scope="col">شخص</th><th scope="col">دوره / برگزاری</th><th scope="col">کلاس</th><th scope="col">وضعیت</th><th scope="col">تاریخ</th><th scope="col"><span class="visually-hidden">جزئیات</span></th></tr></thead>
+      <tbody id="reg-rows"><tr><td colspan="6" class="text-center py-5 text-muted">در حال بارگذاری…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <span id="reg-page-label" class="text-muted fs-14"></span>
+    <nav aria-label="صفحه‌بندی ثبت‌نام‌ها" class="d-flex gap-2"><button class="btn btn-outline-primary btn-sm" type="button" id="reg-prev" disabled>قبلی</button><button class="btn btn-outline-primary btn-sm" type="button" id="reg-next" disabled>بعدی</button></nav>
+  </div>
+</section>
+
 <div class="row g-4">
   {# ── Enrollment form ────────────────────────────────────────────── #}
   <div class="col-12 col-xl-7">
@@ -153,5 +195,6 @@
 {% endblock %}
 
 {% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/enrollment-directory.js' %}"></script>
 <script src="{% asset_v_url 'assets/pen/js/enrollment.js' %}"></script>
 {% endblock %}

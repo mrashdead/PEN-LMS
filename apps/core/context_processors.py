@@ -10,10 +10,10 @@ from apps.forms.permissions import ELEVATED_ROLES
 from apps.forms.templatetags.forms_extras import FORMS_URL_NAMES
 from apps.playhouse.permissions import FINANCE_ROLES, OPERATOR_ROLES
 from apps.leads.permissions import LEAD_OPERATOR_ROLES
-from apps.reports.permissions import REPORT_ACCESS_ROLES
+from apps.reports.permissions import REPORT_ACCESS_ROLES, can_access_capacity_report
 from apps.core.sidebar import SIDEBAR_ITEMS, visibility_flags_for, visible_sidebar_sections
 
-STAFF_ROLES = {"manager", "workflow_admin", "hr", "employee", "teacher"}
+STAFF_ROLES = {"manager", "workflow_admin", "hr", "employee", "teacher", "supervisor"}
 
 # Sidebar section membership (url_name → which collapsible is active).
 EDU_URLS = {
@@ -64,6 +64,7 @@ def user_flags(request):
         "is_unit_manager": bool(roles & {"manager", "workflow_admin", "hr"}),
         "is_sys_admin": bool(user.is_superuser or roles & {"manager", "workflow_admin"}),
         "is_reports_user": bool(roles & REPORT_ACCESS_ROLES),
+        "can_capacity_report": can_access_capacity_report(user),
         "is_playhouse_user": bool(roles & OPERATOR_ROLES),
         "is_playhouse_finance": bool(roles & FINANCE_ROLES),
         "is_leads_user": bool(roles & (LEAD_OPERATOR_ROLES | {"teacher"})),

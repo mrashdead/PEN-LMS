@@ -10,6 +10,12 @@ from apps.education.calendar_views import (
     ResourceCalendarView,
 )
 from apps.education.timetable_views import TimetableView
+from apps.education.registration_views import (
+    RegistrationContextView,
+    RegistrationDirectoryView,
+    RegistrationPickerView,
+    RegistrationRecordDetailView,
+)
 from apps.education.views import (
     AttendanceReportView,
     CapacityReportView,
@@ -98,6 +104,10 @@ urlpatterns = [
     path("class-formation/", ClassFormationView.as_view(), name="edu-class-formation"),
     path("class-formation/preview/", ClassFormationPreviewView.as_view(), name="edu-class-formation-preview"),
     path("enrollments/", OfferingEnrollmentListCreateView.as_view(), name="edu-enrollment-list"),
+    path("registration-directory/", RegistrationDirectoryView.as_view(), name="edu-registration-directory"),
+    path("registration-directory/picker/", RegistrationPickerView.as_view(), name="edu-registration-picker"),
+    path("registration-directory/context/<str:kind>/<uuid:pk>/", RegistrationContextView.as_view(), name="edu-registration-context"),
+    path("registration-directory/records/<str:source>/<uuid:pk>/", RegistrationRecordDetailView.as_view(), name="edu-registration-record-detail"),
     path("enrollments/<uuid:pk>/", OfferingEnrollmentDetailView.as_view(), name="edu-enrollment-detail"),
     path("enrollments/<uuid:pk>/convert-to-class/", OfferingEnrollmentConvertToClassView.as_view(), name="edu-enrollment-convert-to-class"),
     path("enrollments/<uuid:pk>/refund/", OfferingEnrollmentRefundView.as_view(), name="edu-enrollment-refund"),

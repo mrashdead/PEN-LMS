@@ -23,6 +23,7 @@ from django.utils import timezone
 
 from apps.academics.scoping import (
     ELEVATED_ROLES,
+    REFERENCE_DATA_ROLES,
     education_sessions_visible_to,
 )
 from apps.core.utils import to_jalali_date
@@ -130,7 +131,7 @@ def attendance_report(
     return payload
 
 
-def capacity_report(*, user) -> list[dict]:
+def capacity_report(*, user, course_id=None, offering_id=None, is_active=None) -> list[dict]:
     """
     وضعیت ظرفیت برگزاری‌ها (§13-7: «ظرفیت ثبت‌نام») — یک کوئری annotate.
     مدیر: همه؛ مدرس: برگزاری‌هایی که مدرسشان است؛ سایر نقش‌ها: خالی.
@@ -140,12 +141,19 @@ def capacity_report(*, user) -> list[dict]:
     qs = CourseOffering.objects.filter(is_deleted=False).select_related("course")
     roles = set(user.role_codes()) if hasattr(user, "role_codes") else set()
     person = getattr(user, "person", None)
-    if roles & ELEVATED_ROLES:
+    if roles & REFERENCE_DATA_ROLES:
         pass
     elif person is not None and "teacher" in roles:
         qs = qs.filter(instructor=person)
     else:
         return []
+
+    if course_id:
+        qs = qs.filter(course_id=course_id)
+    if offering_id:
+        qs = qs.filter(pk=offering_id)
+    if is_active is not None:
+        qs = qs.filter(is_active=is_active)
 
     # enrolled_count is the service-maintained denormalized counter (kept
     # consistent under a row lock by enroll_student/withdraw_student) — no
@@ -168,3 +176,38 @@ def capacity_report(*, user) -> list[dict]:
             "is_active": r["is_active"],
         })
     return report
+
+
+def class_group_capacity_report(*, user, term_id=None, class_group_id=None, is_active=None):
+    """Capacity rows for the academics class groups, counted in SQL."""
+    from django.db.models import Count, Q
+
+    from apps.academics.scoping import class_groups_visible_to
+
+    groups = class_groups_visible_to(user).filter(is_deleted=False)
+    if term_id:
+        groups = groups.filter(term_id=term_id)
+    if class_group_id:
+        groups = groups.filter(pk=class_group_id)
+    if is_active is not None:
+        groups = groups.filter(is_active=is_active)
+    rows = groups.annotate(
+        enrolled=Count(
+            "enrollments",
+            filter=Q(enrollments__is_active=True, enrollments__is_deleted=False),
+        ),
+    ).values("id", "name", "code", "term__title", "capacity", "enrolled", "is_active")
+    return [
+        {
+            "id": str(row["id"]),
+            "name": row["name"],
+            "code": row["code"],
+            "term": row["term__title"],
+            "capacity": row["capacity"],
+            "enrolled": row["enrolled"],
+            "seats_left": max(row["capacity"] - row["enrolled"], 0),
+            "full": row["capacity"] > 0 and row["enrolled"] >= row["capacity"],
+            "is_active": row["is_active"],
+        }
+        for row in rows
+    ]

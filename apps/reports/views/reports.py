@@ -42,6 +42,8 @@ class ReportsFilterOptionsView(APIView):
 class ReportsPageAccessMixin(LoginRequiredMixin):
     """Presentation gate mirroring the API's report permission."""
 
+    login_url = "dashboard-login"
+
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and (
             not request.user.is_active
@@ -64,5 +66,6 @@ class ReportsPage(ReportsPageAccessMixin, TemplateView):
             "dashboard": "/api/reports/dashboard/",
             "filters": "/api/reports/filters/",
             "export": "/api/reports/export/",
+            "workflow_requests": "/api/workflow/reports/",
         }
         return context

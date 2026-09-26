@@ -226,6 +226,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
             {"field": "objectives", "label": "اهداف"},
             {"field": "lesson_titles", "label": "درس‌ها", "type": "list"},
             {"field": "total_tuition", "label": "شهریهٔ کل (مجموع درس‌ها)", "type": "money", "suffix": "تومان"},
+            {"field": "id", "label": "ثبت‌نام‌ها", "type": "registration-link", "kind": "course"},
             {"field": "is_active", "label": "فعال", "type": "bool"},
         ],
     },
@@ -285,6 +286,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
             {"field": "start_date", "label": "شروع"},
             {"field": "lesson_titles", "label": "درس‌های دوره", "type": "list"},
             {"field": "classes", "label": "کلاس‌های تشکیل‌شده", "type": "classes"},
+            {"field": "id", "label": "ثبت‌نام‌ها و اعضا", "type": "registration-link", "kind": "offering"},
             {"field": "course_tuition", "label": "شهریه دوره", "type": "money", "suffix": "تومان"},
             {"field": "status", "label": "وضعیت"},
         ],
@@ -515,9 +517,9 @@ class PasswordManagementPage(LoginRequiredMixin, TemplateView):
 
     def _user_queryset(self):
         User = get_user_model()
-        return User.objects.filter(is_active=True, is_deleted=False).order_by(
-            "first_name", "last_name", "username"
-        )
+        return User.objects.filter(is_active=True, is_deleted=False).select_related(
+            "person"
+        ).order_by("person__first_name", "person__last_name", "first_name", "last_name", "username")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -622,9 +624,35 @@ class MessagesPage(StaffRequiredMixin, TemplateView):
 
 
 class EnrollmentPage(StaffRequiredMixin, TemplateView):
-    """Financial enrollment form (student + offering + discount + payment)."""
+    """Registration management directory and financial enrollment form."""
 
     template_name = "enrollment.html"
+
+
+class EnrollmentEntityPage(StaffRequiredMixin, TemplateView):
+    template_name = "enrollment_details.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["registration_page"] = {
+            "mode": "entity",
+            "kind": self.kwargs["kind"],
+            "id": str(self.kwargs["pk"]),
+        }
+        return context
+
+
+class EnrollmentRecordPage(StaffRequiredMixin, TemplateView):
+    template_name = "enrollment_details.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["registration_page"] = {
+            "mode": "record",
+            "source": self.kwargs["source"],
+            "id": str(self.kwargs["pk"]),
+        }
+        return context
 
 
 class WorkQueuePage(StaffRequiredMixin, TemplateView):

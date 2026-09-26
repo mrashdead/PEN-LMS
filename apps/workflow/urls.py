@@ -24,9 +24,11 @@ from apps.workflow.views import (
     RejectInstanceView,
     ReturnInstanceView,
     SendCopyView,
+    WorkflowReportView,
 )
 
 urlpatterns = [
+    path("reports/", WorkflowReportView.as_view(), name="workflow-report"),
     # ── Instance ─────────────────────────────────────────────
     path("instances/", InstanceListCreateView.as_view(), name="workflow-instance-list"),
     path(

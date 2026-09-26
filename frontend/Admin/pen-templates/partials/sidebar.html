@@ -133,6 +133,13 @@ Add a page: one nav-item; add a section: copy a collapse block.
         </li>
         {% endif %}
 
+        {% if sidebar_visibility.staff_dashboard %}
+        <li class="nav-item"><a href="{% url 'staff-dashboard' %}" title="کارکرد و مرخصی" class="nav-link{% if urlname == 'staff-dashboard' %} active{% endif %}"><span class="icons"><i data-lucide="calendar-check"></i></span><span class="content">کارکرد و مرخصی</span></a></li>
+        {% endif %}
+        {% if sidebar_visibility.calls_dashboard %}
+        <li class="nav-item"><a href="{% url 'calls-dashboard' %}" title="ثبت تماس‌ها" class="nav-link{% if urlname == 'calls-dashboard' %} active{% endif %}"><span class="icons"><i data-lucide="phone"></i></span><span class="content">ثبت تماس‌ها</span></a></li>
+        {% endif %}
+
         {# ── درخواست‌ها (collapsible) ─────────────────────────────── #}
         {% if sidebar_sections.requests %}
         <li class="nav-item">
@@ -215,6 +222,15 @@ Add a page: one nav-item; add a section: copy a collapse block.
               پیام‌ها
               <span class="msg-badge msg-unread-badge" hidden></span>
             </span>
+          </a>
+        </li>
+        {% endif %}
+
+        {% if sidebar_visibility.workspace_enrollment_capacity and can_capacity_report %}
+        <li class="nav-item">
+          <a href="{% url 'workspace-enrollment-capacity' %}" class="nav-link{% if urlname == 'workspace-enrollment-capacity' %} active{% endif %}" {% if urlname == 'workspace-enrollment-capacity' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span>
+            <span class="content">ثبت‌نام و ظرفیت کلاس‌ها</span>
           </a>
         </li>
         {% endif %}

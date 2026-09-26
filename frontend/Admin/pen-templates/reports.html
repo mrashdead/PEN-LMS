@@ -78,6 +78,12 @@
     </div>
   </section>
 
+  {% if can_capacity_report %}
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <p class="text-muted mb-0">برای بررسی همهٔ کلاس‌ها، ظرفیت باقی‌مانده و روند ثبت‌نام:</p>
+    <a class="btn btn-outline-primary" href="{% url 'workspace-enrollment-capacity' %}">گزارش ثبت‌نام و ظرفیت کلاس‌ها</a>
+  </div>
+  {% endif %}
   <section class="mb-4" aria-labelledby="enrollment-title">
     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="enrollment-title" class="report-section-title mb-1">ثبت‌نام و عملکرد دوره‌ها</h2><p class="text-muted fs-14 mb-0">ظرفیت، محبوبیت و وضعیت برگزاری‌ها</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="enrollments"><i data-lucide="download" class="size-4 me-1"></i> خروجی ثبت‌نام</button></div>
     <div class="row g-3">
@@ -110,6 +116,34 @@
       <div class="col-12 col-xl-5"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">شاخص پاسخگویی</h3></div><div class="card-body"><div class="report-response-metric"><strong id="workflow-response-hours">—</strong><span>ساعت میانگین تا اولین پاسخ</span></div><div class="report-inline-metrics"><div><span>در انتظار بررسی</span><strong id="workflow-pending">—</strong></div><div><span>درخواست‌های پاسخ‌داده‌شده</span><strong id="workflow-responded">—</strong></div></div><div id="workflow-status-rows" class="report-inline-metrics mt-3" aria-label="تفکیک وضعیت درخواست‌ها"></div></div></article></div>
       <div class="col-12 col-xl-7"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">پرتکرارترین فرم‌ها</h3></div><div class="card-body"><div id="workflow-form-rows" class="vstack gap-3"><div class="pen-loading">در حال بارگذاری…</div></div></div></article></div>
     </div>
+  </section>
+
+  <section class="mb-4" aria-labelledby="communications-title">
+  <section class="mb-4" aria-labelledby="workflow-requests-title">
+    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="workflow-requests-title" class="report-section-title mb-1">جزئیات درخواست‌ها</h2><p class="text-muted fs-14 mb-0">ثبت‌کننده، مرحلهٔ جاری، مسئول اقدام و تاریخچهٔ تصمیم‌ها</p></div><span class="badge rounded-pill text-bg-light" id="workflow-request-count">—</span></div>
+    <article class="card report-panel">
+      <div class="card-body">
+        <form id="workflow-report-filter-form" class="row g-2 align-items-end mb-3">
+          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-request-type">نوع درخواست</label><select id="workflow-filter-request-type" class="form-select"><option value="">همهٔ انواع</option></select></div>
+          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-workflow">گردش‌کار</label><select id="workflow-filter-workflow" class="form-select"><option value="">همهٔ گردش‌کارها</option></select></div>
+          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-status">وضعیت گردش‌کار</label><select id="workflow-filter-status" class="form-select"><option value="">همه</option><option value="running">در جریان</option><option value="completed">تکمیل‌شده</option><option value="rejected">ردشده</option><option value="cancelled">لغوشده</option></select></div>
+          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-request-status">وضعیت درخواست</label><select id="workflow-filter-request-status" class="form-select"><option value="">همه</option><option value="draft">پیش‌نویس</option><option value="submitted">ارسال‌شده</option><option value="in_review">در حال بررسی</option><option value="awaiting_action">منتظر اقدام</option><option value="changes_requested">نیازمند اصلاح</option><option value="approved">تأییدشده</option><option value="rejected">ردشده</option><option value="cancelled">لغوشده</option><option value="completed">تکمیل‌شده</option><option value="blocked_assignment">بدون مسئول</option><option value="archived">بایگانی‌شده</option></select></div>
+          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-form">فرم</label><select id="workflow-filter-form" class="form-select"><option value="">همهٔ فرم‌ها</option></select></div>
+          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-user">کاربر</label><input id="workflow-filter-user" class="form-control" type="search" placeholder="نام کاربری"></div>
+          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-department">واحد</label><input id="workflow-filter-department" class="form-control" type="search" placeholder="نام واحد"></div>
+          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-step">مرحله</label><input id="workflow-filter-step" class="form-control" type="search" placeholder="کد مرحله"></div>
+          <div class="col-12 col-sm-6 col-xl-2 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit"><i data-lucide="sliders-horizontal" class="size-4 me-1"></i> اعمال</button><button class="btn btn-light" type="button" id="workflow-filter-reset" title="بازنشانی فیلترها" aria-label="بازنشانی فیلترهای درخواست"><i data-lucide="rotate-ccw" class="size-4"></i></button></div>
+        </form>
+        <div id="workflow-report-error" class="alert alert-danger py-2 mb-3" role="alert" hidden></div>
+        <div class="table-responsive">
+          <table class="table report-table align-middle mb-0">
+            <thead><tr><th>شماره و نوع</th><th>وضعیت و مرحله</th><th>ثبت‌کننده</th><th>در اختیار</th><th>ایجاد / ثبت</th><th>بررسی / تأیید / رد</th><th>اقدامات</th></tr></thead>
+            <tbody id="workflow-request-rows"><tr><td colspan="7"><div class="pen-loading">در حال بارگذاری…</div></td></tr></tbody>
+          </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center gap-2 mt-3"><span class="text-muted fs-13" id="workflow-request-page-info">—</span><div class="d-flex gap-2"><button type="button" class="btn btn-sm btn-light" id="workflow-request-previous" aria-label="صفحهٔ قبل" disabled><i data-lucide="chevron-right" class="size-4"></i></button><button type="button" class="btn btn-sm btn-light" id="workflow-request-next" aria-label="صفحهٔ بعد" disabled><i data-lucide="chevron-left" class="size-4"></i></button></div></div>
+      </div>
+    </article>
   </section>
 
   <section class="mb-4" aria-labelledby="communications-title">

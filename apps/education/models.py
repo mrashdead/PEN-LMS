@@ -775,6 +775,8 @@ class OfferingEnrollment(DomainModel):
         indexes = [
             models.Index(fields=["student", "is_active"]),
             models.Index(fields=["offering", "is_active"]),
+            models.Index(fields=["offering", "enrolled_at"], name="edu_enroll_report_idx",
+                         condition=models.Q(is_active=True, is_deleted=False)),
         ]
 
     def __str__(self) -> str:
@@ -791,6 +793,13 @@ class OfferingEnrollment(DomainModel):
         return base
 
     def clean(self) -> None:
+        if self.final_class_enrollment_id:
+            membership = self.final_class_enrollment
+            if membership.student_id != self.student_id:
+                raise ValidationError({"final_class_enrollment": "دانش‌آموز عضویت کلاس با ثبت‌نام یکسان نیست."})
+            if membership.class_group.offering_id and membership.class_group.offering_id != self.offering_id:
+                raise ValidationError({"final_class_enrollment": "کلاس به برگزاری دیگری تعلق دارد."})
+
         if self.discount_type == self.DiscountType.PERCENT and (self.discount_value or 0) > 100:
             raise ValidationError({"discount_value": "درصد تخفیف نمی‌تواند بیش از ۱۰۰ باشد."})
         if self.payment_method == self.PaymentMethod.CHEQUE:

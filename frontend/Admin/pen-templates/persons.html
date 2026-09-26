@@ -29,7 +29,20 @@
       </div>
 
       <div class="card-body pt-0">
+        <div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-label="گروه اشخاص">
+          <button type="button" class="btn btn-outline-primary btn-sm" data-person-group="" aria-pressed="false">همه اشخاص</button>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-person-group="student" aria-pressed="false">دانش‌آموزان</button>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-person-group="guardian" aria-pressed="false">والدین / سرپرستان</button>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-person-group="teacher" aria-pressed="false">اساتید / مدرسان</button>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-person-group="employee" aria-pressed="false">کارمندان</button>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-person-group="supervisor" aria-pressed="false">سرپرست‌ها</button>
+        </div>
         <form id="person-filter-form" class="row g-2 align-items-end mb-3 pen-filter-bar" method="get" aria-label="جستجو و فیلتر افراد">
+          <div class="col-12">
+            <label for="person-filter-search" class="form-label">جست‌وجوی سریع</label>
+            <input type="search" id="person-filter-search" name="search" class="form-control" placeholder="نام، نام خانوادگی یا ابتدای کد ملی" autocomplete="off" aria-describedby="person-search-help">
+            <div id="person-search-help" class="form-text">جست‌وجو از ابتدای نام یا کد ملی، با مکث کوتاه هنگام تایپ انجام می‌شود.</div>
+          </div>
           <div class="col-12 col-md-3">
             <label for="person-filter-national-code" class="form-label">کد ملی دقیق</label>
             <input type="text" id="person-filter-national-code" name="national_code" class="form-control"
@@ -52,7 +65,7 @@
               <option value="supervisor">کارمند سرپرست</option>
               <option value="employee">کارمند</option>
               <option value="teacher">استاد / مدرس</option>
-              <option value="student">دانش‌آموز</option>
+              <option value="student">دانش‌آموز</option><option value="guardian">والدین / سرپرست</option>
             </select>
           </div>
           <div class="col-12 col-md-2">
@@ -64,11 +77,21 @@
               <option value="first_name">نام</option>
             </select>
           </div>
-          <div class="col-12 col-md-1 d-flex gap-2">
-            <button type="submit" class="btn btn-outline-primary w-100">اعمال</button>
+          <div class="col-6 col-md-2">
+            <label for="person-filter-active" class="form-label">وضعیت پرونده</label>
+            <select id="person-filter-active" name="is_active" class="form-select"><option value="">همه وضعیت‌ها</option><option value="true">فعال</option><option value="false">غیرفعال</option></select>
+          </div>
+          <div class="col-6 col-md-2">
+            <label for="person-page-size" class="form-label">تعداد در صفحه</label>
+            <select id="person-page-size" name="page_size" class="form-select"><option value="25">۲۵</option><option value="50" selected>۵۰</option><option value="100">۱۰۰</option></select>
+          </div>
+          <div class="col-12 col-md-auto d-flex gap-2">
+            <button type="submit" class="btn btn-primary">اعمال فیلترها</button>
+            <button type="button" id="person-filter-reset" class="btn btn-outline-secondary">پاک‌کردن فیلترها</button>
           </div>
         </form>
 
+        <button type="button" id="person-list-retry" class="btn btn-outline-primary btn-sm mb-2" hidden>تلاش دوباره</button>
         <div id="person-list-status" class="text-muted fs-14 mb-2" role="status" aria-live="polite"></div>
         <div class="table-card table-responsive" id="person-table" aria-busy="false">
           <table class="table table-hover table-borderless text-nowrap align-middle mb-0">
@@ -80,7 +103,7 @@
                 <th scope="col">نقش / نوع</th>
                 <th scope="col">موبایل</th>
                 <th scope="col">تاریخ ثبت</th>
-                <th scope="col">ورود</th>
+                <th scope="col">حساب کاربری</th>
                 <th scope="col" class="text-end">عملیات</th>
               </tr>
             </thead>

@@ -40,7 +40,7 @@ _PAGE_RESOURCES: list[Resource] = [
     Resource(key="workspace-org-chart",   title="چارت سازمانی",          category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-org-permissions", title="مجوزهای سازمانی",     category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-org-responsibilities", title="مسئولیت‌ها",     category="page", verbs=PAGE_VERBS),
-    Resource(key="workspace-org-delegations",   title="شهرداری‌ها",         category="page", verbs=PAGE_VERBS),
+    #Resource(key="workspace-org-delegations",   title="شهرداری‌ها",         category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-perm-manage",  title="مدیریت دسترسی کاربران", category="page", verbs=PAGE_VERBS, description="ACL دستی — فقط برای مدیران"),
     Resource(key="workspace-persons",       title="اشخاص",                 category="page", verbs={"view", "add"},          description="لیست و جستجوی اشخاص"),
     Resource(key="workspace-person-create",title="ایجاد شخص",             category="page", verbs={"add"}),
@@ -51,6 +51,7 @@ _PAGE_RESOURCES: list[Resource] = [
     Resource(key="workspace-sessions",     title="جلسات کلاسی",           category="page", verbs={"view", "add"}),
     Resource(key="workspace-locations",    title="محل‌ها / ساختمان‌ها",    category="page", verbs={"view", "add"}),
     Resource(key="workspace-timetable",    title="زمان‌بندی",              category="page", verbs=PAGE_VERBS),
+    Resource(key="workspace-enrollment-capacity", title="گزارش ثبت‌نام و ظرفیت کلاس‌ها", category="page", verbs=PAGE_VERBS, description="آمار تجمیعی ثبت‌نام و ظرفیت؛ پیش‌فرض مدیریت و سرپرست. دسترسی مدرس محدود به کلاس‌های خودش است؛ بدون اطلاعات هویتی یا مالی."),
     Resource(key="workspace-reports",      title="گزارش‌ها",              category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-teacher",      title="پنل معلم",               category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-teacher-attendance", title="حضور معلم",        category="page", verbs=PAGE_VERBS),
@@ -70,6 +71,7 @@ _MODEL_RESOURCES: list[Resource] = [
     # academics
     Resource(key="academics.academicterm", title="ترم‌ها",                  category="model", verbs=MODEL_VERBS),
     Resource(key="academics.classgroup",   title="کلاس‌ها",                 category="model", verbs=MODEL_VERBS),
+    Resource(key="education.offeringenrollment", title="ثبت‌نام در دوره", category="model", verbs=MODEL_VERBS, description="مشاهده و مدیریت ثبت‌نام دوره؛ اطلاعات مالی تابع مجوز مستقل API مالی است."),
     Resource(key="academics.classenrollment", title="ثبت‌نام کلاسی",         category="model", verbs=MODEL_VERBS),
     # education
     Resource(key="education.department",   title="دپارتمان‌ها",             category="model", verbs=MODEL_VERBS),
@@ -91,7 +93,7 @@ _MODEL_RESOURCES: list[Resource] = [
     Resource(key="workflow.instance",     title="درخواست‌ها / نمونه‌فرآیند", category="model", verbs=MODEL_VERBS),
     Resource(key="workflow.actionlog",    title="تاریخچه فرآیند",           category="model", verbs={"view"}),
     # org
-    Resource(key="org.delegation",        title="شهرداری",                 category="model", verbs=MODEL_VERBS),
+    #Resource(key="org.delegation",        title="شهرداری",                 category="model", verbs=MODEL_VERBS),
     Resource(key="org.personaclentry",    title="ACL دستی",                category="model", verbs=MODEL_VERBS),
     # accounts
     Resource(key="accounts.role",         title="نقش‌ها",                  category="model", verbs=MODEL_VERBS),

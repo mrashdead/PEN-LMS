@@ -6,12 +6,17 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.shortcuts import get_object_or_404
 
-from rest_framework import generics, status, views
+from rest_framework import generics, serializers, status, views
+from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
 from apps.core.group_permissions import HasGroupPermission, StrictDjangoModelPermissions
 from apps.core.crud_views import SoftDeleteView, SoftRestoreView
 from apps.core.permissions import IsActiveUser, IsWorkflowParticipant, ResourceCRUDPermission
+from apps.reports.permissions import can_access_reports
+from apps.reports.selectors.reports import ReportFilterError
+from apps.reports.selectors.workflow import workflow_report_queryset
+from apps.reports.serializers import WorkflowRequestReportSerializer
 from apps.workflow.models import ActionLog, ApprovalRecord, Instance
 from apps.workflow.serializers import (
     ActionLogSerializer,
@@ -208,6 +213,26 @@ class ActionLogListView(generics.ListAPIView):
             instance_id__in=_visible_instances_for(self.request.user).values("id"),
             instance_id=self.kwargs["instance_id"],
         ).select_related("from_state", "to_state", "actor").order_by("-created_at")
+
+
+class IsWorkflowReportViewer(BasePermission):
+    message = "گزارش گردش‌کار فقط برای افراد مجاز در دسترس است."
+
+    def has_permission(self, request, view):
+        return can_access_reports(request.user)
+
+
+class WorkflowReportView(generics.ListAPIView):
+    """Paginated operational report over workflow instances and linked forms."""
+
+    permission_classes = (IsActiveUser, IsWorkflowReportViewer)
+    serializer_class = WorkflowRequestReportSerializer
+
+    def get_queryset(self):
+        try:
+            return workflow_report_queryset(self.request.query_params, user=self.request.user)
+        except ReportFilterError as exc:
+            raise APIValidationError({"detail": str(exc)}) from exc
 
 
 # ─────────────────────────────────────────────────────────────────────────────

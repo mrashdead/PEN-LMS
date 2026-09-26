@@ -15,6 +15,8 @@ from apps.reports.selectors.reports import (
     dashboard_data,
     export_rows,
 )
+from apps.reports.selectors.workflow import workflow_report_queryset
+from apps.reports.serializers import WorkflowRequestReportSerializer
 
 
 class ReportsExportView(APIView):
@@ -30,7 +32,17 @@ class ReportsExportView(APIView):
             if report not in allowed:
                 return Response({"detail": "نوع گزارش برای خروجی معتبر نیست."}, status=400)
             data = dashboard_data(request.user, filters)
-            sheets = export_rows(data, report)
+            workflow_rows = None
+            if report in {"all", "workflow"}:
+                workflow_query = request.query_params.copy()
+                if not any(workflow_query.get(key) for key in ("from", "to", "period", "date_from", "date_to")):
+                    workflow_query["from"] = filters.start.isoformat()
+                    workflow_query["to"] = filters.end.isoformat()
+                workflow_rows = WorkflowRequestReportSerializer(
+                    workflow_report_queryset(workflow_query, user=request.user),
+                    many=True,
+                ).data
+            sheets = export_rows(data, report, workflow_rows=workflow_rows)
         except ReportFilterError as exc:
             return Response({"detail": str(exc)}, status=400)
 

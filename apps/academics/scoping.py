@@ -20,6 +20,9 @@ from django.db.models import Q
 from apps.academics.models import ClassEnrollment, ClassGroup
 
 ELEVATED_ROLES = {"manager", "workflow_admin", "hr"}
+# Staff roles with model-level read permission may use shared educational
+# reference data. Teacher access remains scoped to the teacher's own classes.
+REFERENCE_DATA_ROLES = ELEVATED_ROLES | {"employee", "supervisor"}
 
 #: Role code for a guardian/parent account (provisioned by
 #: ``PersonService._create_user_for_person`` when Person.type == guardian).
@@ -74,7 +77,7 @@ def class_groups_visible_to(user, *, for_write: bool = False):
     """
     qs = ClassGroup.objects.select_related("term", "teacher")
     roles = _roles_of(user)
-    if roles & ELEVATED_ROLES:
+    if roles & REFERENCE_DATA_ROLES:
         return qs
     person = _person_of(user)
     if person is None:
@@ -107,7 +110,7 @@ def enrollments_visible_to(user):
     """
     qs = ClassEnrollment.objects.select_related("class_group", "student")
     roles = _roles_of(user)
-    if roles & ELEVATED_ROLES:
+    if roles & REFERENCE_DATA_ROLES:
         return qs
     person = _person_of(user)
     if person is None:
@@ -140,7 +143,7 @@ def education_sessions_visible_to(user):
         "lesson",
     )
     roles = _roles_of(user)
-    if roles & ELEVATED_ROLES:
+    if roles & REFERENCE_DATA_ROLES:
         return qs
     person = _person_of(user)
     if person is None:
@@ -185,6 +188,40 @@ def education_sessions_for_teacher(user):
         return ClassSession.objects.none()
     from apps.education.models import ClassSession
     return ClassSession.objects.filter(teacher=person, is_deleted=False)
+
+
+def education_offerings_visible_to(user):
+    """Shared offerings for staff; teachers only see offerings they teach."""
+    from apps.education.models import CourseOffering
+
+    qs = CourseOffering.objects.select_related("course", "location", "instructor")
+    roles = _roles_of(user)
+    if roles & REFERENCE_DATA_ROLES:
+        return qs
+
+    person = _person_of(user)
+    if person is None or "teacher" not in roles:
+        return qs.none()
+
+    return qs.filter(
+        Q(instructor=person)
+        | Q(class_groups__teacher=person, class_groups__is_deleted=False)
+        | Q(sessions__teacher=person, sessions__is_deleted=False)
+    ).distinct()
+
+
+def education_courses_visible_to(user):
+    """Courses available to staff, or courses behind a teacher's own offerings."""
+    from apps.education.models import Course
+
+    qs = Course.objects.select_related("department")
+    roles = _roles_of(user)
+    if roles & REFERENCE_DATA_ROLES:
+        return qs
+    if "teacher" not in roles:
+        return qs.none()
+
+    return qs.filter(offerings__in=education_offerings_visible_to(user)).distinct()
 
 
 def person_scoped_or_none(user, person_id) -> Optional[object]:

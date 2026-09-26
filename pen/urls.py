@@ -35,6 +35,12 @@ urlpatterns = [
     path('api/reports/', include('apps.reports.urls')),
     path('api/playhouse/', include('apps.playhouse.urls')),
     path('api/leads/', include('apps.leads.urls')),
+    path('api/staff/', include('apps.staff.urls')),
+    path('api/calls/', include('apps.calls.urls')),
+
+    # Staff operations and inbound call workspaces
+    path('workspace/staff/', include('apps.staff.page_urls')),
+    path('workspace/calls/', include('apps.calls.page_urls')),
 
     # Forms UI pages (session auth, dashboard-style)
     path('forms/', include('apps.forms.page_urls')),

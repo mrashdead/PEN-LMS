@@ -214,7 +214,11 @@
     var body = (CFG.detail || []).map(function (d) {
       var v = row[d.field];
       var html;
-      if (d.type === 'bool') html = v ? 'بله' : 'خیر';
+      if (d.type === 'registration-link') {
+        var kind = d.kind === 'course' ? 'course' : 'offering';
+        html = '<a class="btn btn-sm btn-outline-primary" href="/workspace/enrollments/' + kind + '/' + encodeURIComponent(row.id) + '/">مشاهده ثبت‌نام‌ها</a>';
+      }
+      else if (d.type === 'bool') html = v ? 'بله' : 'خیر';
       else if (d.type === 'money') html = '<span class="text-nowrap">' + money(v) + (d.suffix ? ' ' + esc(d.suffix) : '') + '</span>';
       else if (d.type === 'list') {
         var arr = Array.isArray(v) ? v : (v == null ? [] : [v]);

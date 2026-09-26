@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db import models, transaction
 from django.db.models import Exists, OuterRef, Prefetch
+from django.utils import timezone
 from rest_framework import generics, permissions, status, views
 from rest_framework.response import Response
 
@@ -16,7 +17,7 @@ from apps.core.permissions import (
     ResourceCRUDPermission,
 )
 from apps.core.utils import english_numbers
-from apps.persons.models import GuardianProfile, Person, StudentGuardian
+from apps.persons.models import GuardianProfile, Person, PersonTypeAssignment, StudentGuardian
 from apps.persons.pagination import PersonCursorPagination
 from apps.persons.serializers import (
     CreateUserForPersonSerializer,
@@ -95,7 +96,18 @@ class PersonListCreateView(generics.ListCreateAPIView):
                     has_leadership=Exists(leadership_exists)
                 ).filter(has_leadership=False)
             elif role in {choice for choice, _label in Person.Type.choices}:
-                qs = qs.filter(person_type=role)
+                now = timezone.now()
+                assignments = PersonTypeAssignment.objects.filter(
+                    person_id=OuterRef("pk"), type=role,
+                    is_active=True, is_deleted=False,
+                ).filter(
+                    models.Q(valid_from__isnull=True) | models.Q(valid_from__lte=now)
+                ).filter(
+                    models.Q(valid_to__isnull=True) | models.Q(valid_to__gte=now)
+                )
+                qs = qs.alias(assigned_type_match=Exists(assignments)).filter(
+                    models.Q(person_type=role) | models.Q(assigned_type_match=True)
+                )
             else:
                 role_exists = UserRole.objects.filter(
                     user_id=OuterRef("user_id"),

@@ -6,8 +6,10 @@ from types import SimpleNamespace
 from django.core.exceptions import PermissionDenied
 from django.test import SimpleTestCase
 from django.test import RequestFactory
+from django.test import TestCase
 from django.utils import timezone
 
+from apps.forms.tests.factories import UserFactory
 from apps.reports.permissions import CanAccessReports, can_access_reports, can_view_financial_reports
 from apps.reports.selectors.reports import ReportFilterError, ReportFilters
 from apps.reports.views.reports import ReportsPage
@@ -73,3 +75,28 @@ class ReportPermissionTests(SimpleTestCase):
 
         with self.assertRaises(PermissionDenied):
             ReportsPage.as_view()(request)
+
+
+class ReportsPageWorkflowSectionTests(TestCase):
+    def test_anonymous_user_is_sent_to_the_real_login_route(self):
+        response = self.client.get("/workspace/reports/")
+
+        self.assertRedirects(
+            response,
+            "/dashboard/login/?next=/workspace/reports/",
+            fetch_redirect_response=False,
+        )
+
+    def test_reports_page_renders_request_filters_and_report_endpoint(self):
+        manager = UserFactory(username="reports-page-manager", roles=["manager"])
+        request = RequestFactory().get("/workspace/reports/")
+        request.user = manager
+
+        response = ReportsPage.as_view()(request)
+        response.render()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("/api/workflow/reports/", response.content.decode())
+        self.assertIn("workflow-filter-request-type", response.content.decode())
+        self.assertIn("workflow-request-rows", response.content.decode())
+        self.assertIn("request_types", response.context_data["report_options"])

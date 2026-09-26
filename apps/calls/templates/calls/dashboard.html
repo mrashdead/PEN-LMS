@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}ثبت و پیگیری تماس‌ها{% endblock %}
+{% block page_heading %}{% include "partials/page-heading.html" with title="ثبت و پیگیری تماس‌ها" section="ارتباط با مراجعان" %}{% endblock %}
+{% block content %}
+<main class="container-fluid" id="calls-app">
+  <section class="card mb-4"><div class="card-body"><h2 class="h5">ثبت تماس</h2><form id="call-form" class="row g-3 align-items-end">
+    <div class="col-12 col-md-3"><label class="form-label" for="caller-name">نام تماس‌گیرنده</label><input id="caller-name" class="form-control" maxlength="256"></div>
+    <div class="col-12 col-md-3"><label class="form-label" for="caller-phone">شماره تماس</label><input id="caller-phone" class="form-control" required maxlength="20" inputmode="tel"></div>
+    <div class="col-12 col-md-3"><label class="form-label" for="call-subject">موضوع</label><input id="call-subject" class="form-control" required maxlength="256"></div>
+    <div class="col-12 col-md-3"><label class="form-label" for="call-department">بخش مرتبط</label><input id="call-department" class="form-control" maxlength="128"></div>
+    <div class="col-12"><label class="form-label" for="call-description">توضیحات</label><textarea id="call-description" class="form-control"></textarea></div>
+    <div class="col-12 col-md-3"><label class="form-label" for="call-result">نتیجه</label><select id="call-result" class="form-select"><option value="answered">پاسخ داده شد</option><option value="no_answer">پاسخ داده نشد</option><option value="busy">اشغال</option><option value="transferred">ارجاع</option><option value="follow_up_agreed">قرار پیگیری</option><option value="other">سایر</option></select></div>
+    <div class="col-12 col-md-3"><label class="form-label" for="call-next">زمان پیگیری بعدی</label><input id="call-next" class="form-control" type="datetime-local"></div>
+    <div class="col-12 col-md-3"><button class="btn btn-primary" type="submit">ثبت تماس</button></div>
+  </form><div id="call-message" class="alert mt-3 mb-0" role="status" hidden></div></div></section>
+  <section class="card"><div class="card-body"><div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3"><h2 class="h5 mb-0">گزارش تماس‌ها</h2><div class="d-flex gap-2"><input id="call-from" class="form-control" data-jalali placeholder="از تاریخ"><input id="call-to" class="form-control" data-jalali placeholder="تا تاریخ"><input id="call-search" class="form-control" placeholder="جست‌وجو"><button id="call-refresh" class="btn btn-light">اعمال فیلتر</button></div></div>
+    <div class="row g-3 mb-3"><div class="col"><div class="border rounded p-3">کل تماس‌ها <strong id="call-total">—</strong></div></div><div class="col"><div class="border rounded p-3">نیازمند پیگیری <strong id="call-pending">—</strong></div></div><div class="col"><div class="border rounded p-3">پیگیری عقب‌افتاده <strong id="call-overdue">—</strong></div></div></div>
+    <div class="table-responsive"><table class="table"><thead><tr><th>تاریخ</th><th>تماس‌گیرنده</th><th>شماره</th><th>موضوع</th><th>دریافت‌کننده</th><th>نتیجه</th><th>پیگیری</th><th></th></tr></thead><tbody id="call-rows"></tbody></table></div>
+  </div></section>
+</main>
+<script>
+(() => {
+  const csrf = document.cookie.split('; ').find(item => item.startsWith('csrftoken='))?.split('=')[1] || '';
+  const message = document.getElementById('call-message');
+  const api = async (path, options = {}) => { const response = await fetch(`/api/calls/${path}`, {credentials: 'same-origin', ...options, headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf, ...(options.headers || {})}}); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || body.detail || 'درخواست انجام نشد.'); return body; };
+  const show = text => { message.hidden = false; message.textContent = text; message.className = 'alert alert-info mt-3 mb-0'; };
+  const load = async () => { try {
+    const filters = new URLSearchParams(); if (document.getElementById('call-from').value) filters.set('from', document.getElementById('call-from').value); if (document.getElementById('call-to').value) filters.set('to', document.getElementById('call-to').value); if (document.getElementById('call-search').value) filters.set('search', document.getElementById('call-search').value);
+    const report = await api(`reports/?${filters}`); document.getElementById('call-total').textContent = report.totals.calls; document.getElementById('call-pending').textContent = report.totals.needs_follow_up; document.getElementById('call-overdue').textContent = report.totals.overdue_follow_ups;
+    const body = await api(`?${filters}`); const table = document.getElementById('call-rows'); table.replaceChildren(); (body.results || []).forEach(item => { const tr = document.createElement('tr'); [item.called_at, item.caller_display, item.caller_phone, item.subject, item.receiver_display, item.result_display, item.follow_up_display].forEach(value => { const td = document.createElement('td'); td.textContent = value || '—'; tr.append(td); }); const td = document.createElement('td'); if (item.needs_follow_up) { const button = document.createElement('button'); button.className = 'btn btn-sm btn-outline-primary'; button.textContent = 'پایان پیگیری'; button.onclick = async () => { try { await api(`${item.id}/follow-up/`, {method: 'POST', body: JSON.stringify({new_status: 'done'})}); await load(); } catch(error) { show(error.message); } }; td.append(button); } tr.append(td); table.append(tr); });
+  } catch(error) { show(error.message); } };
+  document.getElementById('call-form').onsubmit = async event => { event.preventDefault(); try { await api('', {method: 'POST', body: JSON.stringify({caller_name: document.getElementById('caller-name').value, caller_phone: document.getElementById('caller-phone').value, subject: document.getElementById('call-subject').value, department: document.getElementById('call-department').value, description: document.getElementById('call-description').value, result: document.getElementById('call-result').value, next_follow_up_at: document.getElementById('call-next').value || null})}); event.target.reset(); show('تماس ثبت شد.'); await load(); } catch(error) { show(error.message); } };
+  document.getElementById('call-refresh').onclick = load; load();
+})();
+</script>
+{% endblock %}

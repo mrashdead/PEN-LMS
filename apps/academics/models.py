@@ -94,6 +94,11 @@ class ClassGroup(DomainModel):
     class WEEK_DAYS:
         VALUES = {"شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"}
 
+    offering = models.ForeignKey(
+        "education.CourseOffering", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="class_groups", help_text="برگزاری اصلی کلاس؛ دوره از همین رابطه استخراج می‌شود.",
+    )
+
     term = models.ForeignKey(
         AcademicTerm,
         on_delete=models.CASCADE,
@@ -253,6 +258,8 @@ class ClassEnrollment(DomainModel):
         indexes = [
             models.Index(fields=["student", "is_active"]),
             models.Index(fields=["class_group", "is_active"]),
+            models.Index(fields=["class_group", "enrollment_date"], name="acad_enroll_report_idx",
+                         condition=models.Q(is_active=True, is_deleted=False)),
         ]
 
     def __str__(self) -> str:

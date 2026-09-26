@@ -68,7 +68,7 @@ class IsAcademicManager(BasePermission):
     """Read access for academic staff; write access for academic managers."""
 
     message = "شما مجوز این عملیات آموزشی را ندارید."
-    read_roles = {"teacher", "manager", "workflow_admin", "hr", "employee"}
+    read_roles = {"teacher", "manager", "workflow_admin", "hr", "employee", "supervisor"}
     write_roles = {"manager", "workflow_admin", "supervisor"}
 
     def has_permission(self, request: Request, view: View) -> bool:

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load asset_v %}
+{% block title %}ثبت‌نام و ظرفیت کلاس‌ها{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% asset_v_url 'assets/pen/css/enrollment-capacity.css' %}">
+{% endblock %}
+{% block page_heading %}
+{% include "partials/page-heading.html" with title="ثبت‌نام و ظرفیت کلاس‌ها" section="گزارش‌های مدیریتی" icon="chart-no-axes-combined" subtitle="ظرفیت امروز و روند ثبت‌نام در بازهٔ دلخواه" %}
+{% endblock %}
+{% block content %}
+{{ capacity_endpoints|json_script:"capacity-endpoints" }}
+<div class="capacity-report" id="capacity-report">
+  <section class="card mb-4" aria-labelledby="capacity-filter-title">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div><h2 class="h6 mb-1" id="capacity-filter-title">دامنهٔ گزارش</h2><p class="text-muted fs-14 mb-0" id="capacity-source-help">ظرفیت و ثبت‌نام هر برگزاری دوره را بررسی کنید.</p></div>
+        <div class="d-flex flex-wrap gap-2" role="group" aria-label="نوع گزارش">
+          <button type="button" class="btn btn-primary btn-sm" data-capacity-source="offerings" aria-pressed="true">برگزاری دوره‌ها</button>
+          <button type="button" class="btn btn-outline-primary btn-sm" data-capacity-source="classes" aria-pressed="false">کلاس‌های آموزشی</button>
+        </div>
+      </div>
+      <form id="capacity-filters" class="row g-3 align-items-end" aria-describedby="capacity-date-help">
+        <input type="hidden" name="source" value="offerings">
+        <div class="col-12 col-lg-6">
+          <label for="capacity-course-search" class="form-label">دوره</label>
+          <div class="row g-2">
+            <div class="col-sm-5"><input id="capacity-course-search" class="form-control" type="search" placeholder="جست‌وجوی نام یا کد دوره" aria-label="جست‌وجوی دوره" autocomplete="off"></div>
+            <div class="col-sm-7"><select id="capacity-course" name="course" class="form-select" aria-label="انتخاب دوره" aria-describedby="capacity-course-hint"><option value="">همهٔ دوره‌ها</option></select></div>
+          </div>
+          <div class="form-text" id="capacity-course-hint" role="status"></div>
+        </div>
+        <div class="col-12 col-lg-6">
+          <label for="capacity-class-search" class="form-label">کلاس / برگزاری</label>
+          <div class="row g-2">
+            <div class="col-sm-5"><input id="capacity-class-search" class="form-control" type="search" placeholder="جست‌وجوی نام یا کد" aria-label="جست‌وجوی کلاس یا برگزاری" autocomplete="off"></div>
+            <div class="col-sm-7"><select id="capacity-class" name="classroom" class="form-select" aria-label="انتخاب کلاس یا برگزاری" aria-describedby="capacity-class-hint"><option value="">همهٔ کلاس‌ها / برگزاری‌ها</option></select></div>
+          </div>
+          <div class="form-text" id="capacity-class-hint" role="status"></div>
+        </div>
+        <div class="col-6 col-lg-3"><label for="capacity-status" class="form-label">وضعیت برگزاری</label><select id="capacity-status" name="status" class="form-select"><option value="">همهٔ وضعیت‌ها</option></select></div>
+        <div class="col-6 col-lg-3"><label for="capacity-space" class="form-label">وضعیت ظرفیت</label><select id="capacity-space" name="capacity" class="form-select"><option value="">همهٔ ظرفیت‌ها</option><option value="available">دارای ظرفیت</option><option value="full">تکمیل ظرفیت</option><option value="unlimited">نامحدود</option></select></div>
+        <div class="col-6 col-lg-3"><label for="capacity-from" class="form-label">ثبت‌نام از تاریخ</label><input id="capacity-from" name="from" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۷/۰۱" aria-describedby="capacity-date-help capacity-error"></div>
+        <div class="col-6 col-lg-3"><label for="capacity-to" class="form-label">تا تاریخ</label><input id="capacity-to" name="to" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۷/۳۰" aria-describedby="capacity-date-help capacity-error"></div>
+        <div class="col-12 d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div class="d-flex flex-wrap gap-2 align-items-center" role="group" aria-label="بازه‌های سریع ثبت‌نام">
+            <span class="text-muted fs-14">بازهٔ سریع:</span>
+            <button type="button" class="btn btn-light btn-sm" data-capacity-days="7">۷ روز اخیر</button>
+            <button type="button" class="btn btn-light btn-sm" data-capacity-days="30">۳۰ روز اخیر</button>
+            <button type="button" class="btn btn-light btn-sm" data-capacity-days="90">۹۰ روز اخیر</button>
+            <button type="button" class="btn btn-light btn-sm" data-capacity-days="365">یک سال اخیر</button>
+          </div>
+          <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">نمایش گزارش</button><button type="button" class="btn btn-outline-secondary" id="capacity-reset">بازنشانی</button></div>
+        </div>
+        <div class="col-12"><p id="capacity-date-help" class="text-muted fs-13 mb-0">تاریخ شمسی مانند ۱۴۰۵/۰۷/۰۱ یا میلادی مانند 2026-09-23؛ حداکثر ۳۶۶ روز. بازهٔ زمانی فقط آمار ثبت‌نام را تغییر می‌دهد؛ ظرفیت‌ها مربوط به وضعیت فعلی هستند.</p></div>
+      </form>
+      <div id="capacity-error" class="alert alert-danger mt-3 mb-0" role="alert" hidden></div>
+      <button type="button" id="capacity-retry" class="btn btn-outline-primary btn-sm mt-2" hidden>تلاش دوباره</button>
+    </div>
+  </section>
+
+  <div class="d-flex justify-content-between flex-wrap gap-2 mb-3"><p class="text-muted fs-14 mb-0" role="status" aria-live="polite" id="capacity-load-status">در حال آماده‌سازی گزارش…</p><span class="text-muted fs-13" id="capacity-updated"></span></div>
+  <div id="capacity-results" aria-busy="true">
+    <section class="card mb-4" aria-labelledby="capacity-overview-title">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2"><h2 class="h6 mb-0" id="capacity-overview-title">تصویر فعلی ظرفیت‌ها</h2><span class="text-muted fs-13">تمام نتایج فیلترشده، نه فقط این صفحه</span></div>
+      <div class="card-body">
+        <dl class="capacity-metrics mb-3">
+          <div><dt>کلاس / برگزاری</dt><dd id="cap-total">—</dd></div>
+          <div><dt>ثبت‌نام فعلی</dt><dd id="cap-enrolled">—</dd></div>
+          <div><dt>ظرفیت محدود</dt><dd id="cap-capacity">—</dd></div>
+          <div><dt>صندلی باقی‌مانده</dt><dd id="cap-remaining">—</dd></div>
+        </dl>
+        <div class="d-flex flex-wrap gap-2" role="group" aria-label="فیلتر سریع ظرفیت">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-capacity-filter="" aria-pressed="true">همهٔ کلاس‌ها</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-capacity-filter="full" aria-pressed="false">تکمیل ظرفیت <span id="cap-full" class="ms-1">—</span></button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-capacity-filter="available" aria-pressed="false">دارای ظرفیت <span id="cap-available" class="ms-1">—</span></button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-capacity-filter="unlimited" aria-pressed="false">نامحدود <span id="cap-unlimited" class="ms-1">—</span></button>
+        </div>
+        <p class="text-muted fs-13 mt-3 mb-0">ظرفیت و صندلی باقی‌مانده، کلاس‌های نامحدود را شامل نمی‌شود. داشتن ظرفیت به معنی باز بودن ثبت‌نام نیست.</p>
+      </div>
+    </section>
+
+    <section class="card mb-4" aria-labelledby="capacity-trend-title">
+      <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div><h2 class="h6 mb-1" id="capacity-trend-title">روند ثبت‌نام</h2><p class="text-muted fs-14 mb-0"><strong id="cap-registrations">—</strong> ثبت‌نام فعال در بازهٔ <span id="capacity-date-range">—</span></p></div>
+        <div class="d-flex align-items-center gap-2"><label for="capacity-group" class="form-label mb-0 text-nowrap">تفکیک</label><select id="capacity-group" name="group" form="capacity-filters" class="form-select form-select-sm"><option value="day">روزانه</option><option value="week">هفتگی</option><option value="month">ماهانهٔ شمسی</option></select></div>
+      </div>
+      <div class="card-body">
+        <div id="capacity-chart" class="capacity-chart" role="img" aria-label="روند ثبت‌نام؛ داده‌ها در جدول زیر نمودار نیز در دسترس‌اند"></div>
+        <details><summary class="text-primary mb-2">مشاهدهٔ جدول آمار زمانی</summary><div class="table-responsive capacity-trend-table"><table class="table table-sm"><caption class="visually-hidden">ثبت‌نام فعال در هر بازه</caption><thead><tr><th scope="col">بازه</th><th scope="col">تعداد ثبت‌نام</th></tr></thead><tbody id="capacity-trend-rows"></tbody></table></div></details>
+        <p class="text-muted fs-13 mt-2 mb-0">ثبت‌نام‌های حذف‌شده یا غیرفعال محاسبه نمی‌شوند. آمار بازه، وضعیت فعلی ثبت‌نام‌ها را نشان می‌دهد؛ شروع هفته شنبه است.</p>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="capacity-table-title">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div><h2 class="h6 mb-1" id="capacity-table-title">جزئیات کلاس‌ها و ظرفیت</h2><span class="text-muted fs-13">به ترتیب جدیدترین ایجاد</span></div>
+        <div class="d-flex align-items-center gap-2"><label for="capacity-page-size" class="form-label mb-0 text-nowrap">تعداد ردیف</label><select class="form-select form-select-sm" id="capacity-page-size" name="page_size" form="capacity-filters"><option value="25">۲۵</option><option value="50">۵۰</option><option value="100">۱۰۰</option></select></div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 capacity-table">
+          <caption class="visually-hidden">ظرفیت فعلی و تعداد ثبت‌نام‌های بازهٔ انتخابی برای هر کلاس</caption>
+          <thead class="table-light"><tr><th scope="col">کلاس / برگزاری</th><th scope="col" id="capacity-parent-heading">دوره</th><th scope="col">وضعیت</th><th scope="col">ثبت‌نام فعلی</th><th scope="col">ظرفیت کل</th><th scope="col">باقی‌مانده</th><th scope="col">اشغال ظرفیت</th><th scope="col">ثبت‌نام در بازه</th></tr></thead>
+          <tbody id="capacity-rows"><tr><td colspan="8" class="text-center py-5 text-muted">در حال بارگذاری…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <span id="capacity-page-label" class="text-muted fs-14"></span>
+        <nav aria-label="صفحه‌بندی گزارش ظرفیت" class="d-flex gap-2"><button class="btn btn-outline-secondary btn-sm" type="button" id="capacity-first" disabled>صفحهٔ اول</button><button class="btn btn-outline-primary btn-sm" type="button" id="capacity-prev" disabled>قبلی</button><button class="btn btn-outline-primary btn-sm" type="button" id="capacity-next" disabled>بعدی</button></nav>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/enrollment-capacity.js' %}"></script>
+{% endblock %}

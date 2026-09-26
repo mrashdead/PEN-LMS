@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load asset_v %}
+{% block title %}جزئیات ثبت‌نام{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% asset_v_url 'assets/pen/css/registration-directory.css' %}">{% endblock %}
+{% block page_heading %}
+{% include "partials/page-heading.html" with title="جزئیات ارتباط آموزشی" section="مدیریت ثبت‌نام‌ها" icon="network" subtitle="نمای یکپارچهٔ شخص، دوره، برگزاری و کلاس" %}
+{% endblock %}
+{% block content %}
+{{ registration_page|json_script:"registration-page-context" }}
+<div id="registration-detail-root" class="registration-workspace" aria-busy="true">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+    <h2 id="registration-context-title" class="h5 mb-0">در حال بارگذاری…</h2>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'workspace-enrollments' %}"><i data-lucide="arrow-right" class="size-4 me-1" aria-hidden="true"></i> بازگشت به ثبت‌نام‌ها</a>
+  </div>
+  <div id="registration-detail-error" class="alert alert-danger" role="alert" hidden></div>
+  <button type="button" id="registration-detail-retry" class="btn btn-outline-primary btn-sm mb-3" hidden>تلاش دوباره</button>
+
+  <section id="registration-entity-content" hidden>
+    <section class="card mb-4" aria-labelledby="registration-entity-heading">
+      <div class="card-header"><h3 id="registration-entity-heading" class="h6 mb-0">اطلاعات مرتبط</h3></div>
+      <div class="card-body">
+        <div id="registration-identity" class="registration-identity mb-3"></div>
+        <div id="registration-context-meta" class="registration-context-meta"></div>
+        <dl id="registration-capacity" class="registration-metrics mt-3 mb-0" hidden></dl>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="registration-related-title">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2"><h3 id="registration-related-title" class="h6 mb-0">ثبت‌نام‌ها و اعضا</h3><span id="registration-related-count" class="text-muted fs-13"></span></div>
+      <div class="table-responsive" id="registration-detail-results" aria-busy="true">
+        <table class="table table-hover align-middle mb-0"><caption class="visually-hidden">ثبت‌نام‌ها و عضویت‌های مرتبط</caption><thead class="table-light"><tr><th scope="col">شخص</th><th scope="col">دوره / برگزاری</th><th scope="col">کلاس</th><th scope="col">وضعیت</th><th scope="col">تاریخ</th><th scope="col"><span class="visually-hidden">جزئیات</span></th></tr></thead><tbody id="registration-detail-rows"><tr><td colspan="6" class="text-center py-5 text-muted">در حال بارگذاری…</td></tr></tbody></table>
+      </div>
+    </section>
+  </section>
+
+  <section id="registration-record-content" class="card" aria-labelledby="registration-record-title" hidden>
+    <div class="card-header"><h3 id="registration-record-title" class="h6 mb-0">جزئیات ثبت‌نام</h3></div>
+    <div class="card-body">
+      <div id="registration-record-summary" class="registration-context-meta"></div>
+      <dl id="registration-record-capacity" class="registration-metrics mt-3 mb-4" hidden></dl>
+      <div class="row g-4">
+        <section class="col-12 col-lg-6" aria-labelledby="registration-attendance-title"><h4 id="registration-attendance-title" class="h6">وضعیت حضور</h4><div id="registration-attendance" class="text-muted fs-14">اطلاعات حضور ثبت نشده است.</div></section>
+        <section class="col-12 col-lg-6" aria-labelledby="registration-history-title"><h4 id="registration-history-title" class="h6">تاریخچه</h4><ol id="registration-history" class="pen-timeline mb-0"></ol></section>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block page_js %}<script src="{% asset_v_url 'assets/pen/js/enrollment-directory.js' %}"></script>{% endblock %}

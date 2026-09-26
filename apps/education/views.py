@@ -41,7 +41,11 @@ from apps.core.permissions import (
     ResourceCRUDPermission,
 )
 from apps.core.utils import persian_date
-from apps.academics.scoping import education_sessions_visible_to
+from apps.academics.scoping import (
+    education_courses_visible_to,
+    education_offerings_visible_to,
+    education_sessions_visible_to,
+)
 from apps.education.models import (
     AcademicHoliday,
     AttendanceRecord,
@@ -233,15 +237,19 @@ class LessonRestoreView(SoftRestoreView):
 
 
 class CourseListCreateView(generics.ListCreateAPIView):
-    queryset = Course.objects.all()
     serializer_class = CourseSerializer
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
 
+    def get_queryset(self):
+        return education_courses_visible_to(self.request.user).prefetch_related("lessons")
+
 
 class CourseDetailView(generics.RetrieveUpdateAPIView):
-    queryset = Course.objects.all()
     serializer_class = CourseSerializer
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
+
+    def get_queryset(self):
+        return education_courses_visible_to(self.request.user).prefetch_related("lessons")
 
 
 class CourseSoftDeleteView(SoftDeleteView):
@@ -255,15 +263,19 @@ class CourseRestoreView(SoftRestoreView):
 
 
 class OfferingListCreateView(generics.ListCreateAPIView):
-    queryset = CourseOffering.objects.select_related("course", "location", "instructor")
     serializer_class = CourseOfferingSerializer
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
 
+    def get_queryset(self):
+        return education_offerings_visible_to(self.request.user)
+
 
 class OfferingDetailView(generics.RetrieveUpdateAPIView):
-    queryset = CourseOffering.objects.select_related("course", "location", "instructor")
     serializer_class = CourseOfferingSerializer
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
+
+    def get_queryset(self):
+        return education_offerings_visible_to(self.request.user)
 
 
 class OfferingSoftDeleteView(SoftDeleteView):
@@ -1332,9 +1344,78 @@ class CapacityReportView(APIView):
     permission_classes = (IsActiveUser, IsAcademicManager)
 
     def get(self, request):
-        from apps.education.reports import capacity_report
+        from django.db.models import Count
+        from django.db.models.functions import TruncMonth
+        from rest_framework.exceptions import ValidationError
 
-        return Response({"offerings": capacity_report(user=request.user)})
+        from apps.academics.scoping import class_groups_visible_to
+        from apps.academics.models import ClassEnrollment
+        from apps.core.fields import JalaliDateField
+        from apps.education.models import OfferingEnrollment
+        from apps.education.reports import capacity_report, class_group_capacity_report
+
+        params = request.query_params
+        start = end = None
+        try:
+            if params.get("from"):
+                start = JalaliDateField().run_validation(params["from"])
+            if params.get("to"):
+                end = JalaliDateField().run_validation(params["to"])
+        except ValidationError as exc:
+            return Response({"date": exc.detail}, status=status.HTTP_400_BAD_REQUEST)
+        if start and end and end < start:
+            return Response({"date": "تاریخ پایان باید بعد از شروع باشد."}, status=status.HTTP_400_BAD_REQUEST)
+
+        active = params.get("is_active")
+        active_filter = None if active is None else active.strip().lower() in {"1", "true", "yes"}
+        offerings = capacity_report(
+            user=request.user,
+            course_id=params.get("course") or None,
+            offering_id=params.get("offering") or None,
+            is_active=active_filter,
+        )
+        groups = class_group_capacity_report(
+            user=request.user,
+            term_id=params.get("term") or None,
+            class_group_id=params.get("class_group") or None,
+            is_active=active_filter,
+        )
+
+        offered_enrollments = OfferingEnrollment.objects.filter(
+            is_deleted=False, is_active=True, offering__is_deleted=False,
+        )
+        group_enrollments = class_groups_visible_to(request.user).values("pk")
+        academic_enrollments = ClassEnrollment.objects.filter(
+            class_group_id__in=group_enrollments, is_deleted=False, is_active=True,
+        )
+        if start:
+            offered_enrollments = offered_enrollments.filter(enrolled_at__gte=start)
+            academic_enrollments = academic_enrollments.filter(enrollment_date__gte=start)
+        if end:
+            offered_enrollments = offered_enrollments.filter(enrolled_at__lte=end)
+            academic_enrollments = academic_enrollments.filter(enrollment_date__lte=end)
+        if params.get("course"):
+            offered_enrollments = offered_enrollments.filter(offering__course_id=params["course"])
+        if params.get("offering"):
+            offered_enrollments = offered_enrollments.filter(offering_id=params["offering"])
+        if params.get("class_group"):
+            academic_enrollments = academic_enrollments.filter(class_group_id=params["class_group"])
+        if params.get("term"):
+            academic_enrollments = academic_enrollments.filter(class_group__term_id=params["term"])
+        return Response({
+            "offerings": offerings,
+            "class_groups": groups,
+            "registrations_by_month": {
+                "offerings": list(
+                    offered_enrollments.annotate(month=TruncMonth("enrolled_at"))
+                    .values("month").annotate(total=Count("id")).order_by("month")
+                ),
+                "class_groups": list(
+                    academic_enrollments.annotate(month=TruncMonth("enrollment_date"))
+                    .values("month").annotate(total=Count("id")).order_by("month")
+                ),
+            },
+        })
 
 
 # ─────────────────────────────────────────────────────────────────────────────
