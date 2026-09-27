@@ -5,6 +5,7 @@ from django.urls import path
 
 from apps.core.pages import (
     EnrollmentEntityPage,
+    EnrollmentDirectoryPage,
     EnrollmentPage,
     EnrollmentRecordPage,
     LearnerPortalPage,
@@ -34,6 +35,7 @@ urlpatterns = [
     path("work/", WorkQueuePage.as_view(), name="workspace-work"),
     path("requests/", RequestsPage.as_view(), name="workspace-requests"),
     path("enrollments/", EnrollmentPage.as_view(), name="workspace-enrollments"),
+    path("enrollments/directory/", EnrollmentDirectoryPage.as_view(), name="workspace-enrollment-directory"),
     path("enrollments/records/<str:source>/<uuid:pk>/", EnrollmentRecordPage.as_view(), name="workspace-enrollment-record"),
     path("enrollments/<str:kind>/<uuid:pk>/", EnrollmentEntityPage.as_view(), name="workspace-enrollment-entity"),
     path("org/chart/", OrgChartPage.as_view(), name="workspace-org-chart"),
@@ -51,8 +53,9 @@ urlpatterns = [
     path("locations/", ResourcePage.as_view(), {"resource": "locations"}, name="workspace-locations"),
     path("timetable/", TimetablePage.as_view(), name="workspace-timetable"),
     path("messages/", MessagesPage.as_view(), name="workspace-messages"),
-    path("reports/", ReportsPage.as_view(), name="workspace-reports"),
     path("reports/enrollment-capacity/", EnrollmentCapacityPage.as_view(), name="workspace-enrollment-capacity"),
+    path("reports/", ReportsPage.as_view(), name="workspace-reports"),
+    path("reports/<slug:section>/", ReportsPage.as_view(), name="workspace-report-section"),
     # Teacher portal
     path("teacher/", TeacherDashboardPage.as_view(), name="workspace-teacher"),
     path("teacher/attendance/", TeacherAttendancePage.as_view(), name="workspace-teacher-attendance"),

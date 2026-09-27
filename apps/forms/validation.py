@@ -560,6 +560,28 @@ class FormDataValidator:
         if missing:
             # Deliberately vague: existence and access are indistinguishable.
             self.errors.add(key, "reference is not available to you.")
+            return
+
+        # A lesson recommendation must belong to the selected course. This is
+        # checked server-side as well as filtered in the form UI.
+        course_field = relation.get("course_field")
+        if course_field and registry_key == "academic.lesson":
+            course_id = str(self.data.get(course_field) or "").strip()
+            if not course_id:
+                self.errors.add(key, "ابتدا دوره را انتخاب کنید.")
+                return
+            try:
+                from apps.education.models import Course
+
+                valid_lessons = set(
+                    str(value) for value in Course.objects.filter(
+                        pk=course_id, lessons__pk__in=collected, is_active=True
+                    ).values_list("lessons__pk", flat=True)
+                )
+            except (DjangoValidationError, ValueError, TypeError, FieldError):
+                valid_lessons = set()
+            if any(str(value) not in valid_lessons for value in collected):
+                self.errors.add(key, "این درس در دورهٔ انتخاب‌شده ارائه نمی‌شود.")
 
     def _relation_fallback(self, key, spec, raw):
         fallback_type = spec.fallback.get("type", "text")

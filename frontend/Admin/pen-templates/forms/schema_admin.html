@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load forms_extras %}
-{% block title %}مدیریت فرم‌ها{% endblock %}
+{% block title %}مدیریت الگوهای فرم{% endblock %}
 {% block page_heading %}
   {% url 'schema-admin' as admin_url %}
-  {% include "partials/page-heading.html" with title="مدیریت فرم‌ها" section="فرم‌ها" section_url=admin_url %}
+  {% include "partials/page-heading.html" with title="مدیریت الگوهای فرم" section="فرم‌ها" section_url=admin_url %}
 {% endblock %}
 
 {% block content %}

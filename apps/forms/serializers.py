@@ -36,16 +36,28 @@ class FormSchemaSerializer(serializers.ModelSerializer):
     workflow_code = serializers.SlugRelatedField(
         source="workflow_definition", slug_field="code", read_only=True, allow_null=True,
     )
+    can_submit_on_behalf = serializers.SerializerMethodField()
 
     class Meta:
         model = FormSchema
         fields = (
             "id", "slug", "title", "description", "version", "is_active",
-            "fields_definition", "published_at", "metadata",
+            "fields_definition", "published_at", "metadata", "category", "workflow_config",
+            "can_submit_on_behalf",
             "request_type_code", "request_type_title", "workflow_code",
             "created_at",
         )
         read_only_fields = fields
+
+    def get_can_submit_on_behalf(self, obj) -> bool:
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        config = obj.workflow_config or {}
+        if not user or not config.get("allow_on_behalf"):
+            return False
+        eligible = set(config.get("eligible_initiator_roles") or [])
+        roles = set(user.role_codes()) if hasattr(user, "role_codes") else set()
+        return bool(getattr(user, "is_superuser", False) or (eligible and roles & eligible))
 
 
 class FormSchemaSummarySerializer(serializers.ModelSerializer):
@@ -155,6 +167,8 @@ class FormSubmissionCreateSerializer(serializers.Serializer):
     schema_slug = serializers.SlugField(max_length=120)
     data = serializers.JSONField(required=False, default=dict)
     notes = serializers.CharField(required=False, allow_blank=True, default="", max_length=2000)
+    subject_user_id = serializers.UUIDField(required=False, allow_null=True)
+    is_on_behalf = serializers.BooleanField(required=False, default=False)
 
 
 class RequestTypeSerializer(serializers.ModelSerializer):
@@ -255,6 +269,10 @@ class RequestListSerializer(CRUDActionsMixin, serializers.ModelSerializer):
 
 class RequestDetailSerializer(RequestListSerializer):
     subject_person_id = serializers.UUIDField(read_only=True, allow_null=True)
+    initiator_username = serializers.SlugRelatedField(
+        source="initiator", slug_field="username", read_only=True, allow_null=True,
+    )
+    subject_user_id = serializers.UUIDField(read_only=True, allow_null=True)
     submission_id = serializers.UUIDField(source="form_submission_id", read_only=True, allow_null=True)
     workflow_instance_id = serializers.UUIDField(read_only=True, allow_null=True)
     workflow_status = serializers.SerializerMethodField()
@@ -267,7 +285,8 @@ class RequestDetailSerializer(RequestListSerializer):
 
     class Meta(RequestListSerializer.Meta):
         fields = RequestListSerializer.Meta.fields + (
-            "subject_person_id", "submission_id", "workflow_instance_id",
+            "subject_person_id", "initiator_username", "subject_user_id", "is_on_behalf",
+            "schema_snapshot", "submission_id", "workflow_instance_id",
             "workflow_status", "data", "notes", "form_schema", "history",
             "metadata", "last_action_at", "completed_at",
             "available_transitions", "pending_tasks",
@@ -285,7 +304,7 @@ class RequestDetailSerializer(RequestListSerializer):
         roles = set(user.role_codes()) if hasattr(user, "role_codes") else set()
         if {
             "manager", "workflow_admin"
-        } & roles or obj.requester_id == user.pk:
+        } & roles or obj.requester_id == user.pk or obj.initiator_id == user.pk or obj.subject_user_id == user.pk:
             return data
         subject_user_id = getattr(obj.subject_person, "user_id", None)
         if subject_user_id and subject_user_id == user.pk:
@@ -389,6 +408,8 @@ class RequestCreateSerializer(serializers.Serializer):
     schema_slug = serializers.SlugField(max_length=120)
     data = serializers.JSONField(required=False, default=dict)
     notes = serializers.CharField(required=False, allow_blank=True, default="", max_length=2000)
+    subject_user_id = serializers.UUIDField(required=False, allow_null=True)
+    is_on_behalf = serializers.BooleanField(required=False, default=False)
 
 
 class RequestUpdateSerializer(serializers.Serializer):

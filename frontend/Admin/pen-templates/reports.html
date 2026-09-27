@@ -1,45 +1,35 @@
 {% extends "base.html" %}
 {% load static asset_v %}
 
-{% block title %}مرکز گزارش‌ها و آمار{% endblock %}
+{% block title %}{{ report_page_title }} | گزارش‌ها{% endblock %}
 
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="مرکز گزارش‌ها و آمار" section="مدیریت" %}
+  {% include "partials/page-heading.html" with title=report_page_title section="گزارش‌ها" %}
 {% endblock %}
 
 {% block content %}
 {{ report_endpoints|json_script:"pen-reports-ctx" }}
 {{ report_options|json_script:"pen-report-options" }}
 
-<main class="pen-reports" aria-labelledby="reports-title">
-  <section class="report-hero mb-4" aria-labelledby="reports-title">
-    <div>
-      <span class="report-kicker">تصمیم‌گیری بر پایهٔ داده</span>
-      <h1 id="reports-title" class="report-hero-title">نبض آموزشگاه را یک‌جا ببینید</h1>
-      <p class="report-hero-copy mb-0">شاخص‌های مالی، آموزشی و عملیاتی در بازهٔ انتخابی شما به‌روزرسانی می‌شوند.</p>
-    </div>
-    <div class="report-hero-mark" aria-hidden="true">
-      <span class="report-mark-bar report-mark-bar-one"></span>
-      <span class="report-mark-bar report-mark-bar-two"></span>
-      <span class="report-mark-bar report-mark-bar-three"></span>
-      <span class="report-mark-dot"></span>
-    </div>
-  </section>
+<main class="pen-reports" data-report-page="{{ report_page }}" aria-label="{{ report_page_title }}">
+
+  <nav class="report-nav mb-4" aria-label="بخش‌های گزارش">
+    {% for page in report_pages %}<a href="{{ page.url }}"{% if page.active %} aria-current="page"{% endif %}>{{ page.title }}</a>{% endfor %}
+    {% if can_capacity_report %}<a href="{% url 'workspace-enrollment-capacity' %}">ظرفیت کلاس‌ها</a>{% endif %}
+  </nav>
 
   <section class="card report-toolbar mb-4" aria-labelledby="report-filter-title">
     <div class="card-body">
       <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
         <div>
-          <h2 id="report-filter-title" class="h6 mb-1">بازه و دامنهٔ گزارش</h2>
-          <p class="text-muted fs-14 mb-0">برای بازه‌های شمسی، تاریخ را مانند ۱۴۰۵/۰۶/۲۵ وارد کنید.</p>
+          <h2 id="report-filter-title" class="h6 mb-1">بازهٔ گزارش</h2>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-          <button type="button" class="btn btn-outline-secondary btn-sm" id="report-print"><i data-lucide="printer" class="size-4 me-1"></i> چاپ</button>
-          <button type="button" class="btn btn-primary btn-sm" data-report-export="all"><i data-lucide="file-spreadsheet" class="size-4 me-1"></i> خروجی اکسل</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="report-print">چاپ</button>
+          {% if report_page == "overview" %}<button type="button" class="btn btn-primary btn-sm" data-report-export="all">خروجی کامل</button>{% endif %}
         </div>
       </div>
-      <div class="report-period-switcher d-flex align-items-center gap-2 flex-wrap mb-3" role="group" aria-label="بازه‌های سریع">
-        <span class="text-muted fs-13">بازهٔ سریع:</span>
+      <div class="report-period-switcher d-flex align-items-center gap-2 flex-wrap mb-3" role="group" aria-label="انتخاب بازهٔ زمانی">
         <button type="button" class="btn btn-sm btn-light" data-report-period="month">ماه جاری</button>
         <button type="button" class="btn btn-sm btn-light" data-report-period="quarter">فصل جاری</button>
         <button type="button" class="btn btn-sm btn-light" data-report-period="year">سال جاری</button>
@@ -48,10 +38,12 @@
       <form id="report-filter-form" class="row g-3 align-items-end" novalidate>
         <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="report-from">از تاریخ</label><input id="report-from" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۶/۰۱"></div>
         <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="report-to">تا تاریخ</label><input id="report-to" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۶/۳۱"></div>
-        <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="report-department">دپارتمان</label><select id="report-department" class="form-select"><option value="">همهٔ دپارتمان‌ها</option></select></div>
-        <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="report-course">دوره</label><select id="report-course" class="form-select"><option value="">همهٔ دوره‌ها</option></select></div>
-        <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="report-location">محل آموزش</label><select id="report-location" class="form-select"><option value="">همهٔ محل‌ها</option></select></div>
-        <div class="col-12 col-sm-6 col-xl-2 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit"><i data-lucide="sliders-horizontal" class="size-4 me-1"></i> اعمال فیلتر</button><button class="btn btn-light" type="button" id="report-reset" title="بازنشانی فیلترها" aria-label="بازنشانی فیلترها"><i data-lucide="rotate-ccw" class="size-4"></i></button></div>
+        <div class="col-12 col-sm-6 col-xl-2 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit">به‌روزرسانی</button><button class="btn btn-light" type="button" id="report-reset" title="بازنشانی فیلترها" aria-label="بازنشانی فیلترها"><i data-lucide="rotate-ccw" class="size-4"></i></button></div>
+        <div class="col-12"><details class="report-more-filters"><summary>فیلترهای دقیق <span>دپارتمان، دوره و محل آموزش</span></summary><div class="row g-3 pt-3">
+          <div class="col-12 col-md-4"><label class="form-label" for="report-department">دپارتمان</label><select id="report-department" class="form-select"><option value="">همهٔ دپارتمان‌ها</option></select></div>
+          <div class="col-12 col-md-4"><label class="form-label" for="report-course">دوره</label><select id="report-course" class="form-select"><option value="">همهٔ دوره‌ها</option></select></div>
+          <div class="col-12 col-md-4"><label class="form-label" for="report-location">محل آموزش</label><select id="report-location" class="form-select"><option value="">همهٔ محل‌ها</option></select></div>
+        </div></details></div>
       </form>
       <div id="report-filter-error" class="alert alert-danger py-2 mt-3 mb-0" role="alert" hidden></div>
     </div>
@@ -59,14 +51,22 @@
 
   <div id="report-loading" class="report-loading" role="status" aria-live="polite" hidden><span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span> در حال محاسبهٔ شاخص‌ها…</div>
 
-  <section class="row g-3 mb-4" aria-label="خلاصهٔ شاخص‌ها">
+  <section class="report-summary-kpis row g-3 mb-4" aria-label="خلاصهٔ شاخص‌ها">
     <div class="col-12 col-sm-6 col-xl-3"><article class="report-kpi report-kpi-navy"><div class="report-kpi-icon"><i data-lucide="book-open"></i></div><div><span class="report-kpi-label">دوره‌های فعال</span><strong id="kpi-active-courses">—</strong></div><span class="report-kpi-caption">در دامنهٔ انتخابی</span></article></div>
     <div class="col-12 col-sm-6 col-xl-3"><article class="report-kpi report-kpi-teal"><div class="report-kpi-icon"><i data-lucide="wallet"></i></div><div><span class="report-kpi-label">درآمد کل</span><strong id="kpi-total-revenue">—</strong></div><span class="report-kpi-caption">تومان · فقط مدیریت</span></article></div>
     <div class="col-12 col-sm-6 col-xl-3"><article class="report-kpi report-kpi-saffron"><div class="report-kpi-icon"><i data-lucide="users"></i></div><div><span class="report-kpi-label">دانش‌آموز فعال</span><strong id="kpi-active-students">—</strong></div><span class="report-kpi-caption">تمام نقش‌های ثبت‌شده</span></article></div>
     <div class="col-12 col-sm-6 col-xl-3"><article class="report-kpi report-kpi-plum"><div class="report-kpi-icon"><i data-lucide="gauge"></i></div><div><span class="report-kpi-label">اشغال ظرفیت کلاس</span><strong id="kpi-class-utilization">—</strong></div><span class="report-kpi-caption">بر اساس ظرفیت اسمی</span></article></div>
   </section>
 
-  <section id="financial-section" class="mb-4" aria-labelledby="financial-title">
+  <section class="report-index mb-4" aria-labelledby="report-index-title">
+    <h2 id="report-index-title" class="h5 mb-3">انتخاب گزارش</h2>
+    <div class="report-index-grid">
+      {% for page in report_pages %}{% if page.key != "overview" %}<a class="report-index-link" href="{{ page.url }}"><span>{{ page.title }}</span><small>{{ page.description }}</small></a>{% endif %}{% endfor %}
+      {% if can_capacity_report %}<a class="report-index-link" href="{% url 'workspace-enrollment-capacity' %}"><span>ظرفیت کلاس‌ها</span><small>ظرفیت باقی‌مانده و روند ثبت‌نام</small></a>{% endif %}
+    </div>
+  </section>
+
+  <section id="financial-section" data-report-section="financial" class="mb-4" aria-labelledby="financial-title">
     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="financial-title" class="report-section-title mb-1">مالی و درآمد</h2><p class="text-muted fs-14 mb-0">جریان درآمد و مطالبات در دورهٔ انتخابی</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="financial"><i data-lucide="download" class="size-4 me-1"></i> خروجی مالی</button></div>
     <div id="financial-locked" class="alert alert-warning d-flex gap-2 align-items-center" hidden><i data-lucide="lock-keyhole" class="size-5"></i><span>جزئیات مالی فقط برای مدیر سیستم و مدیریت نمایش داده می‌شود.</span></div>
     <div id="financial-content" class="row g-3">
@@ -79,12 +79,11 @@
   </section>
 
   {% if can_capacity_report %}
-  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-    <p class="text-muted mb-0">برای بررسی همهٔ کلاس‌ها، ظرفیت باقی‌مانده و روند ثبت‌نام:</p>
-    <a class="btn btn-outline-primary" href="{% url 'workspace-enrollment-capacity' %}">گزارش ثبت‌نام و ظرفیت کلاس‌ها</a>
+  <div data-report-section="enrollments" class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <a class="report-secondary-link" href="{% url 'workspace-enrollment-capacity' %}">جزئیات ظرفیت کلاس‌ها</a>
   </div>
   {% endif %}
-  <section class="mb-4" aria-labelledby="enrollment-title">
+  <section data-report-section="enrollments" class="mb-4" aria-labelledby="enrollment-title">
     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="enrollment-title" class="report-section-title mb-1">ثبت‌نام و عملکرد دوره‌ها</h2><p class="text-muted fs-14 mb-0">ظرفیت، محبوبیت و وضعیت برگزاری‌ها</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="enrollments"><i data-lucide="download" class="size-4 me-1"></i> خروجی ثبت‌نام</button></div>
     <div class="row g-3">
       <div class="col-12 col-xl-7"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">پرتقاضاترین برگزاری‌ها</h3></div><div class="card-body p-0"><div class="table-responsive"><table class="table report-table align-middle mb-0"><thead><tr><th>برگزاری</th><th>ثبت‌نام</th><th>ظرفیت</th><th>اشغال</th></tr></thead><tbody id="popular-course-rows"><tr><td colspan="4"><div class="pen-loading">در حال بارگذاری…</div></td></tr></tbody></table></div></div></article></div>
@@ -92,7 +91,7 @@
     </div>
   </section>
 
-  <section class="mb-4" aria-labelledby="people-title">
+  <section data-report-section="people" class="mb-4" aria-labelledby="people-title">
     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="people-title" class="report-section-title mb-1">افراد و مدرسان</h2><p class="text-muted fs-14 mb-0">روند جذب و بار تدریس تیم آموزشی</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="people"><i data-lucide="download" class="size-4 me-1"></i> دریافت گزارش افراد</button></div>
     <div class="row g-3">
       <div class="col-12 col-xl-5"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">ترکیب افراد بر اساس نقش</h3></div><div class="card-body"><div id="chart-people" class="report-chart" aria-label="نمودار ترکیب افراد"></div></div></article></div>
@@ -101,7 +100,7 @@
     </div>
   </section>
 
-  <section class="mb-4" aria-labelledby="classes-title">
+  <section data-report-section="classes" class="mb-4" aria-labelledby="classes-title">
     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="classes-title" class="report-section-title mb-1">کلاس‌ها، جلسات و فضاها</h2><p class="text-muted fs-14 mb-0">بهره‌وری محل‌ها و کیفیت حضور در جلسات</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="classes"><i data-lucide="download" class="size-4 me-1"></i> خروجی کلاس‌ها</button></div>
     <div class="row g-3">
       <div class="col-12 col-xl-5"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">جلسات برگزارشده و معوقه</h3></div><div class="card-body"><div id="chart-sessions" class="report-chart" aria-label="نمودار وضعیت جلسات"></div></div></article></div>
@@ -110,7 +109,7 @@
     </div>
   </section>
 
-  <section class="mb-4" aria-labelledby="workflow-title">
+  <section data-report-section="workflow" class="mb-4" aria-labelledby="workflow-title">
     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="workflow-title" class="report-section-title mb-1">درخواست‌ها و گلوگاه‌های کاری</h2><p class="text-muted fs-14 mb-0">وضعیت کارتابل و زمان پاسخگویی فرآیندها</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="workflow"><i data-lucide="download" class="size-4 me-1"></i> خروجی درخواست‌ها</button></div>
     <div class="row g-3">
       <div class="col-12 col-xl-5"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">شاخص پاسخگویی</h3></div><div class="card-body"><div class="report-response-metric"><strong id="workflow-response-hours">—</strong><span>ساعت میانگین تا اولین پاسخ</span></div><div class="report-inline-metrics"><div><span>در انتظار بررسی</span><strong id="workflow-pending">—</strong></div><div><span>درخواست‌های پاسخ‌داده‌شده</span><strong id="workflow-responded">—</strong></div></div><div id="workflow-status-rows" class="report-inline-metrics mt-3" aria-label="تفکیک وضعیت درخواست‌ها"></div></div></article></div>
@@ -118,8 +117,7 @@
     </div>
   </section>
 
-  <section class="mb-4" aria-labelledby="communications-title">
-  <section class="mb-4" aria-labelledby="workflow-requests-title">
+  <section data-report-section="requests" class="mb-4" aria-labelledby="workflow-requests-title">
     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="workflow-requests-title" class="report-section-title mb-1">جزئیات درخواست‌ها</h2><p class="text-muted fs-14 mb-0">ثبت‌کننده، مرحلهٔ جاری، مسئول اقدام و تاریخچهٔ تصمیم‌ها</p></div><span class="badge rounded-pill text-bg-light" id="workflow-request-count">—</span></div>
     <article class="card report-panel">
       <div class="card-body">
@@ -146,7 +144,7 @@
     </article>
   </section>
 
-  <section class="mb-4" aria-labelledby="communications-title">
+  <section data-report-section="communications" class="mb-4" aria-labelledby="communications-title">
     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="communications-title" class="report-section-title mb-1">ارتباطات و اعلان‌ها</h2><p class="text-muted fs-14 mb-0">حجم پیام‌ها و وضعیت ارسال در کانال‌های ارتباطی</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="communications"><i data-lucide="download" class="size-4 me-1"></i> خروجی ارتباطات</button></div>
     <div class="row g-3">
       <div class="col-12 col-md-5"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">نمای کلی ارتباطات</h3></div><div class="card-body"><div class="report-finance-stats"><div><span>کل اعلان‌ها</span><strong id="communications-total">—</strong></div><div><span>خوانده‌نشده درون‌برنامه</span><strong id="communications-unread">—</strong></div></div></div></article></div>

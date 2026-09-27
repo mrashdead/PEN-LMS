@@ -8,28 +8,9 @@
 
 {% block content %}
 <div class="lead-workspace" data-lead-app data-lead-mode="teacher">
-  <section class="lead-hero mb-4" aria-labelledby="teacher-lead-title">
-    <div>
-      <span class="lead-kicker">صف اختصاصی استاد</span>
-      <h1 id="teacher-lead-title">جلسه‌ها و ارزیابی‌های من</h1>
-      <p class="mb-0">فقط لیدهایی را می‌بینید که برای تعیین سطح به شما سپرده شده‌اند. نتیجه را پس از جلسه ثبت کنید.</p>
-    </div>
-    <div class="lead-hero-flow" aria-label="مراحل کار استاد">
-      <span class="is-active">مشاهده نوبت</span><i data-lucide="chevron-left" aria-hidden="true"></i>
-      <span>ثبت ارزیابی</span><i data-lucide="chevron-left" aria-hidden="true"></i>
-      <span>بازگشت به کارمند</span>
-    </div>
-  </section>
-
-  <div class="row g-3 mb-4" aria-label="خلاصهٔ تعیین‌سطح‌های من">
-    <div class="col-12 col-md-4"><div class="lead-stat"><span class="lead-stat-icon lead-stat-blue"><i data-lucide="clipboard-list" aria-hidden="true"></i></span><div><strong>{{ lead_count }}</strong><small>کل ارجاع‌ها</small></div></div></div>
-    <div class="col-12 col-md-4"><div class="lead-stat"><span class="lead-stat-icon lead-stat-amber"><i data-lucide="calendar-clock" aria-hidden="true"></i></span><div><strong>{{ lead_pending_count }}</strong><small>در انتظار ارزیابی</small></div></div></div>
-    <div class="col-12 col-md-4"><div class="lead-stat"><span class="lead-stat-icon lead-stat-green"><i data-lucide="clipboard-check" aria-hidden="true"></i></span><div><strong>{{ lead_completed_count }}</strong><small>نتیجه ثبت‌شده</small></div></div></div>
-  </div>
-
   <section class="card lead-queue-card" aria-labelledby="teacher-lead-queue-title">
     <div class="card-header lead-queue-header">
-      <div><h2 id="teacher-lead-queue-title" class="h6 mb-1 card-title">صف تعیین سطح</h2><p class="lead-muted mb-0">برای دیدن اطلاعات جلسه و ثبت نتیجه، نوبت را باز کنید.</p></div>
+      <h2 id="teacher-lead-queue-title" class="h6 mb-0 card-title">صف تعیین سطح</h2>
       <button type="button" id="lead-refresh" class="btn btn-light btn-sm" aria-label="به‌روزرسانی صف تعیین سطح"><i data-lucide="refresh-cw" class="size-4" aria-hidden="true"></i></button>
     </div>
     <div class="lead-filters" role="group" aria-label="فیلتر تعیین‌سطح‌ها">

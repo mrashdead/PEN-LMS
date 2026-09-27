@@ -1,366 +1,42 @@
-/*
- * Pen LMS — unified business requests.
- *
- * This page speaks only to /api/forms/requests/. FormSubmission remains the
- * storage projection behind a request, but the browser renders the business
- * contract: request type, lifecycle, current stage, assigned work and the
- * server-authorized transitions.
- */
+/* Pen LMS — request center. Form schemas remain the source of truth. */
 (function () {
   'use strict';
-
   var API = '/api/forms/requests/';
-  var params = new URLSearchParams(window.location.search);
-  var selectedId = params.get('id');
-  var state = { status: '', search: '', page: 1 };
+  var SCHEMAS = '/api/forms/schemas/';
+  var state = { status: '', search: '', page: 1, category: 'all', schemas: [] };
+  var selectedId = new URLSearchParams(window.location.search).get('id');
   var actionState = null;
-
-  var STATUS_LABELS = {
-    draft: 'پیش‌نویس', submitted: 'ارسال‌شده', in_review: 'در بررسی',
-    awaiting_action: 'منتظر اقدام', changes_requested: 'نیازمند اصلاح',
-    approved: 'تأییدشده', rejected: 'ردشده', cancelled: 'لغوشده',
-    completed: 'تکمیل‌شده', blocked_assignment: 'بدون مسئول', archived: 'بایگانی‌شده',
+  var STATUS_LABELS = { draft: 'پیش‌نویس', submitted: 'ارسال‌شده', in_review: 'در بررسی', awaiting_action: 'منتظر اقدام', changes_requested: 'نیازمند اصلاح', approved: 'تأییدشده', rejected: 'ردشده', completed: 'تکمیل‌شده', cancelled: 'لغوشده', archived: 'بایگانی‌شده' };
+  var STATUS_BADGE = { draft: 'pen-badge-draft', submitted: 'pen-badge-submitted', in_review: 'pen-badge-processing', awaiting_action: 'pen-badge-processing', changes_requested: 'pen-badge-processing', approved: 'pen-badge-approved', completed: 'pen-badge-approved', rejected: 'pen-badge-rejected', cancelled: 'pen-badge-archived', archived: 'pen-badge-archived' };
+  var ACTION_META = { approve: ['تأیید', 'btn-success', 'check', false], reject: ['رد', 'btn-danger', 'x', true], return: ['برگشت برای اصلاح', 'btn-warning', 'undo-2', true], request_changes: ['درخواست اصلاح', 'btn-warning', 'undo-2', true], complete: ['اتمام', 'btn-primary', 'flag', false], submit: ['ارسال', 'btn-primary', 'send', false], cancel: ['لغو درخواست', 'btn-outline-danger', 'ban', true] };
+  var CATEGORY_META = {
+    persons: { title: 'افراد', icon: 'users' },
+    departments: { title: 'دپارتمان‌ها', icon: 'building-2' },
+    courses: { title: 'درس‌ها و دوره‌ها', icon: 'book-open' },
+    classes: { title: 'برگزاری‌ها و کلاس‌ها', icon: 'presentation' },
+    messages: { title: 'پیام‌ها', icon: 'messages-square' },
+    general: { title: 'سایر خدمات', icon: 'sparkles' }
   };
-  var STATUS_BADGE = {
-    draft: 'pen-badge-draft', submitted: 'pen-badge-submitted',
-    in_review: 'pen-badge-processing', awaiting_action: 'pen-badge-processing',
-    changes_requested: 'pen-badge-processing', approved: 'pen-badge-approved',
-    rejected: 'pen-badge-rejected', cancelled: 'pen-badge-archived',
-    completed: 'pen-badge-approved', blocked_assignment: 'pen-badge-rejected',
-    archived: 'pen-badge-archived',
-  };
-  var ACTION_META = {
-    approve: { label: 'تأیید', btn: 'btn-success', icon: 'check', comment: 'optional' },
-    reject: { label: 'رد', btn: 'btn-danger', icon: 'x', comment: 'required' },
-    return: { label: 'برگشت برای اصلاح', btn: 'btn-warning', icon: 'undo-2', comment: 'required' },
-    request_changes: { label: 'درخواست اصلاح', btn: 'btn-warning', icon: 'undo-2', comment: 'required' },
-    complete: { label: 'اتمام', btn: 'btn-primary', icon: 'flag', comment: 'optional' },
-    submit: { label: 'ارسال', btn: 'btn-primary', icon: 'send', comment: 'optional' },
-    cancel: { label: 'لغو درخواست', btn: 'btn-outline-danger', icon: 'ban', comment: 'required' },
-  };
-  var WORKFLOW_STATUS_LABELS = {
-    running: 'در حال اجرا', completed: 'تکمیل‌شده', rejected: 'ردشده',
-    cancelled: 'لغوشده', '': 'شروع نشده',
-  };
-
-  var $listView = document.getElementById('req-list-view');
-  var $detailView = document.getElementById('req-detail-view');
-
-  function esc(value) {
-    return window.htmlEscape ? window.htmlEscape(value) : String(value == null ? '' : value)
-      .replace(/[&<>"']/g, function (ch) {
-        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[ch];
-      });
-  }
-
-  function headers(json) {
-    return Object.assign(
-      json ? { 'Content-Type': 'application/json' } : {},
-      window.penCsrfHeader ? window.penCsrfHeader() : {}
-    );
-  }
-
-  function notify(message, kind) {
-    if (window.penToast) window.penToast(message, kind || 'info');
-    else window.alert(message);
-  }
-
-  function icons() {
-    if (window.penRenderIcons) window.penRenderIcons();
-  }
-
-  function fetchJson(url, options) {
-    var config = Object.assign({ credentials: 'same-origin' }, options || {});
-    config.headers = Object.assign({}, headers(!!config.body), config.headers || {});
-    return fetch(url, config).then(function (response) {
-      return response.json().catch(function () { return {}; }).then(function (body) {
-        if (!response.ok) {
-          var error = body.error || body.detail || body.message || ('خطا (' + response.status + ')');
-          throw new Error(Array.isArray(error) ? error.join('؛ ') : String(error));
-        }
-        return body;
-      });
-    });
-  }
-
-  function postJson(url, body) {
-    var key = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random();
-    return fetchJson(url, {
-      method: 'POST',
-      headers: { 'Idempotency-Key': key },
-      body: JSON.stringify(body || {}),
-    });
-  }
-
-  function statusLabel(status) { return STATUS_LABELS[status] || status || '—'; }
-  function statusBadge(status) { return STATUS_BADGE[status] || 'pen-badge-draft'; }
-
-  function actionMeta(transition) {
-    var name = String(transition.name || '').toLowerCase();
-    var kind = String(transition.kind || '').toLowerCase();
-    if (ACTION_META[kind]) return ACTION_META[kind];
-    for (var key in ACTION_META) {
-      if (name.indexOf(key) !== -1) return ACTION_META[key];
-    }
-    return {
-      label: transition.name || 'اقدام',
-      btn: 'btn-outline-primary',
-      icon: 'arrow-left-right',
-      comment: transition.requires_comment ? 'required' : 'optional',
-    };
-  }
-
-  function displayValue(value) {
-    if (value == null || value === '') return '—';
-    if (Array.isArray(value)) return value.map(displayValue).join('، ');
-    if (typeof value === 'object') return JSON.stringify(value, null, 2);
-    return String(value);
-  }
-
-  function schemaFieldMap(schema) {
-    var map = {};
-    (schema && schema.fields || []).forEach(function (field) {
-      if (field && field.key) map[field.key] = field.label || field.key;
-    });
-    return map;
-  }
-
-  function renderRequestData(request) {
-    var data = request.data || {};
-    var labels = schemaFieldMap(request.form_schema);
-    var keys = Object.keys(data);
-    var html = '';
-    if (request.form_schema) {
-      html += '<div class="d-flex flex-wrap align-items-center gap-2 mb-3">' +
-        '<span class="badge bg-primary-subtle text-primary">' + esc(request.form_schema.title) + '</span>' +
-        '<span class="text-muted fs-13">نسخه ' + esc(request.form_schema.version) + '</span>' +
-        (request.submission_id ? '<a class="btn btn-sm btn-outline-secondary ms-auto" href="/forms/submissions/' + esc(request.submission_id) + '/">جزئیات فرم و پیوست‌ها</a>' : '') +
-        '</div>';
-    }
-    if (keys.length) {
-      html += '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><tbody>';
-      keys.forEach(function (key) {
-        html += '<tr><th scope="row" class="fw-normal text-muted" style="width:34%">' +
-          esc(labels[key] || key) + '</th><td><span class="text-break">' + esc(displayValue(data[key])) + '</span></td></tr>';
-      });
-      html += '</tbody></table></div>';
-    } else {
-      html += '<div class="pen-empty py-4"><i data-lucide="file-question" class="size-7 opacity-50"></i><p class="mb-0 mt-2">اطلاعاتی در فرم ثبت نشده است.</p></div>';
-    }
-    if (request.notes) {
-      html += '<div class="alert alert-light border mt-3 mb-0"><strong>یادداشت:</strong> ' + esc(request.notes) + '</div>';
-    }
-    return html;
-  }
-
-  function renderHistory(history) {
-    if (!history || !history.length) {
-      return '<li class="text-muted fs-14">هنوز اقدامی در گردش‌کار ثبت نشده است.</li>';
-    }
-    return history.map(function (item) {
-      var state = item.to_state_title || item.to_state_code || '';
-      return '<li class="pen-timeline-item">' +
-        '<div class="fw-semibold fs-14">' + esc(item.action) +
-        (state ? ' <span class="text-muted">→ ' + esc(state) + '</span>' : '') + '</div>' +
-        '<div class="fs-13 text-muted">' + esc(item.actor_username || 'سامانه') +
-        ' · ' + esc(item.created_at || '—') + '</div>' +
-        (item.comment ? '<div class="fs-14 mt-1 p-2 rounded bg-body-tertiary">' + esc(item.comment) + '</div>' : '') +
-        '</li>';
-    }).join('');
-  }
-
-  function renderPeople(request) {
-    var people = ['<li><span class="text-muted fs-13">درخواست‌دهنده</span><br><strong>' +
-      esc(request.requester_username || '—') + '</strong></li>'];
-    (request.pending_tasks || []).forEach(function (task) {
-      people.push('<li><span class="text-muted fs-13">مسئول مرحلهٔ ' + esc(task.state_title || task.state_code) +
-        '</span><br><strong>' + esc(task.assignee_username || '—') + '</strong></li>');
-    });
-    return people.join('');
-  }
-
-  function actionButton(action, meta, transition) {
-    return '<button type="button" class="btn ' + meta.btn + ' w-100" data-request-action="' + esc(action) + '"' +
-      (transition ? ' data-transition-id="' + esc(transition.id) + '" data-requires-comment="' + (!!transition.requires_comment) + '"' : '') + '>' +
-      '<i data-lucide="' + esc(meta.icon) + '" class="size-4 me-1"></i>' + esc(meta.label) + '</button>';
-  }
-
-  function renderActions(request) {
-    var $box = document.getElementById('rd-actions');
-    $box.innerHTML = '';
-    var actions = request.actions || {};
-    if (actions.edit && request.submission_id) {
-      $box.insertAdjacentHTML('beforeend',
-        '<a class="btn btn-outline-primary w-100" href="/forms/submissions/' + esc(request.submission_id) + '/edit/">' +
-        '<i data-lucide="pencil" class="size-4 me-1"></i> ویرایش و اصلاح فرم</a>');
-    }
-    if (actions.submit) $box.insertAdjacentHTML('beforeend', actionButton('submit', ACTION_META.submit, null));
-    (request.available_transitions || []).forEach(function (transition) {
-      $box.insertAdjacentHTML('beforeend', actionButton('transition', actionMeta(transition), transition));
-    });
-    if (!$box.children.length) {
-      $box.innerHTML = '<p class="text-muted mb-0 fs-14">اقدامی برای شما مجاز نیست.</p>';
-    }
-    $box.querySelectorAll('[data-request-action]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        openAction(button.dataset.requestAction, button.dataset.transitionId || null, button.dataset.requiresComment === 'true');
-      });
-    });
-  }
-
-  function openAction(action, transitionId, requiresComment) {
-    actionState = { action: action, transitionId: transitionId, requiresComment: requiresComment };
-    var meta = action === 'submit' ? ACTION_META.submit : (action === 'cancel' ? ACTION_META.cancel : { label: 'اقدام گردش‌کار' });
-    var transition = (window.__PEN_REQUEST_TRANSITIONS__ || []).filter(function (item) { return item.id === transitionId; })[0];
-    if (transition) meta = actionMeta(transition);
-    document.getElementById('action-label').textContent = meta.label;
-    document.getElementById('action-hint').textContent = requiresComment ? 'برای این اقدام توضیح الزامی است.' : 'در صورت نیاز توضیح خود را ثبت کنید.';
-    document.getElementById('action-comment').value = '';
-    document.getElementById('action-error').hidden = true;
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('action-modal')).show();
-  }
-
-  function failure(message) {
-    var $error = document.getElementById('action-error');
-    $error.querySelector('ul').innerHTML = '<li>' + esc(message) + '</li>';
-    $error.hidden = false;
-  }
-
-  function executeAction() {
-    if (!actionState || !selectedId) return;
-    var comment = document.getElementById('action-comment').value.trim();
-    if (actionState.requiresComment && !comment) {
-      failure('ثبت توضیح برای این اقدام الزامی است.');
-      return;
-    }
-    var $button = document.getElementById('action-confirm');
-    $button.disabled = true;
-    var url = API + selectedId + '/';
-    var payload = {};
-    if (actionState.action === 'submit') url += 'submit/';
-    else if (actionState.action === 'cancel') {
-      url += 'cancel/';
-      payload.reason = comment;
-    } else {
-      url += 'transition/';
-      payload.transition_id = actionState.transitionId;
-      payload.comment = comment;
-    }
-    postJson(url, payload).then(function () {
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('action-modal')).hide();
-      openDetail(selectedId);
-      notify('اقدام با موفقیت ثبت شد.', 'success');
-    }).catch(function (error) {
-      failure(error.message);
-    }).finally(function () {
-      $button.disabled = false;
-    });
-  }
-
-  function renderListPage(data) {
-    var $list = document.getElementById('req-list');
-    var rows = data.results || [];
-    if (!rows.length) {
-      $list.innerHTML = '<div class="card"><div class="pen-empty"><i data-lucide="inbox" class="size-8 opacity-50"></i><p class="mb-0 mt-2">درخواستی با این مشخصات یافت نشد.</p></div></div>';
-      return;
-    }
-    $list.innerHTML = rows.map(function (request) {
-      var title = request.request_type_title || request.request_type_code || 'درخواست';
-      var stage = request.current_state_title || request.current_state_code ?
-        'مرحله: ' + (request.current_state_title || request.current_state_code) : 'هنوز وارد گردش‌کار نشده است';
-      var number = request.tracking_number || request.request_number || request.id;
-      return '<a class="card text-decoration-none wq-card" href="/workspace/requests/?id=' + encodeURIComponent(request.id) + '">' +
-        '<div class="card-body d-flex flex-wrap align-items-center gap-3 py-3">' +
-        '<div class="avatar size-10 rounded bg-primary-subtle text-primary flex-shrink-0"><i data-lucide="file-clock" class="size-5"></i></div>' +
-        '<div class="flex-grow-1 overflow-hidden"><div class="fw-semibold text-truncate">' + esc(title) + '</div>' +
-        '<div class="fs-13 text-muted text-truncate">' + esc(number) + ' · ' + esc(stage) + '</div>' +
-        '<div class="fs-13 text-muted">درخواست‌دهنده: ' + esc(request.requester_username || '—') + ' · ' + esc(request.created_at || '—') + '</div></div>' +
-        '<span class="pen-badge ' + statusBadge(request.status) + '">' + esc(statusLabel(request.status)) + '</span>' +
-        '<i data-lucide="chevron-left" class="size-4 text-muted"></i></div></a>';
-    }).join('');
-
-    var $pager = document.getElementById('req-pager');
-    $pager.innerHTML = '';
-    [['قبلی', data.previous, -1], ['بعدی', data.next, 1]].forEach(function (item) {
-      var li = document.createElement('li');
-      li.className = 'page-item' + (item[1] ? '' : ' disabled');
-      li.innerHTML = '<a class="page-link" href="#">' + item[0] + '</a>';
-      if (item[1]) li.querySelector('a').addEventListener('click', function (event) {
-        event.preventDefault();
-        state.page = Math.max(1, state.page + item[2]);
-        loadList();
-      });
-      $pager.appendChild(li);
-    });
-  }
-
-  function loadList() {
-    var $list = document.getElementById('req-list');
-    $list.setAttribute('aria-busy', 'true');
-    $list.innerHTML = '<div class="pen-loading">در حال بارگذاری درخواست‌ها…</div>';
-    var query = new URLSearchParams({ page: state.page });
-    if (state.status) query.set('status', state.status);
-    if (state.search) query.set('search', state.search);
-    fetchJson(API + '?' + query.toString()).then(renderListPage).catch(function (error) {
-      $list.innerHTML = '<div class="alert alert-danger" role="alert">' + esc(error.message) + '</div>';
-    }).finally(function () {
-      $list.removeAttribute('aria-busy');
-      icons();
-    });
-  }
-
-  function openDetail(id) {
-    selectedId = id;
-    if ($listView) $listView.hidden = true;
-    if ($detailView) $detailView.hidden = false;
-    document.getElementById('rd-title').textContent = 'در حال بارگذاری…';
-    fetchJson(API + id + '/').then(function (request) {
-      var title = request.request_type_title || request.request_type_code || 'درخواست';
-      document.getElementById('rd-title').textContent = title;
-      var badge = document.getElementById('rd-status');
-      badge.className = 'pen-badge ' + statusBadge(request.status);
-      badge.textContent = statusLabel(request.status);
-      document.getElementById('rd-meta').textContent =
-        (request.tracking_number || request.request_number || '—') + ' · درخواست‌دهنده: ' +
-        (request.requester_username || '—') + ' · ثبت: ' + (request.created_at || '—');
-      document.getElementById('rd-whonow-text').innerHTML =
-        'مرحلهٔ فعلی: <strong>' + esc(request.current_state_title || request.current_state_code || 'پیش‌نویس') + '</strong>' +
-        ' · وضعیت گردش‌کار: <strong>' + esc(WORKFLOW_STATUS_LABELS[request.workflow_status] || request.workflow_status || 'شروع نشده') + '</strong>';
-      document.getElementById('rd-info').innerHTML = renderRequestData(request);
-      document.getElementById('rd-timeline').innerHTML = renderHistory(request.history);
-      document.getElementById('rd-people').innerHTML = renderPeople(request);
-      var cancelButton = document.getElementById('rd-cancel');
-      cancelButton.hidden = !(request.actions && request.actions.cancel);
-      cancelButton.onclick = function () { openAction('cancel', null, true); };
-      window.__PEN_REQUEST_TRANSITIONS__ = request.available_transitions || [];
-      renderActions(request);
-      icons();
-    }).catch(function (error) {
-      notify(error.message, 'danger');
-    });
-  }
-
-  var $confirm = document.getElementById('action-confirm');
-  if ($confirm) $confirm.addEventListener('click', executeAction);
-  var $search = document.getElementById('req-search');
-  if ($search) {
-    var timer = null;
-    $search.addEventListener('input', function () {
-      clearTimeout(timer);
-      timer = setTimeout(function () {
-        state.search = $search.value.trim();
-        state.page = 1;
-        loadList();
-      }, 250);
-    });
-  }
-  var $status = document.getElementById('req-status');
-  if ($status) $status.addEventListener('change', function () {
-    state.status = this.value;
-    state.page = 1;
-    loadList();
-  });
-
-  if (selectedId) openDetail(selectedId);
-  else if ($listView) loadList();
+  function esc(v) { return window.htmlEscape ? window.htmlEscape(v) : String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[c]; }); }
+  function icons() { if (window.penRenderIcons) window.penRenderIcons(); }
+  function headers(json) { return Object.assign(json ? { 'Content-Type': 'application/json' } : {}, window.penCsrfHeader ? window.penCsrfHeader() : {}); }
+  function fetchJson(url, options) { var cfg = Object.assign({ credentials: 'same-origin' }, options || {}); cfg.headers = Object.assign({}, headers(!!cfg.body), cfg.headers || {}); return fetch(url, cfg).then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.error || b.detail || ('خطا (' + r.status + ')')); return b; }); }); }
+  function postJson(url, body) { return fetchJson(url, { method: 'POST', headers: { 'Idempotency-Key': (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())) }, body: JSON.stringify(body || {}) }); }
+  function statusLabel(s) { return STATUS_LABELS[s] || s || '—'; }
+  function statusBadge(s) { return STATUS_BADGE[s] || 'pen-badge-draft'; }
+  function slugText(schema) { return ((schema.slug || '') + ' ' + (schema.title || '') + ' ' + (schema.request_type_title || '')).toLowerCase(); }
+  function categoryFor(schema) { return CATEGORY_META[schema.category] ? schema.category : 'general'; }
+  function switchTab(tab) { document.querySelectorAll('[data-request-tab]').forEach(function (el) { el.classList.toggle('is-active', el.dataset.requestTab === tab); if (el.getAttribute('role') === 'tab') el.setAttribute('aria-selected', el.dataset.requestTab === tab ? 'true' : 'false'); }); document.getElementById('request-new-panel').hidden = tab !== 'new'; document.getElementById('request-mine-panel').hidden = !['mine','drafts','completed'].includes(tab); document.getElementById('request-work-panel').hidden = tab !== 'work'; document.getElementById('request-filter-panel').hidden = true; document.getElementById('req-detail-view').hidden = true; if (tab === 'mine') { state.status = ''; loadList(); } else if (tab === 'drafts') { state.status = 'draft'; loadList(); } else if (tab === 'completed') { state.status = 'completed'; loadList(); } else if (tab === 'work') loadWork(); }
+  function renderCategories() { var counts = { all: state.schemas.length }; state.schemas.forEach(function (s) { var k = categoryFor(s); counts[k] = (counts[k] || 0) + 1; }); var html = '<button type="button" class="pen-category is-active" data-category="all"><i data-lucide="layers-3" class="size-5"></i><span>همه خدمات</span><b>' + counts.all + '</b></button>'; Object.keys(CATEGORY_META).forEach(function (k) { html += '<button type="button" class="pen-category" data-category="' + k + '"><i data-lucide="' + CATEGORY_META[k].icon + '" class="size-5"></i><span>' + CATEGORY_META[k].title + '</span><b>' + (counts[k] || 0) + '</b></button>'; }); document.getElementById('request-categories').innerHTML = html; document.querySelectorAll('[data-category]').forEach(function (b) { b.onclick = function () { state.category = b.dataset.category; document.querySelectorAll('[data-category]').forEach(function (x) { x.classList.toggle('is-active', x === b); }); renderSchemas(); }; }); icons(); }
+  function renderSchemas() { var q = (document.getElementById('schema-search').value || '').toLowerCase().trim(); var rows = state.schemas.filter(function (s) { return (state.category === 'all' || categoryFor(s) === state.category) && (!q || slugText(s).indexOf(q) !== -1); }); var box = document.getElementById('request-schemas'); if (!rows.length) { box.innerHTML = '<div class="pen-empty py-5"><i data-lucide="file-search" class="size-8 opacity-50"></i><p class="mb-0 mt-2">فرمی برای این دسته پیدا نشد.</p></div>'; icons(); return; } box.innerHTML = rows.map(function (s) { var fields = s.fields_definition || []; var mode = (s.workflow_config || {}).execution_mode || (s.workflow_code ? 'workflow' : 'direct'); var hasWorkflow = mode === 'workflow'; var allowOnBehalf = !!s.can_submit_on_behalf; return '<a class="pen-schema-card" href="/forms/submissions/new/' + encodeURIComponent(s.slug) + '/"><div class="pen-schema-icon"><i data-lucide="' + CATEGORY_META[categoryFor(s)].icon + '" class="size-5"></i></div><div class="flex-grow-1"><div class="d-flex align-items-center gap-2"><h3>' + esc(s.title) + '</h3><span class="pen-schema-arrow"><i data-lucide="arrow-up-left" class="size-4"></i></span></div><p>' + esc(s.description || 'ثبت اطلاعات و آغاز گردش کار') + '</p><div class="d-flex flex-wrap gap-2"><span class="pen-schema-meta">' + esc(s.request_type_title || 'خدمت سازمانی') + '</span><span class="pen-schema-meta">' + fields.length + ' فیلد</span>' + (hasWorkflow ? '<span class="pen-schema-meta is-workflow">گردش‌کار مرحله‌ای</span>' : '<span class="pen-schema-meta is-direct">اجرای مستقیم</span>') + (allowOnBehalf ? '<span class="pen-schema-meta is-behalf">امکان ثبت برای دیگری</span>' : '') + (s.is_active ? '<span class="pen-schema-meta">فعال</span>' : '') + '</div></div></a>'; }).join(''); icons(); }
+  function loadSchemas() { var box = document.getElementById('request-schemas'); fetchJson(SCHEMAS).then(function (data) { state.schemas = data.results || data || []; renderCategories(); renderSchemas(); }).catch(function (e) { box.innerHTML = '<div class="alert alert-danger">' + esc(e.message) + '</div>'; }).finally(function () { box.removeAttribute('aria-busy'); }); }
+  function updateKpis(rows, count) { document.getElementById('kpi-total').textContent = count == null ? rows.length : count; document.getElementById('kpi-review').textContent = rows.filter(function (r) { return ['in_review', 'awaiting_action', 'submitted'].indexOf(r.status) !== -1; }).length; document.getElementById('kpi-action').textContent = rows.filter(function (r) { return r.status === 'awaiting_action' || (r.actions && r.actions.submit); }).length; document.getElementById('kpi-done').textContent = rows.filter(function (r) { return ['completed', 'approved'].indexOf(r.status) !== -1; }).length; }
+  function renderList(data) { var rows = data.results || []; updateKpis(rows, data.count); var box = document.getElementById('req-list'); if (!rows.length) { box.innerHTML = '<div class="pen-empty py-5"><i data-lucide="inbox" class="size-8 opacity-50"></i><h3 class="h6 mt-3">هنوز درخواستی ندارید</h3><p class="mb-0 text-muted">از تب «درخواست جدید» یک خدمت را انتخاب کنید.</p></div>'; icons(); return; } box.innerHTML = rows.map(function (r) { return '<a class="pen-request-row" href="?id=' + encodeURIComponent(r.id) + '"><div class="pen-request-row-icon"><i data-lucide="file-clock" class="size-5"></i></div><div class="flex-grow-1"><div class="d-flex flex-wrap align-items-center gap-2"><strong>' + esc(r.request_type_title || r.request_type_code || 'درخواست') + '</strong><span class="pen-badge ' + statusBadge(r.status) + '">' + esc(statusLabel(r.status)) + '</span></div><div class="pen-request-row-meta">' + esc(r.tracking_number || r.request_number || r.id) + ' · ' + esc(r.current_state_title || 'در انتظار شروع گردش') + '</div><small class="text-muted">ثبت شده در ' + esc(r.created_at || '—') + '</small></div><i data-lucide="chevron-left" class="size-4 text-muted"></i></a>'; }).join(''); var pager = document.getElementById('req-pager'); pager.innerHTML = ''; if (data.previous) pager.innerHTML += '<li class="page-item"><button class="page-link" data-page="' + (state.page - 1) + '">قبلی</button></li>'; if (data.next) pager.innerHTML += '<li class="page-item"><button class="page-link" data-page="' + (state.page + 1) + '">بعدی</button></li>'; pager.querySelectorAll('[data-page]').forEach(function (b) { b.onclick = function () { state.page = Number(b.dataset.page); loadList(); }; }); icons(); }
+  function loadList() { var box = document.getElementById('req-list'); box.innerHTML = '<div class="pen-loading">در حال بارگذاری درخواست‌ها…</div>'; var q = new URLSearchParams({ page: state.page, mine: 'true' }); if (state.status) q.set('status', state.status); if (state.search) q.set('search', state.search); fetchJson(API + '?' + q).then(renderList).catch(function (e) { box.innerHTML = '<div class="alert alert-danger">' + esc(e.message) + '</div>'; }); }
+  function loadWork() { var box = document.getElementById('work-list'); box.innerHTML = '<div class="pen-loading">در حال بارگذاری کارهای ارجاع‌شده…</div>'; fetchJson('/api/forms/my-work/').then(function (data) { var tasks = data.tasks || []; document.getElementById('work-count').textContent = tasks.length; if (!tasks.length) { box.innerHTML = '<div class="pen-empty py-5"><i data-lucide="check-check" class="size-8 opacity-50"></i><h3 class="h6 mt-3">کار معوقی ندارید</h3><p class="mb-0 text-muted">همهٔ وظایف ارجاع‌شده رسیدگی شده‌اند.</p></div>'; icons(); return; } box.innerHTML = tasks.map(function (t) { var href = t.request_id ? '?id=' + encodeURIComponent(t.request_id) : '/workspace/work/'; return '<a class="pen-request-row" href="' + href + '"><div class="pen-request-row-icon is-task"><i data-lucide="hand" class="size-5"></i></div><div class="flex-grow-1"><div class="d-flex flex-wrap align-items-center gap-2"><strong>' + esc(t.instance_title || 'وظیفهٔ گردش‌کار') + '</strong>' + (t.is_overdue ? '<span class="pen-badge pen-badge-rejected">سررسید گذشته</span>' : '<span class="pen-badge pen-badge-processing">در انتظار اقدام</span>') + '</div><div class="pen-request-row-meta">مرحله: ' + esc(t.state_code || '—') + ' · گردش‌کار: ' + esc(t.workflow_definition_code || '—') + '</div><small class="text-muted">مهلت: ' + esc(t.due_date || 'تعیین نشده') + '</small></div><i data-lucide="chevron-left" class="size-4 text-muted"></i></a>'; }).join(''); icons(); }).catch(function (e) { box.innerHTML = '<div class="alert alert-danger">' + esc(e.message) + '</div>'; }); }
+  function actionMeta(t) { var key = String(t.kind || t.name || '').toLowerCase(); for (var k in ACTION_META) if (key.indexOf(k) !== -1) return ACTION_META[k]; return [t.name || 'اقدام', 'btn-outline-primary', 'arrow-left-right', !!t.requires_comment]; }
+  function renderInfo(r) { var labels = {}; ((r.form_schema && r.form_schema.fields) || []).forEach(function (f) { labels[f.key] = f.label || f.key; }); var data = r.data || {}; var html = '<div class="table-responsive"><table class="table table-sm align-middle"><tbody>'; Object.keys(data).forEach(function (k) { var v = data[k]; if (Array.isArray(v)) v = v.join('، '); else if (v && typeof v === 'object') v = JSON.stringify(v); html += '<tr><th class="text-muted fw-normal" style="width:35%">' + esc(labels[k] || k) + '</th><td>' + esc(v || '—') + '</td></tr>'; }); return html + '</tbody></table></div>' + (r.notes ? '<div class="alert alert-light border mb-0">' + esc(r.notes) + '</div>' : ''); }
+  function openDetail(id) { document.getElementById('request-new-panel').hidden = true; document.getElementById('request-mine-panel').hidden = true; document.querySelector('.pen-request-tabs').hidden = true; document.getElementById('req-detail-view').hidden = false; fetchJson(API + id + '/').then(function (r) { document.getElementById('rd-title').textContent = r.request_type_title || r.request_type_code || 'درخواست'; var badge = document.getElementById('rd-status'); badge.className = 'pen-badge ' + statusBadge(r.status); badge.textContent = statusLabel(r.status); document.getElementById('rd-meta').textContent = (r.tracking_number || r.request_number || '—') + ' · ثبت ' + (r.created_at || '—'); document.getElementById('rd-whonow-text').innerHTML = 'مرحلهٔ فعلی: <strong>' + esc(r.current_state_title || 'پیش‌نویس') + '</strong>'; document.getElementById('rd-info').innerHTML = renderInfo(r); document.getElementById('rd-timeline').innerHTML = (r.history || []).map(function (h) { return '<li class="pen-timeline-item"><strong>' + esc(h.action) + '</strong><div class="text-muted fs-13">' + esc(h.actor_username || 'سامانه') + ' · ' + esc(h.created_at || '—') + '</div>' + (h.comment ? '<div class="mt-1 p-2 rounded bg-body-tertiary">' + esc(h.comment) + '</div>' : '') + '</li>'; }).join('') || '<li class="text-muted">هنوز اقدامی ثبت نشده است.</li>'; document.getElementById('rd-people').innerHTML = '<li><span class="text-muted fs-13">درخواست‌دهنده</span><br><strong>' + esc(r.requester_username || '—') + '</strong></li>' + (r.pending_tasks || []).map(function (t) { return '<li><span class="text-muted fs-13">مسئول مرحلهٔ ' + esc(t.state_title) + '</span><br><strong>' + esc(t.assignee_username || '—') + '</strong></li>'; }).join(''); var actions = document.getElementById('rd-actions'); actions.innerHTML = ''; if (r.actions && r.actions.edit && r.submission_id) actions.innerHTML += '<a class="btn btn-outline-primary w-100 mb-2" href="/forms/submissions/' + r.submission_id + '/edit/">ویرایش فرم</a>'; if (r.actions && r.actions.submit) actions.innerHTML += '<button type="button" class="btn btn-primary w-100 mb-2" data-submit-request="true">ارسال درخواست</button>'; (r.available_transitions || []).forEach(function (t) { var m = actionMeta(t); actions.innerHTML += '<button type="button" class="btn ' + m[1] + ' w-100 mb-2" data-transition="' + t.id + '" data-comment="' + m[3] + '"><i data-lucide="' + m[2] + '" class="size-4 me-1"></i>' + esc(m[0]) + '</button>'; }); if (!actions.children.length) actions.innerHTML = '<p class="text-muted fs-14 mb-0">اقدامی برای شما مجاز نیست.</p>'; var submitRequest = actions.querySelector('[data-submit-request]'); if (submitRequest) submitRequest.onclick = function () { actionState = { type: 'submit', required: false }; document.getElementById('action-label').textContent = 'ارسال درخواست'; document.getElementById('action-hint').textContent = 'درخواست برای ورود به گردش‌کار ارسال شود؟'; bootstrap.Modal.getOrCreateInstance(document.getElementById('action-modal')).show(); }; actions.querySelectorAll('[data-transition]').forEach(function (b) { b.onclick = function () { actionState = { type: 'transition', id: b.dataset.transition, required: b.dataset.comment === 'true' }; document.getElementById('action-label').textContent = 'اقدام گردش‌کار'; document.getElementById('action-hint').textContent = actionState.required ? 'توضیح برای این اقدام الزامی است.' : 'در صورت نیاز توضیح اضافه کنید.'; bootstrap.Modal.getOrCreateInstance(document.getElementById('action-modal')).show(); }; }); var cancel = document.getElementById('rd-cancel'); cancel.hidden = !(r.actions && r.actions.cancel); cancel.onclick = function () { actionState = { type: 'cancel', required: true }; bootstrap.Modal.getOrCreateInstance(document.getElementById('action-modal')).show(); }; icons(); }).catch(function (e) { if (window.penToast) window.penToast(e.message, 'danger'); }); }
+  function executeAction() { if (!actionState || !selectedId) return; var comment = document.getElementById('action-comment').value.trim(); if (actionState.required && !comment) { document.getElementById('action-error').hidden = false; document.getElementById('action-error').querySelector('li').textContent = 'توضیح را وارد کنید.'; return; } var url = API + selectedId + '/', body = {}; if (actionState.type === 'cancel') { url += 'cancel/'; body.reason = comment; } else if (actionState.type === 'submit') { url += 'submit/'; } else { url += 'transition/'; body.transition_id = actionState.id; body.comment = comment; } postJson(url, body).then(function () { bootstrap.Modal.getOrCreateInstance(document.getElementById('action-modal')).hide(); openDetail(selectedId); if (window.penToast) window.penToast('اقدام با موفقیت ثبت شد.', 'success'); }).catch(function (e) { document.getElementById('action-error').hidden = false; document.getElementById('action-error').querySelector('li').textContent = e.message; }); }
+  document.querySelectorAll('[data-request-tab]').forEach(function (b) { b.onclick = function () { switchTab(b.dataset.requestTab); }; }); document.getElementById('detail-back').onclick = function () { selectedId = null; document.querySelector('.pen-request-tabs').hidden = false; switchTab('mine'); history.replaceState({}, '', window.location.pathname); }; document.getElementById('action-confirm').onclick = executeAction; document.getElementById('work-refresh').onclick = loadWork; document.getElementById('schema-search').oninput = renderSchemas; document.getElementById('req-status').onchange = function () { state.status = this.value; state.page = 1; loadList(); }; var timer; document.getElementById('req-search').oninput = function () { clearTimeout(timer); timer = setTimeout(function () { state.search = document.getElementById('req-search').value.trim(); state.page = 1; loadList(); }, 250); }; loadSchemas(); if (selectedId) openDetail(selectedId); else switchTab('new');
 })();

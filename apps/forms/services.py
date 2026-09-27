@@ -97,6 +97,9 @@ def request_status_from_submission(submission: FormSubmission) -> str:
         FormSubmission.Status.ARCHIVED: Request.Status.ARCHIVED,
     }
     instance = submission.workflow_instance
+    config = submission.form_schema.workflow_config or {}
+    if config.get("execution_mode") == "direct" and submission.status == FormSubmission.Status.APPROVED:
+        return Request.Status.COMPLETED
     if instance is not None:
         state_code = getattr(getattr(instance, "current_state", None), "code", "") or ""
         if state_code in {"changes-requested", "changes_requested"}:
@@ -140,6 +143,9 @@ def sync_request_from_submission(
     defaults = {
         "request_type": request_type,
         "requester": submission.submitted_by,
+        "initiator": submission.initiator_id and submission.initiator or submission.submitted_by,
+        "subject_user": submission.subject_user or submission.submitted_by,
+        "is_on_behalf": bool(submission.is_on_behalf),
         "subject_person": submission.subject_person,
         "request_number": submission.submission_number or None,
         "status": request_status,
@@ -150,6 +156,14 @@ def sync_request_from_submission(
             "schema_slug": submission.form_schema.slug,
             "schema_version": submission.schema_version_snapshot,
         },
+        "schema_snapshot": submission.schema_snapshot or {
+            "slug": submission.form_schema.slug,
+            "title": submission.form_schema.title,
+            "version": submission.schema_version_snapshot or submission.form_schema.version,
+            "category": submission.form_schema.category,
+            "fields": submission.effective_fields(),
+            "workflow_config": submission.form_schema.workflow_config or {},
+        },
     }
     if not create and not hasattr(submission, "business_request"):
         return None
@@ -159,7 +173,7 @@ def sync_request_from_submission(
         defaults=defaults,
     )
     updates: list[str] = []
-    for field in ("request_type", "requester", "subject_person"):
+    for field in ("request_type", "requester", "initiator", "subject_user", "subject_person"):
         value = defaults[field]
         current_id = getattr(business_request, f"{field}_id")
         value_id = getattr(value, "pk", None)
@@ -173,6 +187,12 @@ def sync_request_from_submission(
         if getattr(business_request, field) != value:
             setattr(business_request, field, value)
             updates.append(field)
+    if business_request.is_on_behalf != defaults["is_on_behalf"]:
+        business_request.is_on_behalf = defaults["is_on_behalf"]
+        updates.append("is_on_behalf")
+    if not business_request.schema_snapshot and defaults["schema_snapshot"]:
+        business_request.schema_snapshot = defaults["schema_snapshot"]
+        updates.append("schema_snapshot")
     if not business_request.request_number and defaults["request_number"]:
         business_request.request_number = defaults["request_number"]
         updates.append("request_number")
@@ -393,21 +413,38 @@ class FormSubmissionService:
         request=None,
         notes: str = "",
         attachment_keys: Optional[set[str]] = None,
+        subject_user=None,
+        is_on_behalf: bool = False,
     ) -> FormSubmission:
         """Create a DRAFT submission owned by ``user`` (submitter is never client-controlled)."""
+        subject_user = self._resolve_subject_user(
+            schema=schema, actor=user, subject_user=subject_user,
+            is_on_behalf=is_on_behalf,
+        )
         self.validate_data(schema, schema.fields, data, user, request, attachment_keys)
         data = self.sanitize_payload(schema, data)
         visibility = derive_visibility(schema, data or {})
+        subject_person = None
+        if subject_user:
+            from apps.persons.models import Person
+
+            subject_person = Person.objects.filter(user_id=subject_user.pk).first()
+            if subject_person is not None:
+                visibility["subject_person_id"] = subject_person.pk
 
         def fill() -> dict[str, Any]:
             return {
                 "form_schema": schema,
                 "submitted_by": user,
+                "initiator": user,
+                "subject_user": subject_user or user,
+                "is_on_behalf": bool(is_on_behalf),
                 "data": data if isinstance(data, dict) else {},
                 "status": FormSubmission.Status.DRAFT,
                 "notes": notes or "",
                 "submission_number": next_submission_number(schema),
                 "schema_version_snapshot": schema.version,
+                "schema_snapshot": self.schema_snapshot(schema),
                 "client_ip": _client_ip(request),
                 "last_action_at": timezone.now(),
                 **visibility,
@@ -419,6 +456,46 @@ class FormSubmissionService:
         sync_request_from_submission(submission)
         self._log(submission, action="form_create", actor=user)
         return submission
+
+    @staticmethod
+    def schema_snapshot(schema: FormSchema) -> dict[str, Any]:
+        """Return the immutable schema contract captured by a new submission."""
+        return {
+            "slug": schema.slug,
+            "title": schema.title,
+            "version": schema.version,
+            "category": schema.category,
+            "description": schema.description,
+            "fields": schema.fields or [],
+            "workflow_config": schema.workflow_config or {},
+            "metadata": schema.metadata or {},
+        }
+
+    @staticmethod
+    def _resolve_subject_user(*, schema: FormSchema, actor, subject_user, is_on_behalf: bool):
+        """Fail closed for on-behalf creation and scope subjects to visible people."""
+        config = schema.workflow_config or {}
+        if not is_on_behalf:
+            if subject_user is not None and subject_user.pk != actor.pk:
+                raise FormServiceError("برای ثبت به نام شخص دیگر، گزینهٔ ثبت از طرف دیگری را فعال کنید.")
+            return actor
+        if subject_user is None:
+            raise FormServiceError("برای ثبت از طرف دیگری، انتخاب فرد درخواست‌شونده الزامی است.")
+        if not config.get("allow_on_behalf"):
+            raise FormServiceError("این فرم اجازهٔ ثبت برای شخص دیگر را نمی‌دهد.")
+        roles = set(actor.role_codes()) if hasattr(actor, "role_codes") else set()
+        eligible_roles = set(config.get("eligible_initiator_roles") or [])
+        if not getattr(actor, "is_superuser", False) and (
+            not eligible_roles or not (roles & eligible_roles)
+        ):
+            raise FormServiceError("نقش شما اجازهٔ ثبت این فرم برای شخص دیگر را ندارد.")
+        if subject_user.pk == actor.pk:
+            return actor
+        from apps.persons.services import persons_visible_to
+
+        if not persons_visible_to(actor).filter(user_id=subject_user.pk).exists():
+            raise FormServiceError("این فرد در فهرست اشخاص مجاز شما نیست.")
+        return subject_user
 
     # ── update draft ─────────────────────────────────────────────────────
 
@@ -541,17 +618,30 @@ class FormSubmissionService:
             submission.projection_status = FormSubmission.ProjectionStatus.PENDING
             submission.projection_next_attempt_at = submission.submitted_at
 
+        workflow_config = schema.workflow_config or {}
         workflow_definition = schema.workflow_definition
         if schema.request_type_id:
             request_type = request_type_for_schema(schema)
             workflow_definition = request_type.workflow_definition or workflow_definition
 
-        if workflow_definition is not None:
+        execution_mode = workflow_config.get("execution_mode")
+        if execution_mode not in {"direct", "workflow"}:
+            execution_mode = "workflow" if workflow_definition is not None else "direct"
+
+        if execution_mode == "workflow":
+            if workflow_definition is None:
+                raise WorkflowIntegrationError(
+                    f"برای فرم «{schema.title}» گردش‌کار فعال تعریف نشده است."
+                )
             instance = self._start_workflow(submission, user)
             submission.workflow_instance = instance
             synced = self._status_from_workflow(instance)
             if synced:
                 submission.status = synced
+        else:
+            # A direct form still creates a Request projection, but does not
+            # create a user-facing workflow instance or approval task.
+            submission.status = FormSubmission.Status.APPROVED
 
         submission.save(
             update_fields=[
@@ -567,7 +657,17 @@ class FormSubmissionService:
         # Fail-soft: a projection problem is logged for reconciliation and
         # never loses the submission itself.
         self._project_into_education(submission, user)
-        sync_request_from_submission(submission)
+        business_request = sync_request_from_submission(submission)
+        if execution_mode == "direct" and business_request is not None:
+            from apps.forms.domain_actions import DomainActionError, execute_domain_action
+
+            try:
+                execute_domain_action(business_request=business_request, actor=user)
+            except DomainActionError as exc:
+                raise FormServiceError(str(exc)) from exc
+            business_request.status = Request.Status.COMPLETED
+            business_request.completed_at = submission.submitted_at
+            business_request.save(update_fields=["status", "completed_at", "updated_at"])
         return submission
 
     def _project_into_education(self, submission: FormSubmission, user) -> None:
@@ -657,8 +757,9 @@ class FormSubmissionService:
         # پاس می‌دهیم تا workflowاعلان‌ها را به شخص هدف بفرستد
         # (یکپارچه‌سازی فرم‌ها و گردش‌کار).
         subject_person_kwargs = {}
-        if submission.subject_person_id:
-            subject_person_kwargs["subject_person"] = submission.subject_person
+        subject_person = submission.subject_person or getattr(submission.subject_user, "person", None)
+        if subject_person is not None:
+            subject_person_kwargs["subject_person"] = subject_person
         try:
             instance = engine.create_instance(
                 workflow_code=workflow_definition.code,
@@ -877,6 +978,8 @@ class RequestService:
         notes: str = "",
         attachment_keys: Optional[set[str]] = None,
         idempotency_key: Optional[str] = None,
+        subject_user=None,
+        is_on_behalf: bool = False,
     ) -> Request:
         if idempotency_key:
             existing = Request.objects.filter(
@@ -892,6 +995,8 @@ class RequestService:
             request=request,
             notes=notes,
             attachment_keys=attachment_keys,
+            subject_user=subject_user,
+            is_on_behalf=is_on_behalf,
         )
         business_request = sync_request_from_submission(submission)
         if idempotency_key:
@@ -911,9 +1016,11 @@ class RequestService:
         notes: Optional[str] = None,
         request=None,
     ) -> Request:
-        business_request = Request.objects.select_for_update().select_related(
-            "form_submission", "form_submission__workflow_instance",
-        ).get(pk=business_request.pk)
+        # PostgreSQL rejects FOR UPDATE when select_related() traverses the
+        # nullable workflow_instance relation. Lock the Request row alone;
+        # the linked submission is loaded in a separate SELECT below.
+        business_request = Request.objects.select_for_update().get(pk=business_request.pk)
+        business_request.form_submission  # populate the one-to-one relation
         if business_request.requester_id != actor.pk:
             raise FormServiceError("فقط درخواست‌کننده می‌تواند اطلاعات درخواست را اصلاح کند.")
         if business_request.status not in {

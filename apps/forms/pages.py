@@ -62,6 +62,11 @@ class SchemaPickerPage(FormsPageMixin, TemplateView):
         context["request_types"] = visible_request_types_for(self.request.user).order_by(
             "title", "code"
         )
+        from apps.workflow.models import WorkflowDefinition
+
+        context["workflow_definitions"] = WorkflowDefinition.objects.filter(
+            is_active=True, is_deleted=False
+        ).order_by("name", "code")
         return context
 
 
@@ -169,6 +174,9 @@ class SubmissionCreatePage(FormsPageMixin, TemplateView):
         context["relation_options"] = _relation_options(schema, self.request.user)
         context["request_type"] = schema.request_type
         context["request_id"] = ""
+        context["workflow_config"] = schema.workflow_config or {}
+        context["form_execution_mode"] = _execution_mode(schema)
+        context["can_submit_on_behalf"] = _can_submit_on_behalf(schema, self.request.user)
         return context
 
 
@@ -194,7 +202,29 @@ class SubmissionEditPage(FormsPageMixin, TemplateView):
         context["request_type"] = schema.request_type
         business_request = getattr(submission, "business_request", None)
         context["request_id"] = str(business_request.pk) if business_request else ""
+        context["workflow_config"] = schema.workflow_config or {}
+        context["form_execution_mode"] = _execution_mode(schema)
+        context["can_submit_on_behalf"] = _can_submit_on_behalf(schema, self.request.user)
         return context
+
+
+def _can_submit_on_behalf(schema: FormSchema, user) -> bool:
+    config = schema.workflow_config or {}
+    if not config.get("allow_on_behalf"):
+        return False
+    roles = set(user.role_codes()) if hasattr(user, "role_codes") else set()
+    eligible = set(config.get("eligible_initiator_roles") or [])
+    return bool(getattr(user, "is_superuser", False) or (eligible and roles & eligible))
+
+
+def _execution_mode(schema: FormSchema) -> str:
+    configured = (schema.workflow_config or {}).get("execution_mode")
+    if configured in {"direct", "workflow"}:
+        return configured
+    workflow = schema.workflow_definition
+    if schema.request_type_id:
+        workflow = schema.request_type.workflow_definition or workflow
+    return "workflow" if workflow else "direct"
 
 
 class SubmissionDetailPage(FormsPageMixin, DetailView):
@@ -330,6 +360,14 @@ class SchemaBuilderPage(SchemaAdminRequiredMixin, TemplateView):
             "slug": slug or "",
             "title": source.title if source else "",
             "description": source.description if source else "",
+            "category": source.category if source else FormSchema.Category.GENERAL,
+            "workflowCode": (
+                source.workflow_definition.code if source and source.workflow_definition_id
+                else (source.request_type.workflow_definition.code
+                      if source and source.request_type_id and source.request_type.workflow_definition_id else "")
+            ),
+            "workflowConfig": source.workflow_config if source else {},
+            "allowedRoleCodes": list(source.allowed_roles.values_list("code", flat=True)) if source else [],
             "requestTypeCode": (
                 source.request_type.code if source and source.request_type else ""
             ),

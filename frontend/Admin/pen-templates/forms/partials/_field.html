@@ -142,12 +142,14 @@ Non-negotiables honored:
     <select class="form-select" id="id_{{ f.key }}" name="{{ f.key }}"
             {% if f.required %}aria-required="true"{% endif %}
             aria-describedby="help_{{ f.key }}{% if errors %} error_{{ f.key }}{% endif %}"
-            data-relation-key="{{ f.relation.registry_key }}">
+            data-relation-key="{{ f.relation.registry_key }}"
+            {% if f.relation.course_field %}data-course-dependent-on="{{ f.relation.course_field }}"{% endif %}>
       <option value="">— انتخاب کنید —</option>
       {% for opt in relation_options %}
         <option value="{{ opt.value }}" {% if value == opt.value %}selected{% endif %}>{{ opt.label }}</option>
       {% endfor %}
     </select>
+    {% if f.relation.course_field %}<div class="form-text" id="help_{{ f.key }}">ابتدا دوره را انتخاب کنید تا درس‌های همان دوره نمایش داده شوند.</div>{% endif %}
 
   {% elif f.type == "multi_relation" %}
     <div id="id_{{ f.key }}" class="vstack gap-1" data-relation-key="{{ f.relation.registry_key }}">

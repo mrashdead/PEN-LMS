@@ -100,4 +100,16 @@ def make_schema(slug="test-form", fields=None, **kwargs):
     ]
     defaults = {"slug": slug, "title": "فرم تست", "version": 1, "fields": fields}
     defaults.update(kwargs)
+    if "workflow_config" not in defaults:
+        workflow = defaults.get("workflow_definition")
+        request_type = defaults.get("request_type")
+        if request_type is not None:
+            workflow = getattr(request_type, "workflow_definition", None) or workflow
+        if workflow is not None:
+            defaults["workflow_config"] = {
+                "execution_mode": "workflow",
+                "allow_on_behalf": False,
+                "eligible_initiator_roles": [],
+                "routing_rules": [],
+            }
     return FormSchema.objects.create(**defaults)

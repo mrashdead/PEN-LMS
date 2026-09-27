@@ -79,7 +79,12 @@ class RequestListCreateView(generics.ListCreateAPIView):
         if workflow_instance:
             qs = qs.filter(form_submission__workflow_instance_id=workflow_instance)
         if str(params.get("mine") or "").lower() in {"1", "true", "yes"}:
-            qs = qs.filter(requester=self.request.user)
+            qs = qs.filter(
+                Q(requester=self.request.user)
+                | Q(initiator=self.request.user)
+                | Q(subject_user=self.request.user)
+                | Q(form_submission__workflow_instance__action_logs__actor=self.request.user)
+            )
         search = str(params.get("search") or params.get("q") or "").strip()
         if search:
             qs = qs.filter(
@@ -103,6 +108,18 @@ class RequestListCreateView(generics.ListCreateAPIView):
             slug=serializer.validated_data["schema_slug"],
         )
         try:
+            subject_user = None
+            if serializer.validated_data.get("subject_user_id"):
+                from django.contrib.auth import get_user_model
+
+                subject_user = get_user_model().objects.filter(
+                    pk=serializer.validated_data["subject_user_id"], is_active=True
+                ).first()
+                if subject_user is None:
+                    return Response(
+                        {"detail": "فرد درخواست‌شونده در فهرست مجاز یافت نشد."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
             business_request = request_service.create_draft(
                 schema=schema,
                 requester=request.user,
@@ -110,6 +127,8 @@ class RequestListCreateView(generics.ListCreateAPIView):
                 request=request,
                 notes=serializer.validated_data.get("notes", ""),
                 idempotency_key=request.headers.get("Idempotency-Key") or None,
+                subject_user=subject_user,
+                is_on_behalf=serializer.validated_data.get("is_on_behalf", False),
             )
         except FormDataInvalid as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
@@ -247,9 +266,13 @@ class MyWorkView(APIView):
         from apps.tasks.models import WorkflowTask
         from apps.tasks.serializers import WorkflowTaskListSerializer
 
-        requests_qs = visible_requests_for(request.user).filter(
-            requester=request.user,
-        ).order_by("-last_action_at", "-created_at")[:100]
+        # The work center is also the user's participation history.  The
+        # visibility selector already scopes rows to the requester, subject
+        # audience, or a pending task assigned to this user; narrowing this
+        # query to ``requester`` hid delegated requests from the unified UI.
+        requests_qs = visible_requests_for(request.user).order_by(
+            "-last_action_at", "-created_at"
+        )[:100]
         tasks_qs = WorkflowTask.objects.filter(
             assignee=request.user,
             status=WorkflowTask.Status.PENDING,

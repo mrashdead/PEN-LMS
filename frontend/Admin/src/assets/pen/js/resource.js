@@ -18,6 +18,8 @@
   var CSRF = window.getCookie ? window.getCookie('csrftoken') : '';
 
   var state = { page: 1, filters: {}, search: '' };
+  // Group expansion survives API reloads during this page session without browser storage.
+  var groupExpansion = {};
 
   var $thead = document.getElementById('res-thead-row');
   var $tbody = document.getElementById('res-tbody');
@@ -81,19 +83,27 @@
   function renderFilters() {
     if (!CFG.filters) return;
     $filters.innerHTML = CFG.filters.map(function (f) {
-      var opts = f.options.map(function (o) {
+      if (f.type === 'text') {
+        return '<input type="search" class="form-control form-control-sm" data-filter="' + esc(f.param) + '" aria-label="' + esc(f.label) + '" placeholder="' + esc(f.placeholder || f.label) + '"' + (f.dir ? ' dir="' + esc(f.dir) + '"' : '') + ' style="min-width:150px">';
+      }
+      var opts = (f.options || []).map(function (o) {
         var selected = (state.filters[f.param] || '') === o.value ? ' selected' : '';
         return '<option value="' + esc(o.value) + '"' + selected + '>' + esc(o.label) + '</option>';
       }).join('');
       return '<select class="form-select form-select-sm" data-filter="' + esc(f.param) + '" aria-label="' + esc(f.label) + '" style="min-width:130px">' + opts + '</select>';
     }).join('');
-    $filters.querySelectorAll('[data-filter]').forEach(function (sel) {
-      sel.addEventListener('change', function () {
-        var p = sel.dataset.filter;
-        if (sel.value) state.filters[p] = sel.value;
-        else delete state.filters[p];
-        state.page = 1;
-        load();
+    $filters.querySelectorAll('[data-filter]').forEach(function (control) {
+      var eventName = control.tagName === 'INPUT' ? 'input' : 'change';
+      var timer = null;
+      control.addEventListener(eventName, function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+          var p = control.dataset.filter;
+          if (control.value.trim()) state.filters[p] = control.value.trim();
+          else delete state.filters[p];
+          state.page = 1;
+          load();
+        }, eventName === 'input' ? 300 : 0);
       });
     });
   }
@@ -133,7 +143,24 @@
     if (!results.length) {
       $tbody.innerHTML = '<tr><td colspan="' + (CFG.columns.length + 1) + '"><div class="pen-empty"><p class="mb-0">موردی یافت نشد.</p></div></td></tr>';
     } else {
-      $tbody.innerHTML = results.map(function (row, i) {
+      var rowsHtml = [];
+      var previousGroup = null;
+      var groupIndex = 0;
+      results.forEach(function (row, i) {
+        var groupValue = CFG.groupBy ? (row[CFG.groupBy] || 'بدون گروه') : null;
+        var groupKey = String(groupValue);
+        if (CFG.groupBy && groupValue !== previousGroup) {
+          var isExpanded = groupExpansion[groupKey] !== false;
+          var groupId = 'res-group-' + groupIndex++;
+          rowsHtml.push('<tr class="table-light pen-group-row" data-group-key="' + esc(groupKey) + '">' +
+            '<th colspan="' + (CFG.columns.length + 1) + '" class="py-2 fw-semibold">' +
+            '<button type="button" class="btn btn-sm btn-link p-0 me-2 align-middle" data-group-toggle="' + esc(groupKey) + '"' +
+            ' aria-expanded="' + (isExpanded ? 'true' : 'false') + '" aria-controls="' + groupId + '" aria-label="نمایش یا مخفی کردن گروه ' + esc(groupValue) + '">' +
+            '<i data-lucide="chevron-' + (isExpanded ? 'down' : 'left') + '" class="size-4"></i></button>' +
+            '<span class="text-muted me-2">گروه کلاس</span><code dir="ltr">' + esc(groupValue) + '</code></th></tr>');
+          previousGroup = groupValue;
+        }
+        var hidden = CFG.groupBy && groupExpansion[groupKey] === false;
         var tds = CFG.columns.map(function (c) { return '<td>' + cellHtml(c, row) + '</td>'; }).join('');
         var actions = row.actions || {view: true, edit: false, delete: false};
         var label = row.title || row.name || row.code || row.id;
@@ -145,9 +172,11 @@
           (actions.edit ? '<li><button type="button" class="dropdown-item" data-edit><i data-lucide="pencil" class="size-4"></i> ویرایش</button></li>' : '') +
           (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(CFG.api + row.id + '/delete/') + '" data-delete-name="' + esc(label) + '" data-delete-code="' + esc(row.code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف نرم</button></li>' : '') +
           '</ul></div>';
-        return '<tr data-id="' + esc(row.id) + '" data-idx="' + i + '" role="button" tabindex="0">' + tds +
-               '<td class="text-nowrap text-end">' + menu + '</td></tr>';
-      }).join('');
+        rowsHtml.push('<tr data-id="' + esc(row.id) + '" data-idx="' + i + '" data-group-row="' + esc(groupKey) + '" role="button" tabindex="0"' +
+          (hidden ? ' hidden' : '') + '>' + tds +
+               '<td class="text-nowrap text-end">' + menu + '</td></tr>');
+      });
+      $tbody.innerHTML = rowsHtml.join('');
     }
 
     // count text
@@ -170,6 +199,22 @@
       if (data.next) liNext.querySelector('a').addEventListener('click', function (e) { e.preventDefault(); state.page++; load(); });
       $pager.appendChild(liNext);
     }
+
+    // Group headers toggle all rows in that class without another API request.
+    $tbody.querySelectorAll('[data-group-toggle]').forEach(function (toggle) {
+      toggle.addEventListener('click', function () {
+        var key = toggle.dataset.groupToggle;
+        var expanded = toggle.getAttribute('aria-expanded') !== 'true';
+        groupExpansion[key] = expanded;
+        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        var icon = toggle.querySelector('[data-lucide]');
+        if (icon) icon.setAttribute('data-lucide', 'chevron-' + (expanded ? 'down' : 'left'));
+        $tbody.querySelectorAll('tr[data-group-row]').forEach(function (row) {
+          if (row.dataset.groupRow === key) row.hidden = !expanded;
+        });
+        if (window.penRenderIcons) window.penRenderIcons();
+      });
+    });
 
     // row → detail (fetch full object: list serializers carry fewer fields)
     $tbody.querySelectorAll('tr[data-id]').forEach(function (tr) {

@@ -105,17 +105,43 @@ class UnifiedRequestDomainActionTests(TestCase):
         )
         self.assertEqual(result.status, Request.Status.COMPLETED)
         self.assertEqual(self.offering.enrollments.count(), 1)
+
+    def test_direct_form_creates_request_and_runs_domain_action_immediately(self):
+        direct_type = RequestType.objects.create(
+            code="direct-pipeline-registration",
+            title="ثبت‌نام مستقیم",
+            metadata={"domain_action": "student_registration"},
+        )
+        direct_schema = FormSchema.objects.create(
+            slug="direct-pipeline-registration",
+            title="ثبت‌نام مستقیم",
+            request_type=direct_type,
+            metadata={"domain_action": "student_registration"},
+            workflow_config={
+                "execution_mode": "direct", "allow_on_behalf": False,
+                "eligible_initiator_roles": [], "routing_rules": [],
+            },
+            fields=[
+                {"key": "offering", "type": "relation", "order": 1, "required": True,
+                 "relation": {"registry_key": "academic.course_offering", "lookup": "id"}},
+                {"key": "student", "type": "relation", "order": 2, "required": True,
+                 "relation": {"registry_key": "persons.person", "lookup": "id",
+                              "filter": {"person_type": "student", "is_active": True}}},
+            ],
+        )
+        business_request = RequestService().create_draft(
+            schema=direct_schema,
+            requester=self.employee,
+            data={"offering": str(self.offering.pk), "student": str(self.student.pk)},
+        )
+        result = RequestService().submit(business_request, actor=self.employee)
+        self.assertEqual(result.status, Request.Status.COMPLETED)
+        self.assertIsNone(result.workflow_instance)
+        self.assertEqual(self.offering.enrollments.count(), 1)
         enrollment = self.offering.enrollments.get()
         self.assertEqual(enrollment.student_id, self.student.pk)
 
-        # Retrying the same business operation cannot create a second financial row.
-        business_request.refresh_from_db()
-        RequestService().transition(
-            business_request,
-            actor=self.manager,
-            transition_id=self.approve.pk,
-            idempotency_key="pipeline-approve-1",
-        )
+        # A direct request has no approval transition after its immediate action.
         self.assertEqual(self.offering.enrollments.count(), 1)
 
 

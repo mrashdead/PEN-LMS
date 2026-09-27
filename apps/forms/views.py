@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import logging
 
+from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import transaction
 from django.http import FileResponse
@@ -197,6 +198,76 @@ class FormSchemaAdminView(generics.ListCreateAPIView):
                     {"request_type_code": "نوع درخواست فعال یافت نشد."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+        workflow_definition = None
+        workflow_code = str(payload.get("workflow_code") or "").strip().lower()
+        if workflow_code:
+            from apps.workflow.models import WorkflowDefinition
+
+            workflow_definition = WorkflowDefinition.objects.filter(
+                code=workflow_code, is_active=True, is_deleted=False,
+            ).first()
+            if workflow_definition is None:
+                return Response(
+                    {"workflow_code": "الگوی گردش‌کار فعال یافت نشد."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        if workflow_definition is None and request_type is not None:
+            workflow_definition = request_type.workflow_definition
+        category = str(payload.get("category") or FormSchema.Category.GENERAL)
+        if category not in FormSchema.Category.values:
+            return Response(
+                {"category": "دسته‌بندی فرم نامعتبر است."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        workflow_config = payload.get("workflow_config") or {}
+        if not isinstance(workflow_config, dict):
+            return Response(
+                {"workflow_config": "تنظیمات گردش‌کار باید یک شیء JSON باشد."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        execution_mode = workflow_config.get("execution_mode")
+        if execution_mode not in {None, "direct", "workflow"}:
+            return Response(
+                {"workflow_config": {"execution_mode": "مقدار باید direct یا workflow باشد."}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        workflow_config.setdefault(
+            "execution_mode", "workflow" if workflow_definition is not None else "direct"
+        )
+        workflow_config.setdefault("allow_on_behalf", False)
+        workflow_config.setdefault("eligible_initiator_roles", [])
+        workflow_config.setdefault("routing_rules", [])
+        if not isinstance(workflow_config.get("allow_on_behalf"), bool):
+            return Response({"workflow_config": "allow_on_behalf باید بولی باشد."}, status=400)
+        eligible_codes = workflow_config.get("eligible_initiator_roles")
+        if not isinstance(eligible_codes, list) or any(not isinstance(code, str) for code in eligible_codes):
+            return Response({"workflow_config": "eligible_initiator_roles باید آرایه‌ای از کد نقش‌ها باشد."}, status=400)
+        if workflow_config["allow_on_behalf"] and not eligible_codes:
+            return Response({"workflow_config": "برای ثبت از طرف دیگری حداقل یک نقش مجاز تعیین کنید."}, status=400)
+        routing_rules = workflow_config.get("routing_rules")
+        if not isinstance(routing_rules, list) or any(not isinstance(rule, dict) for rule in routing_rules):
+            return Response({"workflow_config": "routing_rules باید آرایه‌ای از قواعد JSON باشد."}, status=400)
+        if workflow_config["execution_mode"] == "workflow" and workflow_definition is None:
+            return Response(
+                {"workflow_config": "برای حالت گردش‌کار باید یک الگوی گردش‌کار متصل باشد."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        role_codes = payload.get("allowed_role_codes") or []
+        if isinstance(role_codes, str):
+            role_codes = [code.strip() for code in role_codes.split(",") if code.strip()]
+        if not isinstance(role_codes, list) or any(not isinstance(code, str) for code in role_codes):
+            return Response({"allowed_role_codes": "فهرست نقش‌ها نامعتبر است."}, status=400)
+        from apps.accounts.models import Role
+
+        roles = list(Role.objects.filter(code__in=role_codes, is_active=True, is_deleted=False))
+        if len(roles) != len(set(role_codes)):
+            return Response({"allowed_role_codes": "یک یا چند نقش فعال یافت نشد."}, status=400)
+        eligible_found = set(Role.objects.filter(
+            code__in=eligible_codes, is_active=True, is_deleted=False
+        ).values_list("code", flat=True))
+        if eligible_found != set(eligible_codes):
+            return Response({"workflow_config": "یک یا چند نقش مجاز برای ثبت از طرف دیگری فعال نیست."}, status=400)
 
         try:
             with transaction.atomic():
@@ -207,10 +278,14 @@ class FormSchemaAdminView(generics.ListCreateAPIView):
                     version=version,
                     is_active=bool(payload.get("is_active", True)),
                     fields=ordered,
+                    category=category,
                     request_type=request_type,
+                    workflow_definition=workflow_definition,
                     metadata=payload.get("metadata") or {},
+                    workflow_config=workflow_config,
                     created_by=request.user,
                 )
+                schema.allowed_roles.set(roles)
         except IntegrityError:
             return Response(
                 {"error": "نسخه تکراری یا نسخه فعال تکراری برای این slug وجود دارد."},
@@ -271,6 +346,10 @@ class FormSubmissionListCreateView(generics.ListCreateAPIView):
                 data=vd.get("data") or {},
                 request=request,
                 notes=vd.get("notes") or "",
+                subject_user=(get_user_model().objects.filter(
+                    pk=vd.get("subject_user_id"), is_active=True,
+                ).first() if vd.get("subject_user_id") else None),
+                is_on_behalf=vd.get("is_on_behalf", False),
             )
         except FormDataInvalid as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)

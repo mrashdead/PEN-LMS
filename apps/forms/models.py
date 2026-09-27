@@ -25,6 +25,15 @@ from apps.forms.schema_validation import SchemaDefinitionError, validate_form_fi
 from apps.forms.storage import build_upload_path, private_storage
 
 
+def default_workflow_config() -> dict:
+    return {
+        "execution_mode": "direct",
+        "allow_on_behalf": False,
+        "eligible_initiator_roles": [],
+        "routing_rules": [],
+    }
+
+
 class RequestType(DomainModel):
     """Catalog entry describing what a submitted form means to the business.
 
@@ -90,9 +99,20 @@ class RequestType(DomainModel):
 class FormSchema(DomainModel):
     """A versioned form definition. ``(slug, version)`` is unique."""
 
+    class Category(models.TextChoices):
+        PERSONS = "persons", "افراد"
+        DEPARTMENTS = "departments", "دپارتمان‌ها"
+        COURSES = "courses", "درس‌ها و دوره‌ها"
+        CLASSES = "classes", "برگزاری‌ها و کلاس‌ها"
+        MESSAGES = "messages", "پیام‌ها"
+        GENERAL = "general", "سایر خدمات"
+
     slug = models.SlugField(max_length=120, db_index=True)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True, default="")
+    category = models.CharField(
+        max_length=24, choices=Category.choices, default=Category.GENERAL, db_index=True,
+    )
     version = models.PositiveIntegerField(default=1)
     is_active = models.BooleanField(default=True, db_index=True)
     allowed_roles = models.ManyToManyField(
@@ -128,6 +148,14 @@ class FormSchema(DomainModel):
     )
     published_at = models.DateTimeField(null=True, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+    workflow_config = models.JSONField(
+        default=default_workflow_config,
+        blank=True,
+        help_text=(
+            "تنظیمات اجرای فرم: execution_mode, allow_on_behalf, "
+            "eligible_initiator_roles و routing_rules."
+        ),
+    )
 
     class Meta:
         app_label = "forms"
@@ -205,6 +233,21 @@ class FormSubmission(DomainModel):
         on_delete=models.PROTECT,
         related_name="form_submissions",
     )
+    initiator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="initiated_form_submissions",
+    )
+    subject_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subject_form_submissions_as_user",
+    )
+    is_on_behalf = models.BooleanField(default=False, db_index=True)
     data = models.JSONField(default=dict, blank=True)
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.DRAFT, db_index=True,
@@ -255,6 +298,11 @@ class FormSubmission(DomainModel):
         default=dict,
         blank=True,
         help_text="Immutable copy of the schema fields at submission time.",
+    )
+    schema_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Snapshot تغییرناپذیر schema و تنظیمات اجرا در زمان ثبت.",
     )
     client_ip = models.GenericIPAddressField(null=True, blank=True)
     last_action_at = models.DateTimeField(null=True, blank=True)
@@ -335,6 +383,22 @@ class Request(DomainModel):
         on_delete=models.PROTECT,
         related_name="business_requests",
     )
+    initiator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="initiated_requests",
+    )
+    subject_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="beneficiary_requests",
+    )
+    is_on_behalf = models.BooleanField(default=False, db_index=True)
+    schema_snapshot = models.JSONField(default=dict, blank=True)
     subject_person = models.ForeignKey(
         "persons.Person",
         on_delete=models.SET_NULL,

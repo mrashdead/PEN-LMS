@@ -107,9 +107,49 @@
         post(API + lead.id + '/assess/', { score: document.getElementById('lead-action-score').value || null, result: result }).then(done).catch(fail);
       });
     } else if (action === 'recommend') {
-      body.querySelector('.lead-detail-actions').innerHTML = '<div class="lead-inline-form"><div class="row g-2"><div class="col-6"><label class="form-label">دوره پیشنهادی</label><select id="lead-action-course" class="form-select"><option value="">— انتخاب کنید —</option></select></div><div class="col-6"><label class="form-label">درس پیشنهادی</label><select id="lead-action-lesson" class="form-select"><option value="">— انتخاب کنید —</option></select></div><div class="col-12"><label class="form-label">توضیح معرفی</label><textarea id="lead-action-recommendation" class="form-control" rows="2"></textarea></div></div><button type="button" class="btn btn-primary" id="lead-action-save">ثبت معرفی دوره</button></div>';
-      Promise.all([get('/api/education/courses/?page_size=100'), get('/api/education/lessons/?page_size=100')]).then(function (data) { document.getElementById('lead-action-course').innerHTML += (data[0].results || []).map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.title) + '</option>'; }).join(''); document.getElementById('lead-action-lesson').innerHTML += (data[1].results || []).map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.title) + '</option>'; }).join(''); }).catch(fail);
-      document.getElementById('lead-action-save').addEventListener('click', function () { post(API + lead.id + '/recommend/', { course: document.getElementById('lead-action-course').value, lesson: document.getElementById('lead-action-lesson').value || null, recommendation: document.getElementById('lead-action-recommendation').value.trim() }).then(done).catch(fail); });
+      body.querySelector('.lead-detail-actions').innerHTML = '<div class="lead-inline-form"><div class="row g-2"><div class="col-6"><label class="form-label" for="lead-action-course">دوره پیشنهادی</label><select id="lead-action-course" class="form-select" required aria-describedby="lead-action-course-help"><option value="">— انتخاب دوره —</option></select><div id="lead-action-course-help" class="form-text" role="status" aria-live="polite">در حال دریافت دوره‌ها…</div></div><div class="col-6"><label class="form-label" for="lead-action-lesson">درس پیشنهادی</label><select id="lead-action-lesson" class="form-select" disabled aria-describedby="lead-action-lesson-help"><option value="">ابتدا دوره را انتخاب کنید</option></select><div id="lead-action-lesson-help" class="form-text" aria-live="polite">درس‌های همان دوره پس از انتخاب نمایش داده می‌شوند.</div></div><div class="col-12"><label class="form-label" for="lead-action-recommendation">توضیح معرفی</label><textarea id="lead-action-recommendation" class="form-control" rows="2"></textarea></div></div><button type="button" class="btn btn-primary" id="lead-action-save">ثبت معرفی دوره</button></div>';
+      var courseSelect = document.getElementById('lead-action-course');
+      var lessonSelect = document.getElementById('lead-action-lesson');
+      var courseHelp = document.getElementById('lead-action-course-help');
+      var lessonHelp = document.getElementById('lead-action-lesson-help');
+      var saveRecommendation = document.getElementById('lead-action-save');
+      var courses = [];
+      courseSelect.disabled = true;
+      saveRecommendation.disabled = true;
+      courseSelect.addEventListener('change', function () {
+        courseSelect.removeAttribute('aria-invalid');
+        var selectedCourse = courses.find(function (course) { return String(course.id) === courseSelect.value; });
+        var lessons = selectedCourse ? (selectedCourse.lesson_titles || []) : [];
+        lessonSelect.innerHTML = '<option value="">' + (selectedCourse ? (lessons.length ? '— انتخاب درس (اختیاری) —' : 'برای این دوره درسی تعریف نشده') : 'ابتدا دوره را انتخاب کنید') + '</option>';
+        lessons.forEach(function (lesson) {
+          var option = document.createElement('option');
+          option.value = lesson.id;
+          option.textContent = lesson.title;
+          lessonSelect.appendChild(option);
+        });
+        lessonSelect.disabled = !selectedCourse || !lessons.length;
+        lessonHelp.textContent = selectedCourse
+          ? (lessons.length ? 'فقط درس‌های دورهٔ انتخاب‌شده نمایش داده می‌شوند.' : 'برای این دوره درسی ثبت نشده است.')
+          : 'درس‌های همان دوره پس از انتخاب نمایش داده می‌شوند.';
+      });
+      get('/api/education/courses/?page_size=100').then(function (data) {
+        courses = data.results || [];
+        courseSelect.innerHTML += courses.map(function (course) { return '<option value="' + esc(course.id) + '">' + esc(course.title) + '</option>'; }).join('');
+        courseSelect.disabled = !courses.length;
+        saveRecommendation.disabled = !courses.length;
+        courseHelp.textContent = courses.length ? 'یک دوره را برای دیدن درس‌های مربوط انتخاب کنید.' : 'دوره‌ای برای انتخاب وجود ندارد.';
+        if (!courses.length) lessonHelp.textContent = 'دوره‌ای برای انتخاب وجود ندارد.';
+      }).catch(function (error) { courseHelp.textContent = 'دریافت دوره‌ها ناموفق بود.'; fail(error); });
+      saveRecommendation.addEventListener('click', function () {
+        if (!courseSelect.value) {
+          courseSelect.setAttribute('aria-invalid', 'true');
+          courseSelect.focus();
+          fail(new Error('دوره را انتخاب کنید.'));
+          return;
+        }
+        courseSelect.removeAttribute('aria-invalid');
+        post(API + lead.id + '/recommend/', { course: courseSelect.value, lesson: lessonSelect.value || null, recommendation: document.getElementById('lead-action-recommendation').value.trim() }).then(done).catch(fail);
+      });
     } else if (action === 'enroll') {
       window.location.href = '/workspace/enrollments/?lead=' + encodeURIComponent(lead.id);
     } else if (action === 'archive') post(API + lead.id + '/archive/', {}).then(done).catch(fail);

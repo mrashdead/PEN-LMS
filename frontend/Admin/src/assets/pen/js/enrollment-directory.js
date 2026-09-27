@@ -165,6 +165,8 @@
       var params = new URLSearchParams({ kind: kind });
       if (term) params.set('q', term);
       if (selected) params.set('selected', selected);
+      if (kind === 'offering' && doc.getElementById('reg-course').value) params.set('course', doc.getElementById('reg-course').value);
+      if (kind === 'class_group' && doc.getElementById('reg-offering').value) params.set('offering', doc.getElementById('reg-offering').value);
       request(DIRECTORY_API + 'picker/?' + params.toString()).then(function (data) {
         var first = select.options[0];
         var allLabel = first ? first.textContent : 'همه';
@@ -183,6 +185,16 @@
         windowRef.clearTimeout(timer);
         timer = windowRef.setTimeout(function () { loadPicker(input.dataset.pickerSearch, input.value.trim()); }, 220);
       });
+    });
+    doc.getElementById('reg-course').addEventListener('change', function () {
+      doc.getElementById('reg-offering').value = '';
+      doc.getElementById('reg-class').value = '';
+      loadPicker('offering', '');
+      loadPicker('class_group', '');
+    });
+    doc.getElementById('reg-offering').addEventListener('change', function () {
+      doc.getElementById('reg-class').value = '';
+      loadPicker('class_group', '');
     });
     form.addEventListener('submit', function (event) {
       event.preventDefault();

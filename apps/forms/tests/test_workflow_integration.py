@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from django.test import TestCase
 
-from apps.forms.models import FormSubmission
-from apps.forms.services import FormSubmissionService, WorkflowIntegrationError
+from apps.forms.models import FormSubmission, Request
+from apps.forms.services import FormServiceError, FormSubmissionService, WorkflowIntegrationError
 from apps.forms.tests.factories import UserFactory, make_person, make_schema
 from apps.workflow.models import (
     ActionLog,
@@ -52,14 +52,100 @@ class WorkflowAutoCreationTests(TestCase):
             schema=self.schema, user=self.employee, data={"title": "سلام"},
         )
 
-    def test_submit_without_workflow_stays_submitted(self):
-        schema = make_schema(slug="plain-form")  # no workflow
+    def test_submit_without_workflow_completes_direct_request(self):
+        schema = make_schema(slug="plain-form")  # direct execution, no workflow
         submission = self.service.create_submission(
             schema=schema, user=self.employee, data={"title": "بدون فرآیند"},
         )
         submitted = self.service.submit_submission(submission=submission, user=self.employee)
-        self.assertEqual(submitted.status, FormSubmission.Status.SUBMITTED)
+        self.assertEqual(submitted.status, FormSubmission.Status.APPROVED)
         self.assertIsNone(submitted.workflow_instance)
+        business_request = Request.objects.get(form_submission=submitted)
+        self.assertEqual(business_request.status, Request.Status.COMPLETED)
+        self.assertEqual(business_request.initiator_id, self.employee.pk)
+        self.assertEqual(business_request.subject_user_id, self.employee.pk)
+        self.assertEqual(business_request.schema_snapshot["version"], schema.version)
+
+    def test_on_behalf_submission_records_initiator_and_beneficiary(self):
+        beneficiary_user = UserFactory(username="wf-beneficiary", roles=["student"])
+        beneficiary = make_person(user=beneficiary_user, person_type="student")
+        schema = make_schema(
+            slug="on-behalf-form",
+            fields=[{"key": "title", "type": "text", "order": 1}],
+            workflow_config={
+                "execution_mode": "direct", "allow_on_behalf": True,
+                "eligible_initiator_roles": ["employee"], "routing_rules": [],
+            },
+        )
+        submission = self.service.create_submission(
+            schema=schema, user=self.employee, data={"title": "درخواست از طرف دیگری"},
+            subject_user=beneficiary_user, is_on_behalf=True,
+        )
+        request = Request.objects.get(form_submission=submission)
+        self.assertEqual(submission.initiator_id, self.employee.pk)
+        self.assertEqual(submission.subject_user_id, beneficiary_user.pk)
+        self.assertEqual(submission.subject_person_id, beneficiary.pk)
+        self.assertTrue(request.is_on_behalf)
+
+    def test_on_behalf_workflow_uses_subjects_direct_manager(self):
+        from apps.tasks.models import WorkflowTask
+
+        subject_manager = UserFactory(username="wf-subject-manager", roles=["manager"])
+        beneficiary_user = UserFactory(
+            username="wf-managed-beneficiary", roles=["student"], manager=subject_manager
+        )
+        make_person(user=beneficiary_user, person_type="student")
+        initial = self.definition.states.get(is_initial=True)
+        initial.assignment_policy = {"strategy": "direct_manager", "fallback_roles": ["manager"]}
+        initial.save(update_fields=["assignment_policy", "updated_at"])
+        schema = make_schema(
+            slug="on-behalf-workflow-form",
+            workflow_definition=self.definition,
+            fields=[{"key": "title", "type": "text", "order": 1, "required": True}],
+            workflow_config={
+                "execution_mode": "workflow", "allow_on_behalf": True,
+                "eligible_initiator_roles": ["employee"], "routing_rules": [],
+            },
+        )
+        submission = self.service.create_submission(
+            schema=schema, user=self.employee, data={"title": "برای فرد دیگر"},
+            subject_user=beneficiary_user, is_on_behalf=True,
+        )
+        self.service.submit_submission(submission=submission, user=self.employee)
+        submission.refresh_from_db()
+        task = WorkflowTask.objects.get(
+            instance=submission.workflow_instance, status=WorkflowTask.Status.PENDING
+        )
+        self.assertEqual(task.assignee_id, subject_manager.pk)
+
+    def test_on_behalf_submission_rejects_invisible_subject(self):
+        actor = UserFactory(username="wf-student-actor", roles=["student"])
+        other_user = UserFactory(username="wf-student-other", roles=["student"])
+        make_person(user=actor, person_type="student")
+        make_person(user=other_user, person_type="student")
+        schema = make_schema(
+            slug="student-on-behalf-form",
+            fields=[{"key": "title", "type": "text", "order": 1}],
+            workflow_config={
+                "execution_mode": "direct", "allow_on_behalf": True,
+                "eligible_initiator_roles": ["student"], "routing_rules": [],
+            },
+        )
+        with self.assertRaises(FormServiceError):
+            self.service.create_submission(
+                schema=schema, user=actor, data={"title": "درخواست"},
+                subject_user=other_user, is_on_behalf=True,
+            )
+
+    def test_submission_keeps_schema_snapshot_after_schema_changes(self):
+        original_fields = [{"key": "title", "type": "text", "order": 1, "required": True}]
+        schema = make_schema(slug="snapshot-form", fields=original_fields)
+        submission = self.service.create_submission(
+            schema=schema, user=self.employee, data={"title": "ثبت"},
+        )
+        schema.fields = [{"key": "new", "type": "text", "order": 1}]
+        schema.save(update_fields=["fields", "updated_at"])
+        self.assertEqual(submission.schema_snapshot["fields"], original_fields)
 
     def test_submit_starts_workflow_and_links_entity(self):
         submission = self._draft()

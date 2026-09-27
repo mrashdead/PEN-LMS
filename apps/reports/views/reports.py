@@ -8,7 +8,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.reports.permissions import CanAccessReports, can_access_reports
+from apps.reports.permissions import (
+    CanAccessReports,
+    can_access_reports,
+    can_view_financial_reports,
+)
 from apps.reports.selectors.reports import (
     ReportFilterError,
     ReportFilters,
@@ -59,9 +63,44 @@ class ReportsPage(ReportsPageAccessMixin, TemplateView):
 
     template_name = "reports.html"
 
+    report_page = "overview"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.report_page = kwargs.get("section", "overview")
+        if self.report_page not in {
+            "overview", "financial", "enrollments", "people", "classes",
+            "workflow", "communications",
+        }:
+            from django.http import Http404
+            raise Http404
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["report_options"] = filter_options()
+        context["report_page"] = self.report_page
+        pages = [
+            ("overview", "نمای کلی", "گزارش‌های کلیدی و دسترسی سریع"),
+            ("financial", "مالی", "درآمد و وضعیت وصول"),
+            ("enrollments", "ثبت‌نام و دوره‌ها", "وضعیت دوره‌ها و برگزاری‌ها"),
+            ("people", "افراد و مدرسان", "ترکیب افراد و بار تدریس"),
+            ("classes", "کلاس و حضور", "جلسات، فضاها و حضور و غیاب"),
+            ("workflow", "درخواست‌ها", "زمان پاسخ و درخواست‌های در جریان"),
+            ("communications", "ارتباطات", "پیام‌ها و اعلان‌ها"),
+        ]
+        context["report_pages"] = [
+            {"key": key, "title": title, "description": description,
+             "url": "/workspace/reports/" if key == "overview" else f"/workspace/reports/{key}/",
+             "active": key == self.report_page}
+            for key, title, description in pages
+            if key != "financial" or can_view_financial_reports(self.request.user)
+        ]
+        context["report_page_title"] = next(
+            (page[1] for page in pages if page[0] == self.report_page), "گزارش‌ها"
+        )
+        context["can_view_financial_reports"] = can_view_financial_reports(self.request.user)
+        from apps.reports.permissions import can_access_capacity_report
+        context["can_capacity_report"] = can_access_capacity_report(self.request.user)
         context["report_endpoints"] = {
             "dashboard": "/api/reports/dashboard/",
             "filters": "/api/reports/filters/",

@@ -9,6 +9,7 @@
   var endpoints = JSON.parse(ctxNode.textContent || '{}');
   var optionsNode = document.getElementById('pen-report-options');
   var options = optionsNode ? JSON.parse(optionsNode.textContent || '{}') : {};
+  var reportPage = document.querySelector('.pen-reports').dataset.reportPage || 'overview';
   var charts = {};
   var lastData = null;
   var state = { query: new URLSearchParams(window.location.search), period: new URLSearchParams(window.location.search).get('period') || '' };
@@ -341,12 +342,19 @@
   }
   function render(data) {
     lastData = data;
-    renderFinancial(data.financial || {});
-    renderEnrollments(data.enrollments || {});
-    renderPeople(data.people || {});
-    renderClasses(data.classes || {});
-    renderWorkflow(data.workflow || {});
-    renderCommunications(data.communications || {});
+    if (reportPage === 'overview') {
+      document.getElementById('kpi-active-courses').textContent = faNumber(data.enrollments && data.enrollments.active_courses);
+      document.getElementById('kpi-class-utilization').textContent = faPct(data.enrollments && data.enrollments.capacity && data.enrollments.capacity.occupancy_pct);
+      var people = data.people || {};
+      var students = (people.by_role || []).filter(function (row) { return row.key === 'student'; })[0] || {};
+      document.getElementById('kpi-active-students').textContent = faNumber(students.value);
+      document.getElementById('kpi-total-revenue').textContent = data.financial && data.financial.visible ? money(data.financial.totals && data.financial.totals.revenue) : '—';
+    } else if (reportPage === 'financial') renderFinancial(data.financial || {});
+    else if (reportPage === 'enrollments') renderEnrollments(data.enrollments || {});
+    else if (reportPage === 'people') renderPeople(data.people || {});
+    else if (reportPage === 'classes') renderClasses(data.classes || {});
+    else if (reportPage === 'workflow') renderWorkflow(data.workflow || {});
+    else if (reportPage === 'communications') renderCommunications(data.communications || {});
     document.getElementById('report-last-updated').textContent = new Date().toLocaleString('fa-IR');
     if (window.penRenderIcons) window.penRenderIcons();
   }
@@ -356,7 +364,7 @@
     workflowReportPage = Number(state.query.get('workflow_page') || 1);
     updateReportUrl();
     api(endpoints.dashboard, state.query).then(render).catch(function (error) { showError(error.message); }).finally(function () { setLoading(false); });
-    loadWorkflowRequests(state.query);
+    if (reportPage === 'workflow') loadWorkflowRequests(state.query);
   }
   function exportReport(kind) {
     var query = currentQuery();
@@ -426,6 +434,20 @@
   });
   document.getElementById('report-print').addEventListener('click', function () { window.print(); });
   document.querySelectorAll('[data-report-export]').forEach(function (button) { button.addEventListener('click', function () { if (!button.disabled) exportReport(button.dataset.reportExport); }); });
+  document.querySelectorAll('.report-nav a, .report-index-link').forEach(function (link) {
+    link.addEventListener('click', function () {
+      var target = new URL(link.href, window.location.origin);
+      currentQuery().forEach(function (value, key) { target.searchParams.set(key, value); });
+      workflowFilterFields.forEach(function (field) {
+        var value = (document.getElementById(field.id).value || '').trim();
+        var key = 'workflow_' + field.key;
+        if (value) target.searchParams.set(key, value);
+        else target.searchParams.delete(key);
+      });
+      if (workflowReportPage > 1) target.searchParams.set('workflow_page', String(workflowReportPage));
+      link.href = target.pathname + target.search;
+    });
+  });
   window.addEventListener('pen:theme-change', function () { if (lastData) render(lastData); });
   load(state.query);
 })();

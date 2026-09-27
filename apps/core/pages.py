@@ -298,15 +298,25 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "canCreate": False,       # sessions come from «تشکیل کلاس» (or the
         "canEdit": True,          # manual per-session adjustment, task §3.ب
         "formationLink": True,    # «تشکیل کلاس» button on the page header
+        "groupBy": "class_code",
+        "sortBy": ["class_code", "session_number", "session_date", "start_time"],
+        "filters": [
+            {"param": "status", "label": "وضعیت", "type": "select", "options": [
+                {"value": "", "label": "همه وضعیت‌ها"},
+                {"value": "scheduled", "label": "زمان‌بندی‌شده"},
+                {"value": "held", "label": "برگزارشده"},
+                {"value": "cancelled", "label": "لغوشده"},
+            ]},
+            {"param": "class_code", "label": "کد کلاس", "type": "text", "placeholder": "مثلاً CLS-PY-01"},
+            {"param": "date", "label": "تاریخ جلسه", "type": "text", "dir": "ltr", "placeholder": "۱۴۰۵/۰۷/۰۱"},
+        ],
         "columns": [
-            {"field": "class_code", "label": "کد کلاس"},
-            {"field": "offering_title", "label": "برگزاری"},
-            {"field": "lesson_title", "label": "درس"},
             {"field": "session_number", "label": "جلسه"},
-            {"field": "topic", "label": "موضوع درس"},
+            {"field": "lesson_title", "label": "درس"},
+            {"field": "offering_title", "label": "برگزاری"},
+            {"field": "topic", "label": "موضوع"},
             {"field": "session_date", "label": "تاریخ"},
-            {"field": "start_time", "label": "شروع"},
-            {"field": "end_time", "label": "پایان"},
+            {"field": "start_time", "label": "زمان"},
             {"field": "teacher_name", "label": "استاد"},
             {"field": "location_name", "label": "محل"},
             {"field": "status", "label": "وضعیت", "type": "badge"},
@@ -624,9 +634,15 @@ class MessagesPage(StaffRequiredMixin, TemplateView):
 
 
 class EnrollmentPage(StaffRequiredMixin, TemplateView):
-    """Registration management directory and financial enrollment form."""
+    """Financial enrollment form for a student and course offering."""
 
     template_name = "enrollment.html"
+
+
+class EnrollmentDirectoryPage(StaffRequiredMixin, TemplateView):
+    """Search and follow-up view for registrations."""
+
+    template_name = "enrollment_directory.html"
 
 
 class EnrollmentEntityPage(StaffRequiredMixin, TemplateView):

@@ -675,7 +675,18 @@ class WorkflowEngineService:
             subject_user_id = getattr(instance.subject_person, "user_id", None)
             user_ids = [subject_user_id] if subject_user_id else []
         elif strategy in {"direct_manager", "supervisor"}:
-            manager_id = getattr(instance.requester, "manager_id", None)
+            # A request made on behalf of someone else should follow that
+            # person's manager. Self-service requests retain requester routing.
+            subject_user_id = getattr(instance.subject_person, "user_id", None)
+            if subject_user_id:
+                from apps.accounts.models import User
+
+                manager_id = User.objects.filter(pk=subject_user_id).values_list(
+                    "manager_id", flat=True
+                ).first()
+            else:
+                manager_id = None
+            manager_id = manager_id or getattr(instance.requester, "manager_id", None)
             user_ids = [manager_id] if manager_id else []
         elif strategy in {"explicit_user", "user"}:
             explicit_id = policy.get("user_id")

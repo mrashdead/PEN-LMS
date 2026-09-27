@@ -777,8 +777,46 @@ class SessionListCreateView(generics.ListCreateAPIView):
             qs = qs.filter(offering_id=offering_id)
         date = self.request.query_params.get("date")
         if date:
-            qs = qs.filter(session_date=date)
-        return qs
+            try:
+                from apps.core.utils import english_numbers
+                date_clean = english_numbers(date.strip())
+                if '/' in date_clean:
+                    import jdatetime
+                    parsed = jdatetime.datetime.strptime(date_clean, "%Y/%m/%d").date().togregorian()
+                elif '-' in date_clean:
+                    import datetime as _dt
+                    parsed = _dt.date.fromisoformat(date_clean)
+                else:
+                    parsed = None
+                if parsed is None:
+                    raise ValueError("Invalid date format")
+                qs = qs.filter(session_date=parsed)
+            except (ValueError, TypeError):
+                qs = qs.none()
+        class_code = self.request.query_params.get("class_code")
+        if class_code:
+            qs = qs.filter(class_code__icontains=class_code.strip())
+        status_value = self.request.query_params.get("status")
+        if status_value:
+            qs = qs.filter(status=status_value)
+        search = self.request.query_params.get("search")
+        if search:
+            search = search.strip()
+            qs = qs.filter(
+                models.Q(class_code__icontains=search)
+                | models.Q(offering__code__icontains=search)
+                | models.Q(offering__title__icontains=search)
+                | models.Q(offering__course__title__icontains=search)
+                | models.Q(lesson__title__icontains=search)
+                | models.Q(topic__icontains=search)
+                | models.Q(title__icontains=search)
+                | models.Q(teacher__first_name__icontains=search)
+                | models.Q(teacher__last_name__icontains=search)
+                | models.Q(location__name__icontains=search)
+            )
+        return qs.select_related("offering", "offering__course", "lesson", "teacher", "location").order_by(
+            "class_code", "session_number", "session_date", "start_time"
+        )
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

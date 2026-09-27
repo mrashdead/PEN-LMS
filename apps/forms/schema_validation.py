@@ -122,6 +122,11 @@ def validate_form_fields(fields) -> list[dict]:
             raise SchemaDefinitionError(
                 f"field {field.get('key')!r} after references unknown field {after!r}."
             )
+        course_field = (field.get("relation") or {}).get("course_field")
+        if course_field is not None and course_field not in all_keys:
+            raise SchemaDefinitionError(
+                f"field {field.get('key')!r} course_field references unknown field {course_field!r}."
+            )
 
     return sorted(fields, key=lambda f: f["order"])
 
@@ -246,6 +251,7 @@ def _validate_type_specific(key: str, field: dict, ftype: str) -> None:
             raise SchemaDefinitionError(
                 f"field {key!r} of type {ftype!r} requires relation.registry_key."
             )
+        registry_key = relation["registry_key"]
         lookup = relation.get("lookup", "id")
         if not isinstance(lookup, str):
             raise SchemaDefinitionError(f"field {key!r} relation.lookup must be a string.")
@@ -265,6 +271,14 @@ def _validate_type_specific(key: str, field: dict, ftype: str) -> None:
         rel_filter = relation.get("filter")
         if rel_filter is not None and not isinstance(rel_filter, dict):
             raise SchemaDefinitionError(f"field {key!r} relation.filter must be an object.")
+        course_field = relation.get("course_field")
+        if course_field is not None and (
+            not isinstance(course_field, str) or not KEY_RE.match(course_field)
+            or registry_key != "academic.lesson"
+        ):
+            raise SchemaDefinitionError(
+                f"field {key!r} relation.course_field is only supported for academic.lesson."
+            )
         multiple = relation.get("multiple")
         if multiple is not None and not isinstance(multiple, bool):
             raise SchemaDefinitionError(f"field {key!r} relation.multiple must be a boolean.")

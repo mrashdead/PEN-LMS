@@ -131,6 +131,9 @@ class PersonListSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializers.
     )
     role_display = serializers.SerializerMethodField()
     has_user = serializers.BooleanField(source="user_id", read_only=True)
+    user_id = serializers.UUIDField(read_only=True, allow_null=True)
+    department = serializers.SerializerMethodField()
+    job_title = serializers.SerializerMethodField()
     birth_date = JalaliDateField(allow_null=True, required=False)
     created_at = PersianCharField(source="created_at_jalali", read_only=True)
 
@@ -149,6 +152,7 @@ class PersonListSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializers.
             "email",
             "is_active",
             "has_user",
+            "user_id", "department", "job_title",
             "created_at", "actions",
         )
 
@@ -163,6 +167,12 @@ class PersonListSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializers.
             if label:
                 return label
         return obj.get_person_type_display()
+
+    def get_department(self, obj) -> str:
+        return str(getattr(getattr(obj, "user", None), "department", "") or "")
+
+    def get_job_title(self, obj) -> str:
+        return str(getattr(getattr(obj, "user", None), "job_title", "") or "")
 
 
 class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializers.ModelSerializer):

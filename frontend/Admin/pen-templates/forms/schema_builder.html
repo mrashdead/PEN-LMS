@@ -42,6 +42,34 @@
           <div class="form-text">فرم متصل به نوع درخواست، وارد چرخهٔ ثبت‌شدهٔ همان فرآیند می‌شود.</div>
         </div>
         <div>
+          <label class="form-label" for="b-category">دسته‌بندی</label>
+          <select id="b-category" class="form-select">
+            <option value="persons">افراد</option><option value="departments">دپارتمان‌ها</option><option value="courses">درس‌ها و دوره‌ها</option><option value="classes">برگزاری‌ها و کلاس‌ها</option><option value="messages">پیام‌ها</option><option value="general">سایر خدمات</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="b-workflow">الگوی گردش‌کار</label>
+          <select id="b-workflow" class="form-select"><option value="">بدون الگوی گردش‌کار</option>{% for wf in workflow_definitions %}<option value="{{ wf.code }}">{{ wf.name }} ({{ wf.code }})</option>{% endfor %}</select>
+        </div>
+        <div>
+          <label class="form-label" for="b-execution-mode">روش اجرا</label>
+          <select id="b-execution-mode" class="form-select"><option value="direct">اجرای مستقیم</option><option value="workflow">گردش‌کار مرحله‌ای</option></select>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="b-allow-on-behalf">
+          <label class="form-check-label" for="b-allow-on-behalf">امکان ثبت برای شخص دیگر</label>
+        </div>
+        <div>
+          <label class="form-label" for="b-eligible-roles">نقش‌های مجاز برای ثبت از طرف دیگری</label>
+          <input id="b-eligible-roles" class="form-control" dir="ltr" placeholder="manager, hr">
+          <div class="form-text">این نقش‌ها علاوه بر دسترسی عادی به فرم کنترل می‌شوند.</div>
+        </div>
+        <div>
+          <label class="form-label" for="b-routing-rules">قواعد مسیر (JSON)</label>
+          <textarea id="b-routing-rules" class="form-control font-monospace" dir="ltr" rows="4" spellcheck="false">[]</textarea>
+          <div class="form-text">برای تخصیص واقعی مرحله‌ها، الگوی گردش‌کار انتخاب‌شده نیز باید Assignment Policy داشته باشد.</div>
+        </div>
+        <div>
           <label class="form-label" for="b-version">نسخه</label>
           <input id="b-version" class="form-control" type="number" min="1" value="{{ next_version }}">
           {% if mode == 'edit' %}
@@ -68,8 +96,7 @@
 
         <div class="alert alert-warning mb-0 fs-13" role="status">
           <i data-lucide="info" class="size-4 me-1"></i>
-          فعال/غیرفعال‌کردن نسخه و تنظیمات پیشرفتهٔ گردش‌کار از
-          <a href="/admin/forms/formschema/">ادمین جنگو</a> انجام می‌شود؛ نوع درخواست در همین طراح ذخیره می‌شود.
+          فعال‌بودن نسخه و تنظیمات پیشرفته از پنل ادمین مدیریت می‌شود. دسته‌بندی و تنظیمات اجرای فرم در این طراح ذخیره می‌شوند.
         </div>
       </div>
     </div>

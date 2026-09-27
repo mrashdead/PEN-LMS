@@ -241,9 +241,9 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
     },
     # ── فرم لید / تعیین سطح (lead-assessment) ────────────────────────────
     "lead-assessment": {
-        "title": "لید و تعیین سطح",
-        "description": "ثبت لید، تعیین نوبت و جلسه تعیین سطح، ارزیابی و معرفی دوره.",
-        "version": 1,
+        "title": "ثبت‌نام و تعیین سطح",
+        "description": "ثبت مشخصات دانش‌آموز، زمان ارزیابی و دوره و درس پیشنهادی.",
+        "version": 2,
         "allowed_roles": ["employee", "supervisor", "manager", "workflow_admin"],
         "workflow_code": "lead-assessment",
         "fields": [
@@ -271,7 +271,7 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
                          "required": False}),
             _f("recommended_lesson", "relation", 11, "درس مورد نظر",
                relation={"registry_key": "academic.lesson", "lookup": "id",
-                         "required": False}),
+                         "required": False, "course_field": "recommended_course"}),
         ],
     },
     # ── فرم ثبت‌نام دانش‌آموز — Request → workflow → domain action ───────
@@ -305,6 +305,18 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
             _f("payment_reference", "text", 7, "کد پیگیری پرداخت", max_length=128),
         ],
     },
+}
+
+# Explicit catalogue metadata; request UI never infers a category from slugs.
+SCHEMA_CATEGORIES = {
+    "lesson": "courses",
+    "course": "courses",
+    "course-offering": "classes",
+    "class-session-setup": "classes",
+    "attendance": "classes",
+    "grade-report": "classes",
+    "lead-assessment": "persons",
+    "student-registration": "persons",
 }
 
 
@@ -526,6 +538,13 @@ class Command(BaseCommand):
                     "metadata": item["metadata"],
                     "workflow_definition": workflow,
                     "request_type": request_type,
+                    "category": SCHEMA_CATEGORIES.get(item["slug"], "general"),
+                    "workflow_config": {
+                        "execution_mode": "workflow" if workflow else "direct",
+                        "allow_on_behalf": item["slug"] == "lesson",
+                        "eligible_initiator_roles": item["allowed_roles"],
+                        "routing_rules": [],
+                    },
                 },
             )
             if not created:
@@ -536,6 +555,13 @@ class Command(BaseCommand):
                     schema.metadata = item["metadata"]
                     schema.workflow_definition = workflow
                     schema.request_type = request_type
+                    schema.category = SCHEMA_CATEGORIES.get(item["slug"], "general")
+                    schema.workflow_config = {
+                        "execution_mode": "workflow" if workflow else "direct",
+                        "allow_on_behalf": item["slug"] == "lesson",
+                        "eligible_initiator_roles": item["allowed_roles"],
+                        "routing_rules": [],
+                    }
                     schema.is_active = True
                     schema.full_clean()
                     schema.save()

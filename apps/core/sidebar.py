@@ -30,7 +30,7 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     {"key": "workspace-work", "flag": "workspace_work", "title": "کارهای من", "section": "کارتابل", "default_roles": STAFF_MENU_ROLES},
     {"key": "staff-dashboard", "flag": "staff_dashboard", "title": "کارکرد و مرخصی", "section": "کارکنان", "default_roles": STAFF_MENU_ROLES | {"supervisor", "teacher"}},
     {"key": "calls-dashboard", "flag": "calls_dashboard", "title": "ثبت تماس‌ها", "section": "ارتباطات", "default_roles": STAFF_MENU_ROLES | {"supervisor", "teacher"}},
-    {"key": "submission-picker", "flag": "submission_picker", "title": "درخواست جدید", "section": "درخواست‌ها", "default_roles": STAFF_MENU_ROLES},
+    {"key": "submission-picker", "flag": "submission_picker", "title": "مرکز درخواست‌ها", "section": "درخواست‌ها", "default_roles": STAFF_MENU_ROLES},
     {"key": "workspace-persons", "flag": "workspace_persons", "title": "افراد", "section": "آموزشگاه", "default_roles": ELEVATED_ROLES},
     {"key": "workspace-departments", "flag": "workspace_departments", "title": "دپارتمان‌ها", "section": "آموزشگاه", "default_roles": STAFF_MENU_ROLES},
     {"key": "workspace-lessons", "flag": "workspace_lessons", "title": "درس‌ها", "section": "آموزشگاه", "default_roles": STAFF_MENU_ROLES},
@@ -51,7 +51,7 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     {"key": "workspace-perm-manage", "flag": "workspace_perm_manage", "title": "مدیریت مجوز کاربران", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
     {"key": "workspace-org-responsibilities", "flag": "workspace_org_responsibilities", "title": "مسئولیت‌ها و عملکرد", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
     {"key": "workspace-org-delegations", "flag": "workspace_org_delegations", "title": "جانشینی", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
-    {"key": "schema-admin", "flag": "schema_admin", "title": "طراح فرم‌ها", "section": "مدیریت سازمان", "default_roles": ELEVATED_ROLES},
+    {"key": "schema-admin", "flag": "schema_admin", "title": "مدیریت الگوهای فرم", "section": "مدیریت سازمان", "default_roles": ELEVATED_ROLES},
 )
 
 _ITEM_BY_KEY = {item["key"]: item for item in SIDEBAR_ITEMS}

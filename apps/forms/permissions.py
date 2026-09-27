@@ -56,7 +56,16 @@ def visible_schemas_for(user) -> "FormSchema.objects":
         if roles
         else qs.none()
     )
-    return (public | restricted).distinct()
+    visible = (public | restricted).distinct()
+    # An explicit initiator allowlist narrows the existing schema/request-type
+    # audience. Empty lists retain legacy behavior (the role M2Ms above remain
+    # authoritative and an unconfigured public form stays public).
+    allowed_ids = []
+    for schema in visible.only("pk", "workflow_config").distinct():
+        eligible = set((schema.workflow_config or {}).get("eligible_initiator_roles") or [])
+        if not eligible or roles & eligible:
+            allowed_ids.append(schema.pk)
+    return visible.filter(pk__in=allowed_ids).distinct()
 
 
 def visible_request_types_for(user):
@@ -83,7 +92,7 @@ def visible_submissions_for(user):
     if roles & ELEVATED_ROLES:
         return FormSubmission.objects.all()
 
-    condition = Q(submitted_by=user)
+    condition = Q(submitted_by=user) | Q(initiator=user) | Q(subject_user=user)
 
     person = _person_of(user)
     if person is not None:
@@ -111,6 +120,11 @@ def visible_requests_for(user):
     """
     visible_submission_ids = visible_submissions_for(user).values("pk")
     condition = Q(form_submission_id__in=visible_submission_ids)
+    condition |= Q(initiator=user) | Q(subject_user=user)
+    condition |= Q(
+        form_submission__workflow_instance__action_logs__actor=user,
+        form_submission__workflow_instance__action_logs__is_deleted=False,
+    )
     condition |= Q(
         form_submission__workflow_instance__tasks__assignee=user,
         form_submission__workflow_instance__tasks__status="pending",

@@ -21,7 +21,7 @@
             <input type="search" id="res-search" class="form-control ps-9" placeholder="جستجو…" aria-label="جستجو">
             <i data-lucide="search" class="size-4 text-muted position-absolute top-50 start-0 ms-3 translate-middle-y"></i>
           </div>
-          <div id="res-filters" class="d-flex flex-wrap gap-2"></div>
+          <div id="res-filters" class="d-flex flex-wrap gap-2" aria-label="فیلترهای صفحه"></div>
           {% if can_write %}
             {% if config.formationLink %}
               <button id="res-formation" class="btn btn-success flex-shrink-0">

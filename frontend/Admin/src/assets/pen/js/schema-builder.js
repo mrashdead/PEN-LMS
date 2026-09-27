@@ -27,6 +27,14 @@
   var $empty = document.getElementById('b-empty');
   var $json = document.getElementById('b-json');
 
+  document.getElementById('b-category').value = CTX.category || 'general';
+  document.getElementById('b-workflow').value = CTX.workflowCode || '';
+  document.getElementById('b-execution-mode').value = (CTX.workflowConfig || {}).execution_mode || (CTX.workflowCode ? 'workflow' : 'direct');
+  document.getElementById('b-allow-on-behalf').checked = !!((CTX.workflowConfig || {}).allow_on_behalf);
+  document.getElementById('b-eligible-roles').value = ((CTX.workflowConfig || {}).eligible_initiator_roles || []).join(', ');
+  document.getElementById('b-routing-rules').value = JSON.stringify((CTX.workflowConfig || {}).routing_rules || [], null, 2);
+  document.getElementById('b-roles').value = (CTX.allowedRoleCodes || []).join(', ');
+
   var TYPES = [
     ['text', 'متن'], ['textarea', 'متن بلند'], ['rich_text', 'متن غنی'],
     ['number', 'عدد'], ['integer', 'عدد صحیح'], ['decimal', 'عدد اعشاری'],
@@ -394,11 +402,24 @@
 
   function payload() {
     renumber();
+    var routingRules;
+    try { routingRules = JSON.parse(document.getElementById('b-routing-rules').value || '[]'); }
+    catch (error) { throw new Error('JSON قواعد مسیر معتبر نیست.'); }
+    if (!Array.isArray(routingRules)) throw new Error('قواعد مسیر باید یک آرایهٔ JSON باشد.');
     return {
       slug: document.getElementById('b-slug').value.trim(),
       title: document.getElementById('b-title').value.trim(),
       description: document.getElementById('b-description').value.trim(),
       request_type_code: (document.getElementById('b-request-type') || {}).value || '',
+      category: document.getElementById('b-category').value,
+      workflow_code: document.getElementById('b-workflow').value,
+      workflow_config: {
+        execution_mode: document.getElementById('b-execution-mode').value,
+        allow_on_behalf: document.getElementById('b-allow-on-behalf').checked,
+        eligible_initiator_roles: document.getElementById('b-eligible-roles').value.split(',').map(function (x) { return x.trim(); }).filter(Boolean),
+        routing_rules: routingRules,
+      },
+      allowed_role_codes: document.getElementById('b-roles').value.split(',').map(function (x) { return x.trim(); }).filter(Boolean),
       version: parseInt(document.getElementById('b-version').value, 10) || 1,
       is_active: true,
       fields: fields.map(cleanField),
@@ -423,7 +444,8 @@
   }
 
   function post(validateOnly) {
-    var p = payload();
+    var p;
+    try { p = payload(); } catch (error) { showResult({ workflow_config: error.message }, true); return; }
     var errs = clientCheck(p);
     if (Object.keys(errs).length) {
       showResult(errs, true);

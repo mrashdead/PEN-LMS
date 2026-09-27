@@ -15,6 +15,8 @@
   var CSRF = window.getCookie ? window.getCookie('csrftoken') : '';
   var draftId = ctx.submissionId || null; // submission id, used by attachments
   var requestId = ctx.requestId || null; // canonical business request id
+  var subjectUserId = null;
+  var isOnBehalf = false;
   var createIdempotencyKey = ctx.createIdempotencyKey ||
     ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random());
   var editing = function () { return !!requestId || !!draftId; };
@@ -30,6 +32,67 @@
 
   function fieldWrap(key) {
     return document.getElementById('field-' + key);
+  }
+
+  function createPayload(data) {
+    return { schema_slug: ctx.schemaSlug, data: data, subject_user_id: isOnBehalf ? subjectUserId : null, is_on_behalf: isOnBehalf };
+  }
+
+  function validateSubmissionContext() {
+    var error = document.getElementById('subject-error');
+    if (isOnBehalf && !subjectUserId) {
+      if (error) { error.textContent = 'یک فرد مجاز را به‌عنوان درخواست‌شونده انتخاب کنید.'; error.hidden = false; }
+      return false;
+    }
+    if (error) error.hidden = true;
+    return true;
+  }
+
+  function initSubjectSelector() {
+    if (!ctx.canSubmitOnBehalf) return;
+    var radios = form.querySelectorAll('[name="submission-context"]');
+    var panel = document.getElementById('subject-picker-panel');
+    var input = document.getElementById('subject-search');
+    var results = document.getElementById('subject-results');
+    var selected = document.getElementById('subject-selected');
+    if (!radios.length || !panel || !input || !results) return;
+    Array.prototype.forEach.call(radios, function (radio) { radio.addEventListener('change', function () {
+      isOnBehalf = radio.value === 'other' && radio.checked;
+      panel.hidden = !isOnBehalf;
+      if (!isOnBehalf) { subjectUserId = null; selected.hidden = true; results.hidden = true; }
+      validateSubmissionContext();
+    }); });
+    var timer = null;
+    input.addEventListener('input', function () {
+      subjectUserId = null;
+      selected.hidden = true;
+      validateSubmissionContext();
+      clearTimeout(timer); var query = input.value.trim();
+      if (!query || query.length < 2) { results.hidden = true; results.innerHTML = ''; return; }
+      timer = setTimeout(function () {
+        results.hidden = false; results.innerHTML = '<div class="pen-subject-loading">در حال جستجو…</div>';
+        fetch('/api/persons/?search=' + encodeURIComponent(query) + '&is_active=true', { credentials: 'same-origin' })
+          .then(function (response) { if (!response.ok) throw new Error('جستجوی افراد مجاز در دسترس نیست.'); return response.json(); })
+          .then(function (body) {
+            var people = body.results || [];
+            people = people.filter(function (person) { return person.user_id && person.is_active; }).slice(0, 10);
+            if (!people.length) { results.innerHTML = '<div class="pen-subject-empty">فرد مجازی با این مشخصات پیدا نشد.</div>'; return; }
+            results.innerHTML = people.map(function (person) {
+              var name = [person.first_name, person.last_name].filter(Boolean).join(' ') || person.display_name || 'فرد';
+              var role = person.job_title || person.person_type_display || person.person_type || '';
+              var dept = person.department || '';
+              return '<button type="button" class="pen-subject-option" role="option" data-user-id="' + escapeHtml(person.user_id) + '"><strong>' + escapeHtml(name) + '</strong><span>' + escapeHtml([role, dept].filter(Boolean).join(' · ') || 'اطلاعات شغلی ثبت نشده') + '</span></button>';
+            }).join('');
+            results.querySelectorAll('[data-user-id]').forEach(function (button) { button.addEventListener('click', function () {
+              var person = people.filter(function (candidate) { return String(candidate.user_id) === button.dataset.userId; })[0];
+              if (!person) return; subjectUserId = person.user_id;
+              var name = [person.first_name, person.last_name].filter(Boolean).join(' ') || person.display_name || 'فرد انتخاب‌شده';
+              selected.textContent = 'درخواست‌شونده: ' + name + (person.department ? ' · ' + person.department : '');
+              selected.hidden = false; results.hidden = true; input.value = name; validateSubmissionContext();
+            }); });
+          }).catch(function (error) { results.innerHTML = '<div class="pen-subject-empty text-danger">' + escapeHtml(error.message) + '</div>'; });
+      }, 250);
+    });
   }
 
   function showFieldErrors(errors) {
@@ -132,6 +195,82 @@
       if (!parsed) { wrap.hidden = false; return; }
       var visible = evaluateCondition(parsed);
       wrap.hidden = !visible;
+    });
+  }
+
+  // Keep course recommendations coherent: the lesson picker is populated
+  // from the selected course's lesson IDs, then the server validates it again.
+  function initCourseDependentRelations() {
+    form.querySelectorAll('select[data-course-dependent-on]').forEach(function (lessonSelect) {
+      var courseKey = lessonSelect.dataset.courseDependentOn;
+      var courseSelect = form.querySelector('[name="' + courseKey + '"]');
+      if (!courseSelect) return;
+      var originalOptions = Array.prototype.slice.call(lessonSelect.options).map(function (option) {
+        return { value: option.value, label: option.textContent };
+      });
+      var help = document.getElementById('help_' + lessonSelect.name);
+      var requestToken = 0;
+
+      function loadLessons() {
+        var courseId = courseSelect.value;
+        var token = ++requestToken;
+        var selectedLesson = lessonSelect.value;
+        lessonSelect.innerHTML = '';
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = courseId ? 'در حال بارگذاری درس‌ها…' : 'ابتدا دوره را انتخاب کنید';
+        lessonSelect.appendChild(placeholder);
+        lessonSelect.disabled = true;
+        lessonSelect.setAttribute('aria-busy', courseId ? 'true' : 'false');
+        if (!courseId) {
+          if (help) help.textContent = 'ابتدا دوره را انتخاب کنید تا درس‌های همان دوره نمایش داده شوند.';
+          return;
+        }
+        fetch('/api/education/courses/' + encodeURIComponent(courseId) + '/', { credentials: 'same-origin' })
+          .then(function (response) {
+            if (!response.ok) throw new Error('course lookup failed');
+            return response.json();
+          })
+          .then(function (course) {
+            if (token !== requestToken) return;
+            var ids = Array.isArray(course.lessons) ? course.lessons.map(String) : [];
+            var allowed = {};
+            ids.forEach(function (id) { allowed[id] = true; });
+            lessonSelect.innerHTML = '';
+            var emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = ids.length ? 'انتخاب درس' : 'برای این دوره درسی تعریف نشده است';
+            lessonSelect.appendChild(emptyOption);
+            originalOptions.forEach(function (item) {
+              if (item.value && allowed[item.value]) {
+                var option = document.createElement('option');
+                option.value = item.value;
+                option.textContent = item.label;
+                lessonSelect.appendChild(option);
+              }
+            });
+            lessonSelect.disabled = ids.length === 0;
+            lessonSelect.setAttribute('aria-busy', 'false');
+            if (selectedLesson && allowed[selectedLesson]) lessonSelect.value = selectedLesson;
+            if (help) help.textContent = ids.length
+              ? 'فقط درس‌های دورهٔ انتخاب‌شده نمایش داده می‌شوند.'
+              : 'ابتدا از بخش دوره‌ها، درس‌های این دوره را مشخص کنید.';
+          })
+          .catch(function () {
+            if (token !== requestToken) return;
+            lessonSelect.innerHTML = '';
+            var failedOption = document.createElement('option');
+            failedOption.value = '';
+            failedOption.textContent = 'بارگذاری درس‌ها ناموفق بود';
+            lessonSelect.appendChild(failedOption);
+            lessonSelect.disabled = true;
+            lessonSelect.setAttribute('aria-busy', 'false');
+            if (help) help.textContent = 'دریافت درس‌های دوره ممکن نشد؛ دوره را دوباره انتخاب کنید.';
+          });
+      }
+
+      courseSelect.addEventListener('change', loadLessons);
+      loadLessons();
     });
   }
 
@@ -443,7 +582,7 @@
       ctx.attachmentsEndpoint = '/api/forms/submissions/' + draftId + '/attachments/';
       return Promise.resolve(draftId);
     }
-    var payload = { schema_slug: ctx.schemaSlug, data: collect() };
+    var payload = createPayload(collect());
     return postJson('/api/forms/requests/', payload, 'POST', createIdempotencyKey).then(function (res) {
       if (!res.ok) {
         showFieldErrors(extractErrors(res.body));
@@ -596,13 +735,13 @@
   }
 
   function saveDraftSilently() {
-    if (!dirty || saving) return Promise.resolve();
+    if (!dirty || saving || !validateSubmissionContext()) return Promise.resolve();
     saving = true;
     setSaveStatus('در حال ذخیرهٔ پیش‌نویس…');
     var unified = usingUnifiedRequest();
     var payload = requestId
       ? { data: collect() }
-      : { schema_slug: ctx.schemaSlug, data: collect() };
+      : createPayload(collect());
     var url = requestId
       ? '/api/forms/requests/' + requestId + '/update/'
       : (unified ? '/api/forms/requests/' : '/api/forms/submissions/');
@@ -624,16 +763,19 @@
       .finally(function () { saving = false; });
   }
 
+  initSubjectSelector();
+
   var draftBtn = document.getElementById('save-draft');
   var submitBtn = document.getElementById('submit-form');
 
   if (draftBtn) {
     draftBtn.addEventListener('click', function () {
+      if (!validateSubmissionContext()) return;
       setBusy(draftBtn, true);
       var unified = usingUnifiedRequest();
       var payload = requestId
         ? { data: collect() }
-        : { schema_slug: ctx.schemaSlug, data: collect() };
+        : createPayload(collect());
       var url = requestId
         ? '/api/forms/requests/' + requestId + '/update/'
         : (unified ? '/api/forms/requests/' : '/api/forms/submissions/');
@@ -663,6 +805,7 @@
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+    if (!validateSubmissionContext()) return;
     setBusy(submitBtn, true);
     var data = collect();
 
@@ -671,7 +814,7 @@
       ? postJson('/api/forms/requests/' + requestId + '/update/', { data: data }, 'PATCH')
       : postJson(
         unified ? '/api/forms/requests/' : '/api/forms/submissions/',
-        { schema_slug: ctx.schemaSlug, data: data },
+        createPayload(data),
         'POST',
         unified ? createIdempotencyKey : null
       );
@@ -723,6 +866,7 @@
     event.returnValue = '';
   });
   applyConditionals();
+  initCourseDependentRelations();
 
   // Jalali pickers: hydrate server-rendered ISO values to Jalali text,
   // then arm the theme's picker. collect() converts back on submit.

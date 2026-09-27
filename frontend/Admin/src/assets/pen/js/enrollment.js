@@ -55,7 +55,7 @@
       leadCourseId = lead.course || '';
       var context = document.getElementById('enr-lead-context');
       context.classList.remove('d-none');
-      document.getElementById('enr-lead-summary').textContent = lead.student_name + ' · ' + (lead.phone || 'بدون شماره') + ' · ' + (lead.course_title || 'دوره در لید مشخص نشده') + (lead.assessment_result ? ' · نتیجه: ' + lead.assessment_result : '');
+      document.getElementById('enr-lead-summary').textContent = lead.student_name + ' · ' + (lead.phone || 'بدون شماره') + ' · ' + (lead.course_title || 'دوره‌ای انتخاب نشده') + (lead.assessment_result ? ' · نتیجه: ' + lead.assessment_result : '');
       $sSearch.value = lead.student_name || '';
       if (lead.enrolled_person) {
         setStudent(lead.enrolled_person, lead.enrolled_person_name || lead.student_name);
@@ -75,7 +75,7 @@
     button.disabled = true;
     fetch('/api/leads/' + encodeURIComponent(LEAD_ID) + '/create-person/', { method: 'POST', credentials: 'same-origin', headers: headers(), body: JSON.stringify({ national_code: nationalCode, student_code: studentCode, father_name: document.getElementById('enr-lead-father-name').value.trim() }) })
       .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(Object.keys(b).map(function (k) { return Array.isArray(b[k]) ? b[k].join('، ') : b[k]; }).join(' — ') || 'افزودن دانش‌آموز انجام نشد.'); return b; }); })
-      .then(function (person) { setStudent(person.person_id, person.person_name); toast('دانش‌آموز افزوده شد و به سرنخ پیوند خورد.', 'success'); })
+      .then(function (person) { setStudent(person.person_id, person.person_name); toast('پرونده دانش‌آموز ساخته شد.', 'success'); })
       .catch(function (e) { toast(e.message, 'danger'); })
       .finally(function () { button.disabled = false; });
   });
@@ -273,6 +273,7 @@
   // ── recent enrollments ──────────────────────────────────────────────
   function loadRecent() {
     var $box = document.getElementById('enr-recent');
+    if (!$box) return;
     $box.setAttribute('aria-busy', 'true');
     get(ENROLL + '?page_size=15').then(function (d) {
       var rows = d.results || [];
@@ -306,7 +307,7 @@
 
   // ── boot ────────────────────────────────────────────────────────────
   loadOfferings();
-  loadLeadContext().catch(function (e) { toast('اطلاعات لید دریافت نشد: ' + e.message, 'danger'); });
+  loadLeadContext().catch(function (e) { toast('اطلاعات ثبت‌شده دریافت نشد: ' + e.message, 'danger'); });
   loadRecent();
   loadWaitlist();
   renderAmount();
