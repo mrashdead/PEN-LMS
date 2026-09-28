@@ -33,6 +33,7 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     {"key": "submission-picker", "flag": "submission_picker", "title": "مرکز درخواست‌ها", "section": "درخواست‌ها", "default_roles": STAFF_MENU_ROLES},
     {"key": "workspace-persons", "flag": "workspace_persons", "title": "افراد", "section": "آموزشگاه", "default_roles": ELEVATED_ROLES},
     {"key": "workspace-departments", "flag": "workspace_departments", "title": "دپارتمان‌ها", "section": "آموزشگاه", "default_roles": STAFF_MENU_ROLES},
+    {"key": "workspace-terms", "flag": "workspace_terms", "title": "ترم‌های تحصیلی", "section": "آموزشگاه", "default_roles": STAFF_MENU_ROLES},
     {"key": "workspace-lessons", "flag": "workspace_lessons", "title": "درس‌ها", "section": "آموزشگاه", "default_roles": STAFF_MENU_ROLES},
     {"key": "workspace-courses", "flag": "workspace_courses", "title": "دوره‌ها", "section": "آموزشگاه", "default_roles": STAFF_MENU_ROLES},
     {"key": "workspace-offerings", "flag": "workspace_offerings", "title": "برگزاری‌ها", "section": "آموزشگاه", "default_roles": STAFF_MENU_ROLES},

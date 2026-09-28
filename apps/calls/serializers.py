@@ -112,12 +112,13 @@ class CallCreateSerializer(serializers.Serializer):
     next_follow_up_at = serializers.DateTimeField(required=False, allow_null=True)
 
     def validate_caller_phone(self, value):
-        from apps.calls.services import _normalize_phone
+        from apps.core.utils import english_numbers
+        from apps.persons.validation import is_valid_iranian_mobile
 
-        phone = _normalize_phone(value or "")
-        if len(phone) < 3:
-            raise serializers.ValidationError("شماره تماس معتبر نیست.")
-        return value
+        phone = english_numbers(value or "").strip()
+        if not is_valid_iranian_mobile(phone):
+            raise serializers.ValidationError("شماره تماس باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.")
+        return phone
 
     def validate(self, attrs):
         if not (attrs.get("caller_name") or "").strip() and not attrs.get("person"):

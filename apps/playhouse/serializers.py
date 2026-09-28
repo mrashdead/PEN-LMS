@@ -13,6 +13,7 @@ from apps.playhouse.models import (
     PlayhouseMember,
     PlayhouseSession,
 )
+from apps.persons.validation import is_valid_iranian_mobile, national_code_error
 
 
 class PlayhouseMemberSerializer(serializers.ModelSerializer):
@@ -41,10 +42,18 @@ class CreateSessionSerializer(serializers.Serializer):
     national_code = serializers.CharField(max_length=10, min_length=10, required=False, allow_blank=True, default="")
     student_code = serializers.CharField(max_length=32, required=False, allow_blank=True, default="")
 
+    def validate_guardian_mobile(self, value):
+        value = (value or "").strip()
+        if value and not is_valid_iranian_mobile(value):
+            raise serializers.ValidationError("شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.")
+        return value
+
     def validate_national_code(self, value):
         value = (value or "").strip()
-        if value and (not value.isdigit() or len(value) != 10):
-            raise serializers.ValidationError("کد ملی باید دقیقاً ۱۰ رقم باشد.")
+        if value:
+            error = national_code_error(value, require_location=True)
+            if error:
+                raise serializers.ValidationError(error)
         return value
 
 

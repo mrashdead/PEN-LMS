@@ -46,6 +46,7 @@ urlpatterns = [
     path("persons/create/", PersonCreatePageView.as_view(), name="workspace-person-create"),
     path("persons/", PersonsPage.as_view(), name="workspace-persons"),
     path("departments/", ResourcePage.as_view(), {"resource": "departments"}, name="workspace-departments"),
+    path("terms/", ResourcePage.as_view(), {"resource": "terms"}, name="workspace-terms"),
     path("lessons/", ResourcePage.as_view(), {"resource": "lessons"}, name="workspace-lessons"),
     path("courses/", ResourcePage.as_view(), {"resource": "courses"}, name="workspace-courses"),
     path("offerings/", ResourcePage.as_view(), {"resource": "offerings"}, name="workspace-offerings"),

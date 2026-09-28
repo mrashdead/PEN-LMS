@@ -69,7 +69,7 @@
     if (!LEAD_ID) return;
     var nationalCode = document.getElementById('enr-lead-national-code').value.trim();
     var studentCode = document.getElementById('enr-lead-student-code').value.trim();
-    if (!/^\d{10}$/.test(nationalCode)) return toast('کد ملی باید ۱۰ رقم باشد.', 'danger');
+    if (!/^\d{10}$/.test(nationalCode) || !window.penNationalCodeChecksumValid(nationalCode)) return toast('کد ملی معتبر نیست.', 'danger');
     if (!studentCode) return toast('کد دانش‌آموزی را وارد کنید.', 'danger');
     var button = document.getElementById('enr-create-person');
     button.disabled = true;

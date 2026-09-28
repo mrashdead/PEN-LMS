@@ -45,6 +45,7 @@ _PAGE_RESOURCES: list[Resource] = [
     Resource(key="workspace-persons",       title="اشخاص",                 category="page", verbs={"view", "add"},          description="لیست و جستجوی اشخاص"),
     Resource(key="workspace-person-create",title="ایجاد شخص",             category="page", verbs={"add"}),
     Resource(key="workspace-departments",  title="دپارتمان‌ها",           category="page", verbs={"view", "add"}),
+    Resource(key="workspace-terms",        title="ترم‌های تحصیلی",         category="page", verbs={"view", "add"}),
     Resource(key="workspace-lessons",      title="درس‌ها",                category="page", verbs={"view", "add"}),
     Resource(key="workspace-courses",      title="دوره‌ها",                category="page", verbs={"view", "add"}),
     Resource(key="workspace-offerings",    title="برگزاری‌ها",            category="page", verbs={"view", "add"}),

@@ -180,6 +180,9 @@ Add a page: one nav-item; add a section: copy a collapse block.
               {% if sidebar_visibility.workspace_departments %}
               <li><a href="{% url 'workspace-departments' %}" class="nav-link{% if urlname == 'workspace-departments' %} active{% endif %}"><span>دپارتمان‌ها</span></a></li>
               {% endif %}
+              {% if sidebar_visibility.workspace_terms %}
+              <li><a href="{% url 'workspace-terms' %}" class="nav-link{% if urlname == 'workspace-terms' %} active{% endif %}"><span>ترم‌های تحصیلی</span></a></li>
+              {% endif %}
               {% if sidebar_visibility.workspace_lessons %}
               <li><a href="{% url 'workspace-lessons' %}" class="nav-link{% if urlname == 'workspace-lessons' %} active{% endif %}"><span>درس‌ها</span></a></li>
               {% endif %}

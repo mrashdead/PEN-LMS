@@ -7,6 +7,7 @@ from apps.education.models import Course, Lesson
 from apps.leads.selectors import assessors
 from apps.leads.models import Lead
 from apps.persons.models import Person
+from apps.persons.validation import national_code_error
 
 
 class ActiveTeacherField(serializers.PrimaryKeyRelatedField):
@@ -118,8 +119,9 @@ class LeadPersonCreateSerializer(serializers.Serializer):
     def validate_national_code(self, value):
         translation = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
         value = str(value).translate(translation).strip()
-        if not value.isdigit() or len(value) != 10:
-            raise serializers.ValidationError("کد ملی باید ۱۰ رقم باشد.")
+        error = national_code_error(value, require_location=True)
+        if error:
+            raise serializers.ValidationError(error)
         return value
 
 

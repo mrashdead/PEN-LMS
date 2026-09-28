@@ -87,9 +87,9 @@ class Command(BaseCommand):
     help = "Seed staff reference data (leave types + approval workflows) — idempotent"
 
     def add_arguments(self, parser) -> None:
-        parser.add_argument("--dry-run", action="store=True",
+        parser.add_argument("--dry-run", action="store_true",
                             help="Validate without writing anything.")
-        parser.add_argument("--force", action="store=True",
+        parser.add_argument("--force", action="store_true",
                             help="Reset transition role codes to the blueprint.")
 
     def _preflight(self) -> list[str]:

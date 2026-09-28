@@ -9,6 +9,11 @@ from django.core.validators import validate_email
 from apps.core.utils import english_numbers
 from apps.persons import hierarchy
 from apps.persons.models import Person
+from apps.persons.validation import (
+    is_valid_iranian_mobile,
+    national_code_error,
+    normalize_national_code,
+)
 
 
 PUBLIC_TARGETS = ("manager", "employee", "teacher", "student")
@@ -167,16 +172,17 @@ class PersonDefinitionForm(forms.Form):
         return english_numbers(value or "").strip()
 
     def clean_national_code(self) -> str:
-        value = english_numbers(self.cleaned_data.get("national_code") or "").strip()
-        if len(value) != 10 or not value.isdigit():
-            raise forms.ValidationError("کد ملی باید دقیقاً ۱۰ رقم عددی باشد.")
+        value = normalize_national_code(self.cleaned_data.get("national_code"))
+        error = national_code_error(value, require_location=True)
+        if error:
+            raise forms.ValidationError(error)
         if Person.objects.filter(national_code=value, is_deleted=False).exists():
             raise forms.ValidationError("شخصی با این کد ملی از قبل ثبت شده است.")
         return value
 
     def clean_phone_number(self) -> str:
         value = self._normalize_phone(self.cleaned_data.get("phone_number"))
-        if len(value) != 11 or not value.isdigit() or not value.startswith("09"):
+        if not is_valid_iranian_mobile(value):
             raise forms.ValidationError("شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.")
         return value
 
@@ -191,7 +197,7 @@ class PersonDefinitionForm(forms.Form):
 
     def _clean_parent_phone(self, name: str) -> str:
         value = self._normalize_phone(self.cleaned_data.get(name))
-        if value and (len(value) != 11 or not value.isdigit() or not value.startswith("09")):
+        if value and not is_valid_iranian_mobile(value):
             self.add_error(name, "شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.")
             return ""
         return value

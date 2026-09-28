@@ -8,6 +8,7 @@ from django.db import IntegrityError, transaction
 
 from apps.core.utils import english_numbers
 from apps.persons.models import Person, PersonTypeAssignment, StudentGuardian
+from apps.persons.validation import is_valid_iranian_mobile, national_code_error
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +185,12 @@ class PersonService:
         # would surface as a raw IntegrityError (HTTP 500). Map it to a
         # caller-friendly 400 first (B5).
         normalized_nc = english_numbers(national_code).strip()
+        national_error = national_code_error(normalized_nc, require_location=True)
+        if national_error:
+            raise PersonServiceError(national_error)
+        normalized_mobile = english_numbers(mobile).strip()
+        if not is_valid_iranian_mobile(normalized_mobile):
+            raise PersonServiceError("شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.")
         if Person.objects.filter(national_code=normalized_nc, is_deleted=False).exists():
             raise DuplicateNationalCodeError(
                 "شخصی با این کد ملی از قبل ثبت شده است."
@@ -196,7 +203,7 @@ class PersonService:
                 father_name=father_name,
                 birth_date=birth_date,
                 gender=gender,
-                mobile=english_numbers(mobile).strip(),
+                mobile=normalized_mobile,
                 email=email,
                 phone=phone,
                 address=address,

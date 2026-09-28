@@ -17,7 +17,7 @@ STAFF_ROLES = {"manager", "workflow_admin", "hr", "employee", "teacher", "superv
 
 # Sidebar section membership (url_name → which collapsible is active).
 EDU_URLS = {
-    "workspace-lessons", "workspace-courses", "workspace-offerings",
+    "workspace-lessons", "workspace-courses", "workspace-offerings", "workspace-terms",
     "workspace-sessions", "workspace-timetable", "workspace-locations",
     "workspace-enrollments", "workspace-enrollment-directory", "workspace-departments",
 }

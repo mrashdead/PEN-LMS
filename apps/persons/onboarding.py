@@ -47,6 +47,7 @@ from apps.persons.models import (
     StudentProfile,
 )
 from apps.persons.services import PersonService, PersonServiceError
+from apps.persons.validation import is_valid_iranian_mobile, national_code_error
 
 logger = logging.getLogger(__name__)
 
@@ -320,6 +321,21 @@ def validate_target_fields(target: str, payload: dict[str, Any]) -> dict[str, st
                 continue
             if not str(payload.get(f.name) or "").strip():
                 errors[f.name] = f"«{f.label}» الزامی است."
+    national_error = national_code_error(payload.get("national_code"), require_location=True)
+    if national_error:
+        errors.setdefault("national_code", national_error)
+    mobile = payload.get("mobile")
+    if mobile and not is_valid_iranian_mobile(mobile):
+        errors.setdefault("mobile", "شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.")
+    for index, guardian in enumerate(payload.get("guardians") or []):
+        if not isinstance(guardian, dict):
+            continue
+        if guardian.get("national_code"):
+            guardian_error = national_code_error(guardian.get("national_code"), require_location=True)
+            if guardian_error:
+                errors[f"guardians[{index}].national_code"] = guardian_error
+        if guardian.get("mobile") and not is_valid_iranian_mobile(guardian.get("mobile")):
+            errors[f"guardians[{index}].mobile"] = "شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود."
     return errors
 
 

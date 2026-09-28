@@ -226,6 +226,15 @@ class Course(DomainModel):
     def __str__(self) -> str:
         return self.title
 
+    def save(self, *args, **kwargs):
+        # Keep the public course code consistent with Lesson/Offering: the
+        # API and the workspace intentionally allow the field to be omitted.
+        # An empty string is still subject to the partial unique constraint,
+        # so generate the business key before the INSERT happens.
+        if not (self.code or "").strip():
+            self.code = next_sequential_code(Course, "cs")
+        super().save(*args, **kwargs)
+
     def clean(self) -> None:
         self.code = (self.code or "").strip().lower()
 

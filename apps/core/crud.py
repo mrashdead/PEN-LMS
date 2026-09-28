@@ -134,7 +134,7 @@ def can_create_resource(user, resource: str) -> bool:
     roles = roles_for(user)
     if is_superadmin(user) or roles & RESOURCE_MANAGER_ROLES:
         baseline = True
-    elif "supervisor" in roles and resource in {"persons", "lessons", "courses", "offerings", "sessions"}:
+    elif "supervisor" in roles and resource in {"persons", "lessons", "courses", "offerings", "sessions", "terms"}:
         baseline = True
     else:
         baseline = False

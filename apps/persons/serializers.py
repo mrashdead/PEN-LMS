@@ -12,6 +12,7 @@ from apps.persons.services import (
     mask_email,
     mask_identifier,
 )
+from apps.persons.validation import is_valid_iranian_mobile, national_code_error
 
 #: Fields whose raw values are protected identity/contact data (B1).
 #: These are masked in the SERIALIZED OUTPUT only — input validation on
@@ -101,9 +102,7 @@ class StudentProfileEditSerializer(serializers.ModelSerializer):
         from apps.core.utils import english_numbers
 
         normalized = english_numbers(value or "").strip()
-        if normalized and (
-            len(normalized) != 11 or not normalized.isdigit() or not normalized.startswith("09")
-        ):
+        if normalized and not is_valid_iranian_mobile(normalized):
             raise serializers.ValidationError("شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.")
         return normalized
 
@@ -506,10 +505,9 @@ class PersonCreateSerializer(serializers.ModelSerializer):
         from apps.core.utils import english_numbers
 
         normalized = english_numbers(value).strip()
-        if not normalized or not normalized.isdigit():
-            raise serializers.ValidationError("کد ملی باید فقط شامل ارقام باشد (انگلیسی یا فارسی).")
-        if len(normalized) != 10:
-            raise serializers.ValidationError("کد ملی باید ۱۰ رقمی باشد.")
+        error = national_code_error(normalized, require_location=True)
+        if error:
+            raise serializers.ValidationError(error)
         return normalized
 
     def validate(self, attrs):

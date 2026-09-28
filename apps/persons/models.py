@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from apps.core.models import DomainModel
 from apps.core.utils import persian_date, persian_numbers
+from apps.persons.validation import is_valid_iranian_mobile, national_code_error, normalize_national_code
 
 
 class Person(DomainModel):
@@ -218,15 +219,15 @@ class Person(DomainModel):
         # کد ملی: فقط ارقام و دقیقاً ۱۰ رقم.
         if not self.national_code:
             errors.setdefault("national_code", []).append("کد ملی الزامی است.")
-        elif not self.national_code.isdigit():
-            errors.setdefault("national_code", []).append("کد ملی باید فقط شامل ارقام باشد.")
-        elif len(self.national_code) != 10:
-            errors.setdefault("national_code", []).append("کد ملی باید ۱۰ رقمی باشد.")
+        else:
+            national_error = national_code_error(normalize_national_code(self.national_code))
+            if national_error:
+                errors.setdefault("national_code", []).append(national_error)
 
         # موبایل حساب اصلی: دقیقاً ۱۱ رقم و با 09 شروع می‌شود.
         if not self.mobile:
             errors.setdefault("mobile", []).append("شماره موبایل الزامی است.")
-        elif not self.mobile.isdigit() or len(self.mobile) != 11 or not self.mobile.startswith("09"):
+        elif not is_valid_iranian_mobile(self.mobile):
             errors.setdefault("mobile", []).append(
                 "شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود."
             )
@@ -249,10 +250,10 @@ class Person(DomainModel):
             raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
-        self.national_code = (self.national_code or "").strip()
+        self.national_code = normalize_national_code(self.national_code)
         self.first_name = (self.first_name or "").strip()
         self.last_name = (self.last_name or "").strip()
-        self.mobile = (self.mobile or "").strip()
+        self.mobile = "".join(str(self.mobile or "").strip().split())
 
         # فیلدهای یکتا و اختیاری باید به جای "" مقدار NULL بگیرند
         self.student_code = (self.student_code or "").strip() or None

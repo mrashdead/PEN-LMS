@@ -37,6 +37,51 @@
     return { 'X-CSRFToken': window.getCookie('csrftoken') };
   };
 
+  // Keep identity/contact fields bounded even when a browser ignores maxlength
+  // (paste, autofill, IME input). Server validation remains authoritative.
+  window.penNormalizeDigits = function (value) {
+    return String(value || '').replace(/[۰-۹]/g, function (c) { return String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c)); });
+  };
+  window.penNationalCodeChecksumValid = function (value) {
+    var code = window.penNormalizeDigits(value).replace(/\D/g, '');
+    if (code.length !== 10 || /^(\d)\1{9}$/.test(code)) return false;
+    var total = 0;
+    for (var i = 0; i < 9; i += 1) total += Number(code[i]) * (10 - i);
+    var remainder = total % 11;
+    return Number(code[9]) === (remainder < 2 ? remainder : 11 - remainder);
+  };
+  window.penBindStrictIdentityInputs = function (root) {
+    root = root || document;
+    var inputs = root.querySelectorAll('input[name="national_code"], input[name$="national_code"], input[id*="national-code"], input[name="mobile"], input[name$="phone_number"], input[name$="_phone"], input[id*="phone"], input[id*="mobile"]');
+    inputs.forEach(function (input) {
+      var isNational = input.name === 'national_code' || input.name.slice(-13) === 'national_code' || input.id.indexOf('national-code') !== -1;
+      input.maxLength = isNational ? 10 : 11;
+      input.addEventListener('input', function () {
+        var digits = window.penNormalizeDigits(input.value).replace(/\D/g, '');
+        input.value = digits.slice(0, isNational ? 10 : 11);
+      });
+      input.addEventListener('blur', function () {
+        if (!input.value) return;
+        if (isNational) input.setCustomValidity(window.penNationalCodeChecksumValid(input.value) ? '' : 'کد ملی معتبر نیست.');
+        else input.setCustomValidity(/^09\d{9}$/.test(input.value) ? '' : 'شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.');
+      });
+      input.addEventListener('input', function () { input.setCustomValidity(''); });
+    });
+    root.querySelectorAll('form').forEach(function (form) {
+      form.addEventListener('submit', function (event) {
+        var invalid = Array.from(form.querySelectorAll('input')).find(function (input) {
+          if (!input.value) return false;
+          var isNational = input.name === 'national_code' || input.name.slice(-13) === 'national_code' || input.id.indexOf('national-code') !== -1;
+          var valid = isNational ? window.penNationalCodeChecksumValid(input.value) : (!input.name && !input.id ? true : /^09\d{9}$/.test(input.value));
+          input.setCustomValidity(valid ? '' : (isNational ? 'کد ملی معتبر نیست.' : 'شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.'));
+          return !valid;
+        });
+        if (invalid) { event.preventDefault(); invalid.reportValidity(); }
+      });
+    });
+  };
+  document.addEventListener('DOMContentLoaded', function () { window.penBindStrictIdentityInputs(document); });
+
   // One confirmation component for every module. It always posts JSON with
   // CSRF; delete URLs are never navigated to with GET.
   window.penOpenDeleteModal = function (options) {
