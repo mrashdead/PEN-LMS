@@ -1000,8 +1000,22 @@ jdp-overlay   { z-index: 1075 !important; }
 .staff-reject-dialog .staff-reject-error { margin: .4rem 0 0; color: var(--dx-danger); }
 .staff-reject-dialog [hidden] { display: none; }
 .staff-reject-actions { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 1.4rem; }
+.staff-details-dialog { width: min(42rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow-y: auto; }
+.staff-details-metadata { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .6rem 1rem; margin: 1.25rem 0; font-size: .86rem; }
+.staff-details-metadata dt { color: var(--dx-secondary-color); font-weight: 500; }
+.staff-details-metadata dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.staff-details-label { margin: 1.25rem 0 .6rem; font-size: .9rem; font-weight: 600; }
+.staff-details-description { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .9rem; line-height: 1.9; }
 
 /* Calls workspace: one clear form, quiet metrics, compact history. */
+.progress-workspace { max-width: 72rem; margin-inline: auto; }
+.progress-workspace [hidden], #progress-learner [hidden] { display: none !important; }
+.progress-report-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.9; max-width: 75ch; }
+.progress-report-details summary { cursor: pointer; color: var(--dx-primary); font-weight: 600; }
+.progress-report-details summary:focus-visible { outline: 2px solid var(--dx-primary); outline-offset: 4px; }
+.progress-report h3, .progress-report h4 { overflow-wrap: anywhere; }
+.progress-report section { padding-top: .5rem; border-top: 1px solid var(--dx-border-color); }
+
 .calls-page { max-width: 78rem; margin-inline: auto; }
 .calls-page [hidden] { display: none !important; }
 .calls-page > section + section { margin-top: 2.5rem; }

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load static asset_v %}
-{% block title %}حضور و کارنامه من{% endblock %}
+{% block title %}حضور، کارنامه و گزارش‌های من{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="حضور و کارنامه" %}
+  {% include "partials/page-heading.html" with title="حضور، کارنامه و گزارش‌های من" %}
 {% endblock %}
 
 {% block content %}
@@ -18,6 +18,15 @@
   </div>
 </div>
 
+<section id="progress-learner" class="mb-4" aria-labelledby="progress-learner-title">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+    <div><h2 id="progress-learner-title" class="h5 mb-1">گزارش‌های مدرس</h2><p class="text-muted mb-0">گزارش روزانه، هفتگی و ماهانهٔ پیشرفت شما</p></div>
+    <div class="d-flex align-items-center gap-2"><label for="progress-learner-filter" class="form-label mb-0">نوع گزارش</label><select id="progress-learner-filter" class="form-select form-select-sm"><option value="">همه</option><option value="daily">روزانه</option><option value="weekly">هفتگی</option><option value="monthly">ماهانه</option></select></div>
+  </div>
+  <div id="progress-learner-message" class="alert" role="status" aria-live="polite" hidden></div>
+  <div id="progress-learner-history" class="vstack gap-3"><p class="text-muted">در حال دریافت گزارش‌ها…</p></div>
+  <button id="progress-learner-more" type="button" class="btn btn-outline-secondary mt-3" hidden>نمایش گزارش‌های بیشتر</button>
+</section>
 <div class="row g-4 mb-4">
   <div class="col-12">
     <div class="card">
@@ -133,5 +142,6 @@
 {% endblock %}
 
 {% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/progress-reports.js' %}"></script>
 <script src="{% asset_v_url 'assets/pen/js/learner-portal.js' %}"></script>
 {% endblock %}

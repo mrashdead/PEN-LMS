@@ -64,6 +64,7 @@ MIDDLEWARE: list[str] = [
 ]
 
 ROOT_URLCONF = "pen.urls"
+LOGIN_URL = "dashboard-login"
 WSGI_APPLICATION = "pen.wsgi.application"
 ASGI_APPLICATION = "pen.asgi.application"
 

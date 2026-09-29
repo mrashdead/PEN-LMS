@@ -10,8 +10,8 @@ were sample content and are intentionally omitted.
   <div class="navbar-brand">
     <div class="logos">
       <a href="{% url 'dashboard-home' %}" aria-label="Pen LMS">
-        <img src="{% static 'assets/images/pen-logo.png' %}" loading="lazy" height="24" alt="Pen LMS" class="logo-dark">
-        <img src="{% static 'assets/images/pen-logo.png' %}" loading="lazy" height="24" alt="Pen LMS" class="logo-light">
+        <img src="{% static 'assets/images/pen-logo-white.png' %}" loading="lazy" height="44" alt="Pen LMS" class="logo-dark">
+        <img src="{% static 'assets/images/pen-logo-black.png' %}" loading="lazy" height="44" alt="Pen LMS" class="logo-light">
       </a>
     </div>
     <button type="button" id="toggleSidebar" class="sidebar-toggle btn p-0" aria-label="باز و بسته کردن منوی کناری">
@@ -76,7 +76,7 @@ were sample content and are intentionally omitted.
     </button>
 
     <div class="dropdown">
-      <button type="button" class="btn topbar-user d-flex align-items-center gap-2" aria-label="منوی کاربر" data-bs-toggle="dropdown" aria-expanded="false">
+      <button type="button" class="btn topbar-user d-flex align-items-center gap-2" aria-label="منوی کاربر" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
         <span class="avatar pen-avatar size-8 rounded-circle flex-shrink-0" aria-hidden="true">{{ request.user.username|first|upper }}</span>
         <span class="topbar-user-copy d-none d-md-block text-start">
           <strong class="d-block fs-13 text-truncate">{{ request.user.get_full_name|default:request.user.username }}</strong>
@@ -99,7 +99,7 @@ were sample content and are intentionally omitted.
         {% endif %}
         <form method="post" action="{% url 'dashboard-logout' %}">
           {% csrf_token %}
-          <button type="submit" class="dropdown-item d-flex align-items-center gap-2">
+          <button type="button" class="dropdown-item d-flex align-items-center gap-2" onclick="this.form.submit()">
             <i data-lucide="log-out" class="size-4" aria-hidden="true"></i> خروج
           </button>
         </form>

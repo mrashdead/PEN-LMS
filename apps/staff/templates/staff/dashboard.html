@@ -61,11 +61,22 @@
       </div>
       <details class="staff-filter"><summary>بازهٔ زمانی</summary><div class="staff-filter-fields"><label>از تاریخ<input class="form-control" id="staff-from" data-jalali dir="ltr" autocomplete="off" placeholder="سال/ماه/روز"></label><label>تا تاریخ<input class="form-control" id="staff-to" data-jalali dir="ltr" autocomplete="off" placeholder="سال/ماه/روز"></label><button class="btn btn-outline-primary" type="button" id="staff-refresh">اعمال</button></div></details>
     </div>
-    <div id="staff-timesheets-panel" class="staff-table-panel" role="tabpanel" aria-labelledby="staff-timesheets-tab"><div class="table-responsive"><table class="table align-middle"><thead><tr>{% if staff_is_reviewer %}<th>کارمند</th>{% endif %}<th>روز</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th>{% if staff_is_reviewer %}<th><span class="visually-hidden">اقدام</span></th>{% endif %}</tr></thead><tbody id="timesheets"></tbody></table></div></div>
-    <div id="staff-leaves-panel" class="staff-table-panel" role="tabpanel" aria-labelledby="staff-leaves-tab" hidden><div class="table-responsive"><table class="table align-middle"><thead><tr>{% if staff_is_reviewer %}<th>کارمند</th>{% endif %}<th>نوع</th><th>بازه</th><th>مدت</th><th>وضعیت</th>{% if staff_is_reviewer %}<th><span class="visually-hidden">اقدام</span></th>{% endif %}</tr></thead><tbody id="leaves"></tbody></table></div></div>
-    <div id="staff-reports-panel" class="staff-table-panel" role="tabpanel" aria-labelledby="staff-reports-tab" hidden><div class="table-responsive"><table class="table align-middle"><thead><tr>{% if staff_is_reviewer %}<th>کارمند</th>{% endif %}<th>تاریخ</th><th>فعالیت</th><th>مدت</th><th>وضعیت</th>{% if staff_is_reviewer %}<th><span class="visually-hidden">اقدام</span></th>{% endif %}</tr></thead><tbody id="work-reports"></tbody></table></div></div>
+    <div id="staff-timesheets-panel" class="staff-table-panel" role="tabpanel" aria-labelledby="staff-timesheets-tab"><div class="table-responsive"><table class="table align-middle"><thead><tr>{% if staff_is_reviewer %}<th>کارمند</th>{% endif %}<th>روز</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th><th>جزئیات و اقدام</th></tr></thead><tbody id="timesheets"></tbody></table></div></div>
+    <div id="staff-leaves-panel" class="staff-table-panel" role="tabpanel" aria-labelledby="staff-leaves-tab" hidden><div class="table-responsive"><table class="table align-middle"><thead><tr>{% if staff_is_reviewer %}<th>کارمند</th>{% endif %}<th>نوع</th><th>بازه</th><th>مدت</th><th>وضعیت</th><th>جزئیات و اقدام</th></tr></thead><tbody id="leaves"></tbody></table></div></div>
+    <div id="staff-reports-panel" class="staff-table-panel" role="tabpanel" aria-labelledby="staff-reports-tab" hidden><div class="table-responsive"><table class="table align-middle"><thead><tr>{% if staff_is_reviewer %}<th>کارمند</th>{% endif %}<th>تاریخ</th><th>فعالیت</th><th>مدت</th><th>وضعیت</th><th>جزئیات و اقدام</th></tr></thead><tbody id="work-reports"></tbody></table></div></div>
   </section>
 </main>
+<dialog id="staff-details-dialog" class="staff-reject-dialog staff-details-dialog" aria-labelledby="staff-details-title">
+  <h2 id="staff-details-title">جزئیات گزارش کاری</h2>
+  <dl id="staff-details-metadata" class="staff-details-metadata"></dl>
+  <h3 class="staff-details-label">توضیحات کامل</h3>
+  <div id="staff-details-description" class="staff-details-description" dir="auto"></div>
+  <section id="staff-details-rejection" hidden>
+    <h3 class="staff-details-label">دلیل رد</h3>
+    <div id="staff-details-rejection-reason" class="staff-details-description" dir="auto"></div>
+  </section>
+  <div class="staff-reject-actions"><button id="staff-details-close" class="btn btn-outline-secondary" type="button" autofocus>بستن</button></div>
+</dialog>
 <dialog id="staff-reject-dialog" class="staff-reject-dialog" aria-labelledby="staff-reject-title" aria-describedby="staff-reject-help">
   <form id="staff-reject-form">
     <h2 id="staff-reject-title">دلیل رد</h2>
@@ -93,6 +104,49 @@
   };
   const show = (text, error = false) => { message.hidden = false; message.textContent = text; message.className = `alert ${error ? 'alert-danger' : 'alert-success'}`; };
   const cell = (row, value) => { const item = document.createElement('td'); item.textContent = value ?? '—'; row.append(item); return item; };
+  const detailsDialog = document.getElementById('staff-details-dialog');
+  let detailsTrigger = null;
+  const detailTitles = {'timesheets': 'ساعت کاری', 'leave-requests': 'مرخصی', 'work-reports': 'گزارش کاری'};
+  const showDetails = (item, type, trigger) => {
+    detailsTrigger = trigger;
+    document.getElementById('staff-details-title').textContent = `جزئیات ${detailTitles[type]}`;
+    const metadata = [['ثبت‌کننده', item.user_display || item.user]];
+    if (type === 'timesheets') {
+      metadata.push(
+        ['تاریخ', item.work_date],
+        ['نوع کارکرد', {regular: 'عادی', overtime: 'اضافه‌کار', holiday: 'تعطیلی کارگاهی'}[item.kind] || item.kind],
+        ['ورود', item.check_in], ['خروج', item.check_out || 'خروج ثبت نشده است.'],
+        ['مدت', item.duration_minutes == null ? 'باز' : `${item.duration_minutes} دقیقه`],
+      );
+    } else if (type === 'leave-requests') {
+      metadata.push(
+        ['نوع مرخصی', item.leave_type_name], ['از تاریخ', item.start_date], ['تا تاریخ', item.end_date],
+        ['واحد', item.unit_display], ['مدت', item.duration_display],
+      );
+    } else {
+      metadata.push(['تاریخ', item.report_date], ['عنوان فعالیت', item.title],
+        ['مدت', item.spent_hours == null ? '—' : `${item.spent_hours} ساعت`]);
+    }
+    metadata.push(['وضعیت', item.status_display || item.status]);
+    const metadataList = document.getElementById('staff-details-metadata');
+    metadataList.replaceChildren();
+    metadata.forEach(([label, value]) => {
+      const term = document.createElement('dt'); term.textContent = label;
+      const definition = document.createElement('dd'); definition.textContent = value ?? '—';
+      metadataList.append(term, definition);
+    });
+    const description = type === 'timesheets' ? item.note : item.description;
+    document.getElementById('staff-details-description').textContent = description?.trim() ? description : 'توضیحاتی ثبت نشده است.';
+    document.getElementById('staff-details-rejection-reason').textContent = item.rejection_reason || '';
+    document.getElementById('staff-details-rejection').hidden = !item.rejection_reason;
+    detailsDialog.showModal();
+    document.getElementById('staff-details-close').focus();
+  };
+  document.getElementById('staff-details-close').addEventListener('click', () => detailsDialog.close());
+  detailsDialog.addEventListener('close', () => {
+    detailsTrigger?.focus();
+    detailsTrigger = null;
+  });
   const rejectDialog = document.getElementById('staff-reject-dialog');
   const rejectForm = document.getElementById('staff-reject-form');
   const rejectInput = document.getElementById('staff-reject-reason');
@@ -154,6 +208,16 @@
     list.forEach(item => {
       const tr = document.createElement('tr'); mapper(tr, item);
       const actions = document.createElement('td');
+      const details = document.createElement('button');
+      details.type = 'button';
+      details.className = 'btn btn-sm btn-outline-secondary me-1';
+      details.textContent = 'مشاهده جزئیات';
+      details.setAttribute('aria-haspopup', 'dialog');
+      details.setAttribute('aria-controls', 'staff-details-dialog');
+      const summary = item.title || `${item.user_display || ''} ${item.work_date || item.start_date || ''}`;
+      details.setAttribute('aria-label', `مشاهده جزئیات ${detailTitles[reviewType]} ${summary}`);
+      details.addEventListener('click', () => showDetails(item, reviewType, details));
+      actions.append(details);
       if (reviewer && item.status === 'pending') {
         for (const [decision, label] of [['approved', 'تأیید'], ['rejected', 'رد']]) {
           const button = document.createElement('button'); button.type = 'button'; button.className = `btn btn-sm ${decision === 'approved' ? 'btn-outline-primary' : 'btn-link'} me-1`; button.textContent = label;
@@ -164,7 +228,7 @@
           }); actions.append(button);
         }
       }
-      if (reviewer) tr.append(actions);
+      tr.append(actions);
       table.append(tr);
     });
   };

@@ -10,6 +10,10 @@ from apps.education.calendar_views import (
     ResourceCalendarView,
 )
 from apps.education.timetable_views import TimetableView
+from apps.education.progress_reports import (
+    TeacherProgressReportListView, TeacherProgressReportDetailView,
+    SendProgressReportView, LearnerProgressReportListView, ReadProgressReportView,
+)
 from apps.education.registration_views import (
     RegistrationContextView,
     RegistrationDirectoryView,
@@ -126,6 +130,11 @@ urlpatterns = [
     path("sessions/<uuid:pk>/materials/", SessionMaterialListCreateView.as_view(), name="edu-session-materials"),
     path("materials/<uuid:pk>/delete/", SessionMaterialDetailView.as_view(), name="edu-session-material-delete"),
     # Teacher portal + learner portal
+    path("progress-reports/", TeacherProgressReportListView.as_view(), name="edu-progress-report-list"),
+    path("progress-reports/<uuid:pk>/", TeacherProgressReportDetailView.as_view(), name="edu-progress-report-detail"),
+    path("progress-reports/<uuid:pk>/send/", SendProgressReportView.as_view(), name="edu-progress-report-send"),
+    path("portal/progress-reports/", LearnerProgressReportListView.as_view(), name="edu-learner-progress-reports"),
+    path("portal/progress-reports/<uuid:pk>/read/", ReadProgressReportView.as_view(), name="edu-progress-report-read"),
     path("teacher/classes/", TeacherClassesView.as_view(), name="edu-teacher-classes"),
     path("offerings/<uuid:pk>/roster/", OfferingRosterView.as_view(), name="edu-offering-roster"),
     path("offerings/<uuid:pk>/sessions/", OfferingCreateSessionView.as_view(), name="edu-offering-create-session"),

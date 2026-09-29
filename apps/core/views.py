@@ -36,6 +36,11 @@ def readyz(request):
     return JsonResponse({"status": "ready", "database": "ok"})
 
 
+def dashboard_entry(request):
+    """Send visitors to the login page and authenticated users to their home."""
+    return redirect("dashboard-home" if request.user.is_authenticated else "dashboard-login")
+
+
 SELF_PASSWORD_ROLES = {"manager", "workflow_admin", "supervisor", "employee"}
 
 

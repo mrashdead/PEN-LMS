@@ -652,6 +652,11 @@ class TeacherReportCardPage(StaffRequiredMixin, TemplateView):
     teacher_allowed = True
 
 
+class TeacherProgressReportPage(StaffRequiredMixin, TemplateView):
+    template_name = "teacher_progress_reports.html"
+    teacher_allowed = True
+
+
 class LearnerPortalPage(LoginRequiredMixin, TemplateView):
     """Student/parent portal — own attendance stats + report cards."""
 

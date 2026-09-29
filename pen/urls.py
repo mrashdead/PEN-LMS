@@ -5,7 +5,6 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.urls import reverse_lazy
-from django.views.generic import RedirectView
 from rest_framework.authtoken.views import obtain_auth_token
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
@@ -78,5 +77,5 @@ urlpatterns = [
     path('dashboard/login/', core_views.DashboardLoginView.as_view(), name='dashboard-login'),
     path('dashboard/logout/', core_views.DashboardLogoutView.as_view(), name='dashboard-logout'),
     path('dashboard/', core_views.DashboardHomeView.as_view(), name='dashboard-home'),
-    path('', RedirectView.as_view(url='/dashboard/', permanent=True)),
+    path('', core_views.dashboard_entry, name='home'),
 ]

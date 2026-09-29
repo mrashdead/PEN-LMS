@@ -3897,6 +3897,18 @@ h6 {
   height: var(--dx-topbar);
   width: var(--dx-sidebar);
 }
+.main-sidebar .navbar-brand .logo-lg img {
+  display: block;
+  width: 3.25rem;
+  height: 3.25rem;
+  object-fit: contain;
+}
+.main-sidebar .navbar-brand .logo-sm img {
+  display: block;
+  width: 2.75rem;
+  height: 2.75rem;
+  object-fit: contain;
+}
 @media (max-width: 991.98px) {
   .main-sidebar {
     top: 0;
@@ -4209,6 +4221,12 @@ h6 {
   align-items: center;
   width: var(--dx-sidebar);
   padding-left: 1rem;
+}
+.main-topbar .navbar-brand .logos img {
+  display: block;
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
 }
 .main-topbar .topbar-link {
   padding: 0;

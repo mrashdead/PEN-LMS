@@ -18,12 +18,12 @@ Add a page: one nav-item; add a section: copy a collapse block.
     {# ── Brand ─────────────────────────────────────────────────────── #}
     <a href="{% url 'dashboard-home' %}" class="navbar-brand" title="Pen LMS">
       <div class="logo-lg">
-        <img src="{% static 'assets/images/pen-logo.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
-        <img src="{% static 'assets/images/pen-logo.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+        <img src="{% static 'assets/images/pen-logo-black.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="98" class="mx-auto logo-dark">
+        <img src="{% static 'assets/images/pen-logo-white.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="98" class="mx-auto logo-light">
       </div>
       <div class="logo-sm">
-        <img src="{% static 'assets/images/pen-logo.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-dark">
-        <img src="{% static 'assets/images/pen-logo.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="24" class="mx-auto logo-light">
+        <img src="{% static 'assets/images/pen-logo-black.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="62" class="mx-auto logo-dark">
+        <img src="{% static 'assets/images/pen-logo-white.png' %}" loading="lazy" aria-label="لوگو" alt="Pen LMS" height="62" class="mx-auto logo-light">
       </div>
     </a>
 
@@ -85,6 +85,16 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
         </li>
         {% endif %}
+        {% if sidebar_visibility.workspace_teacher_progress_reports %}
+        <li class="nav-item">
+          <a href="{% url 'workspace-teacher-progress-reports' %}" title="گزارش پیشرفت دانش‌آموزان"
+             class="nav-link{% if urlname == 'workspace-teacher-progress-reports' %} active{% endif %}"
+             {% if urlname == 'workspace-teacher-progress-reports' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="notebook-pen"></i></span>
+            <span class="content">گزارش پیشرفت دانش‌آموزان</span>
+          </a>
+        </li>
+        {% endif %}
         {% if sidebar_visibility.leads_teacher_assessments %}
         <li class="nav-item">
           <a href="{% url 'leads-teacher-assessments' %}" title="تعیین‌سطح‌های من"
@@ -105,7 +115,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
              class="nav-link{% if urlname == 'workspace-learner-portal' %} active{% endif %}"
              {% if urlname == 'workspace-learner-portal' %}aria-current="page"{% endif %}>
             <span class="icons"><i data-lucide="graduation-cap"></i></span>
-            <span class="content">حضور و کارنامه من</span>
+            <span class="content">حضور، کارنامه و گزارش‌های من</span>
           </a>
         </li>
         {% endif %}

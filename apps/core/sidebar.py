@@ -24,8 +24,9 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     {"key": "workspace-timetable", "flag": "workspace_timetable", "title": "تقویم و برنامه", "section": "آموزش", "default_roles": STAFF_MENU_ROLES | {"teacher"}},
     {"key": "workspace-teacher-attendance", "flag": "workspace_teacher_attendance", "title": "حضور و غیاب", "section": "پنل مدرس", "default_roles": {"teacher"}},
     {"key": "workspace-teacher-report-cards", "flag": "workspace_teacher_report_cards", "title": "کارنامه توصیفی", "section": "پنل مدرس", "default_roles": {"teacher"}},
+    {"key": "workspace-teacher-progress-reports", "flag": "workspace_teacher_progress_reports", "title": "گزارش پیشرفت دانش‌آموزان", "section": "پنل مدرس", "default_roles": {"teacher"}},
     {"key": "leads-teacher-assessments", "flag": "leads_teacher_assessments", "title": "تعیین‌سطح‌های من", "section": "پنل مدرس", "default_roles": {"teacher"}},
-    {"key": "workspace-learner-portal", "flag": "workspace_learner_portal", "title": "حضور و کارنامه من", "section": "پورتال دانش‌آموز", "default_roles": {"student", "guardian"}},
+    {"key": "workspace-learner-portal", "flag": "workspace_learner_portal", "title": "حضور، کارنامه و گزارش‌های من", "section": "پورتال دانش‌آموز", "default_roles": {"student", "guardian"}},
     {"key": "workspace-requests", "flag": "workspace_requests", "title": "درخواست‌ها", "section": "درخواست‌ها", "default_roles": STAFF_MENU_ROLES | {"student", "guardian"}},
     {"key": "workspace-work", "flag": "workspace_work", "title": "کارهای من", "section": "کارتابل", "default_roles": STAFF_MENU_ROLES},
     {"key": "staff-dashboard", "flag": "staff_dashboard", "title": "کارکرد و مرخصی", "section": "کارکنان", "default_roles": STAFF_MENU_ROLES | {"supervisor", "teacher"}},
@@ -123,7 +124,7 @@ def visible_sidebar_sections(flags: dict[str, bool], roles: set[str]) -> dict[st
     """Template booleans for section headings and collapsible groups."""
     teacher = any(flags.get(k, False) for k in (
         "workspace_teacher", "workspace_teacher_attendance",
-        "workspace_teacher_report_cards", "leads_teacher_assessments",
+        "workspace_teacher_report_cards", "workspace_teacher_progress_reports", "leads_teacher_assessments",
     )) or ("teacher" in roles and flags.get("workspace_timetable", False))
     education_timetable = bool(
         flags.get("workspace_timetable", False) and "teacher" not in roles

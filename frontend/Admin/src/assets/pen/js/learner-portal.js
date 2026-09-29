@@ -49,6 +49,7 @@
   var $scheduleUpdated = document.getElementById('lp-schedule-updated');
 
   var current = [];   // sessions of the loaded student (for client-side filter)
+  var portalLoadVersion = 0;
 
   function renderSwitch(students, activeId) {
     if (!students || students.length < 2) { $switchRow.hidden = true; return; }
@@ -161,18 +162,23 @@
   }
 
   function load(studentId) {
+    var loadVersion = ++portalLoadVersion;
+    document.dispatchEvent(new CustomEvent('pen:learner-selected', {detail: {student: ''}}));
     var url = PORTAL + (studentId ? '?student=' + encodeURIComponent(studentId) : '');
     $cards.innerHTML = '<div class="pen-loading">در حال بارگذاری…</div>';
     $sessions.innerHTML = '<tr><td colspan="5"><div class="pen-loading">در حال بارگذاری…</div></td></tr>';
     get(url).then(function (d) {
+      if (loadVersion !== portalLoadVersion) return;
       renderSwitch(d.students, d.student && d.student.id);
       renderAttendance(d.attendance || {});
       renderCards(d.report_cards || []);
       renderSchedule(d.schedule || {});
       var selected = d.student && d.student.id;
+      document.dispatchEvent(new CustomEvent('pen:learner-selected', {detail: {student: selected}}));
       if ($pdfLink) $pdfLink.href = '/api/education/portal/report-card/?format=pdf&student=' + encodeURIComponent(selected || '');
       if ($smsButton) $smsButton.dataset.student = selected || '';
     }).catch(function (e) {
+      if (loadVersion !== portalLoadVersion) return;
       if (e.status === 403 && e.body && e.body.students) {
         renderSwitch(e.body.students, null);
         $cards.innerHTML = '<div class="pen-empty py-5"><p class="mb-0 fs-14">' + esc(e.message) + '</p></div>';

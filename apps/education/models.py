@@ -36,6 +36,53 @@ from apps.core.utils import persian_numbers
 
 _ALIVE = models.Q(is_deleted=False)
 
+
+class StudentProgressReport(DomainModel):
+    """A teacher's period report, published to exactly one learner."""
+
+    class Period(models.TextChoices):
+        DAILY = "daily", "روزانه"
+        WEEKLY = "weekly", "هفتگی"
+        MONTHLY = "monthly", "ماهانه"
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "پیش‌نویس"
+        SENT = "sent", "ارسال‌شده"
+
+    offering = models.ForeignKey("CourseOffering", on_delete=models.PROTECT, related_name="progress_reports")
+    student = models.ForeignKey("persons.Person", on_delete=models.PROTECT, related_name="progress_reports")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="student_progress_reports")
+    period = models.CharField(max_length=8, choices=Period.choices)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    title = models.CharField(max_length=200)
+    summary = models.TextField()
+    strengths = models.TextField(blank=True, default="")
+    improvements = models.TextField(blank=True, default="")
+    homework = models.TextField(blank=True, default="")
+    next_steps = models.TextField(blank=True, default="")
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.DRAFT)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.CheckConstraint(condition=models.Q(period_end__gte=models.F("period_start")), name="edu_progress_date_range"),
+            models.CheckConstraint(
+                condition=(models.Q(status="draft", sent_at__isnull=True, read_at__isnull=True)
+                           | models.Q(status="sent", sent_at__isnull=False)),
+                name="edu_progress_publication_state",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["student", "status", "-sent_at"], name="edu_progress_student_idx"),
+            models.Index(fields=["author", "offering", "student"], name="edu_progress_author_idx"),
+        ]
+
+    def __str__(self):
+        return self.title
+
 #: Business codes (OFFERING-1403-PY01, CLS-PY-01) keep the user's exact
 #: casing — hence CharField+validator instead of SlugField's lowercase.
 _BUSINESS_CODE_RE = RegexValidator(

@@ -22,6 +22,7 @@ from apps.core.pages import (
     TeacherAttendancePage,
     TeacherDashboardPage,
     TeacherReportCardPage,
+    TeacherProgressReportPage,
     TimetablePage,
     WorkQueuePage,
 )
@@ -61,6 +62,7 @@ urlpatterns = [
     path("teacher/", TeacherDashboardPage.as_view(), name="workspace-teacher"),
     path("teacher/attendance/", TeacherAttendancePage.as_view(), name="workspace-teacher-attendance"),
     path("teacher/report-cards/", TeacherReportCardPage.as_view(), name="workspace-teacher-report-cards"),
+    path("teacher/progress-reports/", TeacherProgressReportPage.as_view(), name="workspace-teacher-progress-reports"),
     # Learner (student/parent) portal
     path("portal/", LearnerPortalPage.as_view(), name="workspace-learner-portal"),
 ]

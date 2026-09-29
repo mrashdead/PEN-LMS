@@ -98,6 +98,9 @@ class LeaveRequestSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     def get_unit_display(self, obj) -> str:
         return obj.get_unit_display()
 
+    def get_status_display(self, obj) -> str:
+        return obj.get_status_display()
+
 
 class WorkReportSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     actions = serializers.SerializerMethodField()
@@ -121,6 +124,9 @@ class WorkReportSerializer(CRUDActionsMixin, serializers.ModelSerializer):
 
     def get_spent_hours(self, obj) -> float:
         return obj.spent_hours
+
+    def get_status_display(self, obj) -> str:
+        return obj.get_status_display()
 
     def get_user_display(self, obj) -> str:
         user = obj.user

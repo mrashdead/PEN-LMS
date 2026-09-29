@@ -15,6 +15,20 @@
         justify-content: center;
         height: var(--#{$prefix}topbar);
         width: var(--#{$prefix}sidebar);
+
+        .logo-lg img {
+            display: block;
+            width: 3.25rem;
+            height: 3.25rem;
+            object-fit: contain;
+        }
+
+        .logo-sm img {
+            display: block;
+            width: 2.75rem;
+            height: 2.75rem;
+            object-fit: contain;
+        }
     }
 
     @include media-breakpoint-down(lg) {

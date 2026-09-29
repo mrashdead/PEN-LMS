@@ -15,6 +15,13 @@
         @include flexStyle(center);
         width: var(--#{$prefix}sidebar);
         padding-left: 1rem;
+
+        .logos img {
+            display: block;
+            width: 3rem;
+            height: 3rem;
+            object-fit: contain;
+        }
     }
 
     .topbar-link {

@@ -52,7 +52,8 @@
   };
   window.penBindStrictIdentityInputs = function (root) {
     root = root || document;
-    var inputs = root.querySelectorAll('input[name="national_code"], input[name$="national_code"], input[id*="national-code"], input[name="mobile"], input[name$="phone_number"], input[name$="_phone"], input[id*="phone"], input[id*="mobile"]');
+    var identitySelector = 'input[name="national_code"], input[name$="national_code"], input[id*="national-code"], input[name="mobile"], input[name$="phone_number"], input[name$="_phone"], input[id*="phone"], input[id*="mobile"]';
+    var inputs = root.querySelectorAll(identitySelector);
     inputs.forEach(function (input) {
       var isNational = input.name === 'national_code' || input.name.slice(-13) === 'national_code' || input.id.indexOf('national-code') !== -1;
       input.maxLength = isNational ? 10 : 11;
@@ -69,10 +70,10 @@
     });
     root.querySelectorAll('form').forEach(function (form) {
       form.addEventListener('submit', function (event) {
-        var invalid = Array.from(form.querySelectorAll('input')).find(function (input) {
+        var invalid = Array.from(form.querySelectorAll(identitySelector)).find(function (input) {
           if (!input.value) return false;
           var isNational = input.name === 'national_code' || input.name.slice(-13) === 'national_code' || input.id.indexOf('national-code') !== -1;
-          var valid = isNational ? window.penNationalCodeChecksumValid(input.value) : (!input.name && !input.id ? true : /^09\d{9}$/.test(input.value));
+          var valid = isNational ? window.penNationalCodeChecksumValid(input.value) : /^09\d{9}$/.test(input.value);
           input.setCustomValidity(valid ? '' : (isNational ? 'کد ملی معتبر نیست.' : 'شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.'));
           return !valid;
         });
