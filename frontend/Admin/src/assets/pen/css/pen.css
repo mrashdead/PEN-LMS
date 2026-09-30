@@ -665,7 +665,7 @@ jdp-overlay   { z-index: 1075 !important; }
 .report-finance-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }.report-finance-stats div, .report-inline-metrics div { padding: .7rem .8rem; border-radius: .55rem; background: #f7f9fb; }.report-finance-stats span, .report-inline-metrics span { display: block; color: var(--dx-secondary-color); font-size: .73rem; }.report-finance-stats strong, .report-inline-metrics strong { display: block; margin-top: .15rem; color: var(--report-ink); font-size: 1rem; }
 .report-room-row .progress, .report-form-row .progress { height: 8px; overflow: hidden; background: #edf1f4; border-radius: 99px; }.report-room-row .progress-bar, .report-form-row .progress-bar { border-radius: 99px; background: linear-gradient(90deg, var(--report-teal), #73bcae); }.report-room-row:nth-child(2n) .progress-bar { background: linear-gradient(90deg, var(--report-plum), #c789a8); }
 .report-attendance-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }.report-attendance-summary div { display: flex; align-items: center; gap: .45rem; color: var(--dx-secondary-color); font-size: .85rem; }.report-attendance-summary strong { margin-right: auto; color: var(--report-ink); }.dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; }.dot-success { background: #27a88f; }.dot-danger { background: #ef6a5b; }.dot-warning { background: #e5a83b; }.dot-info { background: #4c8ca8; }
-.report-response-metric { padding: 1rem; border-radius: .7rem; background: #edf7f5; }.report-response-metric strong { display: block; color: var(--report-teal); font-size: 1.8rem; }.report-response-metric span { color: #47736f; font-size: .78rem; }.report-inline-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin-top: .8rem; }.report-footnote { color: var(--dx-secondary-color); font-size: .75rem; }
+.report-response-metric { padding: 1rem; border-radius: .7rem; background: #edf7f5; }.report-response-metric strong { display: block; color: var(--report-teal); font-size: 1.8rem; }.report-response-metric span { color: #47736f; font-size: .78rem; }.report-inline-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin-top: .8rem; }
 .pen-empty { display: grid; place-items: center; min-height: 120px; padding: 1rem; color: var(--dx-secondary-color); font-size: .82rem; text-align: center; }
 .pen-actions-dropdown .dropdown-toggle::after { display: none; }
 .pen-actions-dropdown .dropdown-menu { min-width: 10rem; box-shadow: 0 .5rem 1.25rem rgba(15,23,42,.12); }
@@ -1286,26 +1286,14 @@ jdp-overlay   { z-index: 1075 !important; }
   display: block;
 }
 
-.pen-reports[data-report-page="overview"] .report-footnote {
-  display: none;
-}
-
 .pen-reports[data-report-page]:not([data-report-page="overview"]) .report-summary-kpis,
 .pen-reports[data-report-page]:not([data-report-page="overview"]) .report-index {
   display: none !important;
 }
 
 .pen-reports[data-report-page="financial"] [data-report-section]:not([data-report-section="financial"]),
-.pen-reports[data-report-page="enrollments"] [data-report-section]:not([data-report-section="enrollments"]),
-.pen-reports[data-report-page="people"] [data-report-section]:not([data-report-section="people"]),
-.pen-reports[data-report-page="classes"] [data-report-section]:not([data-report-section="classes"]),
-.pen-reports[data-report-page="workflow"] [data-report-section]:not([data-report-section="workflow"]):not([data-report-section="requests"]),
-.pen-reports[data-report-page="communications"] [data-report-section]:not([data-report-section="communications"]) {
+.pen-reports[data-report-page="enrollments"] [data-report-section]:not([data-report-section="enrollments"]) {
   display: none !important;
-}
-
-.pen-reports[data-report-page]:not([data-report-page="overview"]) .report-footnote {
-  margin-top: 1.25rem;
 }
 
 .report-kpi {

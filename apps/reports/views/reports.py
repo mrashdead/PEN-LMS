@@ -68,8 +68,7 @@ class ReportsPage(ReportsPageAccessMixin, TemplateView):
     def dispatch(self, request, *args, **kwargs):
         self.report_page = kwargs.get("section", "overview")
         if self.report_page not in {
-            "overview", "financial", "enrollments", "people", "classes",
-            "workflow", "communications",
+            "overview", "financial", "enrollments",
         }:
             from django.http import Http404
             raise Http404
@@ -83,10 +82,6 @@ class ReportsPage(ReportsPageAccessMixin, TemplateView):
             ("overview", "نمای کلی", "گزارش‌های کلیدی و دسترسی سریع"),
             ("financial", "مالی", "درآمد و وضعیت وصول"),
             ("enrollments", "ثبت‌نام و دوره‌ها", "وضعیت دوره‌ها و برگزاری‌ها"),
-            ("people", "افراد و مدرسان", "ترکیب افراد و بار تدریس"),
-            ("classes", "کلاس و حضور", "جلسات، فضاها و حضور و غیاب"),
-            ("workflow", "درخواست‌ها", "زمان پاسخ و درخواست‌های در جریان"),
-            ("communications", "ارتباطات", "پیام‌ها و اعلان‌ها"),
         ]
         context["report_pages"] = [
             {"key": key, "title": title, "description": description,
@@ -105,6 +100,5 @@ class ReportsPage(ReportsPageAccessMixin, TemplateView):
             "dashboard": "/api/reports/dashboard/",
             "filters": "/api/reports/filters/",
             "export": "/api/reports/export/",
-            "workflow_requests": "/api/workflow/reports/",
         }
         return context

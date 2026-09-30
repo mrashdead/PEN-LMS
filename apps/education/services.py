@@ -118,7 +118,7 @@ def create_offering_enrollment(
     amount = (
         int(course_amount)
         if course_amount is not None
-        else sum(lesson.tuition or 0 for lesson in locked.course.lessons.all())
+        else sum(link.lesson.tuition or 0 for link in locked.course.lesson_links)
     )
     enrollment = OfferingEnrollment(
         offering=locked,
@@ -648,7 +648,9 @@ def generate_sessions(
 
     # ── hours mode (legacy) ────────────────────────────────────────────
     # total teaching hours to distribute = sum of the course's lessons' hours
-    total_minutes = sum((l.duration_hours or 0) * 60 for l in offering.course.lessons.all())
+    total_minutes = sum(
+        (link.lesson.duration_hours or 0) * 60 for link in offering.course.lesson_links
+    )
     if total_minutes <= 0:
         total_minutes = slot_minutes  # at least one session
 

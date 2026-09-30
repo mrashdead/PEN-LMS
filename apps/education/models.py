@@ -285,6 +285,23 @@ class Course(DomainModel):
     def clean(self) -> None:
         self.code = (self.code or "").strip().lower()
 
+    @property
+    def lesson_links(self):
+        """ردیف‌های زندهٔ CourseLesson این دوره، به ترتیب سرفصل.
+
+        ``self.lessons`` (مدیر M2M) جدول واسط را بدون فیلتر soft-delete آن
+        join می‌کند؛ پس یک لینک حذف‌شده هم در آن دیده می‌شود و همان درس را
+        دوبار برمی‌گرداند (خطای «درس دوباره اضافه شد» + شهریهٔ دوبرابر).
+        خواندن سرفصل همیشه باید از این property انجام شود.
+        """
+        return self.course_lessons.all()
+
+    def alive_lessons(self):
+        """درس‌های سرفصلِ زندهٔ دوره، به ترتیب سرفصل."""
+        return Lesson.objects.filter(
+            course_links__course=self, course_links__is_deleted=False
+        ).order_by("course_links__order")
+
 
 class CourseLesson(DomainModel):
     """اتصال ترتیب‌دار دوره↔درس — ترتیب، اجباری‌بودن و ساعت را حفظ می‌کند (§5)."""

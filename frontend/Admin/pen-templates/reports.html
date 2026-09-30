@@ -91,68 +91,6 @@
     </div>
   </section>
 
-  <section data-report-section="people" class="mb-4" aria-labelledby="people-title">
-    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="people-title" class="report-section-title mb-1">افراد و مدرسان</h2><p class="text-muted fs-14 mb-0">روند جذب و بار تدریس تیم آموزشی</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="people"><i data-lucide="download" class="size-4 me-1"></i> دریافت گزارش افراد</button></div>
-    <div class="row g-3">
-      <div class="col-12 col-xl-5"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">ترکیب افراد بر اساس نقش</h3></div><div class="card-body"><div id="chart-people" class="report-chart" aria-label="نمودار ترکیب افراد"></div></div></article></div>
-      <div class="col-12 col-xl-7"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">مدرسان فعال</h3></div><div class="card-body p-0"><div class="table-responsive"><table class="table report-table align-middle mb-0"><thead><tr><th>مدرس</th><th>ساعت تدریس</th><th>جلسات</th><th>کلاس‌ها</th></tr></thead><tbody id="teacher-rows"><tr><td colspan="4"><div class="pen-loading">در حال بارگذاری…</div></td></tr></tbody></table></div></div></article></div>
-      <div class="col-12"><article class="card report-panel"><div class="card-header"><h3 class="h6 mb-0">روند جذب دانش‌آموز جدید</h3></div><div class="card-body"><div id="chart-new-students" class="report-chart report-chart-short" aria-label="نمودار جذب دانش‌آموز جدید"></div></div></article></div>
-    </div>
-  </section>
-
-  <section data-report-section="classes" class="mb-4" aria-labelledby="classes-title">
-    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="classes-title" class="report-section-title mb-1">کلاس‌ها، جلسات و فضاها</h2><p class="text-muted fs-14 mb-0">بهره‌وری محل‌ها و کیفیت حضور در جلسات</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="classes"><i data-lucide="download" class="size-4 me-1"></i> خروجی کلاس‌ها</button></div>
-    <div class="row g-3">
-      <div class="col-12 col-xl-5"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">جلسات برگزارشده و معوقه</h3></div><div class="card-body"><div id="chart-sessions" class="report-chart" aria-label="نمودار وضعیت جلسات"></div></div></article></div>
-      <div class="col-12 col-xl-7"><article class="card report-panel h-100"><div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 mb-0">بهره‌وری محل‌های آموزش</h3><span class="badge rounded-pill text-bg-light" id="room-overall">—</span></div><div class="card-body"><div id="room-rows" class="vstack gap-3"><div class="pen-loading">در حال بارگذاری…</div></div></div></article></div>
-      <div class="col-12"><article class="card report-panel"><div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 mb-0">حضور و غیاب کلان</h3><span class="text-muted fs-13" id="attendance-average">—</span></div><div class="card-body"><div class="row g-3 align-items-center"><div class="col-12 col-md-5"><div id="chart-attendance" class="report-chart" aria-label="نمودار حضور و غیاب"></div></div><div class="col-12 col-md-7"><div class="report-attendance-summary"><div><span class="dot dot-success"></span> حاضر <strong id="attendance-present">—</strong></div><div><span class="dot dot-danger"></span> غایب <strong id="attendance-absent">—</strong></div><div><span class="dot dot-warning"></span> تأخیر <strong id="attendance-late">—</strong></div><div><span class="dot dot-info"></span> موجه <strong id="attendance-excused">—</strong></div></div><div class="d-flex gap-4 mt-3 text-muted fs-14"><span>نرخ غیبت: <strong id="absence-rate">—</strong></span><span>نرخ تأخیر: <strong id="late-rate">—</strong></span></div></div></div></div></article></div>
-    </div>
-  </section>
-
-  <section data-report-section="workflow" class="mb-4" aria-labelledby="workflow-title">
-    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="workflow-title" class="report-section-title mb-1">درخواست‌ها و گلوگاه‌های کاری</h2><p class="text-muted fs-14 mb-0">وضعیت کارتابل و زمان پاسخگویی فرآیندها</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="workflow"><i data-lucide="download" class="size-4 me-1"></i> خروجی درخواست‌ها</button></div>
-    <div class="row g-3">
-      <div class="col-12 col-xl-5"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">شاخص پاسخگویی</h3></div><div class="card-body"><div class="report-response-metric"><strong id="workflow-response-hours">—</strong><span>ساعت میانگین تا اولین پاسخ</span></div><div class="report-inline-metrics"><div><span>در انتظار بررسی</span><strong id="workflow-pending">—</strong></div><div><span>درخواست‌های پاسخ‌داده‌شده</span><strong id="workflow-responded">—</strong></div></div><div id="workflow-status-rows" class="report-inline-metrics mt-3" aria-label="تفکیک وضعیت درخواست‌ها"></div></div></article></div>
-      <div class="col-12 col-xl-7"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">پرتکرارترین فرم‌ها</h3></div><div class="card-body"><div id="workflow-form-rows" class="vstack gap-3"><div class="pen-loading">در حال بارگذاری…</div></div></div></article></div>
-    </div>
-  </section>
-
-  <section data-report-section="requests" class="mb-4" aria-labelledby="workflow-requests-title">
-    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="workflow-requests-title" class="report-section-title mb-1">جزئیات درخواست‌ها</h2><p class="text-muted fs-14 mb-0">ثبت‌کننده، مرحلهٔ جاری، مسئول اقدام و تاریخچهٔ تصمیم‌ها</p></div><span class="badge rounded-pill text-bg-light" id="workflow-request-count">—</span></div>
-    <article class="card report-panel">
-      <div class="card-body">
-        <form id="workflow-report-filter-form" class="row g-2 align-items-end mb-3">
-          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-request-type">نوع درخواست</label><select id="workflow-filter-request-type" class="form-select"><option value="">همهٔ انواع</option></select></div>
-          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-workflow">گردش‌کار</label><select id="workflow-filter-workflow" class="form-select"><option value="">همهٔ گردش‌کارها</option></select></div>
-          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-status">وضعیت گردش‌کار</label><select id="workflow-filter-status" class="form-select"><option value="">همه</option><option value="running">در جریان</option><option value="completed">تکمیل‌شده</option><option value="rejected">ردشده</option><option value="cancelled">لغوشده</option></select></div>
-          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-request-status">وضعیت درخواست</label><select id="workflow-filter-request-status" class="form-select"><option value="">همه</option><option value="draft">پیش‌نویس</option><option value="submitted">ارسال‌شده</option><option value="in_review">در حال بررسی</option><option value="awaiting_action">منتظر اقدام</option><option value="changes_requested">نیازمند اصلاح</option><option value="approved">تأییدشده</option><option value="rejected">ردشده</option><option value="cancelled">لغوشده</option><option value="completed">تکمیل‌شده</option><option value="blocked_assignment">بدون مسئول</option><option value="archived">بایگانی‌شده</option></select></div>
-          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-form">فرم</label><select id="workflow-filter-form" class="form-select"><option value="">همهٔ فرم‌ها</option></select></div>
-          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-user">کاربر</label><input id="workflow-filter-user" class="form-control" type="search" placeholder="نام کاربری"></div>
-          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-department">واحد</label><input id="workflow-filter-department" class="form-control" type="search" placeholder="نام واحد"></div>
-          <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="workflow-filter-step">مرحله</label><input id="workflow-filter-step" class="form-control" type="search" placeholder="کد مرحله"></div>
-          <div class="col-12 col-sm-6 col-xl-2 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit"><i data-lucide="sliders-horizontal" class="size-4 me-1"></i> اعمال</button><button class="btn btn-light" type="button" id="workflow-filter-reset" title="بازنشانی فیلترها" aria-label="بازنشانی فیلترهای درخواست"><i data-lucide="rotate-ccw" class="size-4"></i></button></div>
-        </form>
-        <div id="workflow-report-error" class="alert alert-danger py-2 mb-3" role="alert" hidden></div>
-        <div class="table-responsive">
-          <table class="table report-table align-middle mb-0">
-            <thead><tr><th>شماره و نوع</th><th>وضعیت و مرحله</th><th>ثبت‌کننده</th><th>در اختیار</th><th>ایجاد / ثبت</th><th>بررسی / تأیید / رد</th><th>اقدامات</th></tr></thead>
-            <tbody id="workflow-request-rows"><tr><td colspan="7"><div class="pen-loading">در حال بارگذاری…</div></td></tr></tbody>
-          </table>
-        </div>
-        <div class="d-flex justify-content-between align-items-center gap-2 mt-3"><span class="text-muted fs-13" id="workflow-request-page-info">—</span><div class="d-flex gap-2"><button type="button" class="btn btn-sm btn-light" id="workflow-request-previous" aria-label="صفحهٔ قبل" disabled><i data-lucide="chevron-right" class="size-4"></i></button><button type="button" class="btn btn-sm btn-light" id="workflow-request-next" aria-label="صفحهٔ بعد" disabled><i data-lucide="chevron-left" class="size-4"></i></button></div></div>
-      </div>
-    </article>
-  </section>
-
-  <section data-report-section="communications" class="mb-4" aria-labelledby="communications-title">
-    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3"><div><h2 id="communications-title" class="report-section-title mb-1">ارتباطات و اعلان‌ها</h2><p class="text-muted fs-14 mb-0">حجم پیام‌ها و وضعیت ارسال در کانال‌های ارتباطی</p></div><button class="btn btn-outline-primary btn-sm" type="button" data-report-export="communications"><i data-lucide="download" class="size-4 me-1"></i> خروجی ارتباطات</button></div>
-    <div class="row g-3">
-      <div class="col-12 col-md-5"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">نمای کلی ارتباطات</h3></div><div class="card-body"><div class="report-finance-stats"><div><span>کل اعلان‌ها</span><strong id="communications-total">—</strong></div><div><span>خوانده‌نشده درون‌برنامه</span><strong id="communications-unread">—</strong></div></div></div></article></div>
-      <div class="col-12 col-md-7"><article class="card report-panel h-100"><div class="card-header"><h3 class="h6 mb-0">تفکیک کانال‌ها</h3></div><div class="card-body"><div id="communications-rows" class="vstack gap-3"><div class="pen-loading">در حال بارگذاری…</div></div></div></article></div>
-    </div>
-  </section>
-
-  <p class="report-footnote mb-0"><i data-lucide="info" class="size-4 me-1"></i> آخرین محاسبه: <span id="report-last-updated">—</span> · بهره‌وری اتاق‌ها با فرض ۸ ساعت کاری روزانه محاسبه شده است.</p>
 </main>
 {% endblock %}
 

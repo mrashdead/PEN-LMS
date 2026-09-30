@@ -4,8 +4,6 @@ from __future__ import annotations
 from django.urls import path
 
 from apps.forms.pages import (
-    SchemaAdminPage,
-    SchemaBuilderPage,
     SchemaPickerPage,
     SubmissionCreatePage,
     SubmissionDetailPage,
@@ -26,13 +24,5 @@ urlpatterns = [
         "submissions/<uuid:submission_id>/edit/",
         SubmissionEditPage.as_view(),
         name="submission-edit-page",
-    ),
-    # Schema administration (elevated roles only)
-    path("admin/schemas/", SchemaAdminPage.as_view(), name="schema-admin"),
-    path("admin/schemas/new/", SchemaBuilderPage.as_view(), name="schema-builder-create"),
-    path(
-        "admin/schemas/<slug:slug>/",
-        SchemaBuilderPage.as_view(),
-        name="schema-builder",
     ),
 ]

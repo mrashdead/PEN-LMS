@@ -4,6 +4,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.education.models import CourseLesson
 from apps.leads.models import Lead
 from apps.leads.permissions import IsLeadAssessor, IsLeadOperator, IsLeadTeacher, is_lead_operator
 from apps.leads.selectors import assigned_leads_for_teacher, assessors, leads_for_user
@@ -95,7 +96,7 @@ class LeadActionView(APIView):
             ser.is_valid(raise_exception=True)
             course = ser.validated_data["course"]
             lesson = ser.validated_data.get("lesson")
-            if lesson and not course.lessons.filter(pk=lesson.pk, is_deleted=False).exists():
+            if lesson and not CourseLesson.objects.filter(course=course, lesson=lesson).exists():
                 return Response({"detail": "درس انتخاب‌شده متعلق به دوره نیست."}, status=400)
             lead.course = course
             lead.lesson = lesson

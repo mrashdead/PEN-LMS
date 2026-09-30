@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.utils import timezone
 from rest_framework import serializers
 
-from apps.education.models import Course, Lesson
+from apps.education.models import Course, CourseLesson, Lesson
 from apps.leads.selectors import assessors
 from apps.leads.models import Lead
 from apps.persons.models import Person
@@ -100,7 +100,9 @@ class LeadCreateSerializer(serializers.ModelSerializer):
         if session_date == today and attrs["assessment_time"] <= timezone.localtime().time().replace(second=0, microsecond=0):
             raise serializers.ValidationError({"assessment_time": "برای امروز، ساعتی بعد از زمان فعلی انتخاب کنید."})
         if attrs.get("course") and attrs.get("lesson"):
-            if not attrs["course"].lessons.filter(pk=attrs["lesson"].pk, is_deleted=False).exists():
+            if not CourseLesson.objects.filter(
+                course=attrs["course"], lesson=attrs["lesson"]
+            ).exists():
                 raise serializers.ValidationError({"lesson": "این درس در دوره انتخاب‌شده وجود ندارد."})
         return attrs
 

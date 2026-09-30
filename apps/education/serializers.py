@@ -104,8 +104,14 @@ class CourseLessonSerializer(serializers.ModelSerializer):
 
 
 class CourseLessonsField(serializers.Field):
-    def to_representation(self, value):
-        return [str(lesson.id) for lesson in value.all()]
+    def get_attribute(self, instance):
+        # خودِ نمونه به to_representation داده می‌شود: «درس‌ها» باید از سرفصل
+        # زنده خوانده شود (``instance.lesson_links``)، نه از مدیر M2M که
+        # لینک‌های soft-deleted را هم برمی‌گرداند.
+        return instance
+
+    def to_representation(self, course) -> list:
+        return [str(link.lesson_id) for link in course.lesson_links]
 
     def to_internal_value(self, data):
         if not isinstance(data, list):
@@ -137,28 +143,62 @@ class CourseSerializer(CRUDActionsMixin, serializers.ModelSerializer):
 
     def get_lesson_titles(self, obj) -> list:
         return [
-            {"id": str(l.id), "title": l.title, "tuition": l.tuition or 0}
-            for l in obj.lessons.all()
+            {"id": str(link.lesson_id), "title": link.lesson.title,
+             "tuition": (link.lesson.tuition or 0) if link.lesson_id else 0}
+            for link in obj.lesson_links
         ]
 
     def get_total_tuition(self, obj) -> int:
         """Sum of the linked lessons' tuition (the course bundle price)."""
-        return sum(l.tuition or 0 for l in obj.lessons.all())
+        return sum(
+            (link.lesson.tuition or 0) for link in obj.lesson_links if link.lesson_id
+        )
 
-    def _sync_lessons(self, course, lesson_ids):
-        """Replace the course's lessons, preserving submitted order.
+    def _sync_lessons(self, course, lesson_ids) -> bool:
+        """Apply only the curriculum delta of a course (idempotent).
 
-        Delete-then-recreate avoids the (course, order) unique-constraint
-        collision that in-place renumbering would hit mid-update.
+        The form always posts the whole lesson list, so the sync must be a
+        *diff*, never a rebuild: the old delete-then-recreate left soft-deleted
+        ``CourseLesson`` rows behind on every save, and Django's M2M manager
+        joins the through table without its soft-delete filter — the same
+        lesson then showed up twice in «درس‌ها»/«شهریهٔ کل» and in every
+        offering/price built from the course.
+
+        Returns True when the curriculum actually changed, so ``update()`` can
+        skip the write entirely when it did not.
         """
-        wanted = list(Lesson.objects.filter(pk__in=lesson_ids))
-        by_id = {str(l.pk): l for l in wanted}
-        ordered = [by_id[str(pk)] for pk in lesson_ids if str(pk) in by_id]
-        course.course_lessons.all().delete()
-        CourseLesson.objects.bulk_create([
-            CourseLesson(course=course, lesson=lesson, order=i + 1)
-            for i, lesson in enumerate(ordered)
-        ])
+        # Order matters (it is the curriculum order) and duplicates in the
+        # payload must never create two rows for the same lesson.
+        wanted = list(dict.fromkeys(str(pk) for pk in lesson_ids or []))
+        alive_pks = {
+            str(pk)
+            for pk in Lesson.objects.filter(pk__in=wanted).values_list("pk", flat=True)
+        }
+        wanted = [pk for pk in wanted if pk in alive_pks]
+
+        links = {str(link.lesson_id): link for link in course.lesson_links}
+        if wanted == list(links):
+            return False
+
+        position = {pk: index for index, pk in enumerate(wanted, start=1)}
+        # ۱) لینک‌های حذف‌شده یا جابه‌جاشده اول (و فیزیکی) پاک می‌شوند: حذف
+        # منطقی دوباره در مدیر M2M ظاهر می‌شود و شماره‌گذاری درجا هم با
+        # محدودیت یکتای (course, order) برخورد می‌کند.
+        doomed = [
+            link.pk for pk, link in links.items()
+            if position.get(pk) != link.order
+        ]
+        doomed_set = set(doomed)
+        if doomed:
+            CourseLesson.all_objects.filter(pk__in=doomed).delete()
+
+        # ۲) فقط لینک‌هایی ساخته می‌شوند که جای درست ندارند.
+        for pk, order in position.items():
+            link = links.get(pk)
+            if link is not None and link.pk not in doomed_set:
+                continue
+            CourseLesson.objects.create(course=course, lesson_id=pk, order=order)
+        return True
 
     @transaction.atomic
     def create(self, validated_data):
@@ -169,12 +209,27 @@ class CourseSerializer(CRUDActionsMixin, serializers.ModelSerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        """Write only what really changed (انجام فقط تغییرات واقعی).
+
+        Nothing changed → no write at all; a lessons-only change touches only
+        the link rows (plus the course's ``updated_at``), never re-creating
+        rows that are already correct.
+        """
         lesson_ids = validated_data.pop("lessons", None)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        if lesson_ids is not None:
-            self._sync_lessons(instance, lesson_ids)
+
+        changed = {
+            field: value for field, value in validated_data.items()
+            if getattr(instance, field, None) != value
+        }
+        if changed:
+            for field, value in changed.items():
+                setattr(instance, field, value)
+            instance.save(update_fields=[*changed, "updated_at"])
+
+        if lesson_ids is not None and self._sync_lessons(instance, lesson_ids) and not changed:
+            # The curriculum changed but no course field did: keep the record's
+            # modification time honest without rewriting the row.
+            instance.save(update_fields=["updated_at"])
         return instance
 
 
@@ -214,8 +269,9 @@ class CourseOfferingSerializer(CRUDActionsMixin, serializers.ModelSerializer):
         if course is None:
             return []
         return [
-            {"id": str(l.id), "title": l.title, "tuition": l.tuition or 0}
-            for l in course.lessons.all()
+            {"id": str(link.lesson_id), "title": link.lesson.title,
+             "tuition": (link.lesson.tuition or 0) if link.lesson_id else 0}
+            for link in course.lesson_links
         ]
 
     def get_classes(self, obj) -> list:
@@ -487,7 +543,9 @@ class OfferingEnrollmentSerializer(serializers.ModelSerializer):
         if offering is not None and student is not None:
             course_amount = attrs.get("course_amount")
             if course_amount in (None, 0):
-                attrs["course_amount"] = sum(l.tuition or 0 for l in offering.course.lessons.all())
+                attrs["course_amount"] = sum(
+                    link.lesson.tuition or 0 for link in offering.course.lesson_links
+                )
         lead = attrs.get("lead")
         if lead is not None:
             if lead.status not in (Lead.Status.RECOMMENDED, Lead.Status.ASSESSED):

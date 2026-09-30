@@ -241,7 +241,11 @@ class CourseListCreateView(generics.ListCreateAPIView):
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
 
     def get_queryset(self):
-        return education_courses_visible_to(self.request.user).prefetch_related("lessons")
+        # «درس‌ها» از ردیف‌های زندهٔ CourseLesson خوانده می‌شود (lesson_links)،
+        # نه از مدیر M2M که لینک‌های soft-deleted را هم برمی‌گرداند.
+        return education_courses_visible_to(self.request.user).prefetch_related(
+            "course_lessons__lesson"
+        )
 
 
 class CourseDetailView(generics.RetrieveUpdateAPIView):
@@ -249,7 +253,9 @@ class CourseDetailView(generics.RetrieveUpdateAPIView):
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
 
     def get_queryset(self):
-        return education_courses_visible_to(self.request.user).prefetch_related("lessons")
+        return education_courses_visible_to(self.request.user).prefetch_related(
+            "course_lessons__lesson"
+        )
 
 
 class CourseSoftDeleteView(SoftDeleteView):

@@ -571,12 +571,13 @@ class FormDataValidator:
                 self.errors.add(key, "ابتدا دوره را انتخاب کنید.")
                 return
             try:
-                from apps.education.models import Course
+                from apps.education.models import CourseLesson
 
                 valid_lessons = set(
-                    str(value) for value in Course.objects.filter(
-                        pk=course_id, lessons__pk__in=collected, is_active=True
-                    ).values_list("lessons__pk", flat=True)
+                    str(value) for value in CourseLesson.objects.filter(
+                        course__pk=course_id, course__is_active=True,
+                        lesson_id__in=collected,
+                    ).values_list("lesson_id", flat=True)
                 )
             except (DjangoValidationError, ValueError, TypeError, FieldError):
                 valid_lessons = set()

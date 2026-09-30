@@ -49,11 +49,7 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     {"key": "playhouse-settings", "flag": "playhouse_settings", "title": "تنظیمات خانه بازی", "section": "خانه بازی", "default_roles": FINANCE_ROLES},
     {"key": "leads-dashboard", "flag": "leads_dashboard", "title": "مدیریت لیدها", "section": "مدیریت لیدها", "default_roles": LEAD_OPERATOR_ROLES},
     {"key": "workspace-org-chart", "flag": "workspace_org_chart", "title": "نمودار سازمانی", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
-    {"key": "workspace-org-permissions", "flag": "workspace_org_permissions", "title": "ماتریس و شبیه‌ساز مجوزها", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
     {"key": "workspace-perm-manage", "flag": "workspace_perm_manage", "title": "مدیریت مجوز کاربران", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
-    {"key": "workspace-org-responsibilities", "flag": "workspace_org_responsibilities", "title": "مسئولیت‌ها و عملکرد", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
-    {"key": "workspace-org-delegations", "flag": "workspace_org_delegations", "title": "جانشینی", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
-    {"key": "schema-admin", "flag": "schema_admin", "title": "مدیریت الگوهای فرم", "section": "مدیریت سازمان", "default_roles": ELEVATED_ROLES},
 )
 
 _ITEM_BY_KEY = {item["key"]: item for item in SIDEBAR_ITEMS}
@@ -135,8 +131,7 @@ def visible_sidebar_sections(flags: dict[str, bool], roles: set[str]) -> dict[st
         "workspace_locations", "workspace_enrollments",
     )) or education_timetable
     organization = any(flags.get(k, False) for k in (
-        "workspace_org_chart", "workspace_org_permissions", "workspace_perm_manage",
-        "workspace_org_responsibilities", "workspace_org_delegations", "schema_admin",
+        "workspace_org_chart", "workspace_perm_manage",
     ))
     learner = flags.get("workspace_learner_portal", False)
     is_learner = bool(roles & {"student", "guardian"})

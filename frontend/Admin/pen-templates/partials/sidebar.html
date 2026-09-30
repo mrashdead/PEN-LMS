@@ -333,17 +333,6 @@ Add a page: one nav-item; add a section: copy a collapse block.
         </li>
         {% endif %}
 
-        {% if sidebar_visibility.workspace_org_permissions %}
-        <li class="nav-item">
-          <a href="{% url 'workspace-org-permissions' %}" title="مجوزها"
-             class="nav-link{% if urlname == 'workspace-org-permissions' %} active{% endif %}"
-             {% if urlname == 'workspace-org-permissions' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="shield-check"></i></span>
-            <span class="content">ماتریس و شبیه‌ساز</span>
-          </a>
-        </li>
-        {% endif %}
-
         {% if sidebar_visibility.workspace_perm_manage %}
         <li class="nav-item">
           <a href="{% url 'workspace-perm-manage' %}" title="مدیریت مجوز کاربران"
@@ -355,38 +344,6 @@ Add a page: one nav-item; add a section: copy a collapse block.
         </li>
         {% endif %}
 
-        {% if sidebar_visibility.workspace_org_responsibilities %}
-        <li class="nav-item">
-          <a href="{% url 'workspace-org-responsibilities' %}" title="مسئولیت‌ها"
-             class="nav-link{% if urlname == 'workspace-org-responsibilities' %} active{% endif %}"
-             {% if urlname == 'workspace-org-responsibilities' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="user-check"></i></span>
-            <span class="content">مسئولیت‌ها و عملکرد</span>
-          </a>
-        </li>
-        {% endif %}
-
-        {% if sidebar_visibility.workspace_org_delegations %}
-        <li class="nav-item">
-          <a href="{% url 'workspace-org-delegations' %}" title="جانشینی"
-             class="nav-link{% if urlname == 'workspace-org-delegations' %} active{% endif %}"
-             {% if urlname == 'workspace-org-delegations' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="repeat"></i></span>
-            <span class="content">جانشینی</span>
-          </a>
-        </li>
-        {% endif %}
-
-        {% if sidebar_visibility.schema_admin %}
-        <li class="nav-item">
-          <a href="{% url 'schema-admin' %}" title="مدیریت الگوهای فرم"
-             class="nav-link{% if urlname == 'schema-admin' or urlname == 'schema-builder' or urlname == 'schema-builder-create' %} active{% endif %}"
-             {% if urlname == 'schema-admin' or urlname == 'schema-builder' or urlname == 'schema-builder-create' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="layout-template"></i></span>
-            <span class="content">مدیریت الگوهای فرم</span>
-          </a>
-        </li>
-        {% endif %}
         {% endif %}
 
       </ul>

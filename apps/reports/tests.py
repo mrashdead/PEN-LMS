@@ -4,6 +4,7 @@ from datetime import date
 from types import SimpleNamespace
 
 from django.core.exceptions import PermissionDenied
+from django.http import Http404
 from django.test import SimpleTestCase
 from django.test import RequestFactory
 from django.test import TestCase
@@ -77,7 +78,10 @@ class ReportPermissionTests(SimpleTestCase):
             ReportsPage.as_view()(request)
 
 
-class ReportsPageWorkflowSectionTests(TestCase):
+REMOVED_REPORT_SECTIONS = ("people", "classes", "workflow", "communications")
+
+
+class ReportsPageTests(TestCase):
     def test_anonymous_user_is_sent_to_the_real_login_route(self):
         response = self.client.get("/workspace/reports/")
 
@@ -87,16 +91,42 @@ class ReportsPageWorkflowSectionTests(TestCase):
             fetch_redirect_response=False,
         )
 
-    def test_reports_page_renders_request_filters_and_report_endpoint(self):
+    def test_removed_report_sections_are_not_rendered_anymore(self):
         manager = UserFactory(username="reports-page-manager", roles=["manager"])
         request = RequestFactory().get("/workspace/reports/")
         request.user = manager
 
         response = ReportsPage.as_view()(request)
         response.render()
+        body = response.content.decode()
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("/api/workflow/reports/", response.content.decode())
-        self.assertIn("workflow-filter-request-type", response.content.decode())
-        self.assertIn("workflow-request-rows", response.content.decode())
-        self.assertIn("request_types", response.context_data["report_options"])
+        for section in REMOVED_REPORT_SECTIONS + ("requests",):
+            self.assertNotIn(f'data-report-section="{section}"', body)
+        for anchor in ("workflow-request-rows", "workflow-report-filter-form", "report-last-updated", "report-footnote"):
+            self.assertNotIn(anchor, body)
+
+    def test_removed_report_sections_are_not_routable(self):
+        manager = UserFactory(username="reports-section-manager", roles=["manager"])
+        request = RequestFactory().get("/workspace/reports/people/")
+        request.user = manager
+
+        for section in REMOVED_REPORT_SECTIONS:
+            with self.subTest(section=section):
+                with self.assertRaises(Http404):
+                    ReportsPage.as_view()(request, section=section)
+
+    def test_remaining_report_pages_still_render(self):
+        manager = UserFactory(username="reports-live-manager", roles=["manager"])
+
+        for section in ("overview", "financial", "enrollments"):
+            with self.subTest(section=section):
+                url = "/workspace/reports/" if section == "overview" else f"/workspace/reports/{section}/"
+                request = RequestFactory().get(url)
+                request.user = manager
+                response = ReportsPage.as_view()(request, section=section)
+                response.render()
+
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("report-filter-form", response.content.decode())
+                self.assertIn("dashboard", response.context_data["report_endpoints"])

@@ -6,13 +6,12 @@ helpers the API uses (``visible_schemas_for`` / ``visible_submissions_for``)
 and render templates. All business authorization and validation remain on
 the API/service side — the templates never decide access.
 
-Schema-admin pages (``SchemaAdminPage`` / ``SchemaBuilderPage``) additionally
-restrict to elevated roles (same trio the API's ``CanManageFormSchemas``
-uses); writes always go through the admin API endpoint, never direct ORM.
+Schema administration UI (the ``/forms/admin/schemas/`` list and the visual
+builder) is not shipped in this build: schema authoring goes through the
+Django admin and the ``/api/forms/admin/schemas/`` endpoint.
 """
 from __future__ import annotations
 
-import json
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import Http404
@@ -20,9 +19,8 @@ from django.shortcuts import get_object_or_404
 from django.views.generic import DetailView, ListView, TemplateView
 
 from apps.forms import relations
-from apps.forms.models import FormSchema, FormSubmission
+from apps.forms.models import FormSubmission
 from apps.forms.permissions import (
-    ELEVATED_ROLES,
     can_view_internal_comments,
     visible_request_types_for,
     visible_schemas_for,
@@ -35,18 +33,6 @@ RELATION_OPTION_LIMIT = 200
 
 class FormsPageMixin(LoginRequiredMixin):
     """Pages require a logged-in session user (dashboard convention)."""
-
-
-class SchemaAdminRequiredMixin(LoginRequiredMixin):
-    """Schema-admin pages mirror the API's CanManageFormSchemas role trio."""
-
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return super().dispatch(request, *args, **kwargs)
-        roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
-        if not roles & ELEVATED_ROLES:
-            raise Http404  # 404, not 403: don't advertise the admin surface
-        return super().dispatch(request, *args, **kwargs)
 
 
 class SchemaPickerPage(FormsPageMixin, TemplateView):
@@ -267,118 +253,4 @@ class SubmissionDetailPage(FormsPageMixin, DetailView):
                 )
             except Exception:  # noqa: BLE001 - page must not 500 on engine errors
                 context["available_transitions"] = []
-        return context
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Schema administration UI (elevated roles only)
-# ─────────────────────────────────────────────────────────────────────────────
-
-#: Registry keys exposed to the builder's relation picker, with availability.
-def _relation_registry_context() -> list[dict]:
-    entries = []
-    for key, spec in relations.REGISTRY.items():
-        entries.append({
-            "key": key,
-            "model": spec.model_label,
-            "available": spec.is_available(),
-            "display_field": spec.display_field,
-        })
-    entries.sort(key=lambda e: (not e["available"], e["key"]))
-    return entries
-
-
-class SchemaAdminPage(SchemaAdminRequiredMixin, TemplateView):
-    """All schema versions (active + history) with field counts."""
-
-    template_name = "forms/schema_admin.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        schemas = (
-            FormSchema.objects.all()
-            .select_related("request_type", "workflow_definition")
-            .prefetch_related("allowed_roles", "submissions")
-            .order_by("slug", "-version")
-        )
-        grouped: dict[str, list] = {}
-        for schema in schemas:
-            grouped.setdefault(schema.slug, []).append(schema)
-        cards = []
-        for slug, versions in grouped.items():
-            versions.sort(key=lambda s: -s.version)
-            cards.append({
-                "slug": slug,
-                "title": versions[0].title,
-                "description": versions[0].description,
-                "versions": versions,
-            })
-        cards.sort(key=lambda c: c["slug"])
-        context["schema_cards"] = cards
-        context["total_schemas"] = sum(len(v) for v in grouped.values())
-        return context
-
-
-class SchemaBuilderPage(SchemaAdminRequiredMixin, TemplateView):
-    """
-    Visual builder for one schema slug.
-
-    GET (no slug) → "create new" mode: fields start from a minimal skeleton.
-    GET with slug  → edit mode: prefilled from the LATEST version; saving
-    posts a NEW version through /api/forms/admin/schemas/ (immutability of
-    published versions is a server contract — the UI never edits in place).
-    """
-
-    template_name = "forms/schema_builder.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        slug = self.kwargs.get("slug")
-        context["mode"] = "edit" if slug else "create"
-        context["source_slug"] = slug
-        source = None
-        if slug:
-            source = (
-                FormSchema.objects.filter(slug=slug)
-                .order_by("-version")
-                .first()
-            )
-            if source is None:
-                raise Http404
-        context["schema"] = source
-        context["request_types"] = visible_request_types_for(self.request.user).order_by(
-            "title", "code"
-        )
-        context["fields_json"] = json.dumps(
-            source.fields if source else [], ensure_ascii=False, indent=2
-        )
-        context["relation_registry"] = _relation_registry_context()
-        context["next_version"] = (source.version + 1) if source else 1
-        # Single JSON island for the builder JS (safe embedding via json_script).
-        context["builder_ctx"] = {
-            "mode": context["mode"],
-            "slug": slug or "",
-            "title": source.title if source else "",
-            "description": source.description if source else "",
-            "category": source.category if source else FormSchema.Category.GENERAL,
-            "workflowCode": (
-                source.workflow_definition.code if source and source.workflow_definition_id
-                else (source.request_type.workflow_definition.code
-                      if source and source.request_type_id and source.request_type.workflow_definition_id else "")
-            ),
-            "workflowConfig": source.workflow_config if source else {},
-            "allowedRoleCodes": list(source.allowed_roles.values_list("code", flat=True)) if source else [],
-            "requestTypeCode": (
-                source.request_type.code if source and source.request_type else ""
-            ),
-            "nextVersion": context["next_version"],
-            "fields": source.fields if source else [],
-            "requestTypes": [
-                {"code": item.code, "title": item.title, "kind": item.kind}
-                for item in context["request_types"]
-            ],
-            "relationRegistry": context["relation_registry"],
-            "adminApiUrl": "/api/forms/admin/schemas/",
-            "djangoAdminUrl": "/admin/forms/formschema/",
-        }
         return context

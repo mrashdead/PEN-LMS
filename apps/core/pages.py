@@ -30,7 +30,7 @@ from apps.core.utils import jalali_datetime_str, persian_date, persian_numbers
 # apps.core.permissions.IsAcademicManager; writes are gated by the API itself).
 _STAFF_ROLES = {"teacher", "manager", "workflow_admin", "hr", "employee", "supervisor"}
 _WRITE_ROLES = {"manager", "workflow_admin", "supervisor"}
-# Org-intelligence screens (chart/permissions/responsibilities/delegation).
+# Org-intelligence screens still exposed in the UI (chart + per-user ACL editor).
 _ORG_ROLES = {"manager", "workflow_admin", "hr"}
 # System-admin-only resources (full PII, e.g. persons). Narrower than _ORG_ROLES.
 _SYS_ADMIN_ROLES = {"manager", "workflow_admin"}
@@ -742,18 +742,6 @@ class OrgManagerMixin(LoginRequiredMixin):
 
 class OrgChartPage(OrgManagerMixin, TemplateView):
     template_name = "org_chart.html"
-
-
-class OrgPermissionsPage(OrgManagerMixin, TemplateView):
-    template_name = "org_permissions.html"
-
-
-class OrgResponsibilitiesPage(OrgManagerMixin, TemplateView):
-    template_name = "org_responsibilities.html"
-
-
-class OrgDelegationsPage(OrgManagerMixin, TemplateView):
-    template_name = "org_delegations.html"
 
 
 class PermissionManagePage(OrgManagerMixin, TemplateView):
