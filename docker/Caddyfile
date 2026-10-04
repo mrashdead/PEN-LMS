@@ -1,0 +1,20 @@
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	log {
+		output stdout
+		format json
+	}
+	request_body {
+		max_size 30MB
+	}
+	handle_path /static/* {
+		root * /srv/static
+		file_server
+	}
+	handle /media/* {
+		respond "Not found" 404
+	}
+	handle {
+		reverse_proxy web:8000
+	}
+}

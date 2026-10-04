@@ -53,6 +53,7 @@ venv.bak/
 .env
 .env.*
 !.env.example
+!.env.docker.example
 
 # =========================================================
 # Django
@@ -185,6 +186,17 @@ ACCESS-MATRIX-REVIEW.md
 # =========================================================
 
 docker-compose.override.yml
+compose.override.yaml
+compose.override.yml
+/backups/
+/docker-data/
+*.dump
+*.sql.gz
+*.tar.gz
+*.pem
+*.key
+**/node_modules/
+frontend/Admin/pen-template-ui/
 
 # =========================================================
 # Local development / temporary files
@@ -200,6 +212,10 @@ docker-compose.override.yml
 # Keep the provider-neutral test gate and its CI contract reviewable in Git.
 scripts/test_ci.sh
 scripts/smoke_deploy.sh
+!scripts/docker-deploy.sh
+!scripts/docker-backup.sh
+!scripts/docker-restore.sh
+!DOCKER-DEPLOY.md
 CI-TEST-DESIGN.md
 
 # Secrets committed accidentally to the index; refresh after-unstage.
@@ -219,4 +235,3 @@ CI-TEST-DESIGN.md
 pen_db
 
 python
-

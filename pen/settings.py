@@ -266,6 +266,17 @@ CELERY_BEAT_SCHEDULE = {
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = env.bool("CORS_ALLOW_CREDENTIALS", default=False)
 
+if env("CACHE_URL", default=""):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": env("CACHE_URL"),
+        }
+    }
+
+if env.bool("TRUST_PROXY", default=False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # Browser security. Secure cookies are enabled only in production because
 # local HTTP development cannot send Secure cookies.
 SECURE_CONTENT_TYPE_NOSNIFF = True
@@ -277,8 +288,8 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False  # JS API client needs the CSRF cookie.
 CSRF_COOKIE_SAMESITE = "Lax"
 if not DEBUG:
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=True)
+    CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=True)
     SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
     SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=31536000)
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True

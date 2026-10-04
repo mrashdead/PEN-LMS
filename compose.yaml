@@ -1,0 +1,154 @@
+name: ${COMPOSE_PROJECT_NAME:-pen}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  image: ${APP_IMAGE:-pen-app:local}
+  build:
+    context: .
+    args:
+      PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.11-slim-bookworm}
+      NODE_IMAGE: ${NODE_IMAGE:-node:22-bookworm-slim}
+  env_file:
+    - ${PEN_ENV_FILE:-.env.docker}
+  environment:
+    DB_ENGINE: django.db.backends.postgresql
+    DB_HOST: db
+    DB_PORT: "5432"
+    CELERY_BROKER_URL: redis://redis:6379/0
+    CELERY_RESULT_BACKEND: redis://redis:6379/1
+    CACHE_URL: redis://redis:6379/2
+    TRUST_PROXY: "True"
+    FORMS_ALLOW_SECURITY_FALLBACKS: "False"
+  init: true
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:mode=1777
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  volumes:
+    - media:/app/media
+  networks:
+    - backend
+  logging: *logging
+
+services:
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:18-bookworm}
+    environment:
+      POSTGRES_DB: ${DB_NAME:?Set DB_NAME in the Docker environment file}
+      POSTGRES_USER: ${DB_USER:?Set DB_USER in the Docker environment file}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the Docker environment file}
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    networks: [backend]
+    logging: *logging
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:8-bookworm}
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    networks: [backend]
+    logging: *logging
+
+  init:
+    <<: *app
+    restart: "no"
+    command: ["sh", "-ec", "python manage.py check && python manage.py migrate --noinput && python manage.py collectstatic --noinput --clear"]
+    volumes:
+      - media:/app/media
+      - static:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    <<: *app
+    healthcheck:
+      test: ["CMD", "python", "docker/healthcheck.py"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    stop_grace_period: 45s
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "pen", "worker", "--loglevel=INFO", "--concurrency=${CELERY_CONCURRENCY:-2}"]
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    stop_grace_period: 120s
+
+  beat:
+    <<: *app
+    command: ["celery", "-A", "pen", "beat", "--loglevel=INFO", "--schedule=/app/run/celerybeat-schedule", "--pidfile=/app/run/celerybeat.pid"]
+    volumes:
+      - beat:/app/run
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  proxy:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-http://localhost}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-8080}:80"
+      - "${BIND_ADDRESS:-127.0.0.1}:${HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - static:/srv/static:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [backend]
+    logging: *logging
+
+networks:
+  backend:
+
+volumes:
+  postgres:
+  redis:
+  media:
+  static:
+  beat:
+  caddy_data:
+  caddy_config:
