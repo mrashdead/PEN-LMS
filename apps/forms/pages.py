@@ -230,6 +230,31 @@ class SubmissionDetailPage(FormsPageMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         submission = self.object
+        from django.contrib.contenttypes.models import ContentType
+        from apps.core.models import AuditEvent
+        from apps.core.utils import jalali_datetime_str, persian_numbers
+
+        content_type = ContentType.objects.get_for_model(submission, for_concrete_model=False)
+        events = list(AuditEvent.objects.filter(
+            content_type=content_type, object_id=str(submission.pk),
+            kind=AuditEvent.Kind.FIELD_CHANGE,
+        ).select_related("actor").order_by("created_at", "pk"))
+        creation = next((e for e in events if (e.metadata or {}).get("action") == "create"), None)
+        changes = [e for e in events if (e.metadata or {}).get("action") in {"create", "update"}]
+
+        def actor_name(event):
+            if event is None:
+                return "ثبت نشده"
+            if event.actor is None:
+                return "ثبت نشده"
+            return event.actor.get_full_name().strip() or event.actor.get_username()
+
+        context["created_at_display"] = persian_numbers(jalali_datetime_str(submission.created_at))
+        context["updated_at_display"] = persian_numbers(jalali_datetime_str(submission.updated_at))
+        context["created_by_name"] = actor_name(creation) if creation else (
+            submission.submitted_by.get_full_name().strip() or submission.submitted_by.get_username()
+        )
+        context["updated_by_name"] = actor_name(changes[-1]) if changes else "ثبت نشده"
         context["rendered_fields"] = _rendered_fields(submission)
         context["attachments"] = submission.attachments.all()
         comments = submission.comments.select_related("author")

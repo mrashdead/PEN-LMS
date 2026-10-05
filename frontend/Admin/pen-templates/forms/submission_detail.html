@@ -28,6 +28,12 @@
         <span class="pen-badge pen-badge-{{ submission.status }}">{{ submission.status|status_label }}</span>
       </div>
       <div class="card-body">
+        <div class="pen-detail-meta mb-3">
+          <div><small>ایجاد</small><strong dir="ltr">{{ created_at_display|default:'—' }}</strong></div>
+          <div><small>ایجادکننده</small><strong>{{ created_by_name|default:'ثبت نشده' }}</strong></div>
+          <div><small>آخرین تغییر</small><strong dir="ltr">{{ updated_at_display|default:'—' }}</strong></div>
+          <div><small>آخرین ویرایش توسط</small><strong>{{ updated_by_name|default:'ثبت نشده' }}</strong></div>
+        </div>
         {% if submission.reviewed_by %}
           <p class="fs-14 text-muted">
             بررسی‌کننده: {{ submission.reviewed_by.get_full_name|default:submission.reviewed_by.username }}

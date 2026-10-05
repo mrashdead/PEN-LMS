@@ -77,6 +77,12 @@ class AcademicTermActivateView(generics.GenericAPIView):
             term = self.get_object()
             term.is_current = True
             term.save()
+            from apps.core.models import AuditEvent
+            AuditEvent.record(
+                kind=AuditEvent.Kind.FIELD_CHANGE, summary="ویرایش ترم تحصیلی",
+                actor=request.user, obj=term, request=request,
+                metadata={"action": "update", "resource": "terms"},
+            )
             return Response(AcademicTermDetailSerializer(term, context={"request": request}).data)
         except AcademicTerm.DoesNotExist:
             return Response({"error": "ترم مورد نظر یافت نشد."}, status=status.HTTP_404_NOT_FOUND)

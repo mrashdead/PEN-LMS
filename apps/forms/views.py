@@ -423,6 +423,7 @@ class FormSubmissionDetailView(generics.RetrieveUpdateAPIView):
             changed_keys = sorted(
                 k for k, v in vd["data"].items() if before.get(k) != v
             )
+        notes_changed = "notes" in vd and vd["notes"] != submission.notes
         try:
             submission = service.update_submission(
                 submission=submission,
@@ -436,16 +437,19 @@ class FormSubmissionDetailView(generics.RetrieveUpdateAPIView):
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
         except FormServiceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        if changed_keys:
+        if changed_keys or notes_changed:
             from apps.core.models import AuditEvent
 
             AuditEvent.record(
                 kind=AuditEvent.Kind.FIELD_CHANGE,
-                summary=f"تغییر فیلدهای {', '.join(changed_keys[:10])} در پیش‌نویس فرم {submission.pk}",
+                summary=(
+                    f"تغییر فیلدهای {', '.join(changed_keys[:10])} در پیش‌نویس فرم {submission.pk}"
+                    if changed_keys else f"ویرایش یادداشت پیش‌نویس فرم {submission.pk}"
+                ),
                 actor=request.user,
                 obj=submission,
                 request=request,
-                metadata={"changed_keys": changed_keys},
+                metadata={"action": "update", "resource": "submissions", "changed_keys": changed_keys},
             )
         return Response(
             FormSubmissionDetailSerializer(submission, context={"request": request}).data

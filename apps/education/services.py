@@ -64,7 +64,7 @@ def enroll_student(*, offering: CourseOffering, student, actor=None) -> CourseOf
     row stays the caller's responsibility.
     """
     locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
-    if locked.status not in (CourseOffering.Status.DRAFT, CourseOffering.Status.OPEN):
+    if locked.status != CourseOffering.Status.OPEN:
         raise EducationServiceError("ثبت‌نام در این برگزاری مجاز نیست.")
     if locked.capacity and locked.enrolled_count >= locked.capacity:
         raise CapacityExceededError(
@@ -108,7 +108,7 @@ def create_offering_enrollment(
     ).first()
     if existing is not None:
         return existing
-    if locked.status not in (CourseOffering.Status.DRAFT, CourseOffering.Status.OPEN):
+    if locked.status != CourseOffering.Status.OPEN:
         raise EducationServiceError("ثبت‌نام در این برگزاری مجاز نیست.")
     if locked.capacity and locked.enrolled_count >= locked.capacity:
         raise CapacityExceededError(
@@ -135,6 +135,13 @@ def create_offering_enrollment(
     )
     enrollment.full_clean()
     enrollment.save()
+    if actor is not None and getattr(actor, "is_authenticated", False):
+        from apps.core.models import AuditEvent
+        AuditEvent.record(
+            kind=AuditEvent.Kind.FIELD_CHANGE, summary="ایجاد ثبت‌نام برگزاری",
+            actor=actor, obj=enrollment,
+            metadata={"action": "create", "resource": "offering-enrollments"},
+        )
     locked.enrolled_count += 1
     locked.save(update_fields=["enrolled_count", "updated_at"])
     logger.info("offering enrollment %s created for %s by %s", enrollment.pk, student, actor)
@@ -248,7 +255,7 @@ def process_enrollment_refund(*, refund: EnrollmentRefund, processor, reference:
 def place_on_waitlist(*, offering: CourseOffering, student, actor=None) -> EnrollmentWaitlist:
     """Place a student in the FIFO queue, idempotently."""
     locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
-    if locked.status not in (CourseOffering.Status.DRAFT, CourseOffering.Status.OPEN):
+    if locked.status != CourseOffering.Status.OPEN:
         raise EducationServiceError("ثبت‌نام یا صف انتظار این برگزاری فعال نیست.")
     existing = EnrollmentWaitlist.objects.filter(
         offering=locked, student=student, is_deleted=False,
@@ -412,6 +419,13 @@ def create_session(
         raise EducationServiceError("شماره جلسه تکراری است.") from exc
     logger.info("session %s created for offering %s class %r (by %s)",
                 session.pk, offering.pk, class_code, actor)
+    if actor is not None and getattr(actor, "is_authenticated", False):
+        from apps.core.models import AuditEvent
+        AuditEvent.record(
+            kind=AuditEvent.Kind.FIELD_CHANGE, summary="ایجاد جلسه کلاس",
+            actor=actor, obj=session,
+            metadata={"action": "create", "resource": "sessions"},
+        )
     return session
 
 
@@ -481,6 +495,13 @@ def update_session(
         name for name in allowed if name in fields
     ]
     locked.save(update_fields=update_fields)
+    if actor is not None and getattr(actor, "is_authenticated", False):
+        from apps.core.models import AuditEvent
+        AuditEvent.record(
+            kind=AuditEvent.Kind.FIELD_CHANGE, summary="ویرایش جلسه کلاس",
+            actor=actor, obj=locked,
+            metadata={"action": "update", "resource": "sessions"},
+        )
     if tracked_changed:
         after = {
             "session_date": locked.session_date.isoformat(),
@@ -826,6 +847,13 @@ def _generate_by_count(
         update_fields.append("end_date")
     if update_fields:
         offering.save(update_fields=update_fields + ["updated_at"])
+        if actor is not None and getattr(actor, "is_authenticated", False):
+            from apps.core.models import AuditEvent
+            AuditEvent.record(
+                kind=AuditEvent.Kind.FIELD_CHANGE, summary="ویرایش بازهٔ برگزاری",
+                actor=actor, obj=offering,
+                metadata={"action": "update", "resource": "offerings"},
+            )
 
     return {
         "created": created,

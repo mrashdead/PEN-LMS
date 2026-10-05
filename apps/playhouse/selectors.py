@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date
 
 from django.db.models import Q, QuerySet
+from django.utils import timezone
 
 from apps.playhouse.models import (
     PlayhouseInvoice,
@@ -21,9 +22,26 @@ from apps.persons.models import Person
 def sessions_today() -> QuerySet[PlayhouseSession]:
     """Today's sessions with member + operator preloaded, newest first."""
     return (
-        PlayhouseSession.objects.filter(session_date=date.today())
+        PlayhouseSession.objects.filter(
+            Q(session_date=timezone.localdate())
+            | Q(session_date__isnull=True, created_at__date=timezone.localdate())
+        )
         .select_related("member", "operator", "invoice")
-        .order_by("-created_at")
+        .prefetch_related("invoice__items")
+        .order_by("entry_at", "created_at")
+    )
+
+
+def sessions_on(day: date) -> QuerySet[PlayhouseSession]:
+    """Daily attendance register, including incomplete and cancelled entries."""
+    return (
+        PlayhouseSession.objects.filter(
+            Q(session_date=day)
+            | Q(session_date__isnull=True, created_at__date=day)
+        )
+        .select_related("member", "operator", "ended_by", "invoice")
+        .prefetch_related("invoice__items")
+        .order_by("entry_at", "created_at")
     )
 
 

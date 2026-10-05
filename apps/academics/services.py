@@ -91,6 +91,13 @@ class EnrollmentService:
             "student %s enrolled in class %s (by %s)",
             student_id, group.pk, getattr(actor, "pk", actor),
         )
+        if actor is not None and getattr(actor, "is_authenticated", False):
+            from apps.core.models import AuditEvent
+            AuditEvent.record(
+                kind=AuditEvent.Kind.FIELD_CHANGE, summary="ثبت‌نام دانش‌آموز در کلاس",
+                actor=actor, obj=enrollment,
+                metadata={"action": "create" if existing is None else "update", "resource": "class-enrollments"},
+            )
         return enrollment
 
     @transaction.atomic

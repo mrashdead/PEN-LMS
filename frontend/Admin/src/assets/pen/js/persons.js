@@ -16,6 +16,12 @@
   var modal = $modalEl && window.bootstrap
     ? window.bootstrap.Modal.getOrCreateInstance($modalEl)
     : null;
+  var $createUserModalEl = document.getElementById('person-create-user-modal');
+  var createUserModal = $createUserModalEl && window.bootstrap
+    ? window.bootstrap.Modal.getOrCreateInstance($createUserModalEl, {backdrop: 'static', keyboard: false})
+    : null;
+  var pendingUserCreation = null;
+  var userCreationBusy = false;
   var state = { index: 0, request: null };
   var searchTimer;
   var $retry = document.getElementById("person-list-retry");
@@ -27,15 +33,34 @@
     });
   }
 
+  function dateOnly(value) {
+    return value == null || value === '' ? '—' : String(value).split(' — ')[0].split(' ')[0];
+  }
+
   function toast(message, kind) {
     if (window.penToast) window.penToast(message, kind);
   }
 
+  function uiErrorMessage(error) {
+    var message = error && error.message ? String(error.message) : '';
+    if (!message || /failed to fetch|networkerror|load failed|connection/i.test(message)) {
+      return 'ارتباط با سامانه برقرار نشد؛ دوباره تلاش کنید.';
+    }
+    return message;
+  }
+
   function errorLines(errors) {
+    var fieldLabels = {
+      non_field_errors: 'خطا', national_code: 'کد ملی', first_name: 'نام', last_name: 'نام خانوادگی',
+      mobile: 'شماره همراه', email: 'رایانامه', birth_date: 'تاریخ تولد', gender: 'جنسیت',
+      student_code: 'کد دانش‌آموزی', employee_code: 'کد پرسنلی', person_type: 'نوع شخص',
+      student_profile: 'اطلاعات دانش‌آموز', staff_profile: 'اطلاعات همکار', guardian_profile: 'اطلاعات سرپرست',
+      employee_kind: 'نوع همکاری', username: 'نام کاربری', password: 'گذرواژه', target: 'گروه کاربری',
+    };
     var lines = [];
     Object.keys(errors || {}).forEach(function (key) {
       (Array.isArray(errors[key]) ? errors[key] : [errors[key]]).forEach(function (message) {
-        lines.push(key === 'non_field_errors' ? String(message) : key + ': ' + message);
+        lines.push(key === 'non_field_errors' ? String(message) : (fieldLabels[key] || 'اطلاعات') + ': ' + message);
       });
     });
     return lines.length ? lines : ['خطای نامشخص'];
@@ -47,8 +72,18 @@
     Array.from(params.entries()).forEach(function (entry) {
       if (!String(entry[1]).trim()) params.delete(entry[0]);
     });
+    params.set('directory', ctx.directory || 'education');
     if (!params.has('page_size')) params.set('page_size', '50');
     url.search = params.toString();
+    return url.toString();
+  }
+
+  function personResourceUrl(id, action, query) {
+    var url = new URL(ctx.api_url, window.location.href);
+    url.pathname = url.pathname.replace(/\/+$/, '') + '/' + encodeURIComponent(id) + '/';
+    if (action) url.pathname += action.replace(/^\/+|\/+$/g, '') + '/';
+    url.search = query || '';
+    url.hash = '';
     return url.toString();
   }
 
@@ -59,36 +94,55 @@
       return;
     }
     $tbody.innerHTML = rows.map(function (row) {
-      var login = row.has_user ? 'دارای حساب' : 'بدون حساب';
+      var login = row.has_user
+        ? (row.user_is_active ? 'حساب فعال' : 'حساب غیرفعال')
+        : 'بدون حساب';
       var actions = row.actions || {view: true, edit: false, delete: false};
       var label = (row.first_name || '') + ' ' + (row.last_name || '');
       var menu = '<div class="dropdown pen-actions-dropdown text-end">' +
-        '<button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown" aria-label="عملیات ' + esc(label) + '"><i data-lucide="more-horizontal" class="size-4"></i></button>' +
+        '<button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="عملیات ' + esc(label) + '"><i data-lucide="more-horizontal" class="size-4"></i></button>' +
         '<ul class="dropdown-menu dropdown-menu-end">' +
         (actions.view ? '<li><button type="button" class="dropdown-item" data-person-view><i data-lucide="eye" class="size-4"></i> مشاهده</button></li>' : '') +
         (actions.edit ? '<li><button type="button" class="dropdown-item" data-person-edit><i data-lucide="pencil" class="size-4"></i> ویرایش</button></li>' : '') +
-        (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(ctx.api_url + row.id + '/delete/') + '" data-delete-name="' + esc(label.trim()) + '" data-delete-code="' + esc(row.national_code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف نرم</button></li>' : '') +
+        (ctx.directory === 'education' && ctx.can_create_user && row.person_type === 'student' && !row.has_user ? '<li><button type="button" class="dropdown-item" data-person-create-user><i data-lucide="user-plus" class="size-4"></i> ساخت حساب کاربری</button></li>' : '') +
+        (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(personResourceUrl(row.id, 'delete')) + '" data-delete-name="' + esc(label.trim()) + '" data-delete-code="' + esc(row.national_code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف نرم</button></li>' : '') +
         '</ul></div>';
       return '<tr>' +
         '<td><strong class="persons-name">' + esc(label.trim() || '—') + '</strong><small class="persons-secondary" dir="ltr">' + esc(row.national_code || '—') + '</small></td>' +
-        '<td>' + esc(row.role_display || row.person_type_display || row.person_type || '—') + '</td>' +
-        '<td><span dir="ltr">' + esc(row.mobile || '—') + '</span><small class="persons-secondary">' + login + '</small></td>' +
+        '<td>' + esc(row.role_display || row.person_type_display || roleLabel(row.person_type)) + '</td>' +
+        '<td><span dir="ltr">' + esc(row.mobile || '—') + '</span><small class="persons-secondary"><span class="badge rounded-pill ' + (row.has_user ? (row.user_is_active ? 'text-bg-success' : 'text-bg-secondary') : 'text-bg-light text-secondary') + '">' + esc(login) + '</span></small></td>' +
         '<td class="text-nowrap">' + esc(String(row.created_at || '—').split(' — ')[0]) + '</td>' +
-        '<td class="text-end">' + menu + '</td>' +
+        '<td class="text-nowrap text-end">' + menu + '</td>' +
         '</tr>';
     }).join('');
     $tbody.querySelectorAll('tr').forEach(function (tr, index) {
       var row = rows[index];
+      tr.dataset.personRow = '';
+      tr.dataset.personId = row.id;
+      tr.tabIndex = 0;
+      tr.setAttribute('aria-label', 'مشاهدهٔ جزئیات ' + labelForPerson(row) + '؛ برای ویرایش از منوی عملیات استفاده کنید');
+      tr.addEventListener('click', function (event) {
+        if (event.target.closest('button, a, [data-bs-toggle]')) return;
+        openPersonDetail(row);
+      });
+      tr.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        if (event.target !== tr || event.target.closest('button, a, [data-bs-toggle]')) return;
+        event.preventDefault();
+        openPersonDetail(row);
+      });
       var view = tr.querySelector('[data-person-view]');
       var edit = tr.querySelector('[data-person-edit]');
+      var createUser = tr.querySelector('[data-person-create-user]');
       if (view) view.addEventListener('click', function () { openPersonDetail(row); });
-      if (edit) edit.addEventListener('click', function () { personRequest(row.id).then(openPersonEdit).catch(function (e) { toast(e.message, 'danger'); }); });
+      if (edit) edit.addEventListener('click', function () { personRequest(row.id).then(openPersonEdit).catch(function (e) { toast(uiErrorMessage(e), 'danger'); }); });
+      if (createUser) createUser.addEventListener('click', function () { createUserForPerson(row); });
     });
     if (window.penRenderIcons) window.penRenderIcons();
   }
 
   function personRequest(id) {
-    return fetch(ctx.api_url + id + '/?include_history=1', {
+    return fetch(personResourceUrl(id, '', '?include_history=1'), {
       credentials: 'same-origin',
       headers: window.penCsrfHeader ? window.penCsrfHeader() : {},
     }).then(function (response) {
@@ -102,10 +156,11 @@
   function openPersonDetail(row) {
     personRequest(row.id).then(function (person) {
       var status = person.is_active ? 'فعال' : 'غیرفعال';
+      var accountStatus = person.has_user
+        ? (person.user_is_active ? 'فعال' : 'غیرفعال')
+        : 'حساب کاربری ندارد';
       var history = Array.isArray(person.audit_trail) && person.audit_trail.length
-        ? '<details class="persons-detail-history"><summary>سوابق تغییرات</summary><ol class="pen-timeline mb-0 mt-3">' + person.audit_trail.map(function (event) { return '<li class="pen-timeline-item"><div class="fw-semibold fs-14">' + esc(event.summary || event.kind) + '</div><div class="fs-13 text-muted">' + esc(event.actor || 'سامانه') + ' · ' + esc(event.created_at || '—') + '</div></li>'; }).join('') + '</ol></details>' : '';
-      var profile = person.student_profile_summary || person.staff_profile_summary || person.guardian_profile_summary;
-      var profileHtml = profile ? '<div class="mt-4 pt-3 border-top"><h6 class="fw-semibold mb-2">اطلاعات اختصاصی نقش</h6><div class="row g-2">' + Object.keys(profile).filter(function (key) { return typeof profile[key] !== 'object'; }).map(function (key) { return '<div class="col-md-6"><span class="text-muted fs-14">' + esc(key) + ':</span> ' + esc(profile[key] == null || profile[key] === '' ? '—' : profile[key]) + '</div>'; }).join('') + '</div></div>' : '';
+        ? '<details class="persons-detail-history"><summary>سوابق تغییرات</summary><ol class="pen-timeline mb-0 mt-3">' + person.audit_trail.map(function (event) { return '<li class="pen-timeline-item"><div class="fw-semibold fs-14">' + esc(event.summary || event.kind) + '</div><div class="fs-13 text-muted">' + esc(event.actor || 'سامانه') + ' · ' + esc(dateOnly(event.created_at)) + '</div></li>'; }).join('') + '</ol></details>' : '';
       var student = person.student_profile || {};
       var familyRows = [
         ['پدر', [student.father_first_name, student.father_last_name].filter(Boolean).join(' '), student.father_phone],
@@ -122,19 +177,20 @@
       var enrollmentUrl = '/workspace/enrollments/person/' + encodeURIComponent(person.id) + '/';
       var enrollmentHtml = hasStudentRole ? '<section class="mt-4 pt-3 border-top" aria-labelledby="person-enrollments-title"><div class="d-flex align-items-center justify-content-between gap-2 mb-2"><h6 class="fw-semibold mb-0" id="person-enrollments-title">ثبت‌نام‌ها و دوره‌های آموزشی</h6><a class="btn btn-sm btn-outline-primary" href="' + esc(enrollmentUrl) + '">مشاهده همه</a></div><div id="person-enrollment-preview" data-person-id="' + esc(person.id) + '" class="text-muted fs-14" role="status" aria-live="polite">در حال دریافت سابقهٔ ثبت‌نام…</div></section>' : '';
       var body = '<div class="pen-detail-meta">' +
-        '<div><small>وضعیت</small><strong>' + esc(status) + '</strong></div>' +
+        '<div><small>وضعیت پروندهٔ شخص</small><strong>' + esc(status) + '</strong></div>' +
+        '<div><small>وضعیت حساب کاربری</small><strong>' + esc(accountStatus) + '</strong></div>' +
         '<div><small>نوع</small><strong>' + esc(person.person_types_display || person.person_type_display || '—') + '</strong></div>' +
-        '<div><small>ایجاد</small><strong dir="ltr">' + esc(person.created_at || '—') + '</strong></div>' +
-        '<div><small>آخرین تغییر</small><strong dir="ltr">' + esc(person.updated_at || '—') + '</strong></div>' +
+        '<div><small>ایجاد</small><strong dir="ltr">' + esc(dateOnly(person.created_at)) + '</strong></div>' +
+        '<div><small>آخرین تغییر</small><strong dir="ltr">' + esc(dateOnly(person.updated_at)) + '</strong></div>' +
         '</div><div class="vstack gap-2 persons-detail-fields">' +
         [['کد ملی', person.display_national_code || person.national_code],
          ['موبایل', person.display_mobile || person.mobile], ['نام پدر', person.father_name],
-         ['ایمیل', person.email], ['تلفن ثابت', person.phone], ['آدرس', person.address],
+         ['رایانامه', person.email], ['تلفن ثابت', person.phone], ['نشانی', person.address],
          ['کد دانش‌آموزی', person.student_code], ['کد پرسنلی', person.employee_code],
          ['دپارتمان', person.department], ['سمت', person.job_title], ['نام کاربری', person.username]]
         .filter(function (item) { return item[1] != null && String(item[1]).trim() && item[1] !== '—'; })
         .map(function (item) { return '<div class="row g-2"><div class="col-5 text-muted fs-14">' + esc(item[0]) + '</div><div class="col-7">' + esc(item[1]) + '</div></div>'; }).join('') +
-        '</div>' + profileHtml + familyHtml + enrollmentHtml + history;
+        '</div>' + familyHtml + enrollmentHtml + history;
       document.getElementById('person-detail-title').textContent = person.display_name || labelForPerson(person);
       document.getElementById('person-detail-body').innerHTML = body;
       if (hasStudentRole) {
@@ -166,13 +222,23 @@
         var edit = document.createElement('button'); edit.className = 'btn btn-outline-primary'; edit.innerHTML = '<i data-lucide="pencil" class="size-4 me-1"></i> ویرایش';
         edit.addEventListener('click', function () { openPersonEdit(person); }); footer.appendChild(edit);
       }
+      if (ctx.directory === 'education' && ctx.can_create_user && hasStudentRole && !person.has_user) {
+        var createUser = document.createElement('button');
+        createUser.type = 'button';
+        createUser.className = 'btn btn-primary';
+        createUser.innerHTML = '<i data-lucide="user-plus" class="size-4 me-1"></i> ساخت حساب کاربری';
+        createUser.addEventListener('click', function () {
+          createUserForPerson(person, function () { openPersonDetail(row); }, function () { openPersonDetail(row); });
+        });
+        footer.appendChild(createUser);
+      }
       if (person.actions && person.actions.delete) {
         var del = document.createElement('button'); del.className = 'btn btn-outline-danger'; del.innerHTML = '<i data-lucide="trash-2" class="size-4 me-1"></i> حذف نرم';
-        del.addEventListener('click', function () { window.penOpenDeleteModal({url: ctx.api_url + person.id + '/delete/', name: person.display_name || labelForPerson(person), code: person.national_code || person.id, onSuccess: function () { detailModal.hide(); loadList(apiUrlWithParams(), true); }}); }); footer.appendChild(del);
+        del.addEventListener('click', function () { window.penOpenDeleteModal({url: personResourceUrl(person.id, 'delete'), name: person.display_name || labelForPerson(person), code: person.national_code || person.id, onSuccess: function () { detailModal.hide(); loadList(apiUrlWithParams(), true); }}); }); footer.appendChild(del);
       }
       detailModal.show();
       if (window.penRenderIcons) window.penRenderIcons();
-    }).catch(function (e) { toast(e.message, 'danger'); });
+    }).catch(function (e) { toast(uiErrorMessage(e), 'danger'); });
   }
 
   function labelForPerson(person) { return ((person.first_name || '') + ' ' + (person.last_name || '')).trim() || 'فرد'; }
@@ -225,11 +291,113 @@
     return types.indexOf(code) !== -1;
   }
 
+  function roleLabel(code) {
+    return ({student: 'دانش‌آموز', teacher: 'مدرس', employee: 'کارمند', guardian: 'سرپرست',
+      manager: 'مدیر', supervisor: 'سرپرست'})[code] || 'نامشخص';
+  }
+
+  function createUserForPerson(person, onSuccess, onCancel) {
+    if (!person || ctx.directory !== 'education' || !ctx.can_create_user || person.has_user || !personHasType(person, 'student')) return;
+    personRequest(person.id).then(function (fullPerson) {
+      if (fullPerson.has_user) {
+        toast('این دانش‌آموز از قبل حساب کاربری دارد.', 'info');
+        return;
+      }
+      var missing = fullPerson.account_creation_missing_fields || [];
+      pendingUserCreation = {person: fullPerson, onSuccess: onSuccess, onCancel: onCancel};
+      var name = document.getElementById('person-create-user-name');
+      var description = document.getElementById('person-create-user-description');
+      var missingBox = document.getElementById('person-create-user-missing');
+      var missingList = document.getElementById('person-create-user-missing-list');
+      var error = document.getElementById('person-create-user-error');
+      var submit = document.getElementById('person-create-user-submit');
+      var edit = document.getElementById('person-create-user-edit');
+      if (name) name.textContent = fullPerson.display_name || labelForPerson(fullPerson);
+      if (error) { error.textContent = ''; error.hidden = true; }
+      if (description) {
+        description.hidden = !!missing.length;
+        if (!missing.length) description.textContent = 'نام کاربری و گذرواژهٔ آغازین، کد ملی دانش‌آموز است.';
+      }
+      if (missingList) missingList.innerHTML = missing.map(function (field) { return '<li>' + esc(field) + '</li>'; }).join('');
+      if (missingBox) missingBox.hidden = !missing.length;
+      if (submit) submit.hidden = !!missing.length;
+      if (edit) {
+        edit.hidden = !missing.length;
+        edit.onclick = function () {
+          var pending = pendingUserCreation;
+          if (!pending) return;
+          pendingUserCreation = null;
+          $createUserModalEl.addEventListener('hidden.bs.modal', function () {
+            openPersonEdit(pending.person);
+            $editEl.querySelectorAll('details.persons-optional-fields').forEach(function (details) { details.open = true; });
+          }, {once: true});
+          createUserModal.hide();
+        };
+      }
+      var showConfirmation = function () { if (createUserModal) createUserModal.show(); };
+      if (onCancel && detailModal && $detailEl.classList.contains('show')) {
+        $detailEl.addEventListener('hidden.bs.modal', showConfirmation, {once: true});
+        detailModal.hide();
+      } else {
+        showConfirmation();
+      }
+    }).catch(function (error) { toast(uiErrorMessage(error), 'danger'); });
+  }
+
+  function submitPendingUserCreation() {
+    if (!pendingUserCreation || userCreationBusy) return;
+    userCreationBusy = true;
+    var pending = pendingUserCreation;
+    var submit = document.getElementById('person-create-user-submit');
+    var cancel = document.getElementById('person-create-user-cancel');
+    var close = document.getElementById('person-create-user-close');
+    var error = document.getElementById('person-create-user-error');
+    $createUserModalEl.setAttribute('aria-busy', 'true');
+    submit.disabled = true;
+    cancel.disabled = true;
+    close.disabled = true;
+    submit.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> در حال ساخت حساب…';
+    fetch(personResourceUrl(pending.person.id, 'create-user'), {
+      method: 'POST', credentials: 'same-origin',
+      headers: Object.assign({'Content-Type': 'application/json'}, window.penCsrfHeader ? window.penCsrfHeader() : {}),
+      body: JSON.stringify({}),
+    }).then(function (response) {
+      return response.json().then(function (body) {
+        if (!response.ok) throw new Error(errorLines(body).join(' — '));
+        return body;
+      });
+    }).then(function () {
+      pendingUserCreation = null;
+      userCreationBusy = false;
+      resetUserCreationDialog();
+      if (pending.onSuccess) {
+        $createUserModalEl.addEventListener('hidden.bs.modal', function () { pending.onSuccess(); }, {once: true});
+      }
+      createUserModal.hide();
+      toast('حساب فعال با موفقیت ساخته شد.', 'success');
+      loadList(apiUrlWithParams(), true);
+    }).catch(function (requestError) {
+      userCreationBusy = false;
+      resetUserCreationDialog();
+      if (error) { error.textContent = uiErrorMessage(requestError); error.hidden = false; }
+    });
+  }
+
+  function resetUserCreationDialog() {
+    userCreationBusy = false;
+    $createUserModalEl.removeAttribute('aria-busy');
+    document.getElementById('person-create-user-submit').disabled = false;
+    document.getElementById('person-create-user-cancel').disabled = false;
+    document.getElementById('person-create-user-close').disabled = false;
+    document.getElementById('person-create-user-submit').innerHTML = '<i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> ساخت حساب';
+    if (window.penRenderIcons) window.penRenderIcons();
+  }
+
   function editRoleLabel(person) {
     var roles = person.user_role_codes || [];
     if (roles.indexOf('manager') !== -1) return 'مدیریت';
     if (roles.indexOf('supervisor') !== -1) return 'کارمند سرپرست';
-    return person.person_types_display || person.person_type_display || person.person_type || '—';
+    return person.person_types_display || person.person_type_display || roleLabel(person.person_type);
   }
 
   function openPersonEdit(person) {
@@ -239,6 +407,13 @@
      ['person-edit-national-code', person.national_code || person.display_national_code], ['person-edit-person-type', editRoleLabel(person)],
      ['person-edit-mobile', person.mobile], ['person-edit-email', person.email], ['person-edit-birth-date', person.birth_date],
      ['person-edit-job-title', person.job_title]].forEach(function (item) { setValue(item[0], item[1]); });
+    var nationalCodeInput = document.getElementById('person-edit-national-code');
+    var mayCorrectNationalCode = !person.has_user &&
+      (person.account_creation_missing_fields || []).indexOf('کد ملی معتبر') !== -1;
+    if (nationalCodeInput) {
+      nationalCodeInput.disabled = !mayCorrectNationalCode;
+      nationalCodeInput.readOnly = !mayCorrectNationalCode;
+    }
     setValue('person-edit-gender', person.gender || 'unspecified');
     var student = person.student_profile || {};
     [['person-edit-father-first', student.father_first_name], ['person-edit-father-last', student.father_last_name],
@@ -250,6 +425,12 @@
     var custody = document.getElementById('person-edit-custody');
     if (custody) custody.checked = !!student.is_custody_case;
     document.getElementById('person-edit-active').checked = person.is_active !== false;
+    var accountStatus = document.getElementById('person-edit-account-status');
+    if (accountStatus) {
+      accountStatus.textContent = person.has_user
+        ? 'وضعیت حساب کاربری: ' + (person.user_is_active ? 'فعال' : 'غیرفعال')
+        : 'حساب کاربری برای این شخص ثبت نشده است';
+    }
     document.getElementById('person-edit-errors').hidden = true;
     $editEl.querySelectorAll('details.persons-optional-fields').forEach(function (details) { details.open = false; });
     var piiNote = document.getElementById('person-edit-pii-note');
@@ -581,6 +762,7 @@
       var payload = {};
       addIfChanged(payload, 'first_name', 'person-edit-first-name', editingPerson.first_name);
       addIfChanged(payload, 'last_name', 'person-edit-last-name', editingPerson.last_name);
+      addIfChanged(payload, 'national_code', 'person-edit-national-code', editingPerson.national_code);
       addIfChanged(payload, 'mobile', 'person-edit-mobile', editingPerson.mobile);
       addIfChanged(payload, 'email', 'person-edit-email', editingPerson.email);
       addIfChanged(payload, 'gender', 'person-edit-gender', editingPerson.gender || 'unspecified');
@@ -609,7 +791,7 @@
         addIfChanged(staffData, 'specialization', 'person-edit-specialization', (editingPerson.staff_profile || {}).specialization);
         if (Object.keys(staffData).length) payload.staff_profile = staffData;
       }
-      fetch(ctx.api_url + editingPerson.id + '/', {
+      fetch(personResourceUrl(editingPerson.id), {
         method: 'PATCH', credentials: 'same-origin',
         headers: Object.assign({'Content-Type': 'application/json'}, window.penCsrfHeader ? window.penCsrfHeader() : {}),
         body: JSON.stringify(payload),
@@ -621,8 +803,19 @@
         loadList(apiUrlWithParams(), true);
       }).catch(function (e) {
         $editEl.querySelectorAll('details.persons-optional-fields').forEach(function (details) { details.open = true; });
-        var box = document.getElementById('person-edit-errors'); box.textContent = e.message; box.hidden = false;
+        var box = document.getElementById('person-edit-errors'); box.textContent = uiErrorMessage(e); box.hidden = false;
       });
+    });
+  }
+
+  var $createUserSubmit = document.getElementById('person-create-user-submit');
+  if ($createUserSubmit) $createUserSubmit.addEventListener('click', submitPendingUserCreation);
+  if ($createUserModalEl) {
+    $createUserModalEl.addEventListener('hidden.bs.modal', function () {
+      var cancelled = pendingUserCreation;
+      pendingUserCreation = null;
+      resetUserCreationDialog();
+      if (cancelled && cancelled.onCancel) cancelled.onCancel();
     });
   }
 

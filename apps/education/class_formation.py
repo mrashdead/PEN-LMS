@@ -253,8 +253,10 @@ def resolve_formation_input(
     contract: pre-fill happens client-side, defaults are enforced again here
     so a raw API call behaves identically).
     """
-    if offering.status == CourseOffering.Status.CANCELLED:
-        raise EducationServiceError("این برگزاری لغو شده است.")
+    if offering.status != CourseOffering.Status.OPEN:
+        raise EducationServiceError("فقط برای برگزاریِ باز می‌توان کلاس تشکیل داد.")
+    if offering.capacity and offering.enrolled_count >= offering.capacity:
+        raise EducationServiceError("ظرفیت برگزاری تکمیل شده است؛ امکان تشکیل کلاس وجود ندارد.")
 
     code = (class_code or "").strip()
     if not code:

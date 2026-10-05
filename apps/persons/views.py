@@ -74,6 +74,12 @@ class PersonListCreateView(generics.ListCreateAPIView):
             "user__id",
         )
 
+        directory = self.request.query_params.get("directory")
+        if directory == "education":
+            qs = qs.filter(person_type__in=(Person.Type.STUDENT, Person.Type.TEACHER))
+        elif directory == "staff":
+            qs = qs.filter(person_type__in=(Person.Type.EMPLOYEE,))
+
         # فیلتر بر اساس نوع شخص
         person_type = self.request.query_params.get("person_type")
         if person_type:
@@ -178,6 +184,12 @@ class PersonListCreateView(generics.ListCreateAPIView):
             person = self.perform_create(serializer)
         except DuplicateNationalCodeError as exc:
             return Response({"national_code": [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.core.models import AuditEvent
+        AuditEvent.record(
+            kind=AuditEvent.Kind.FIELD_CHANGE, summary="ایجاد اشخاص",
+            actor=request.user, obj=person, request=request,
+            metadata={"action": "create", "resource": "persons"},
+        )
         output = PersonDetailSerializer(person, context={"request": request})
         return Response(output.data, status=status.HTTP_201_CREATED)
 

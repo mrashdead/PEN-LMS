@@ -75,7 +75,7 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
     "lesson": {
         "title": "تعریف درس",
         "description": "فرم تعریف درس، سرفصل و مشخصات آموزشی آن.",
-        "version": 1,
+        "version": 2,
         "allowed_roles": ["manager", "supervisor", "workflow_admin"],
         "workflow_code": "form-approval",
         "fields": [
@@ -106,11 +106,10 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
             _f("required_equipment", "textarea", 8, "تجهیزات مورد نیاز (سیستم و نرم‌افزار و غیره)",
                max_length=2000),
             _f("venue_type", "select", 9, "فضای آموزش", required=True, options=[
-                {"value": "classroom", "label": "کلاس"},
-                {"value": "lab", "label": "آزمایشگاه"},
+                {"value": "theory", "label": "کلاس تئوری"},
+                {"value": "open_air", "label": "فضای باز"},
                 {"value": "workshop", "label": "کارگاه"},
-                {"value": "online", "label": "آنلاین"},
-                {"value": "hybrid", "label": "ترکیبی"},
+                {"value": "online", "label": "کلاس آنلاین"},
             ]),
             _f("learning_resources", "textarea", 10, "منابع آموزش", max_length=5000),
             _f("topics", "textarea", 11, "سرفصل‌ها", required=True, max_length=5000),
@@ -122,7 +121,7 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
     "course": {
         "title": "تعریف دوره",
         "description": "فرم تعریف دوره آموزشی و دروس آن.",
-        "version": 1,
+        "version": 2,
         "allowed_roles": ["manager", "supervisor", "workflow_admin"],
         "workflow_code": "form-approval",
         "fields": [
@@ -133,7 +132,6 @@ SCHEMA_CATALOG: dict[str, dict[str, Any]] = {
             _f("description", "textarea", 3, "توضیحات دوره", max_length=5000),
             _f("lessons", "multi_relation", 4, "دروس", required=True,
                relation={"registry_key": "academic.lesson", "lookup": "id"}),
-            _f("objectives", "textarea", 5, "اهداف", required=True, max_length=5000),
         ],
     },
     # ── فرم برگزاری دوره (course-offering) ───────────────────────────────

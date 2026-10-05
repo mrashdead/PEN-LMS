@@ -11,6 +11,7 @@ urlpatterns = [
     path("config/", views.ConfigView.as_view(), name="ph-config"),
     path("sessions/", views.SessionListCreateView.as_view(), name="ph-session-create"),
     path("sessions/active/", views.ActiveSessionsView.as_view(), name="ph-sessions-active"),
+    path("attendance/", views.AttendanceReportView.as_view(), name="ph-attendance"),
     # invoice route MUST precede the generic <str:action> route so that
     # `/sessions/<uuid>/invoice/` resolves here, not as action="invoice".
     path("sessions/<uuid:session_pk>/invoice/", views.InvoiceCreateView.as_view(), name="ph-invoice-create"),

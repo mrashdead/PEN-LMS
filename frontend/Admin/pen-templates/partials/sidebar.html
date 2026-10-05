@@ -185,7 +185,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
           <div class="collapse{% if sidebar_is_edu %} show{% endif %}" id="collapseEdu">
             <ul class="nav-menu-sub">
               {% if sidebar_visibility.workspace_persons %}
-              <li><a href="{% url 'workspace-persons' %}" class="nav-link{% if urlname == 'workspace-persons' %} active{% endif %}"><span>افراد</span></a></li>
+              <li><a href="{% url 'workspace-persons' %}" class="nav-link{% if urlname == 'workspace-persons' %} active{% endif %}"><span>جامعه آموزشی</span></a></li>
               {% endif %}
               {% if sidebar_visibility.workspace_departments %}
               <li><a href="{% url 'workspace-departments' %}" class="nav-link{% if urlname == 'workspace-departments' %} active{% endif %}"><span>دپارتمان‌ها</span></a></li>
@@ -218,6 +218,10 @@ Add a page: one nav-item; add a section: copy a collapse block.
             </ul>
           </div>
         </li>
+        {% endif %}
+
+        {% if sidebar_visibility.workspace_staff %}
+        <li class="nav-item"><a href="{% url 'workspace-staff' %}" class="nav-link{% if urlname == 'workspace-staff' %} active{% endif %}"><span class="icons"><i data-lucide="users-round"></i></span><span class="content">کارکنان</span></a></li>
         {% endif %}
 
         {% if sidebar_visibility.workspace_messages %}

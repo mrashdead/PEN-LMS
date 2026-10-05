@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load asset_v rbac %}
-{% block title %}افراد{% endblock %}
+{% block title %}{{ person_page_context.title }}{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="افراد" section="مدیریت کاربران" icon="users-round" %}
+  {% include "partials/page-heading.html" with title=person_page_context.title section="مدیریت کاربران" icon="users-round" %}
 {% endblock %}
 
 {% block content %}
@@ -11,11 +11,11 @@
 <div class="persons-page">
   <section class="persons-directory" aria-labelledby="persons-directory-title">
       <div class="persons-directory-heading">
-        <h2 id="persons-directory-title">فهرست افراد</h2>
+        <h2 id="persons-directory-title">{{ person_page_context.title }}</h2>
         <div class="persons-directory-actions">
         {% if person_page_context.can_create %}
           <button type="button" id="person-add" class="btn btn-primary">
-            <i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> افزودن فرد
+            <i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> افزودن عضو
           </button>
         {% endif %}
         {% if person_page_context.can_manage_passwords %}
@@ -25,17 +25,20 @@
       </div>
 
       <div class="persons-directory-body">
-        <div class="persons-groups" role="group" aria-label="گروه اشخاص">
+        <div class="persons-groups" role="group" aria-label="گروه جامعه آموزشی">
           <button type="button" data-person-group="" aria-pressed="false">همه</button>
+          {% if person_page_context.directory == "education" %}
           <button type="button" data-person-group="student" aria-pressed="false">دانش‌آموزان</button>
-          <button type="button" data-person-group="guardian" aria-pressed="false">والدین و سرپرستان</button>
           <button type="button" data-person-group="teacher" aria-pressed="false">مدرسان</button>
+          {% else %}
           <button type="button" data-person-group="employee" aria-pressed="false">کارمندان</button>
           <button type="button" data-person-group="supervisor" aria-pressed="false">سرپرست‌ها</button>
+          <button type="button" data-person-group="manager" aria-pressed="false">مدیریت و ادمین سیستم</button>
+          {% endif %}
         </div>
-        <form id="person-filter-form" class="persons-filters" method="get" aria-label="جست‌وجو و فیلتر افراد">
+        <form id="person-filter-form" class="persons-filters" method="get" aria-label="جست‌وجو و فیلتر جامعه آموزشی">
           <div class="persons-search-row">
-            <div class="persons-search"><label for="person-filter-search" class="visually-hidden">جست‌وجوی افراد</label><input type="search" id="person-filter-search" name="search" class="form-control" placeholder="جست‌وجوی نام یا کد ملی" autocomplete="off"></div>
+            <div class="persons-search"><label for="person-filter-search" class="visually-hidden">جست‌وجو در فهرست</label><input type="search" id="person-filter-search" name="search" class="form-control" placeholder="جست‌وجوی نام یا کد ملی" autocomplete="off"></div>
             <details class="persons-more-filters" id="person-more-filters"><summary>فیلترهای بیشتر <span id="person-filter-count" hidden></span></summary>
               <div class="persons-filter-grid">
           <div class="col-12 col-md-3">
@@ -56,11 +59,13 @@
             <label for="person-filter-role" class="form-label">نقش</label>
             <select id="person-filter-role" name="role" class="form-select">
               <option value="">همه نقش‌ها</option>
-              <option value="manager">مدیریت</option>
+              {% if person_page_context.directory == "staff" %}
+              <option value="manager">مدیریت / ادمین سیستم</option>
               <option value="supervisor">کارمند سرپرست</option>
               <option value="employee">کارمند</option>
-              <option value="teacher">استاد / مدرس</option>
-              <option value="student">دانش‌آموز</option><option value="guardian">والدین / سرپرست</option>
+              {% else %}
+              <option value="teacher">معلم</option><option value="student">دانش‌آموز</option>
+              {% endif %}
             </select>
           </div>
           <div class="col-12 col-md-2">
@@ -98,7 +103,7 @@
                 <th scope="col">نقش</th>
                 <th scope="col">تماس و حساب</th>
                 <th scope="col">تاریخ ثبت</th>
-                <th scope="col" class="text-end"><span class="visually-hidden">عملیات</span></th>
+                <th scope="col" class="text-end">عملیات</th>
               </tr>
             </thead>
             <tbody id="person-list-body">
@@ -108,7 +113,7 @@
         </div>
         <div class="persons-pagination">
             <p id="person-page-status" class="mb-0"></p>
-            <nav aria-label="صفحه‌بندی افراد">
+            <nav aria-label="صفحه‌بندی فهرست">
               <ul class="pagination mb-0" id="person-pager"></ul>
             </nav>
         </div>
@@ -120,10 +125,10 @@
 <div class="modal fade" id="person-create-modal" tabindex="-1" aria-labelledby="person-create-title" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
-      <form id="person-create-form" method="post" action="/workspace/persons/create/" novalidate>
+      <form id="person-create-form" method="post" action="{{ person_page_context.create_url }}" novalidate>
         {% csrf_token %}
         <div class="modal-header">
-          <h5 class="modal-title" id="person-create-title">افزودن فرد جدید</h5>
+          <h5 class="modal-title" id="person-create-title">افزودن عضو جدید</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
         </div>
         <div class="modal-body">
@@ -249,6 +254,34 @@
   </div>
 </div>
 
+<div class="modal fade" id="person-create-user-modal" tabindex="-1" aria-labelledby="person-create-user-title" aria-describedby="person-create-user-description" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="person-create-user-title">ساخت حساب کاربری</h5>
+        <button type="button" class="btn-close" id="person-create-user-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">برای دانش‌آموز زیر یک حساب فعال ساخته می‌شود:</p>
+        <p id="person-create-user-name" class="fw-semibold mb-3"></p>
+        <div id="person-create-user-description" class="alert alert-info mb-0" role="note">
+          نام کاربری و گذرواژهٔ آغازین، کد ملی دانش‌آموز است.
+        </div>
+        <div id="person-create-user-missing" class="alert alert-warning mt-3 mb-0" hidden>
+          <p class="mb-2">برای ساخت حساب کاربری، تکمیل موارد زیر ضروری است:</p>
+          <ul id="person-create-user-missing-list" class="mb-0"></ul>
+        </div>
+        <div id="person-create-user-error" class="alert alert-danger mt-3 mb-0" role="alert" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" id="person-create-user-cancel" data-bs-dismiss="modal">انصراف</button>
+        <button type="button" class="btn btn-outline-primary" id="person-create-user-edit" hidden><i data-lucide="pencil" class="size-4 me-1" aria-hidden="true"></i> تکمیل اطلاعات</button>
+        <button type="button" class="btn btn-primary" id="person-create-user-submit"><i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> ساخت حساب</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="person-edit-modal" tabindex="-1" aria-labelledby="person-edit-title" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
@@ -306,7 +339,7 @@
                 <div class="col-md-6"><label class="form-label" for="person-edit-birth-date">تاریخ تولد</label><input class="form-control" id="person-edit-birth-date" name="birth_date" data-jalali dir="ltr" inputmode="numeric" autocomplete="off" placeholder="سال/ماه/روز"></div>
               </div>
             </details></div>
-            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="person-edit-active" name="is_active"><label class="form-check-label" for="person-edit-active">رکورد فعال باشد</label></div></div>
+            <div class="col-12 d-flex flex-wrap align-items-center justify-content-between gap-2"><div class="form-check"><input class="form-check-input" type="checkbox" id="person-edit-active" name="is_active"><label class="form-check-label" for="person-edit-active">پروندهٔ شخص فعال باشد</label></div><small id="person-edit-account-status" class="text-muted"></small></div>
           </div>
         </div>
         <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">انصراف</button><button type="submit" class="btn btn-primary"><i data-lucide="save" class="size-4 me-1"></i> ذخیره تغییرات</button></div>

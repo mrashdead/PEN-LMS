@@ -1080,6 +1080,9 @@ jdp-overlay   { z-index: 1075 !important; }
 .persons-table { min-width: 42rem; font-size: .85rem; }
 .persons-table th { padding-block: .8rem; color: var(--dx-secondary-color); font-size: .76rem; font-weight: 600; white-space: nowrap; }
 .persons-table td { padding-block: .8rem; }
+.persons-table tbody tr[data-person-row] { cursor: pointer; }
+.persons-table tbody tr[data-person-row]:focus-visible { outline: 2px solid var(--dx-primary); outline-offset: -2px; }
+.persons-table tbody tr[data-person-row]:focus-visible > td { background-color: var(--dx-primary-bg-subtle); }
 .persons-name { display: block; color: var(--dx-body-color); font-weight: 600; }
 .persons-secondary { display: block; margin-top: .25rem; color: var(--dx-secondary-color); font-size: .75rem; font-weight: 400; }
 .persons-pagination { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-top: 1.1rem; color: var(--dx-secondary-color); font-size: .8rem; }

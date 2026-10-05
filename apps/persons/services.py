@@ -16,6 +16,81 @@ logger = logging.getLogger(__name__)
 PERSON_DETAIL_ELEVATED_ROLES = {"manager", "hr", "workflow_admin"}
 
 
+def student_account_creation_missing_fields(person) -> list[str]:
+    """Return requirements matching the manual student-definition form."""
+    missing = []
+    required_values = (
+        ("نام", person.first_name),
+        ("نام خانوادگی", person.last_name),
+    )
+    for label, value in required_values:
+        if not (value or "").strip():
+            missing.append(label)
+
+    if national_code_error(person.national_code, require_location=True):
+        missing.append("کد ملی معتبر")
+    if not is_valid_iranian_mobile(english_numbers(person.mobile)):
+        missing.append("شماره همراه دانش‌آموز معتبر")
+    if person.gender not in dict(Person.Gender.choices):
+        missing.append("جنسیت")
+
+    profile = getattr(person, "student_profile", None)
+    parents = {
+        "father": {
+            "label": "پدر",
+            "first_name": getattr(profile, "father_first_name", "") or "",
+            "last_name": getattr(profile, "father_last_name", "") or "",
+            "phone": getattr(profile, "father_phone", "") or "",
+        },
+        "mother": {
+            "label": "مادر",
+            "first_name": getattr(profile, "mother_first_name", "") or "",
+            "last_name": getattr(profile, "mother_last_name", "") or "",
+            "phone": getattr(profile, "mother_phone", "") or "",
+        },
+    }
+    links = StudentGuardian.objects.filter(
+        student=person,
+        is_active=True,
+        is_deleted=False,
+        relation__in=("father", "mother"),
+    ).select_related("guardian")
+    for link in links:
+        parent = parents.get(link.relation)
+        if parent is None:
+            continue
+        guardian = link.guardian
+        parent["first_name"] = parent["first_name"] or guardian.first_name
+        parent["last_name"] = parent["last_name"] or guardian.last_name
+        parent["phone"] = parent["phone"] or link.phone_override or guardian.mobile
+
+    valid_parent_phone_found = False
+    invalid_parent_phones = []
+    missing_parent_names = []
+    for parent in parents.values():
+        phone = english_numbers(parent["phone"]).strip()
+        if not phone:
+            continue
+        if not is_valid_iranian_mobile(phone):
+            invalid_parent_phones.append(parent["label"])
+            continue
+        valid_parent_phone_found = True
+        if not parent["first_name"].strip():
+            missing_parent_names.append(f"نام {parent['label']}")
+        if not parent["last_name"].strip():
+            missing_parent_names.append(f"نام خانوادگی {parent['label']}")
+    if not valid_parent_phone_found:
+        missing.append("نام، نام خانوادگی و شماره همراه معتبرِ حداقل یکی از والدین")
+    else:
+        if invalid_parent_phones:
+            missing.append(
+                "شماره همراه معتبر " + " و ".join(invalid_parent_phones)
+            )
+        missing.extend(missing_parent_names)
+
+    return list(dict.fromkeys(missing))
+
+
 def can_view_full_person_detail(user, person) -> bool:
     """
     بول «حافظ کامل» — آیا این کاربر می‌تواند جزئیات هویتی کامل (کد ملی،
@@ -242,6 +317,12 @@ class PersonService:
         person = Person.objects.select_for_update().get(pk=person_id)
         if person.user_id:
             raise PersonServiceError("این شخص قبلاً کاربر دارد.")
+        if person.has_type(Person.Type.STUDENT):
+            missing = student_account_creation_missing_fields(person)
+            if missing:
+                raise PersonServiceError(
+                    "اطلاعات لازم برای ساخت حساب کامل نیست: " + "، ".join(missing)
+                )
         self._create_user_for_person(person, username=username, password=password)
         logger.info("User created for person %s %s by %s", person.first_name, person.last_name, created_by)
         return person

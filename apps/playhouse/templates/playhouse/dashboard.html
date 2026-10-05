@@ -62,7 +62,7 @@
     <section class="ph-sessions-panel" aria-labelledby="ph-sessions-title">
       <div class="ph-sessions-heading">
         <h2 id="ph-sessions-title">نوبت‌های امروز</h2>
-        <div class="ph-list-actions">{% if is_playhouse_finance %}<a class="btn ph-outline-action" href="{% url 'playhouse-finance' %}"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i> گزارش مالی</a>{% endif %}<button type="button" class="btn ph-icon-action" id="ph-refresh" title="بروزرسانی لیست"><i data-lucide="refresh-cw" aria-hidden="true"></i><span class="visually-hidden">بروزرسانی</span></button></div>
+        <div class="ph-list-actions"><a class="btn ph-outline-action" href="{% url 'playhouse-attendance' %}"><i data-lucide="clipboard-list" aria-hidden="true"></i> دفتر رفت‌وآمد</a>{% if is_playhouse_finance %}<a class="btn ph-outline-action" href="{% url 'playhouse-finance' %}"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i> گزارش مالی</a>{% endif %}<button type="button" class="btn ph-icon-action" id="ph-refresh" title="بروزرسانی لیست"><i data-lucide="refresh-cw" aria-hidden="true"></i><span class="visually-hidden">بروزرسانی</span></button></div>
       </div>
 
       <div class="ph-live-strip"><div><span class="ph-live-pulse"></span><strong>تایمرهای فعال</strong><span class="ph-live-value" id="ph-active-count">۰</span></div><div><i data-lucide="calendar-check-2" aria-hidden="true"></i><span>نمایش امروز</span><span class="ph-live-value" id="ph-today-count">—</span></div></div>

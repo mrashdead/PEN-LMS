@@ -44,6 +44,17 @@ class PlayhouseDashboardPage(PlayhousePageMixin, TemplateView):
         return context
 
 
+class PlayhouseAttendancePage(PlayhousePageMixin, TemplateView):
+    """Searchable daily register and recovery tools for incomplete visits."""
+    template_name = "playhouse/attendance.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["today"] = timezone.localdate().isoformat()
+        context["today_jalali"] = jalali_date_str(timezone.localdate())
+        return context
+
+
 class PlayhouseFinancePage(LoginRequiredMixin, TemplateView):
     """Finance-only view over paid playhouse invoices."""
 

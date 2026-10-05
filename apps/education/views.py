@@ -275,14 +275,12 @@ class OfferingListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         return education_offerings_visible_to(self.request.user)
 
-
 class OfferingDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = CourseOfferingSerializer
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager, ResourceCRUDPermission)
 
     def get_queryset(self):
         return education_offerings_visible_to(self.request.user)
-
 
 class OfferingSoftDeleteView(SoftDeleteView):
     queryset = CourseOffering.objects.all()
@@ -322,6 +320,10 @@ class OfferingGenerateSessionsView(APIView):
         offering = CourseOffering.objects.filter(pk=pk).first()
         if offering is None:
             return Response({"error": "برگزاری یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        if offering.status != CourseOffering.Status.OPEN:
+            return Response({"error": "فقط برای برگزاریِ باز می‌توان کلاس تشکیل داد."}, status=status.HTTP_400_BAD_REQUEST)
+        if offering.capacity and offering.enrolled_count >= offering.capacity:
+            return Response({"error": "ظرفیت برگزاری تکمیل شده است؛ امکان تشکیل کلاس وجود ندارد."}, status=status.HTTP_400_BAD_REQUEST)
 
         def _int(name):
             raw = request.data.get(name)

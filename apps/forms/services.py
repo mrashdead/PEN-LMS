@@ -885,6 +885,17 @@ class FormSubmissionService:
         instance to attach to yet — their trail begins at submit time
         (documented limitation: ActionLog.instance is a required FK).
         """
+        if action in {"form_create", "form_submit"} and actor is not None:
+            from apps.core.models import AuditEvent
+            is_create = action == "form_create"
+            AuditEvent.record(
+                kind=AuditEvent.Kind.FIELD_CHANGE,
+                summary="ایجاد فرم" if is_create else "ارسال نهایی فرم",
+                actor=actor,
+                obj=submission,
+                metadata={"action": "create" if is_create else "update", "resource": "submissions"},
+            )
+
         instance = submission.workflow_instance
         if instance is None:
             return

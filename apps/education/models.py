@@ -180,11 +180,10 @@ class Lesson(DomainModel):
 
     class SpaceType(models.TextChoices):
         UNSPECIFIED = "", "نامشخص"
-        CLASSROOM = "classroom", "کلاس"
-        LAB = "lab", "آزمایشگاه"
+        THEORY = "theory", "کلاس تئوری"
+        OPEN_AIR = "open_air", "فضای باز"
         WORKSHOP = "workshop", "کارگاه"
-        ONLINE = "online", "آنلاین"
-        HALL = "hall", "سالن"
+        ONLINE = "online", "کلاس آنلاین"
 
     title = models.CharField(max_length=256, help_text="عنوان فارسی درس")
     title_en = models.CharField(max_length=256, blank=True, default="", help_text="عنوان انگلیسی درس")

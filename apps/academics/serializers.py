@@ -63,7 +63,7 @@ class AcademicTermDetailSerializer(CRUDActionsMixin, serializers.ModelSerializer
         read_only_fields = ("created_at", "updated_at")
 
 
-class AcademicTermCreateSerializer(serializers.ModelSerializer):
+class AcademicTermCreateSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     """سریالایزر ساخت ترم جدید."""
 
     start_date = JalaliDateField()
@@ -152,7 +152,7 @@ class ClassGroupDetailSerializer(CRUDActionsMixin, serializers.ModelSerializer):
         read_only_fields = ("created_at", "updated_at")
 
 
-class ClassGroupCreateSerializer(serializers.ModelSerializer):
+class ClassGroupCreateSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     """سریالایزر ساخت کلاس جدید."""
 
     class Meta:
@@ -195,7 +195,7 @@ class ClassEnrollmentListSerializer(CRUDActionsMixin, serializers.ModelSerialize
         )
 
 
-class ClassEnrollmentCreateSerializer(serializers.ModelSerializer):
+class ClassEnrollmentCreateSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     """سریالایزر ثبت‌نام دانش‌آموز در کلاس."""
 
     enrollment_date = JalaliDateField(required=False)

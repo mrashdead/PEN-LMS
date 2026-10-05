@@ -32,7 +32,8 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     {"key": "staff-dashboard", "flag": "staff_dashboard", "title": "کارکرد و مرخصی", "section": "کارکنان", "default_roles": STAFF_MENU_ROLES | {"supervisor", "teacher"}},
     {"key": "calls-dashboard", "flag": "calls_dashboard", "title": "ثبت تماس‌ها", "section": "ارتباطات", "default_roles": STAFF_MENU_ROLES | {"supervisor", "teacher"}},
     {"key": "submission-picker", "flag": "submission_picker", "title": "مرکز درخواست‌ها", "section": "درخواست‌ها", "default_roles": STAFF_MENU_ROLES},
-    {"key": "workspace-persons", "flag": "workspace_persons", "title": "افراد", "section": "آموزشگاه", "default_roles": ELEVATED_ROLES},
+    {"key": "workspace-persons", "flag": "workspace_persons", "title": "جامعه آموزشی", "section": "آموزشگاه", "default_roles": ELEVATED_ROLES},
+    {"key": "workspace-staff", "flag": "workspace_staff", "title": "اعضای مجموعه", "section": "کارکنان", "default_roles": ELEVATED_ROLES},
     {"key": "workspace-departments", "flag": "workspace_departments", "title": "دپارتمان‌ها", "section": "آموزشگاه", "default_roles": STAFF_MENU_ROLES},
     {"key": "workspace-terms", "flag": "workspace_terms", "title": "ترم‌های تحصیلی", "section": "آموزشگاه", "default_roles": STAFF_MENU_ROLES},
     {"key": "workspace-lessons", "flag": "workspace_lessons", "title": "درس‌ها", "section": "آموزشگاه", "default_roles": STAFF_MENU_ROLES},
@@ -130,6 +131,7 @@ def visible_sidebar_sections(flags: dict[str, bool], roles: set[str]) -> dict[st
         "workspace_courses", "workspace_offerings", "workspace_sessions",
         "workspace_locations", "workspace_enrollments",
     )) or education_timetable
+    staff = flags.get("workspace_staff", False)
     organization = any(flags.get(k, False) for k in (
         "workspace_org_chart", "workspace_perm_manage",
     ))
@@ -143,6 +145,7 @@ def visible_sidebar_sections(flags: dict[str, bool], roles: set[str]) -> dict[st
     return {
         "teacher": teacher,
         "education": education,
+        "staff": staff,
         "organization": organization,
         "learner": learner,
         "requests": requests,

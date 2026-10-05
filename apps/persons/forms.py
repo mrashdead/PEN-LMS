@@ -20,7 +20,7 @@ PUBLIC_TARGETS = ("manager", "employee", "teacher", "student")
 TARGET_LABELS = {
     "manager": "مدیریت جدید",
     "employee": "کارمند جدید",
-    "teacher": "استاد / مدرس",
+    "teacher": "معلم",
     "student": "دانش‌آموز",
 }
 
@@ -154,12 +154,13 @@ class PersonDefinitionForm(forms.Form):
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
 
-    def __init__(self, *args, actor=None, **kwargs):
+    def __init__(self, *args, actor=None, directory="education", **kwargs):
         super().__init__(*args, **kwargs)
         self.actor = actor
         roles = set(actor.role_codes()) if actor and hasattr(actor, "role_codes") else set()
         allowed = hierarchy.allowed_targets(roles, is_superuser=bool(getattr(actor, "is_superuser", False)))
-        self.allowed_targets = [target for target in PUBLIC_TARGETS if target in allowed]
+        directory_targets = {"student", "teacher"} if directory == "education" else {"manager", "employee"}
+        self.allowed_targets = [target for target in PUBLIC_TARGETS if target in allowed and target in directory_targets]
         self.fields["target"].choices = [
             (target, TARGET_LABELS[target]) for target in self.allowed_targets
         ]

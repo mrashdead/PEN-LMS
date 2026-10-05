@@ -5,12 +5,14 @@ from rest_framework import serializers
 
 from apps.core.fields import JalaliDateField, PersianCharField
 from apps.core.serializers import CRUDActionsMixin
+from apps.core.utils import english_numbers
 from apps.persons.models import Person, StaffProfile, StudentGuardian, StudentProfile
 from apps.persons.services import (
     can_view_full_person_detail,
     mask_address,
     mask_email,
     mask_identifier,
+    student_account_creation_missing_fields,
 )
 from apps.persons.validation import is_valid_iranian_mobile, national_code_error
 
@@ -130,6 +132,9 @@ class PersonListSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializers.
     )
     role_display = serializers.SerializerMethodField()
     has_user = serializers.BooleanField(source="user_id", read_only=True)
+    user_is_active = serializers.BooleanField(
+        source="user.is_active", read_only=True, allow_null=True
+    )
     user_id = serializers.UUIDField(read_only=True, allow_null=True)
     department = serializers.SerializerMethodField()
     job_title = serializers.SerializerMethodField()
@@ -151,6 +156,7 @@ class PersonListSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializers.
             "email",
             "is_active",
             "has_user",
+            "user_is_active",
             "user_id", "department", "job_title",
             "created_at", "actions",
         )
@@ -188,6 +194,9 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
         source="get_gender_display", read_only=True
     )
     has_user = serializers.BooleanField(source="user_id", read_only=True)
+    user_is_active = serializers.BooleanField(
+        source="user.is_active", read_only=True, allow_null=True
+    )
     username = serializers.CharField(
         source="user.username", read_only=True, allow_null=True
     )
@@ -201,6 +210,7 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
     student_profile_summary = serializers.SerializerMethodField()
     staff_profile_summary = serializers.SerializerMethodField()
     guardian_profile_summary = serializers.SerializerMethodField()
+    account_creation_missing_fields = serializers.SerializerMethodField()
     student_profile = StudentProfileEditSerializer(required=False, allow_null=True)
     staff_profile = StaffProfileEditSerializer(required=False, allow_null=True)
     person_type_codes = serializers.SerializerMethodField()
@@ -243,10 +253,12 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             "photo",
             "is_active",
             "has_user",
+            "user_is_active",
             "username",
             "created_at",
             "updated_at", "actions",
             "student_profile_summary", "staff_profile_summary", "guardian_profile_summary",
+            "account_creation_missing_fields",
             "student_profile", "staff_profile", "person_type_codes", "user_role_codes",
             "can_manage_supervisor_role", "employee_kind",
         )
@@ -256,7 +268,6 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             "display_name",
             "display_national_code",
             "display_mobile",
-            "national_code",
             "person_type",
             "actions",
             "person_type_codes",
@@ -303,6 +314,28 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             "is_custody_case": profile.is_custody_case,
             "custody_note": profile.custody_note,
         }
+
+    def get_account_creation_missing_fields(self, obj):
+        if not obj.has_type(Person.Type.STUDENT):
+            return []
+        return student_account_creation_missing_fields(obj)
+
+    def validate_national_code(self, value):
+        normalized = english_numbers(value).strip()
+        error = national_code_error(normalized, require_location=True)
+        if error:
+            raise serializers.ValidationError(error)
+        if self.instance and normalized != self.instance.national_code:
+            if self.instance.user_id or not national_code_error(
+                self.instance.national_code, require_location=True
+            ):
+                raise serializers.ValidationError("کد ملی فقط برای اصلاح مقدار نامعتبرِ فردِ بدون حساب قابل تغییر است.")
+        duplicates = Person.objects.filter(national_code=normalized, is_deleted=False)
+        if self.instance:
+            duplicates = duplicates.exclude(pk=self.instance.pk)
+        if duplicates.exists():
+            raise serializers.ValidationError("این کد ملی برای فرد دیگری ثبت شده است.")
+        return normalized
 
     @transaction.atomic
     def update(self, instance, validated_data):

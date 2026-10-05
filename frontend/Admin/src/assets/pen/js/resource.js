@@ -35,12 +35,22 @@
 
   function esc(s) { return window.htmlEscape ? window.htmlEscape(s) : (s == null ? '' : String(s)); }
 
+  function dateOnly(value) {
+    return value == null || value === '' ? '—' : String(value).split(' — ')[0].split(' ')[0];
+  }
+
   // 1234567 → "۱٬۲۳۴٬۵۶۷" (display only; stored value stays an integer).
   function money(n) {
     if (n == null || n === '') return '—';
     var num = Number(String(n).replace(/[^\d-]/g, ''));
     if (isNaN(num)) return esc(n);
     return window.persianNumbers(num.toLocaleString('en-US').replace(/,/g, '٬'));
+  }
+
+  function statusLabel(value, row) {
+    if (row && value === 'open' && Number(row.capacity) > 0 && Number(row.enrolled_count) >= Number(row.capacity)) return 'تکمیل ظرفیت';
+    return ({draft: 'پیش‌نویس', open: 'باز (ثبت‌نام)', closed: 'بسته',
+      running: 'در حال برگزاری', finished: 'پایان‌یافته', cancelled: 'لغوشده'})[value] || value || '—';
   }
 
   function cellHtml(col, row) {
@@ -50,7 +60,7 @@
                : '<span class="badge bg-light text-muted border">خیر</span>';
     }
     if (col.type === 'badge') {
-      return '<span class="badge bg-primary-subtle text-primary">' + esc(v == null || v === '' ? '—' : v) + '</span>';
+      return '<span class="badge bg-primary-subtle text-primary">' + esc(col.field === 'status' ? statusLabel(v, row) : (v == null || v === '' ? '—' : v)) + '</span>';
     }
     if (col.type === 'money') {
       return '<span class="text-nowrap">' + money(v) + (col.suffix ? ' ' + esc(col.suffix) : '') + '</span>';
@@ -264,6 +274,9 @@
         html = '<a class="btn btn-sm btn-outline-primary" href="/workspace/enrollments/' + kind + '/' + encodeURIComponent(row.id) + '/">مشاهده ثبت‌نام‌ها</a>';
       }
       else if (d.type === 'bool') html = v ? 'بله' : 'خیر';
+      else if (d.type === 'status') html = esc(statusLabel(v, row));
+      else if (d.type === 'date-range') html = '<span dir="ltr">' + esc(row.start_date || '—') + ' الی ' + esc(row.end_date || '—') + '</span>';
+      else if (d.type === 'space-type') html = esc(({theory: 'کلاس تئوری', open_air: 'فضای باز', workshop: 'کارگاه', online: 'کلاس آنلاین'})[v] || v || '—');
       else if (d.type === 'money') html = '<span class="text-nowrap">' + money(v) + (d.suffix ? ' ' + esc(d.suffix) : '') + '</span>';
       else if (d.type === 'list') {
         var arr = Array.isArray(v) ? v : (v == null ? [] : [v]);
@@ -277,7 +290,7 @@
             cls.map(function (c) {
               return '<tr><td dir="ltr">' + esc(c.class_code) + '</td><td>' + esc(c.lesson_title || '—') + '</td>' +
                      '<td>' + window.persianNumbers(c.sessions) + ' جلسه</td>' +
-                     '<td dir="ltr" class="fs-13">' + esc(c.first_date) + ' → ' + esc(c.last_date) + '</td></tr>';
+                     '<td dir="ltr" class="fs-13">' + esc(c.first_date) + ' الی ' + esc(c.last_date) + '</td></tr>';
             }).join('') + '</tbody></table></div>'
           : '<span class="text-muted">هنوز کلاسی تشکیل نشده — با دکمهٔ «تشکیل کلاس» اقدام کنید.</span>';
       }
@@ -287,13 +300,15 @@
       return dl(d.label, html);
     }).join('');
     var meta = '<div class="pen-detail-meta">' +
-      '<div><small>وضعیت</small><strong>' + esc(row.status || (row.is_active === false ? 'غیرفعال' : 'فعال')) + '</strong></div>' +
-      '<div><small>ایجاد</small><strong dir="ltr">' + esc(row.created_at || '—') + '</strong></div>' +
-      '<div><small>آخرین تغییر</small><strong dir="ltr">' + esc(row.updated_at || '—') + '</strong></div>' +
+      '<div><small>وضعیت</small><strong>' + esc(row.status ? statusLabel(row.status, row) : (row.is_active === false ? 'غیرفعال' : 'فعال')) + '</strong></div>' +
+      '<div><small>ایجادکننده</small><strong>' + esc(row.created_by_name || 'ثبت نشده') + '</strong></div>' +
+      '<div><small>آخرین ویرایش توسط</small><strong>' + esc(row.updated_by_name || 'ثبت نشده') + '</strong></div>' +
+      '<div><small>ایجاد</small><strong dir="ltr">' + esc(dateOnly(row.created_at_display || row.created_at)) + '</strong></div>' +
+      '<div><small>آخرین تغییر</small><strong dir="ltr">' + esc(dateOnly(row.updated_at_display || row.updated_at)) + '</strong></div>' +
       '</div>';
     var history = Array.isArray(row.audit_trail) && row.audit_trail.length
       ? '<div class="mt-4 pt-3 border-top"><h6 class="fw-semibold mb-2">سوابق تغییرات</h6><ol class="pen-timeline mb-0">' +
-        row.audit_trail.map(function (event) { return '<li class="pen-timeline-item"><div class="fw-semibold fs-14">' + esc(event.summary || event.kind) + '</div><div class="fs-13 text-muted">' + esc(event.actor || 'سامانه') + ' · ' + esc(event.created_at || '—') + '</div></li>'; }).join('') +
+        row.audit_trail.map(function (event) { return '<li class="pen-timeline-item"><div class="fw-semibold fs-14">' + esc(event.summary || event.kind) + '</div><div class="fs-13 text-muted">' + esc(event.actor || 'ثبت نشده') + ' · ' + esc(dateOnly(event.created_at)) + '</div></li>'; }).join('') +
         '</ol></div>' : '';
     document.getElementById('res-modal-body').innerHTML = meta + '<div class="vstack gap-1">' + body + '</div>' + history;
 

@@ -65,21 +65,25 @@ class ActiveSessionSerializer(serializers.ModelSerializer):
     member_name = serializers.CharField(source="member.display_name", read_only=True)
     age = serializers.IntegerField(source="member.age", read_only=True)
     guardian_mobile = serializers.CharField(source="member.guardian_mobile", read_only=True)
+    guardian_name = serializers.CharField(source="member.guardian_name", read_only=True)
+    member_notes = serializers.CharField(source="member.notes", read_only=True)
     duration_label = serializers.CharField(read_only=True)
     elapsed_label = serializers.CharField(read_only=True)
     has_invoice = serializers.SerializerMethodField()
     invoice_is_paid = serializers.SerializerMethodField()
     invoice_number = serializers.SerializerMethodField()
+    invoice_detail = serializers.SerializerMethodField()
     billable_minutes = serializers.IntegerField(read_only=True)
     billable_label = serializers.CharField(read_only=True)
     elapsed_seconds = serializers.IntegerField(read_only=True)
+    operator_name = serializers.CharField(source="operator.get_full_name", read_only=True)
 
     class Meta:
         model = PlayhouseSession
         fields = [
-            "id", "member_name", "age", "guardian_mobile", "created_at", "entry_at", "exit_at",
+            "id", "member_name", "age", "guardian_mobile", "guardian_name", "member_notes", "created_at", "session_date", "operator_name", "entry_at", "exit_at",
             "paused_at", "paused_seconds", "status", "duration_label", "elapsed_seconds", "elapsed_label", "billable_minutes", "billable_label",
-            "has_invoice", "invoice_is_paid", "invoice_number",
+            "has_invoice", "invoice_is_paid", "invoice_number", "invoice_detail",
         ]
 
     def _invoice(self, obj):
@@ -98,6 +102,10 @@ class ActiveSessionSerializer(serializers.ModelSerializer):
     def get_invoice_number(self, obj):
         invoice = self._invoice(obj)
         return invoice.invoice_number if invoice else ""
+
+    def get_invoice_detail(self, obj):
+        invoice = self._invoice(obj)
+        return PlayhouseInvoiceSerializer(invoice).data if invoice else None
 
 
 class InvoiceItemSerializer(serializers.ModelSerializer):

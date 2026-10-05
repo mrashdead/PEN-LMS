@@ -277,7 +277,7 @@ def registration_detail(scope, source, pk):
     row['attendance'] = list(attendance.order_by().values('status').annotate(total=Count('pk')))
     from django.contrib.contenttypes.models import ContentType
     events = AuditEvent.objects.filter(content_type=ContentType.objects.get_for_model(obj), object_id=str(obj.pk)).select_related('actor').order_by('-created_at')[:20]
-    row['history'] = [{'summary': event.summary, 'date': event.created_at_jalali, 'actor': event.actor.get_full_name() if event.actor else 'سامانه'} for event in events]
+    row['history'] = [{'summary': event.summary, 'date': event.created_at_jalali, 'actor': event.actor.get_full_name() if event.actor else 'ثبت نشده'} for event in events]
     if source == 'offering':
         membership = obj.final_class_enrollment
         capacity_target = membership.class_group if membership else obj.offering

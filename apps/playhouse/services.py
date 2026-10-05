@@ -13,6 +13,7 @@ from decimal import Decimal
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from apps.playhouse.models import (
     PlayhouseConfig,
@@ -82,7 +83,7 @@ class PlayhouseService:
         session = PlayhouseSession.objects.create(
             member=member,
             operator=operator,
-            session_date=session_date or date.today(),
+            session_date=session_date or timezone.localdate(),
             status=PlayhouseSession.Status.WAITING,
         )
         return session
@@ -157,7 +158,7 @@ class PlayhouseService:
 
     # ─── تایمر ───
     @transaction.atomic
-    def start_session(self, *, session, operator) -> PlayhouseSession:
+    def start_session(self, *, session, operator, entry_at=None) -> PlayhouseSession:
         """Start a waiting session or resume one paused by the operator."""
         locked = PlayhouseSession.objects.select_for_update().get(pk=session.pk)
         if locked.status not in {
@@ -169,13 +170,24 @@ class PlayhouseService:
             )
         now = timezone.now()
         if locked.status == PlayhouseSession.Status.WAITING:
-            locked.entry_at = now
+            if entry_at:
+                parsed = parse_datetime(entry_at) if isinstance(entry_at, str) else entry_at
+                if parsed is None:
+                    raise PlayhouseServiceError("زمان شروع نامعتبر است.")
+                if timezone.is_naive(parsed):
+                    parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+                if parsed > now:
+                    raise PlayhouseServiceError("زمان شروع نمی‌تواند در آینده باشد.")
+                locked.entry_at = parsed
+                locked.session_date = timezone.localdate(parsed)
+            else:
+                locked.entry_at = now
             locked.paused_seconds = 0
         elif locked.paused_at:
             locked.paused_seconds += max(0, int((now - locked.paused_at).total_seconds()))
         locked.paused_at = None
         locked.status = PlayhouseSession.Status.ACTIVE
-        locked.save(update_fields=["entry_at", "paused_at", "paused_seconds", "status", "updated_at"])
+        locked.save(update_fields=["entry_at", "session_date", "paused_at", "paused_seconds", "status", "updated_at"])
         return locked
 
     @transaction.atomic
@@ -190,7 +202,7 @@ class PlayhouseService:
         return locked
 
     @transaction.atomic
-    def end_session(self, *, session, operator) -> PlayhouseSession:
+    def end_session(self, *, session, operator, exit_at=None) -> PlayhouseSession:
         """Stop the timer for good and compute the billable duration."""
         locked = PlayhouseSession.objects.select_for_update().get(pk=session.pk)
         if locked.status not in {
@@ -199,7 +211,20 @@ class PlayhouseService:
             PlayhouseSession.Status.WAITING,
         }:
             raise PlayhouseServiceError("این نوبت قبلاً پایان یافته است.")
+        if locked.status == PlayhouseSession.Status.WAITING and not locked.entry_at:
+            raise PlayhouseServiceError("برای پایان حضور، ابتدا زمان واقعی ورود را ثبت کنید.")
         now = timezone.now()
+        if exit_at:
+            parsed = parse_datetime(exit_at) if isinstance(exit_at, str) else exit_at
+            if parsed is None:
+                raise PlayhouseServiceError("زمان پایان نامعتبر است.")
+            if timezone.is_naive(parsed):
+                parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+            now = parsed
+        if locked.entry_at and now < locked.entry_at:
+            raise PlayhouseServiceError("زمان پایان نمی‌تواند قبل از زمان شروع باشد.")
+        if now > timezone.now():
+            raise PlayhouseServiceError("زمان پایان نمی‌تواند در آینده باشد.")
         if locked.status == PlayhouseSession.Status.PAUSED and locked.paused_at:
             locked.paused_seconds += max(0, int((now - locked.paused_at).total_seconds()))
         locked.exit_at = now

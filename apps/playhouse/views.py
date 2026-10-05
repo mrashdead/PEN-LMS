@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.db.models import Count, Sum
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.generics import (
     CreateAPIView,
@@ -18,6 +19,7 @@ from rest_framework.generics import (
 )
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from apps.playhouse import selectors
 from apps.playhouse.models import (
@@ -144,7 +146,13 @@ class SessionListView(ListAPIView):
     serializer_class = ActiveSessionSerializer
 
     def get_queryset(self):
-        return selectors.sessions_today()
+        raw_day = self.request.query_params.get("date")
+        if not raw_day:
+            return selectors.sessions_today()
+        try:
+            return selectors.sessions_on(date.fromisoformat(raw_day))
+        except ValueError:
+            raise ValidationError({"date": "تاریخ باید به شکل YYYY-MM-DD باشد."})
 
 
 class ActiveSessionsView(ListAPIView):
@@ -155,6 +163,21 @@ class ActiveSessionsView(ListAPIView):
 
     def get_queryset(self):
         return selectors.active_sessions()
+
+
+class AttendanceReportView(ListAPIView):
+    """Daily register including waiting, active, finished and cancelled visits."""
+    permission_classes = [IsPlayhouseOperator]
+    serializer_class = ActiveSessionSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        raw_day = self.request.query_params.get("date")
+        try:
+            day = date.fromisoformat(raw_day) if raw_day else timezone.localdate()
+        except ValueError:
+            raise ValidationError({"date": "تاریخ باید به شکل YYYY-MM-DD باشد."})
+        return selectors.sessions_on(day)
 
 
 class SessionActionView(GenericAPIView):
@@ -172,11 +195,11 @@ class SessionActionView(GenericAPIView):
         service = PlayhouseService()
         try:
             if action == "start":
-                session = service.start_session(session=session, operator=request.user)
+                session = service.start_session(session=session, operator=request.user, entry_at=request.data.get("entry_at"))
             elif action == "stop":
                 session = service.stop_session(session=session, operator=request.user)
             elif action == "end":
-                session = service.end_session(session=session, operator=request.user)
+                session = service.end_session(session=session, operator=request.user, exit_at=request.data.get("exit_at"))
             elif action == "cancel":
                 session = service.cancel_session(session=session, operator=request.user)
             else:
@@ -259,7 +282,7 @@ class FinanceReportView(GenericAPIView):
 
     def get(self, request):
         row = self.request.query_params
-        today = date.today()
+        today = timezone.localdate()
         start = end = None
         try:
             if row.get("from") and row.get("to"):

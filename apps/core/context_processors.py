@@ -20,6 +20,7 @@ EDU_URLS = {
     "workspace-lessons", "workspace-courses", "workspace-offerings", "workspace-terms",
     "workspace-sessions", "workspace-timetable", "workspace-locations",
     "workspace-enrollments", "workspace-enrollment-directory", "workspace-departments",
+    "workspace-persons",
 }
 REQ_URLS = FORMS_URL_NAMES | {"workspace-requests", "schema-picker", "submission-create"}
 

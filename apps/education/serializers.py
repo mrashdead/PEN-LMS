@@ -7,7 +7,7 @@ from rest_framework import serializers
 
 from apps.core.fields import JalaliDateField, PersianCharField
 from apps.core.serializers import CRUDActionsMixin
-from apps.core.utils import persian_date
+from apps.core.utils import jalali_date_str, persian_date
 from apps.persons.models import Person
 from apps.education.models import (
     AcademicHoliday,
@@ -240,7 +240,7 @@ class CourseOfferingSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     start_date = JalaliDateField(required=False, allow_null=True)
     end_date = JalaliDateField(required=False, allow_null=True)
     course_title = serializers.CharField(source="course.title", read_only=True)
-    course_tuition = serializers.IntegerField(source="course.tuition", read_only=True)
+    course_tuition = serializers.SerializerMethodField()
     lesson_titles = serializers.SerializerMethodField()
     classes = serializers.SerializerMethodField()
     location_name = serializers.CharField(source="location.name", read_only=True,
@@ -262,6 +262,14 @@ class CourseOfferingSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     def get_instructor_name(self, obj) -> str:
         t = getattr(obj, "instructor", None)
         return f"{t.first_name} {t.last_name}".strip() if t else ""
+
+    def get_course_tuition(self, obj) -> int:
+        """Use the curriculum total when the legacy course amount is unset."""
+        course = getattr(obj, "course", None)
+        if course is None:
+            return int(obj.tuition or 0)
+        total = sum(int(link.lesson.tuition or 0) for link in course.lesson_links)
+        return int(obj.tuition or course.tuition or total or 0)
 
     def get_lesson_titles(self, obj) -> list:
         """The offering's course lessons — shown read-only in the offering form."""
@@ -367,8 +375,8 @@ def classes_of_offering(offering, *, user=None) -> list:
             "sessions": r["session_count"],
             "first_number": r["first_number"],
             "last_number": r["last_number"],
-            "first_date": persian_date(r["first_date"]),
-            "last_date": persian_date(r["last_date"]),
+            "first_date": jalali_date_str(r["first_date"]),
+            "last_date": jalali_date_str(r["last_date"]),
         })
     return out
 
@@ -512,7 +520,7 @@ class GradeRecordSerializer(serializers.ModelSerializer):
         read_only_fields = ("created_at", "updated_at")
 
 
-class OfferingEnrollmentSerializer(serializers.ModelSerializer):
+class OfferingEnrollmentSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     lead = serializers.PrimaryKeyRelatedField(
         queryset=Lead.objects.filter(is_deleted=False),
         required=False,
