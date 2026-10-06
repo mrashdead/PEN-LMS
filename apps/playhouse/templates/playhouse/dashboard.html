@@ -6,11 +6,17 @@
 {% block content %}
 <div class="ph-page">
   <section class="ph-hero" aria-labelledby="ph-page-title">
-    <h1 id="ph-page-title">پذیرش خانه بازی</h1>
+    <div class="ph-hero-copy">
+      <span class="ph-hero-eyebrow">مدیریت مراجعه‌ها</span>
+      <h1 id="ph-page-title">پذیرش خانه بازی</h1>
+      <p>ثبت ورود، زمان حضور و هزینه‌ها در یک نگاه</p>
+    </div>
     <div class="ph-rate-card" aria-label="نرخ فعلی خانه بازی">
-      <span class="ph-rate-label">نرخ هر ۱۵ دقیقه</span>
-      <strong><span id="ph-price-value">—</span> <small>تومان</small></strong>
-      {% if can_edit_playhouse_price %}<button type="button" class="btn btn-sm btn-outline-light mt-2" data-bs-toggle="modal" data-bs-target="#ph-price-modal"><i data-lucide="pencil" aria-hidden="true"></i> تغییر نرخ</button>{% endif %}
+      <div class="ph-rate-details">
+        <span class="ph-rate-label">نرخ هر ۱۵ دقیقه</span>
+        <strong><span id="ph-price-value">—</span> <small>تومان</small></strong>
+      </div>
+      {% if can_edit_playhouse_price %}<button type="button" class="btn btn-sm ph-rate-edit" data-bs-toggle="modal" data-bs-target="#ph-price-modal"><i data-lucide="pencil" aria-hidden="true"></i> تغییر نرخ</button>{% endif %}
     </div>
   </section>
 

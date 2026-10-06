@@ -205,6 +205,17 @@
     function hideMobileDrawer() {
       if (sidebar) sidebar.classList.remove('show');
       if (backdrop) backdrop.classList.remove('d-block');
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    }
+    function closeMobileDrawer() {
+      document.body.classList.add('sidebar-hidden');
+      hideMobileDrawer();
+    }
+    function openMobileDrawer() {
+      document.body.classList.add('sidebar-hidden');
+      if (sidebar) sidebar.classList.add('show');
+      if (backdrop) backdrop.classList.add('d-block');
+      if (toggle) toggle.setAttribute('aria-expanded', 'true');
     }
 
     // small-mode flyout: place .nav-menu-sub beside its trigger (RTL: left edge)
@@ -227,9 +238,8 @@
       var mode = viewport();
       if (mode === 'mobile') {
         setSidebarAttr('large');
-        document.body.classList.remove('sidebar-hidden');
-        if (sidebar) sidebar.classList.toggle('show');
-        if (backdrop) backdrop.classList.toggle('d-block');
+        if (sidebar && sidebar.classList.contains('show')) closeMobileDrawer();
+        else openMobileDrawer();
         closeFlyouts();
       } else if (mode === 'tablet') {
         document.body.classList.toggle('sidebar-hidden');
@@ -247,8 +257,14 @@
 
     if (toggle) toggle.addEventListener('click', toggleSidebar);
     if (backdrop) backdrop.addEventListener('click', function () {
-      hideMobileDrawer();
+      closeMobileDrawer();
       closeFlyouts();
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && viewport() === 'mobile' && sidebar && sidebar.classList.contains('show')) {
+        closeMobileDrawer();
+        if (toggle) toggle.focus();
+      }
     });
 
     // Responsive sync on load/resize (theme behavior):
@@ -259,10 +275,10 @@
       var mode = viewport();
       if (mode === 'mobile') {
         docEl.setAttribute('data-sidebar', 'large');
-        document.body.classList.remove('sidebar-hidden');
-        if (sidebar) sidebar.classList.remove('show');
+        closeMobileDrawer();
       } else if (mode === 'tablet') {
         setSidebarAttr('small');
+        hideMobileDrawer();
       } else {
         document.body.classList.remove('sidebar-hidden');
         hideMobileDrawer();
