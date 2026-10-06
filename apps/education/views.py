@@ -970,6 +970,7 @@ class SessionBulkAttendanceView(APIView):
         try:
             result = bulk_attendance(
                 session=session, rows=rows, recorded_by=request.user, replace=replace,
+                lock_recorded=True,
             )
         except EducationServiceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -1064,8 +1065,9 @@ class OfferingSessionSheetView(APIView):
                     session=session, is_deleted=False
                 )
             }
+        recorded_count = len(saved)
         # The class's own session list — powers the sheet's session dropdown
-        # (pick a recorded session to edit, or choose «جلسه جدید»).
+        # and identifies sessions whose attendance is already locked.
         sessions = [
             {
                 "id": str(s.pk),
@@ -1114,6 +1116,7 @@ class OfferingSessionSheetView(APIView):
                 "title": session.title,
                 "lesson": str(session.lesson_id) if session.lesson_id else "",
                 "status": session.status,
+                "recorded": recorded_count,
             },
             "rows": roster,
             "sessions": sessions,
@@ -1191,6 +1194,7 @@ class OfferingRecordSessionView(APIView):
                 lesson=vd.get("lesson"),
                 title=vd.get("title", ""),
                 replace=replace,
+                lock_recorded=True,
             )
         except EducationServiceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -1267,12 +1271,29 @@ class LearnerPortalView(APIView):
                 "detail": "شما دانش‌آموز یا ولیّ ثبت‌شده‌ی این حساب نیستید.",
                 "students": students,
             }, status=status.HTTP_403_FORBIDDEN)
+        start = end = None
+        for key in ("start", "end"):
+            value = (request.query_params.get(key) or "").strip()
+            if not value:
+                continue
+            try:
+                parsed = dt.date.fromisoformat(value)
+            except ValueError:
+                return Response({key: "تاریخ باید به شکل YYYY-MM-DD باشد."}, status=400)
+            if key == "start":
+                start = parsed
+            else:
+                end = parsed
+        if start and end and start > end:
+            return Response({"end": "تاریخ پایان باید برابر یا بعد از شروع باشد."}, status=400)
         return Response({
             "student": next((s for s in students if s["id"] == str(person.pk)),
                             {"id": str(person.pk), "name": person.display_name,
                              "student_code": person.student_code or "", "relation": "self"}),
             "students": students,
-            "attendance": learner_attendance_summary(request.user, student=person),
+            "attendance": learner_attendance_summary(
+                request.user, student=person, start=start, end=end
+            ),
             "report_cards": learner_report_cards(request.user, student=person),
             "schedule": student_schedule(
                 request.user,

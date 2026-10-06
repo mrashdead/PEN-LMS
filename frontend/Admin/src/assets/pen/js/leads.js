@@ -15,7 +15,11 @@
   function get(url) { return fetch(url, { credentials: 'same-origin', headers: headers() }).then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.detail || 'خطا در دریافت اطلاعات'); return b; }); }); }
   function post(url, payload) { return fetch(url, { method: 'POST', credentials: 'same-origin', headers: headers(), body: JSON.stringify(payload || {}) }).then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(errorText(b)); return b; }); }); }
   function errorText(body) { return Object.keys(body || {}).map(function (k) { var v = body[k]; return Array.isArray(v) ? v.join('، ') : String(v); }).join(' — ') || 'عملیات انجام نشد.'; }
-  function fmtDate(value) { if (!value) return 'تعیین نشده'; return String(value).replace(/-/g, '/'); }
+  function fmtDate(value) {
+    if (!value) return 'تعیین نشده';
+    var jalali = window.penISOToJalali ? window.penISOToJalali(value) : '';
+    return jalali || String(value).slice(0, 10).replace(/-/g, '/');
+  }
   function fmtTime(value) { return value ? String(value).slice(0, 5) : ''; }
   function toAsciiDigits(value) { return String(value || '').replace(/[۰-۹٠-٩]/g, function (c) { return String('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩'.indexOf(c) % 10); }); }
 

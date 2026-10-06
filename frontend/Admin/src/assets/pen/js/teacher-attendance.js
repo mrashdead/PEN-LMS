@@ -7,8 +7,8 @@
  * ONE atomic POST /offerings/{id}/record-session/ (session + all rows in a
  * single server-side transaction; duplicate number/date is refused there).
  *
- * Editing: the session dropdown lists the class's saved sessions; picking one
- * prefills metadata + statuses (the sheet endpoint merges saved records).
+ * Review: the session dropdown lists the class's saved sessions; picking one
+ * prefills its metadata + statuses, and sessions with attendance are read-only.
  * Deep links: ?class=<offering>&session=<sid> (dashboard cards) or
  * ?session=<sid> (teacher calendar) — resolved via the session detail API.
  */
@@ -76,19 +76,22 @@
   var $rows = document.getElementById('att-rows');
   var $count = document.getElementById('att-count');
   var $summary = document.getElementById('att-summary');
+  var $lockedHint = document.getElementById('att-locked-hint');
   var $replace = document.getElementById('att-replace');
   var $save = document.getElementById('att-save');
   var $allPresent = document.getElementById('att-all-present');
   var $clear = document.getElementById('att-clear');
 
   var classes = [];
-  var sheet = null;        // { offering_id, session_id|null, rows:[{id,status,note,inactive}] }
+  var sheet = null;        // { offering_id, session_id|null, locked, rows:[{id,status,note,inactive}] }
 
   // ── enable/disable ──────────────────────────────────────────────────
-  function setEnabled(on) {
-    [$date, $num, $start, $end, $title, $save, $new, $allPresent, $clear].forEach(function (el) {
-      el.disabled = !on;
+  function setEnabled(on, locked) {
+    var editable = !!on && !locked;
+    [$date, $num, $start, $end, $title, $save, $allPresent, $clear, $replace].forEach(function (el) {
+      el.disabled = !editable;
     });
+    $new.disabled = !on;
   }
 
   // ── class picker ────────────────────────────────────────────────────
@@ -101,7 +104,9 @@
     }
     $ses.disabled = false;
     $ses.innerHTML = '<option value="">⟵ جلسه جدید (امروز)</option>' +
-      (c.sessions || []).slice().reverse().map(function (s) {
+      (c.sessions || []).slice().sort(function (a, b) {
+        return (a.number || 0) - (b.number || 0);
+      }).map(function (s) {
         var label = 'جلسه ' + pn(s.number) + ' — ' + esc(isoToJalali(s.date)) + ' · ' + pn(s.start) +
           (s.recorded ? ' (' + pn(s.recorded) + ' ثبت‌شده)' : ' (بدون حضور)');
         return '<option value="' + esc(s.id) + '">' + label + '</option>';
@@ -127,7 +132,8 @@
   function statusButton(row, st) {
     var active = row.status === st[0];
     return '<button type="button" class="pen-status ' + (active ? st[0] : 'unset') + '"' +
-      ' data-status="' + st[0] + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
+      ' data-status="' + st[0] + '" aria-pressed="' + (active ? 'true' : 'false') + '"' +
+      (sheet && sheet.locked ? ' disabled' : '') + '>' +
       '<span class="dot"></span>' + st[1] + '</button>';
   }
 
@@ -150,7 +156,8 @@
           (r.inactive ? ' <span class="badge text-bg-secondary">غیرفعال</span>' : '') + '</div></td>' +
         '<td><div class="pen-seg">' + STATUSES.map(function (st) { return statusButton(r, st); }).join('') + '</div></td>' +
         '<td class="row-note"><input type="text" class="form-control form-control-sm note-input" maxlength="500" ' +
-          'value="' + esc(r.note || '') + '" placeholder="توضیح وضعیت…" aria-label="یادداشت ' + esc(r.name) + '"></td>' +
+          'value="' + esc(r.note || '') + '" placeholder="توضیح وضعیت…" aria-label="یادداشت ' + esc(r.name) + '"' +
+          (sheet.locked ? ' disabled' : '') + '></td>' +
         '</tr>';
     }).join('');
 
@@ -159,6 +166,7 @@
       function row() { return sheet.rows.filter(function (x) { return x.id === id; })[0]; }
       $tr.querySelectorAll('[data-status]').forEach(function ($btn) {
         $btn.addEventListener('click', function () {
+          if (sheet.locked) return;
           var r = row(); if (!r) return;
           var next = (r.status === $btn.dataset.status) ? '' : $btn.dataset.status;
           r.status = next;
@@ -172,7 +180,10 @@
         });
       });
       var $note = $tr.querySelector('.note-input');
-      if ($note) $note.addEventListener('input', function () { var r = row(); if (r) r.note = $note.value; });
+      if ($note) $note.addEventListener('input', function () {
+        if (sheet.locked) return;
+        var r = row(); if (r) r.note = $note.value;
+      });
     });
     updateSummary();
     icons();
@@ -198,9 +209,14 @@
   function openSheet(offeringId, sessionId) {
     var url = SHEET(offeringId) + (sessionId ? '?session=' + encodeURIComponent(sessionId) : '');
     return get(url).then(function (d) {
-      sheet = { offering_id: offeringId, session_id: (d.session && d.session.id) || null, rows: d.rows || [] };
+      sheet = {
+        offering_id: offeringId,
+        session_id: (d.session && d.session.id) || null,
+        locked: !!(d.session && Number(d.session.recorded) > 0),
+        rows: d.rows || [],
+      };
       if (sheet.session_id) {
-        // editing a saved session — prefill its metadata; the sheet's own
+        // viewing a saved session — prefill its metadata; the sheet's own
         // session list is authoritative (the class picker may be capped),
         // dates come back ISO in both.
         var s = (d.sessions || []).filter(function (x) { return x.id === sheet.session_id; })[0];
@@ -217,8 +233,9 @@
         $title.value = '';
       }
       $ses.value = sheet.session_id || '';
+      $lockedHint.classList.toggle('d-none', !sheet.locked);
       renderRows();
-      setEnabled(true);
+      setEnabled(true, sheet.locked);
       if (window.penAttachJalaliPickers) window.penAttachJalaliPickers();
       icons();
     });
@@ -227,6 +244,8 @@
   // ── events ──────────────────────────────────────────────────────────
   $cls.addEventListener('change', function () {
     sheet = null;
+    $lockedHint.classList.add('d-none');
+    setEnabled(false);
     renderSessions();
     if (!$cls.value) { setEnabled(false); renderRows(); return; }
     openSheet($cls.value, null);
@@ -241,18 +260,18 @@
     openSheet($cls.value, null);
   });
   $allPresent.addEventListener('click', function () {
-    if (!sheet) return;
+    if (!sheet || sheet.locked) return;
     sheet.rows.forEach(function (r) { if (!r.inactive) r.status = r.status || 'present'; });
     renderRows();
   });
   $clear.addEventListener('click', function () {
-    if (!sheet) return;
+    if (!sheet || sheet.locked) return;
     sheet.rows.forEach(function (r) { r.status = ''; });
     renderRows();
   });
 
   $save.addEventListener('click', function () {
-    if (!sheet) return;
+    if (!sheet || sheet.locked) return;
     var date = toLatin($date.value).trim().replace(/\./g, '/');
     var start = toLatin($start.value).trim();
     var end = toLatin($end.value).trim();

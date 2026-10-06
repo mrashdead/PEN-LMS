@@ -115,7 +115,15 @@ Add a page: one nav-item; add a section: copy a collapse block.
              class="nav-link{% if urlname == 'workspace-learner-portal' %} active{% endif %}"
              {% if urlname == 'workspace-learner-portal' %}aria-current="page"{% endif %}>
             <span class="icons"><i data-lucide="graduation-cap"></i></span>
-            <span class="content">حضور، کارنامه و گزارش‌های من</span>
+            <span class="content">حضور و کارنامه</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'workspace-learner-progress-reports' %}" title="گزارش‌های مدرس"
+             class="nav-link{% if urlname == 'workspace-learner-progress-reports' %} active{% endif %}"
+             {% if urlname == 'workspace-learner-progress-reports' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="file-text"></i></span>
+            <span class="content">گزارش‌های مدرس</span>
           </a>
         </li>
         {% endif %}

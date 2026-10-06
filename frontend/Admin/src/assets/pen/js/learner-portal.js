@@ -43,13 +43,16 @@
   var $cards = document.getElementById('lp-cards');
   var $sessions = document.getElementById('lp-sessions');
   var $filter = document.getElementById('lp-filter');
-  var $pdfLink = document.getElementById('lp-pdf-link');
-  var $smsButton = document.getElementById('lp-sms-button');
+  var $dateStart = document.getElementById('lp-date-start');
+  var $dateEnd = document.getElementById('lp-date-end');
+  var $dateReset = document.getElementById('lp-date-reset');
+  var $reportsLink = document.getElementById('lp-reports-link');
   var $schedule = document.getElementById('lp-schedule');
   var $scheduleUpdated = document.getElementById('lp-schedule-updated');
 
   var current = [];   // sessions of the loaded student (for client-side filter)
   var portalLoadVersion = 0;
+  var selectedStudentId = '';
 
   function renderSwitch(students, activeId) {
     if (!students || students.length < 2) { $switchRow.hidden = true; return; }
@@ -163,8 +166,24 @@
 
   function load(studentId) {
     var loadVersion = ++portalLoadVersion;
+    selectedStudentId = studentId || '';
     document.dispatchEvent(new CustomEvent('pen:learner-selected', {detail: {student: ''}}));
-    var url = PORTAL + (studentId ? '?student=' + encodeURIComponent(studentId) : '');
+    var params = new URLSearchParams();
+    if (studentId) params.set('student', studentId);
+    var start = $dateStart.value.trim(), end = $dateEnd.value.trim();
+    var startIso = start && window.penJalaliToISO ? window.penJalaliToISO(start) : '';
+    var endIso = end && window.penJalaliToISO ? window.penJalaliToISO(end) : '';
+    if ((start && !startIso) || (end && !endIso)) {
+      toast('تاریخ را به شکل سال/ماه/روز وارد کنید.', 'warning');
+      return;
+    }
+    if (startIso) params.set('start', startIso);
+    if (endIso) params.set('end', endIso);
+    if (startIso && endIso && startIso > endIso) {
+      toast('تاریخ پایان باید برابر یا بعد از شروع باشد.', 'warning');
+      return;
+    }
+    var url = PORTAL + (params.toString() ? '?' + params.toString() : '');
     $cards.innerHTML = '<div class="pen-loading">در حال بارگذاری…</div>';
     $sessions.innerHTML = '<tr><td colspan="5"><div class="pen-loading">در حال بارگذاری…</div></td></tr>';
     get(url).then(function (d) {
@@ -174,9 +193,15 @@
       renderCards(d.report_cards || []);
       renderSchedule(d.schedule || {});
       var selected = d.student && d.student.id;
+      selectedStudentId = selected || '';
       document.dispatchEvent(new CustomEvent('pen:learner-selected', {detail: {student: selected}}));
-      if ($pdfLink) $pdfLink.href = '/api/education/portal/report-card/?format=pdf&student=' + encodeURIComponent(selected || '');
-      if ($smsButton) $smsButton.dataset.student = selected || '';
+      if ($reportsLink) {
+        var reportParams = new URLSearchParams();
+        if (selected) reportParams.set('student', selected);
+        if (start) reportParams.set('start', start);
+        if (end) reportParams.set('end', end);
+        $reportsLink.href = '/workspace/portal/reports/' + (reportParams.toString() ? '?' + reportParams.toString() : '');
+      }
     }).catch(function (e) {
       if (loadVersion !== portalLoadVersion) return;
       if (e.status === 403 && e.body && e.body.students) {
@@ -190,23 +215,12 @@
   }
 
   $filter.addEventListener('change', renderSessions);
-
-  if ($smsButton) {
-    $smsButton.addEventListener('click', function () {
-      var studentId = $smsButton.dataset.student || '';
-      $smsButton.disabled = true;
-      fetch('/api/education/portal/report-card/', {
-        method: 'POST', credentials: 'same-origin',
-        headers: Object.assign({ 'Content-Type': 'application/json' }, window.penCsrfHeader ? window.penCsrfHeader() : {}),
-        body: JSON.stringify({ student: studentId, channel: 'sms' })
-      }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); })
-        .then(function (res) { if (!res.ok) throw new Error(res.b.detail || 'ارسال پیامک انجام نشد.'); toast(res.b.message || 'پیامک ارسال شد.', 'success'); })
-        .catch(function (e) { toast(e.message, 'danger'); })
-        .finally(function () { $smsButton.disabled = false; });
-    });
-  }
+  [$dateStart, $dateEnd].forEach(function (input) { input.addEventListener('change', function () { load(selectedStudentId || param('student') || ''); }); });
+  $dateReset.addEventListener('click', function () { $dateStart.value = ''; $dateEnd.value = ''; load(selectedStudentId || param('student') || ''); });
 
   document.addEventListener('DOMContentLoaded', function () {
+    $dateStart.value = param('start');
+    $dateEnd.value = param('end');
     load(param('student') || '');
     icons();
   });

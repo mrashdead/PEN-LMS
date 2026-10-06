@@ -1,0 +1,221 @@
+/* Page-scoped visual polish for the teacher attendance workflow. */
+.teacher-attendance-page {
+  --att-card-radius: .875rem;
+}
+
+.teacher-attendance-page .card {
+  overflow: hidden;
+  border: 1px solid var(--dx-border-color);
+  border-radius: var(--att-card-radius);
+  box-shadow: 0 2px 8px rgba(18, 38, 63, .035);
+}
+
+.teacher-attendance-page .card-header {
+  min-height: 3.5rem;
+  padding: .85rem 1.1rem;
+  background: var(--dx-secondary-bg);
+}
+
+.teacher-attendance-page .card-header .card-title {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .95rem;
+  font-weight: 650;
+}
+
+.teacher-attendance-page .card-header .badge {
+  display: inline-grid;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  place-items: center;
+  margin-inline-start: 0 !important;
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.teacher-attendance-page .card-body {
+  padding: 1.15rem;
+}
+
+.teacher-attendance-page .form-label {
+  margin-bottom: .45rem;
+  font-size: .83rem;
+  font-weight: 600;
+}
+
+.teacher-attendance-page .form-select,
+.teacher-attendance-page .form-control {
+  min-height: 2.75rem;
+  border-radius: .55rem;
+}
+
+.teacher-attendance-page .form-text {
+  margin-top: .45rem;
+  line-height: 1.7;
+}
+
+.teacher-attendance-page #att-class-hint,
+.teacher-attendance-page #att-session-hint,
+.teacher-attendance-page #att-meta > p {
+  font-size: .76rem;
+}
+
+.teacher-attendance-page #att-new {
+  flex: 0 0 9rem;
+  min-height: 2.35rem;
+  padding-inline: .7rem;
+  white-space: nowrap;
+}
+
+.teacher-attendance-page #att-table {
+  min-width: 47rem;
+}
+
+.teacher-attendance-page #att-table thead th {
+  padding: .85rem .9rem;
+  color: var(--dx-secondary-color);
+  font-size: .78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.teacher-attendance-page #att-table tbody td {
+  padding: .75rem .9rem;
+}
+
+.teacher-attendance-page .att-row.marked {
+  background: color-mix(in srgb, var(--dx-primary-bg-subtle) 24%, transparent);
+}
+
+.teacher-attendance-page .att-row .row-note {
+  min-width: 12rem;
+}
+
+.teacher-attendance-page .pen-status {
+  min-height: 2rem;
+  padding: .35rem .6rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 999px;
+  font-size: .75rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.teacher-attendance-page .pen-status.unset {
+  border-color: var(--dx-border-color);
+  background: transparent;
+  color: var(--dx-secondary-color);
+}
+
+.teacher-attendance-page .pen-status.unset:hover {
+  border-color: var(--dx-primary-border-subtle, var(--dx-primary));
+  background: var(--dx-primary-bg-subtle);
+  color: var(--dx-primary);
+}
+
+.teacher-attendance-page .pen-status:focus-visible {
+  outline: 2px solid var(--dx-primary);
+  outline-offset: 2px;
+}
+
+.teacher-attendance-page .att-footer {
+  padding: .85rem 1.1rem;
+  background: var(--dx-secondary-bg);
+}
+
+.teacher-attendance-page #att-summary {
+  min-width: 15rem;
+  line-height: 1.8;
+}
+
+.teacher-attendance-page .att-footer-actions {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  margin-inline-start: auto;
+}
+
+.teacher-attendance-page .att-footer-actions .form-check {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: 100%;
+  padding-inline-start: 0;
+}
+
+.teacher-attendance-page .att-footer-actions .form-check-input {
+  float: none;
+  flex: 0 0 auto;
+  width: 2.35rem;
+  min-width: 2.35rem;
+  height: 1.25rem;
+  margin: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  visibility: visible;
+  opacity: 1;
+}
+
+.teacher-attendance-page .att-footer-actions .form-check-input:focus-visible {
+  outline: 2px solid var(--dx-primary);
+  outline-offset: 2px;
+}
+
+.teacher-attendance-page .att-footer-actions .form-check-label {
+  flex: 0 0 auto;
+  width: auto;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.teacher-attendance-page #att-save {
+  flex: 0 0 auto;
+  min-width: 8.5rem;
+  min-height: 2.65rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 767.98px) {
+  .teacher-attendance-page.row {
+    --bs-gutter-y: 1rem;
+  }
+
+  .teacher-attendance-page .card-body {
+    padding: 1rem;
+  }
+
+  .teacher-attendance-page .att-footer {
+    align-items: stretch !important;
+  }
+
+  .teacher-attendance-page #att-summary {
+    min-width: 100%;
+  }
+
+  .teacher-attendance-page .att-footer-actions {
+    width: 100%;
+    justify-content: space-between;
+    margin-inline-start: 0;
+  }
+
+  .teacher-attendance-page .att-footer-actions .form-check-label {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 420px) {
+  .teacher-attendance-page .att-footer-actions {
+    align-items: stretch !important;
+    flex-direction: column;
+  }
+
+  .teacher-attendance-page .att-footer-actions .form-check {
+    width: auto;
+  }
+
+  .teacher-attendance-page #att-save {
+    width: 100%;
+  }
+}

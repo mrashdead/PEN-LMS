@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load static asset_v %}
-{% block title %}حضور، کارنامه و گزارش‌های من{% endblock %}
+{% block title %}حضور و کارنامه{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="حضور، کارنامه و گزارش‌های من" %}
+  {% include "partials/page-heading.html" with title="حضور و کارنامه" %}
 {% endblock %}
 
 {% block content %}
@@ -18,42 +18,19 @@
   </div>
 </div>
 
-<section id="progress-learner" class="mb-4" aria-labelledby="progress-learner-title">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
-    <div><h2 id="progress-learner-title" class="h5 mb-1">گزارش‌های مدرس</h2><p class="text-muted mb-0">گزارش روزانه، هفتگی و ماهانهٔ پیشرفت شما</p></div>
-    <div class="d-flex align-items-center gap-2"><label for="progress-learner-filter" class="form-label mb-0">نوع گزارش</label><select id="progress-learner-filter" class="form-select form-select-sm"><option value="">همه</option><option value="daily">روزانه</option><option value="weekly">هفتگی</option><option value="monthly">ماهانه</option></select></div>
-  </div>
-  <div id="progress-learner-message" class="alert" role="status" aria-live="polite" hidden></div>
-  <div id="progress-learner-history" class="vstack gap-3"><p class="text-muted">در حال دریافت گزارش‌ها…</p></div>
-  <button id="progress-learner-more" type="button" class="btn btn-outline-secondary mt-3" hidden>نمایش گزارش‌های بیشتر</button>
-</section>
-<div class="row g-4 mb-4">
-  <div class="col-12">
-    <div class="card">
-      <div class="card-body d-flex flex-wrap align-items-center gap-2">
-        <div class="flex-grow-1">
-          <h6 class="mb-1">گزارش قابل ارسال برای ولی</h6>
-          <p class="mb-0 text-muted fs-14">نسخهٔ PDF را دانلود کنید یا خلاصهٔ وضعیت را برای ولی پیامک کنید.</p>
-        </div>
-        <a id="lp-pdf-link" href="#" class="btn btn-outline-primary" target="_blank" rel="noopener">
-          <i data-lucide="file-down" class="size-4 me-1"></i> دانلود PDF
-        </a>
-        <button type="button" id="lp-sms-button" class="btn btn-primary">
-          <i data-lucide="message-square-share" class="size-4 me-1"></i> ارسال پیامک به ولی
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div class="row g-4 mb-4">
   {# ── attendance stats ─────────────────────────────────────────────── #}
-  <div class="col-12 col-lg-4">
+  <div class="col-12 col-xl-4">
     <div class="card card-h-100">
       <div class="card-header d-flex align-items-center gap-2">
         <h6 class="mb-0 card-title flex-grow-1"><i data-lucide="user-check" class="size-4 me-1"></i> آمار حضور</h6>
       </div>
       <div class="card-body">
+        <div class="row g-2 mb-3">
+          <div class="col-6"><label for="lp-date-start" class="form-label fs-13">از تاریخ</label><input id="lp-date-start" class="form-control form-control-sm" type="text" data-jalali autocomplete="off" placeholder="۱۴۰۵/۰۷/۱۴" inputmode="numeric"></div>
+          <div class="col-6"><label for="lp-date-end" class="form-label fs-13">تا تاریخ</label><input id="lp-date-end" class="form-control form-control-sm" type="text" data-jalali autocomplete="off" placeholder="۱۴۰۵/۰۷/۱۴" inputmode="numeric"></div>
+          <div class="col-12 d-flex justify-content-end"><button id="lp-date-reset" type="button" class="btn btn-sm btn-link text-decoration-none px-0">نمایش همهٔ تاریخ‌ها</button></div>
+        </div>
         <div class="d-flex align-items-center gap-4 mb-3">
           <div class="pen-ring" id="lp-ring" style="--pen-ring:0"><span id="lp-rate">—</span></div>
           <div>
@@ -73,10 +50,10 @@
   </div>
 
   {# ── report cards ─────────────────────────────────────────────────── #}
-  <div class="col-12 col-lg-8">
+  <div class="col-12 col-xl-8">
     <div class="card card-h-100">
       <div class="card-header d-flex align-items-center gap-2">
-        <h6 class="mb-0 card-title flex-grow-1"><i data-lucide="clipboard-check" class="size-4 me-1"></i> کارنامه توصیفی</h6>
+        <h6 class="mb-0 card-title flex-grow-1"><i data-lucide="clipboard-check" class="size-4 me-1"></i> کارنامه</h6>
       </div>
       <div class="card-body p-0">
         <div id="lp-cards">
@@ -103,6 +80,9 @@
             <option value="excused">موجه</option>
           </select>
         </div>
+        <a id="lp-reports-link" href="{% url 'workspace-learner-progress-reports' %}" class="btn btn-sm btn-outline-primary">
+          <i data-lucide="file-text" class="size-4 me-1"></i> گزارش‌های مدرس
+        </a>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
@@ -142,6 +122,5 @@
 {% endblock %}
 
 {% block page_js %}
-<script src="{% asset_v_url 'assets/pen/js/progress-reports.js' %}"></script>
 <script src="{% asset_v_url 'assets/pen/js/learner-portal.js' %}"></script>
 {% endblock %}

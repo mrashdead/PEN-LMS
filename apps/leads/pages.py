@@ -7,6 +7,7 @@ from django.views.generic import TemplateView
 
 from apps.core.utils import jalali_date_str
 from apps.leads.permissions import LEAD_OPERATOR_ROLES
+from apps.leads.models import Lead
 from apps.education.models import Course
 from apps.leads.selectors import assigned_leads_for_teacher, assessors
 
@@ -55,8 +56,11 @@ class LeadTeacherAssessmentsPage(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         leads = assigned_leads_for_teacher(self.request.user)
+        visible_leads = list(leads[:50])
+        for lead in visible_leads:
+            lead.assessment_date_jalali = jalali_date_str(lead.assessment_date) if lead.assessment_date else ""
         context.update({
-            "leads": leads[:50],
+            "leads": visible_leads,
             "lead_count": leads.count(),
             "lead_pending_count": leads.filter(status__in=[Lead.Status.SENT, "scheduled"]).count(),
             "lead_completed_count": leads.filter(status__in=[Lead.Status.ASSESSED, Lead.Status.RECOMMENDED, Lead.Status.ENROLLED]).count(),

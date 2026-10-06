@@ -1019,11 +1019,26 @@ jdp-overlay   { z-index: 1075 !important; }
 /* Calls workspace: one clear form, quiet metrics, compact history. */
 .progress-workspace { max-width: 72rem; margin-inline: auto; }
 .progress-workspace [hidden], #progress-learner [hidden] { display: none !important; }
+.progress-period-range { direction: rtl; flex-wrap: nowrap; white-space: nowrap; overflow-x: auto; }
+.progress-period-date { direction: ltr; unicode-bidi: isolate; }
+.progress-period-separator { direction: rtl; unicode-bidi: isolate; }
 .progress-report-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.9; max-width: 75ch; }
 .progress-report-details summary { cursor: pointer; color: var(--dx-primary); font-weight: 600; }
 .progress-report-details summary:focus-visible { outline: 2px solid var(--dx-primary); outline-offset: 4px; }
 .progress-report h3, .progress-report h4 { overflow-wrap: anywhere; }
 .progress-report section { padding-top: .5rem; border-top: 1px solid var(--dx-border-color); }
+
+/* Learner report pages: compact controls and readable report cards. */
+.learner-reports-page .card { border-color: var(--dx-border-color); }
+.learner-reports-page #progress-learner-start,
+.learner-reports-page #progress-learner-end { width: min(100%, 12rem); }
+#lp-date-start, #lp-date-end { text-align: center; }
+#lp-ring { flex: 0 0 auto; }
+#lp-cards .pen-result { white-space: nowrap; }
+@media (max-width: 575.98px) {
+  .learner-reports-page #progress-learner-start,
+  .learner-reports-page #progress-learner-end { width: 100%; }
+}
 
 .calls-page { max-width: 78rem; margin-inline: auto; }
 .calls-page [hidden] { display: none !important; }

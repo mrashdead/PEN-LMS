@@ -68,6 +68,10 @@ class DashboardLoginView(LoginView):
         if data is not None:
             data = data.copy()
             data["username"] = english_numbers(data.get("username", "")).strip()
+            # دانش‌آموزان و معلمان معمولاً کد ملی را به‌عنوان رمز اولیه هم
+            # وارد می‌کنند؛ رقم‌های فارسی/عربی رمز را هم مانند نام کاربری
+            # به شکل انگلیسی ذخیره‌شده تبدیل کنیم.
+            data["password"] = english_numbers(data.get("password", ""))
             kwargs["data"] = data
         return kwargs
 

@@ -1,4 +1,6 @@
 """Teacher composition and learner delivery of student progress reports."""
+from datetime import timedelta
+
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -10,6 +12,7 @@ from rest_framework.views import APIView
 
 from apps.core.fields import JalaliDateField
 from apps.core.permissions import IsActiveUser, IsTeacherPortalUser
+from apps.core.utils import to_jalali_date
 from apps.education.models import CourseOffering, StudentProgressReport
 from apps.education.services import _resolve_learner_person, roster_students
 
@@ -68,7 +71,27 @@ class ProgressReportSerializer(serializers.ModelSerializer):
             limit = {"daily": 1, "weekly": 7, "monthly": 31}[period]
             if days > limit:
                 raise ValidationError({"period_end": f"بازهٔ این گزارش حداکثر {limit} روز است."})
-            if end > timezone.localdate():
+            today = timezone.localdate()
+            current_week_start = today - timedelta(days=(today.weekday() - 5) % 7)
+            jalali_today = to_jalali_date(today)
+            jalali_month_start = jalali_today.replace(day=1)
+            if jalali_today.month == 12:
+                jalali_next_month = jalali_today.replace(year=jalali_today.year + 1, month=1, day=1)
+            else:
+                jalali_next_month = jalali_today.replace(month=jalali_today.month + 1, day=1)
+            current_month_start = jalali_month_start.togregorian()
+            current_month_end = jalali_next_month.togregorian() - timedelta(days=1)
+            is_current_full_week = (
+                period == "weekly"
+                and start == current_week_start
+                and end == current_week_start + timedelta(days=6)
+            )
+            is_current_full_month = (
+                period == "monthly"
+                and start == current_month_start
+                and end == current_month_end
+            )
+            if end > today and not (is_current_full_week or is_current_full_month):
                 raise ValidationError({"period_end": "گزارش عملکرد نمی‌تواند برای آینده باشد."})
         return attrs
 
@@ -165,6 +188,19 @@ class LearnerProgressReportListView(generics.ListAPIView):
         qs = report_rows().filter(student=person, status=StudentProgressReport.Status.SENT).order_by("-sent_at", "-pk")
         if self.request.query_params.get("period"):
             qs = qs.filter(period=self.request.query_params["period"])
+        start = self.request.query_params.get("start")
+        end = self.request.query_params.get("end")
+        if bool(start) != bool(end):
+            raise ValidationError({"date_range": "تاریخ شروع و پایان را با هم وارد کنید."})
+        if start and end:
+            try:
+                start_date = JalaliDateField().run_validation(start)
+                end_date = JalaliDateField().run_validation(end)
+            except serializers.ValidationError as exc:
+                raise ValidationError({"date_range": exc.detail})
+            if start_date > end_date:
+                raise ValidationError({"end": "تاریخ پایان باید برابر یا بعد از شروع باشد."})
+            qs = qs.filter(period_start__lte=end_date, period_end__gte=start_date)
         return qs
 
 

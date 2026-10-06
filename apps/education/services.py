@@ -899,6 +899,7 @@ def bulk_attendance(
     rows: Iterable[dict],
     recorded_by=None,
     replace: bool = False,
+    lock_recorded: bool = False,
 ) -> dict:
     """
     Bulk attendance for one real session (idempotent on re-post).
@@ -915,6 +916,10 @@ def bulk_attendance(
     session = ClassSession.objects.select_for_update().get(pk=session.pk)
     if session.status == ClassSession.Status.CANCELLED:
         raise EducationServiceError("برای جلسه‌ی لغوشده نمی‌توان حضور ثبت کرد.")
+    if lock_recorded and AttendanceRecord.objects.filter(
+        session=session, is_deleted=False
+    ).exists():
+        raise EducationServiceError("حضور این جلسه قبلاً ثبت شده و دیگر قابل تغییر نیست.")
 
     from django.core.exceptions import ValidationError
 
@@ -1123,6 +1128,7 @@ def record_session_attendance(
     title: str = "",
     replace: bool = True,
     class_code: str = "",
+    lock_recorded: bool = False,
 ) -> dict:
     """
     Teacher-portal attendance write — ONE atomic transaction for the whole
@@ -1261,7 +1267,8 @@ def record_session_attendance(
                 raise EducationServiceError("شماره جلسه تکراری است.") from exc
 
     counts = bulk_attendance(
-        session=session, rows=rows, recorded_by=actor, replace=replace
+        session=session, rows=rows, recorded_by=actor, replace=replace,
+        lock_recorded=lock_recorded,
     )
     return {
         "session_id": str(session.pk),
@@ -1417,7 +1424,7 @@ def learner_students(user) -> list[dict]:
     return uniq
 
 
-def learner_attendance_summary(user, student=None) -> dict:
+def learner_attendance_summary(user, student=None, start=None, end=None) -> dict:
     """
     Attendance stats + session list for a learner's OWN (or ward's) record.
 
@@ -1435,16 +1442,20 @@ def learner_attendance_summary(user, student=None) -> dict:
     empty = {"totals": {}, "all": 0, "rate": 0, "on_time_rate": 0, "sessions": []}
     if person is None:
         return empty
-    records = (
+    records_qs = (
         AttendanceRecord.objects.filter(
             student=person, is_deleted=False, session__is_deleted=False
         )
         .select_related("session")
         .order_by("-session__session_date", "-session__start_time")
     )
+    if start is not None:
+        records_qs = records_qs.filter(session__session_date__gte=start)
+    if end is not None:
+        records_qs = records_qs.filter(session__session_date__lte=end)
     totals: dict[str, int] = {}
     sessions = []
-    for r in records:
+    for r in records_qs:
         totals[r.status] = totals.get(r.status, 0) + 1
         sessions.append({
             "date": r.session.session_date.isoformat(),
@@ -1464,8 +1475,9 @@ def learner_attendance_summary(user, student=None) -> dict:
     all_count = sum(totals.values())
     present = totals.get(AttendanceRecord.Status.PRESENT, 0)
     late = totals.get(AttendanceRecord.Status.LATE, 0)
-    on_time_rate = round(present * 100 / all_count) if all_count else 0
-    rate = round((present + late) * 100 / all_count) if all_count else 0
+    counted = all_count - totals.get(AttendanceRecord.Status.EXCUSED, 0)
+    on_time_rate = round(present * 100 / counted, 1) if counted else 0
+    rate = round((present + late) * 100 / counted, 1) if counted else 0
     return {
         "totals": {
             "present": totals.get("present", 0),
@@ -1476,6 +1488,8 @@ def learner_attendance_summary(user, student=None) -> dict:
         "all": all_count,
         "rate": rate,
         "on_time_rate": on_time_rate,
+        "start": start.isoformat() if start else "",
+        "end": end.isoformat() if end else "",
         "sessions": sessions,
     }
 

@@ -5,7 +5,7 @@
   {% include "partials/page-heading.html" with title="گزارش پیشرفت دانش‌آموزان" section="پنل مدرس" section_url="/workspace/teacher/" %}
 {% endblock %}
 {% block content %}
-<main id="progress-teacher" class="progress-workspace">
+<main id="progress-teacher" class="progress-workspace" data-system-date="{{ system_date }}">
   <p class="text-muted mb-4">برای هر دانش‌آموز گزارش روزانه، هفتگی یا ماهانه بنویسید. پس از ارسال، گزارش در پرتال او نمایش داده می‌شود.</p>
   <div id="progress-message" class="alert" role="status" aria-live="polite" hidden></div>
   <section class="card mb-4" aria-labelledby="progress-selection-title">
@@ -26,10 +26,8 @@
       <div class="card-body">
         <h3 id="progress-form-title" class="h6 mb-3">گزارش جدید</h3>
         <div class="row g-3">
-          <div class="col-12 col-md-4"><label for="progress-period" class="form-label">نوع گزارش</label><select id="progress-period" name="period" class="form-select"><option value="daily">روزانه</option><option value="weekly">هفتگی</option><option value="monthly">ماهانه</option></select></div>
-          <div class="col-12 col-md-4"><label for="progress-start" class="form-label">از تاریخ</label><input id="progress-start" name="period_start" class="form-control" data-jalali dir="ltr" placeholder="سال/ماه/روز" required autocomplete="off"></div>
-          <div class="col-12 col-md-4"><label for="progress-end" class="form-label">تا تاریخ</label><input id="progress-end" name="period_end" class="form-control" data-jalali dir="ltr" placeholder="سال/ماه/روز" required autocomplete="off"></div>
-          <div class="col-12"><p id="progress-period-help" class="form-text mb-0">گزارش روزانه برای یک روز است؛ بازهٔ هفتگی حداکثر ۷ روز و ماهانه حداکثر ۳۱ روز است.</p></div>
+          <div class="col-12 col-md-5"><label for="progress-period" class="form-label">نوع گزارش</label><select id="progress-period" name="period" class="form-select"><option value="daily">روزانه</option><option value="weekly">هفتگی</option><option value="monthly">ماهانه</option></select></div>
+          <div class="col-12 col-md-7"><span class="form-label d-block" id="progress-period-label">بازه گزارش</span><output id="progress-period-range" class="form-control bg-light d-flex align-items-center gap-2" aria-live="polite" aria-labelledby="progress-period-label" dir="rtl"></output><input id="progress-start" name="period_start" type="hidden"><input id="progress-end" name="period_end" type="hidden"></div>
           <div class="col-12"><label for="progress-title" class="form-label">عنوان گزارش</label><input id="progress-title" name="title" class="form-control" required maxlength="200" placeholder="مثلاً پیشرفت در حل تمرین‌های این هفته"></div>
           <div class="col-12"><label for="progress-summary" class="form-label">شرح عملکرد و پیشرفت</label><textarea id="progress-summary" name="summary" class="form-control" rows="4" required maxlength="10000"></textarea></div>
           <div class="col-12 col-md-6"><label for="progress-strengths" class="form-label">نقاط قوت <span class="text-muted">(اختیاری)</span></label><textarea id="progress-strengths" name="strengths" class="form-control" rows="3" maxlength="10000"></textarea></div>

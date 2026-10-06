@@ -66,11 +66,24 @@
   if (learner) {
     const history = document.getElementById('progress-learner-history');
     const filter = document.getElementById('progress-learner-filter');
+    const startDate = document.getElementById('progress-learner-start');
+    const endDate = document.getElementById('progress-learner-end');
+    const dateReset = document.getElementById('progress-learner-date-reset');
     const more = document.getElementById('progress-learner-more');
     let student = '', next = null, version = 0;
     const load = async (append = false) => {
       const current = ++version, selected = student;
-      const url = append ? next : `/api/education/portal/progress-reports/?${new URLSearchParams({student: selected, period: filter.value})}`;
+      const params = new URLSearchParams({student: selected, period: filter.value});
+      const start = startDate.value.trim(), end = endDate.value.trim();
+      if (Boolean(start) !== Boolean(end)) { message('برای فیلتر تاریخ، هر دو تاریخ شروع و پایان را وارد کنید.', true); return; }
+      if (start && end) {
+        const startIso = window.penJalaliToISO ? window.penJalaliToISO(start) : null;
+        const endIso = window.penJalaliToISO ? window.penJalaliToISO(end) : null;
+        if (!startIso || !endIso) { message('تاریخ را به شکل سال/ماه/روز وارد کنید.', true); return; }
+        if (startIso > endIso) { message('تاریخ پایان باید برابر یا بعد از شروع باشد.', true); return; }
+        params.set('start', start); params.set('end', end);
+      }
+      const url = append ? next : `/api/education/portal/progress-reports/?${params}`;
       if (!url) return;
       more.disabled = true;
       if (!append) history.replaceChildren(el('p', 'text-muted', 'در حال دریافت گزارش‌ها…'));
@@ -93,7 +106,12 @@
       else history.replaceChildren(el('p', 'pen-empty', 'برای مشاهدهٔ گزارش‌ها دانش‌آموز را انتخاب کنید.'));
     });
     filter.addEventListener('change', () => { if (student) load(); });
+    [startDate, endDate].forEach(input => input.addEventListener('change', () => { if (student) load(); }));
+    dateReset.addEventListener('click', () => { startDate.value = ''; endDate.value = ''; if (student) load(); });
     more.addEventListener('click', () => load(true));
+    const query = new URLSearchParams(location.search);
+    startDate.value = query.get('start') || '';
+    endDate.value = query.get('end') || '';
     return;
   }
 
@@ -102,13 +120,57 @@
   const history = document.getElementById('progress-history'), filter = document.getElementById('progress-filter');
   const more = document.getElementById('progress-more'), save = document.getElementById('progress-save'), send = document.getElementById('progress-send');
   const newButton = document.getElementById('progress-new');
+  const periodRange = document.getElementById('progress-period-range');
+  const periodStart = document.getElementById('progress-start');
+  const periodEnd = document.getElementById('progress-end');
+  const currentSystemDate = document.getElementById('progress-teacher').dataset.systemDate;
+  const dateFromIso = value => {
+    const parts = value.split('-').map(Number);
+    return parts.length === 3 ? new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])) : null;
+  };
+  const isoFromDate = date => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+  const syncPeriodRange = () => {
+    const today = dateFromIso(currentSystemDate);
+    if (!today || Number.isNaN(today.getTime())) return;
+    let start = new Date(today), end = new Date(today);
+    if (form.elements.period.value === 'weekly') {
+      start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 1) % 7));
+      end = new Date(start); end.setUTCDate(end.getUTCDate() + 6);
+    } else if (form.elements.period.value === 'monthly') {
+      const [jalaliYear, jalaliMonth] = window.penISOToJalali(currentSystemDate).split('/').map(Number);
+      const nextYear = jalaliMonth === 12 ? jalaliYear + 1 : jalaliYear;
+      const nextMonth = jalaliMonth === 12 ? 1 : jalaliMonth + 1;
+      const nextMonthIso = window.penJalaliToISO(`${nextYear}/${String(nextMonth).padStart(2, '0')}/01`);
+      const monthEnd = dateFromIso(nextMonthIso);
+      monthEnd.setUTCDate(monthEnd.getUTCDate() - 1);
+      start = dateFromIso(window.penJalaliToISO(`${jalaliYear}/${String(jalaliMonth).padStart(2, '0')}/01`));
+      end = monthEnd;
+    }
+    const startIso = isoFromDate(start), endIso = isoFromDate(end);
+    periodStart.value = startIso;
+    periodEnd.value = endIso;
+    const jalali = value => window.penISOToJalali ? window.penISOToJalali(value) : value;
+    const persian = value => window.persianNumbers ? window.persianNumbers(value) : value;
+    const startLabel = persian(jalali(startIso)), endLabel = persian(jalali(endIso));
+    const datePart = value => {
+      const part = el('span', 'progress-period-date', value);
+      part.dir = 'ltr';
+      return part;
+    };
+    const parts = [datePart(startLabel)];
+    if (startIso !== endIso) {
+      const separator = el('span', 'progress-period-separator', 'تا');
+      separator.dir = 'rtl';
+      parts.push(separator, datePart(endLabel));
+    }
+    periodRange.replaceChildren(...parts);
+    return {start: startIso, end: endIso};
+  };
   let reportId = null, dirty = false, next = null, version = 0, rosterVersion = 0, activeClass = '', activeStudent = '', saving = false;
   const discard = () => !dirty || window.confirm('تغییرات ذخیره نشده‌اند. از آن‌ها صرف‌نظر می‌کنید؟');
   const fresh = () => {
     form.reset(); reportId = null; dirty = false;
-    const date = new Date(), iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const today = window.penISOToJalali ? window.penISOToJalali(iso) : '';
-    form.elements.period_start.value = today; form.elements.period_end.value = today;
+    syncPeriodRange();
     document.getElementById('progress-form-title').textContent = 'گزارش جدید';
   };
   const loadHistory = async (append = false) => {
@@ -122,7 +184,7 @@
       if (!append) history.replaceChildren();
       (Array.isArray(body) ? body : body.results || []).forEach(report => history.append(card(report, r => {
         if (saving || !discard()) return;
-        reportId = r.id; fields.forEach(field => { form.elements[field].value = r[field] || ''; }); dirty = false;
+        reportId = r.id; fields.forEach(field => { form.elements[field].value = r[field] || ''; }); syncPeriodRange(); dirty = false;
         document.getElementById('progress-form-title').textContent = 'ویرایش پیش‌نویس'; form.elements.title.focus();
       })));
       if (!history.children.length) history.append(el('p', 'pen-empty', 'برای این دانش‌آموز هنوز گزارشی ثبت نکرده‌اید.'));
@@ -156,15 +218,17 @@
   cls.addEventListener('change', () => { if (!discard()) { cls.value = activeClass; return; } dirty = false; message(''); loadRoster(); });
   student.addEventListener('change', () => { if (!discard()) { student.value = activeStudent; return; } selectStudent(); });
   form.addEventListener('input', () => { dirty = true; }); form.addEventListener('change', () => { dirty = true; });
-  const dailyEnd = () => { if (form.elements.period.value === 'daily') form.elements.period_end.value = form.elements.period_start.value; };
-  form.elements.period_start.addEventListener('change', dailyEnd); form.elements.period.addEventListener('change', dailyEnd);
+  form.elements.period.addEventListener('change', () => { syncPeriodRange(); dirty = true; });
   newButton.addEventListener('click', () => { if (!saving && discard()) { fresh(); form.elements.title.focus(); } });
   filter.addEventListener('change', () => loadHistory()); more.addEventListener('click', () => loadHistory(true));
   window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   form.addEventListener('submit', async event => {
     event.preventDefault(); if (saving || !activeStudent) return;
     const publish = event.submitter === send;
-    const data = Object.fromEntries(fields.map(field => [field, form.elements[field].value])); data.offering = activeClass; data.student = activeStudent;
+    const range = syncPeriodRange();
+    const data = Object.fromEntries(fields.map(field => [field, form.elements[field].value]));
+    data.period_start = range.start; data.period_end = range.end;
+    data.offering = activeClass; data.student = activeStudent;
     saving = true; form.setAttribute('aria-busy', 'true');
     [...form.elements, newButton, cls, student].forEach(control => { control.disabled = true; });
     try {

@@ -21,6 +21,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.shortcuts import redirect, render
+from django.utils import timezone
 from django.views.generic import TemplateView
 
 from apps.accounts.forms import AdminPasswordResetForm
@@ -654,11 +655,22 @@ class TeacherProgressReportPage(StaffRequiredMixin, TemplateView):
     template_name = "teacher_progress_reports.html"
     teacher_allowed = True
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["system_date"] = timezone.localdate().isoformat()
+        return context
+
 
 class LearnerPortalPage(LoginRequiredMixin, TemplateView):
     """Student/parent portal — own attendance stats + report cards."""
 
     template_name = "learner_portal.html"
+
+
+class LearnerProgressReportsPage(LoginRequiredMixin, TemplateView):
+    """Separate reading page for reports sent by a student's teachers."""
+
+    template_name = "learner_progress_reports.html"
 
 
 class MessagesPage(StaffRequiredMixin, TemplateView):
