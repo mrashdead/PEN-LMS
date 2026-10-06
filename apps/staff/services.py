@@ -242,22 +242,24 @@ def review_timesheet(*, entry_id, actor, decision: str, comment: str = "",
 # ۲) مرخصی
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _leave_duration(*, start: dt.date, end: dt.date, unit: str) -> Decimal:
+def _leave_duration(*, start: dt.date, end: dt.date, unit: str,
+                    start_time: dt.time | None = None,
+                    end_time: dt.time | None = None) -> Decimal:
     """Compute duration in ``unit`` — calendar days, half-day collapse, hours."""
     days = (end - start).days + 1
     if unit == LeaveRequest.Unit.HALF_DAY:
         return Decimal("0.5")
     if unit == LeaveRequest.Unit.HOUR:
-        # Hour-based leave spans at most one business day in this model; the
-        # UI asks for hours explicitly, but the stored field stays numeric so
-        # reports sum cleanly.
-        return Decimal(max(days, 0))
+        minutes = (end_time.hour * 60 + end_time.minute) - (start_time.hour * 60 + start_time.minute)
+        return (Decimal(minutes) / Decimal(60)).quantize(Decimal("0.01"))
     return Decimal(max(days, 0))
 
 
 @transaction.atomic
 def create_leave_request(*, user, leave_type, start_date, end_date,
                          unit: str = LeaveRequest.Unit.DAY,
+                         start_time: dt.time | None = None,
+                         end_time: dt.time | None = None,
                          description: str = "", attachment=None) -> LeaveRequest:
     """
     ثبت درخواست مرخصی — هم‌پوشانی با مرخصی‌های تأییدشده/در انتظار بررسی
@@ -267,6 +269,8 @@ def create_leave_request(*, user, leave_type, start_date, end_date,
         raise StaffServiceError("کاربر معتبر نیست.")
     if not leave_type or not getattr(leave_type, "pk", None):
         raise StaffServiceError("نوع مرخصی الزامی است.")
+    if leave_type.code not in LeaveType.STAFF_REQUEST_CODES:
+        raise StaffServiceError("فقط مرخصی استحقاقی و بدون حقوق قابل ثبت است.")
     if not start_date or not end_date:
         raise StaffServiceError("تاریخ شروع و پایان الزامی است.")
     if end_date < start_date:
@@ -275,6 +279,17 @@ def create_leave_request(*, user, leave_type, start_date, end_date,
         raise StaffServiceError("تاریخ شروع مرخصی نمی‌تواند در گذشته باشد.")
     if unit == LeaveRequest.Unit.HALF_DAY and start_date != end_date:
         raise StaffServiceError("مرخصی نیم‌روز فقط برای یک روز مجاز است.")
+    if unit == LeaveRequest.Unit.HOUR:
+        if start_date != end_date:
+            raise StaffServiceError("مرخصی ساعتی باید برای یک روز باشد.")
+        if not start_time or not end_time:
+            raise StaffServiceError("ساعت شروع و پایان را برای مرخصی ساعتی وارد کنید.")
+        if start_time.second or start_time.microsecond or end_time.second or end_time.microsecond:
+            raise StaffServiceError("ساعت را با دقت دقیقه وارد کنید.")
+        if end_time <= start_time:
+            raise StaffServiceError("ساعت پایان باید بعد از ساعت شروع باشد.")
+    elif start_time or end_time:
+        raise StaffServiceError("ساعت شروع و پایان فقط برای مرخصی ساعتی ثبت می‌شود.")
 
     # Overlap guard against live, non-rejected requests of the same user.
     clash = LeaveRequest.objects.filter(
@@ -288,13 +303,18 @@ def create_leave_request(*, user, leave_type, start_date, end_date,
             f"({clash.start_date} تا {clash.end_date})."
         )
 
-    duration = _leave_duration(start=start_date, end=end_date, unit=unit)
+    duration = _leave_duration(
+        start=start_date, end=end_date, unit=unit,
+        start_time=start_time, end_time=end_time,
+    )
     request = LeaveRequest(
         user=user,
         person=_person_of(user),
         leave_type=leave_type,
         start_date=start_date,
         end_date=end_date,
+        start_time=start_time,
+        end_time=end_time,
         unit=unit,
         duration=duration,
         description=(description or "").strip(),

@@ -1,93 +1,70 @@
 {% extends "base.html" %}
 {% load asset_v %}
 
-{% block title %}لید و تعیین سطح{% endblock %}
+{% block title %}مدیریت لیدها{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="لید و تعیین سطح" section="فرآیند پذیرش" %}
+  {% include "partials/page-heading.html" with title="مدیریت لیدها" section="فرآیند پذیرش" %}
 {% endblock %}
 
 {% block content %}
-<div class="lead-workspace" data-lead-app>
-  {% if lead_creator_report %}
-  <details class="lead-creator-report mb-3">
-    <summary id="lead-creator-report-title">گزارش ثبت لید به تفکیک کارمند</summary>
-    <div class="table-responsive"><table class="table align-middle mb-0"><caption class="visually-hidden">تعداد لیدهای ثبت‌شده به تفکیک کاربر واردکننده</caption><thead><tr><th scope="col">ثبت‌کننده</th><th scope="col">تعداد لید</th></tr></thead><tbody>
-      {% for row in lead_creator_report %}<tr><td>{% if row.created_by__person__first_name %}{{ row.created_by__person__first_name }} {{ row.created_by__person__last_name }}{% elif row.created_by__first_name %}{{ row.created_by__first_name }} {{ row.created_by__last_name }}{% else %}{{ row.created_by__username }}{% endif %}</td><td>{{ row.lead_total }}</td></tr>{% endfor %}
-    </tbody></table></div>
-  </details>
-  {% endif %}
+<div class="lead-workspace lead-ops" data-lead-app>
+  <header class="lead-page-intro">
+    <div><h1>پیگیری ورودی‌های جدید</h1><p>لیدها را جست‌وجو کنید، وضعیتشان را پیگیری کنید یا نوبت تعیین سطح ثبت کنید.</p></div>
+    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#lead-create-collapse" aria-expanded="false" aria-controls="lead-create-collapse"><i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i>ثبت لید جدید</button>
+  </header>
 
-  <div class="row g-4 align-items-start">
-    <div class="col-12 col-xl-5">
-      {% if lead_can_create %}
-      <div class="card lead-form-card">
-        <div class="card-header d-flex align-items-center justify-content-between gap-3">
-          <h2 class="h6 mb-0 card-title">ثبت لید جدید</h2>
-        </div>
-        <div class="card-body">
-          <form id="lead-form" data-today-iso="{{ today_iso }}" data-today-min-time="{{ today_min_time }}" novalidate>
-            {% csrf_token %}
-            <input type="hidden" id="lead-date-min" value="{{ today_jalali }}">
-            <div class="lead-section-title"><strong>اطلاعات ضروری</strong></div>
+  <div class="collapse mb-4" id="lead-create-collapse">
+    <section class="card lead-form-card" aria-labelledby="lead-create-title">
+      <div class="card-header d-flex align-items-center justify-content-between gap-3"><div><h2 class="h6 mb-1 card-title" id="lead-create-title">ثبت لید و نوبت تعیین سطح</h2><p class="lead-muted mb-0">با ثبت فرم، مورد برای استاد انتخاب‌شده فرستاده می‌شود.</p></div><button type="button" class="btn-close" data-bs-toggle="collapse" data-bs-target="#lead-create-collapse" aria-label="بستن فرم"></button></div>
+      <div class="card-body">
+        <form id="lead-form" data-today-iso="{{ today_iso }}" data-today-min-time="{{ today_min_time }}" novalidate>
+          {% csrf_token %}<input type="hidden" id="lead-date-min" value="{{ today_jalali }}">
+          <div class="lead-section-title"><strong>اطلاعات دانش‌آموز و سرپرست</strong></div>
+          <div class="row g-3">
+            <div class="col-12 col-md-6"><label class="form-label" for="lead-student-name">نام دانش‌آموز <b>*</b></label><input id="lead-student-name" name="student_name" class="form-control" required placeholder="مثلاً آریا محمدی"></div>
+            <div class="col-5 col-md-2"><label class="form-label" for="lead-age">سن (سال) <b>*</b></label><input id="lead-age" name="age" type="number" min="0" max="120" class="form-control" required placeholder="۱۲" inputmode="numeric"></div>
+            <div class="col-7 col-md-4"><label class="form-label" for="lead-phone">شماره تماس سرپرست <b>*</b></label><input id="lead-phone" name="phone" type="tel" class="form-control" required dir="ltr" inputmode="tel" maxlength="11" placeholder="09123456789" aria-describedby="lead-phone-help"><div class="form-text" id="lead-phone-help">شماره هماهنگی جلسه</div></div>
+            <div class="col-12 col-md-6"><label class="form-label" for="lead-neighborhood">محله <b>*</b></label><input id="lead-neighborhood" name="neighborhood" class="form-control" required placeholder="مثلاً قصردشت"></div>
+          </div>
+
+          <section class="lead-appointment mt-4" aria-labelledby="lead-appointment-title">
+            <div class="lead-appointment-heading"><span class="lead-appointment-icon"><i data-lucide="calendar-clock" aria-hidden="true"></i></span><div><h3 id="lead-appointment-title">نوبت تعیین سطح</h3><p>زمان جلسه و استاد مسئول را مشخص کنید.</p></div></div>
             <div class="row g-3">
-              <div class="col-12"><label class="form-label" for="lead-student-name">نام دانش‌آموز <b>*</b></label><input id="lead-student-name" name="student_name" class="form-control" required placeholder="مثلاً آریا محمدی"></div>
-              <div class="col-5"><label class="form-label" for="lead-age">سن <b>*</b></label><div class="lead-input-unit"><input id="lead-age" name="age" type="number" min="0" max="120" class="form-control" required placeholder="مثلاً ۱۲" inputmode="numeric"><span>سال</span></div></div>
-              <div class="col-7"><label class="form-label" for="lead-phone">شماره تماس والد یا سرپرست <b>*</b></label><input id="lead-phone" name="phone" type="tel" class="form-control" required dir="ltr" inputmode="tel" maxlength="11" placeholder="09123456789" aria-describedby="lead-phone-help"><div class="form-text" id="lead-phone-help">شماره‌ای که برای هماهنگی جلسه با آن تماس می‌گیرید.</div></div>
-              <div class="col-12"><label class="form-label" for="lead-neighborhood">محلهٔ محل سکونت <b>*</b></label><input id="lead-neighborhood" name="neighborhood" class="form-control" required placeholder="مثلاً قصردشت"></div>
+              <div class="col-12 col-md-4"><label class="form-label" for="lead-date">تاریخ جلسه <b>*</b></label><div class="lead-date-control"><input id="lead-date" name="assessment_date" class="form-control" data-jalali data-jdp-min-date="#lead-date-min" dir="ltr" inputmode="numeric" autocomplete="off" placeholder="از تقویم انتخاب کنید" required aria-describedby="lead-date-help"><button type="button" id="lead-calendar-open" class="lead-calendar-open" aria-label="بازکردن تقویم شمسی"><i data-lucide="calendar-days" aria-hidden="true"></i></button></div><div class="lead-date-shortcuts" aria-label="میان‌بر انتخاب تاریخ"><button type="button" data-date-offset="0">امروز</button><button type="button" data-date-offset="1">فردا</button></div><div class="form-text" id="lead-date-help">تاریخ امروز یا آینده را انتخاب کنید.</div></div>
+              <div class="col-12 col-md-3"><label class="form-label" for="lead-time">ساعت شروع <b>*</b></label><input id="lead-time" name="assessment_time" type="time" step="900" class="form-control lead-time-input" required></div>
+              <div class="col-12 col-md-5"><label class="form-label" for="lead-assessor">استاد تعیین سطح <b>*</b></label><select id="lead-assessor" name="assessor" class="form-select" required><option value="">— انتخاب استاد —</option>{% for person in lead_assessors %}<option value="{{ person.pk }}">{{ person.display_name }} · استاد</option>{% endfor %}</select></div>
             </div>
+          </section>
 
-            <section class="lead-appointment mt-4" aria-labelledby="lead-appointment-title">
-              <div class="lead-appointment-heading"><span class="lead-appointment-icon"><i data-lucide="calendar-clock" aria-hidden="true"></i></span><div><h3 id="lead-appointment-title">نوبت تعیین سطح</h3><p>تاریخ آینده، ساعت و مسئول جلسه را مشخص کنید.</p></div></div>
-              <div class="row g-3">
-                <div class="col-7">
-                  <label class="form-label" for="lead-date">تاریخ جلسه <b>*</b></label>
-                  <div class="lead-date-control"><input id="lead-date" name="assessment_date" class="form-control" data-jalali data-jdp-min-date="#lead-date-min" dir="ltr" inputmode="numeric" autocomplete="off" placeholder="از تقویم انتخاب کنید" required aria-describedby="lead-date-help"><button type="button" id="lead-calendar-open" class="lead-calendar-open" aria-label="بازکردن تقویم شمسی"><i data-lucide="calendar-days" aria-hidden="true"></i></button></div>
-                  <div class="lead-date-shortcuts" aria-label="میان‌بر انتخاب تاریخ"><button type="button" data-date-offset="0">امروز</button><button type="button" data-date-offset="1">فردا</button></div>
-                  <div class="form-text" id="lead-date-help">با انتخاب تاریخ، روزهای گذشته قابل ثبت نیستند.</div>
-                </div>
-                <div class="col-5"><label class="form-label" for="lead-time">ساعت شروع <b>*</b></label><input id="lead-time" name="assessment_time" type="time" step="900" class="form-control lead-time-input" required aria-describedby="lead-time-help"><div class="form-text" id="lead-time-help">گام انتخاب ساعت: ۱۵ دقیقه</div></div>
-                <div class="col-12"><label class="form-label" for="lead-assessor">استاد تعیین سطح <b>*</b></label><select id="lead-assessor" name="assessor" class="form-select" required><option value="">— انتخاب استاد —</option>{% for person in lead_assessors %}<option value="{{ person.pk }}">{{ person.display_name }} · استاد</option>{% endfor %}</select></div>
-              </div>
-            </section>
-
-            <details class="lead-optional-details mt-3">
-              <summary><span><strong>اطلاعات تکمیلی</strong><small>در صورت اطلاع وارد کنید؛ برای ثبت لید اجباری نیست.</small></span><i data-lucide="chevron-down" aria-hidden="true"></i></summary>
-              <div class="row g-3 pt-3">
-                <div class="col-6"><label class="form-label" for="lead-father-job">شغل پدر</label><input id="lead-father-job" name="father_job" class="form-control" autocomplete="off"></div>
-                <div class="col-6"><label class="form-label" for="lead-mother-job">شغل مادر</label><input id="lead-mother-job" name="mother_job" class="form-control" autocomplete="off"></div>
-                <div class="col-12"><label class="form-label" for="lead-allergy">حساسیت یا آلرژی</label><textarea id="lead-allergy" name="allergy_notes" class="form-control" rows="2" placeholder="اگر موردی هست، برای اطلاع استاد بنویسید"></textarea></div>
-                <div class="col-6"><label class="form-label" for="lead-course">دورهٔ مورد علاقه</label><select id="lead-course" name="course" class="form-select"><option value="">— در صورت اطلاع انتخاب کنید —</option>{% for course in lead_courses %}<option value="{{ course.pk }}">{{ course.title }}</option>{% endfor %}</select></div>
-                <div class="col-6"><label class="form-label" for="lead-lesson">درس مورد علاقه</label><select id="lead-lesson" name="lesson" class="form-select" disabled><option value="">ابتدا دوره را انتخاب کنید</option></select></div>
-              </div>
-            </details>
-            <div id="lead-form-errors" class="pen-error-summary mt-3" role="alert" hidden><ul class="mb-0"></ul></div>
-            <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary flex-grow-1"><i data-lucide="user-plus" class="size-4 me-1" aria-hidden="true"></i> ثبت لید</button><button type="reset" class="btn btn-light">پاک‌کردن</button></div>
-          </form>
-        </div>
+          <details class="lead-optional-details mt-3">
+            <summary><span><strong>اطلاعات تکمیلی</strong><small>در صورت اطلاع وارد کنید.</small></span><i data-lucide="chevron-down" aria-hidden="true"></i></summary>
+            <div class="row g-3 pt-3">
+              <div class="col-6 col-md-3"><label class="form-label" for="lead-father-job">شغل پدر</label><input id="lead-father-job" name="father_job" class="form-control" autocomplete="off"></div>
+              <div class="col-6 col-md-3"><label class="form-label" for="lead-mother-job">شغل مادر</label><input id="lead-mother-job" name="mother_job" class="form-control" autocomplete="off"></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="lead-allergy">حساسیت یا آلرژی</label><textarea id="lead-allergy" name="allergy_notes" class="form-control" rows="2" placeholder="برای اطلاع استاد"></textarea></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="lead-course">دورهٔ مورد علاقه</label><select id="lead-course" name="course" class="form-select"><option value="">— در صورت اطلاع انتخاب کنید —</option>{% for course in lead_courses %}<option value="{{ course.pk }}">{{ course.title }}</option>{% endfor %}</select></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="lead-lesson">درس مورد علاقه</label><select id="lead-lesson" name="lesson" class="form-select" disabled><option value="">ابتدا دوره را انتخاب کنید</option></select></div>
+            </div>
+          </details>
+          <div id="lead-form-errors" class="pen-error-summary mt-3" role="alert" hidden><ul class="mb-0"></ul></div>
+          <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary"><i data-lucide="send" class="size-4 me-1" aria-hidden="true"></i>ثبت و ارسال برای استاد</button><button type="reset" class="btn btn-light">پاک‌کردن فرم</button></div>
+        </form>
       </div>
-      {% else %}
-      <div class="card lead-form-card">
-        <div class="card-header"><h2 class="h6 mb-1 card-title">وظایف تعیین سطح</h2><p class="lead-muted mb-0">لیدهای تخصیص‌یافته را از صف پیگیری باز کنید.</p></div>
-        <div class="card-body"><div class="lead-empty py-4"><i data-lucide="clipboard-pen-line" aria-hidden="true"></i><strong>نتیجه را مستقیم در پرونده ثبت کنید</strong><span>با بازکردن هر لید، امتیاز و توضیح تعیین سطح را وارد کنید.</span></div></div>
-      </div>
-      {% endif %}
-    </div>
-
-    <div class="col-12 col-xl-7">
-      <div class="card lead-queue-card">
-        <div class="card-header lead-queue-header"><h2 class="h6 mb-0 card-title">صف پیگیری لیدها</h2><button type="button" id="lead-refresh" class="btn btn-light btn-sm" aria-label="بروزرسانی صف"><i data-lucide="refresh-cw" class="size-4" aria-hidden="true"></i></button></div>
-        <div class="lead-filters" role="tablist" aria-label="فیلتر وضعیت لید"><button class="is-active" data-filter="all" type="button">همه</button><button data-filter="new" type="button">جدید</button><button data-filter="sent" type="button">منتظر ارزیابی</button><button data-filter="recommended" type="button">آماده ثبت‌نام</button></div>
-        <div id="lead-list" class="lead-list" aria-live="polite">
-          {% for lead in leads %}
-          <article class="lead-card" data-id="{{ lead.pk }}" data-status="{{ lead.status }}">
-            <div class="lead-card-main"><div class="lead-avatar">{{ lead.student_name|first }}</div><div class="min-w-0"><div class="d-flex align-items-center gap-2 flex-wrap"><strong class="lead-card-name">{{ lead.student_name }}</strong><span class="lead-status lead-status-{{ lead.status }}">{{ lead.status_label }}</span></div><p class="lead-card-meta mb-0"><span dir="ltr">{{ lead.phone }}</span>{% if lead.neighborhood %} · {{ lead.neighborhood }}{% endif %}</p><p class="lead-card-meta mb-0">{% if lead.assessment_date %}جلسه {{ lead.assessment_date|date:"Y/m/d" }}{% if lead.assessment_time %}، {{ lead.assessment_time|time:"H:i" }}{% endif %}{% else %}جلسه تعیین نشده{% endif %}</p><p class="lead-card-meta mb-0">ثبت‌کننده: {{ lead.created_by.get_full_name|default:lead.created_by.username }}</p>{% if lead.enrolled_person_id %}<p class="lead-card-meta mb-0 text-success">متصل به شخص: {{ lead.enrolled_person.display_name }}</p>{% endif %}</div></div>
-            <div class="lead-card-side"><span class="lead-code">{{ lead.code }}</span><button type="button" class="btn btn-sm btn-outline-primary lead-open" data-id="{{ lead.pk }}">مشاهده</button></div>
-          </article>
-          {% empty %}<div class="lead-empty"><i data-lucide="inbox" aria-hidden="true"></i><strong>هنوز لیدی ثبت نشده</strong><span>اولین لید را از فرم کناری ثبت کنید.</span></div>{% endfor %}
-        </div>
-      </div>
-    </div>
+    </section>
   </div>
+
+  <section class="lead-inbox" aria-labelledby="lead-inbox-title">
+    <div class="lead-inbox-heading"><div><h2 id="lead-inbox-title">فهرست لیدها</h2><p id="lead-result-summary" class="mb-0" aria-live="polite">در حال دریافت فهرست…</p></div><button type="button" id="lead-refresh" class="btn btn-light btn-sm" aria-label="به‌روزرسانی فهرست"><i data-lucide="refresh-cw" class="size-4" aria-hidden="true"></i></button></div>
+    <div class="lead-toolbar">
+      <label class="lead-search"><i data-lucide="search" aria-hidden="true"></i><span class="visually-hidden">جست‌وجوی لید</span><input id="lead-search" type="search" class="form-control" placeholder="جست‌وجوی نام، شماره یا کد پیگیری" autocomplete="off"></label>
+      <label class="lead-status-filter"><span class="visually-hidden">فیلتر بر اساس وضعیت</span><select id="lead-status-filter" class="form-select"><option value="">همهٔ وضعیت‌ها</option><option value="new">لید جدید</option><option value="sent">منتظر تعیین سطح</option><option value="assessed">تعیین سطح‌شده</option><option value="recommended">دوره معرفی شد</option><option value="enrolled">ثبت‌نام‌شده</option><option value="lost">بایگانی‌شده</option></select></label>
+      <label class="lead-page-size"><span>نمایش</span><select id="lead-page-size" class="form-select" aria-label="تعداد ردیف در هر صفحه"><option value="20" selected>۲۰</option><option value="50">۵۰</option><option value="100">۱۰۰</option></select></label>
+    </div>
+    <div class="table-responsive lead-table-wrap" aria-busy="true">
+      <table class="table align-middle lead-table mb-0"><caption class="visually-hidden">فهرست لیدها و اطلاعات پیگیری آن‌ها</caption><thead><tr><th scope="col">دانش‌آموز</th><th scope="col">نوبت</th><th scope="col">استاد</th><th scope="col">وضعیت</th><th scope="col">ثبت‌کننده</th><th scope="col"><span class="visually-hidden">جزئیات</span></th></tr></thead><tbody id="lead-list"><tr><td colspan="6" class="lead-table-message">در حال دریافت فهرست…</td></tr></tbody></table>
+    </div>
+    <footer class="lead-pagination"><span id="lead-page-summary">—</span><div class="lead-page-controls"><button type="button" id="lead-prev" class="btn btn-light btn-sm" disabled><i data-lucide="chevron-right" aria-hidden="true"></i>قبلی</button><span id="lead-page-indicator">صفحهٔ ۱</span><button type="button" id="lead-next" class="btn btn-light btn-sm" disabled>بعدی<i data-lucide="chevron-left" aria-hidden="true"></i></button></div></footer>
+  </section>
 </div>
 
 <div class="modal fade" id="lead-detail-modal" tabindex="-1" aria-labelledby="lead-detail-title" aria-hidden="true">

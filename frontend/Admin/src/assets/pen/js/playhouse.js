@@ -52,6 +52,29 @@
     var d = new Date(value);
     return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
   }
+  function jalaliDate(value) {
+    return value && window.penISOToJalali ? window.penISOToJalali(value) : (value || '—');
+  }
+  function jalaliDateTime(value) {
+    if (!value) return '—';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return '—';
+    var day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    return jalaliDate(day) + ' ' + fmtClock(value);
+  }
+  function localTimestamp(dateValue, timeValue) {
+    var day = window.penJalaliToISO ? window.penJalaliToISO(dateValue) : dateValue;
+    if (!day || !timeValue) return null;
+    var parsed = new Date(day + 'T' + timeValue);
+    return isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  function renderTimes(tr) {
+    var cell = tr.querySelector('[data-role="times"]');
+    if (!cell) return;
+    var entry = tr.getAttribute('data-entry') || '';
+    var exit = tr.getAttribute('data-exit') || '';
+    cell.innerHTML = '<div>ورود: ' + jalaliDateTime(entry) + '</div><div class="text-muted">خروج: ' + jalaliDateTime(exit) + '</div>';
+  }
   function syncJalaliDate() {
     var display = document.getElementById('ph-date-display');
     var hidden = document.getElementById('ph-date');
@@ -71,6 +94,7 @@
   var $table = document.getElementById('ph-session-table');
   var $intake = document.getElementById('ph-intake-form');
   var $priceBadge = document.getElementById('ph-price-value');
+  var $priceForm = document.getElementById('ph-price-form');
 
   // ── live timers (tick client-side every second) ─────────────────────
   var tickTimer = null;
@@ -105,14 +129,19 @@
     tr.setAttribute('data-paused-at', s.paused_at || '');
     tr.setAttribute('data-paused-seconds', s.paused_seconds || 0);
     tr.setAttribute('data-billable', s.billable_minutes || 0);
+    tr.setAttribute('data-session-date', s.session_date || '');
+    tr.setAttribute('data-exit', s.exit_at || '');
     tr.innerHTML =
-      '<td class="small" data-role="times"><div>ورود: ' + fmtClock(s.entry_at) + '</div><div class="text-muted">خروج: ' + fmtClock(s.exit_at) + '</div></td>' +
+      '<td class="small" data-role="times"></td>' +
       '<td><div class="ph-child-name">' + esc(s.member_name) + '</div><div class="ph-child-age">' + (s.age != null ? esc(s.age) + ' ساله' : 'سن ثبت نشده') + '</div></td>' +
-      '<td dir="ltr" class="text-end">' + esc(s.guardian_mobile || '—') + '</td>' +
+      '<td><div>' + esc(s.guardian_name || '—') + '</div><div dir="ltr" class="ph-phone-cell">' + esc(s.guardian_mobile || '—') + '</div><small class="text-muted">' + esc(s.member_notes || '') + '</small></td>' +
+      '<td>' + esc(s.operator_name || '—') + '<small class="d-block text-muted">ثبت: ' + jalaliDateTime(s.created_at) + '</small></td>' +
       '<td class="fw-bold" data-role="timer">' + ((s.status === 'active' || s.status === 'paused') ? (s.elapsed_label || fmtDuration(s.elapsed_seconds)) : '—') + '</td>' +
       '<td data-role="status">' + statusMarkup(s) + '</td>' +
+      '<td data-role="invoice">' + invoiceMarkup(s.invoice_detail) + '</td>' +
       '<td class="text-end"><div class="ph-row-actions" data-role="actions">' + actionsMarkup(s) + '</div></td>';
     tbody.prepend(tr);
+    renderTimes(tr);
     icons();
   }
   function statusLabel(st) {
@@ -121,11 +150,25 @@
   function statusBadge(st) {
     return 'ph-status ph-status-' + st;
   }
-  function invoiceMarkup(isPaid) {
+  function invoiceStatusMarkup(isPaid) {
     return '<span class="ph-status ' + (isPaid ? 'ph-status-paid' : 'ph-status-invoiced') + '"><span></span>' + (isPaid ? 'پرداخت شده' : 'فاکتور صادر شد') + '</span>';
   }
   function statusMarkup(s) {
-    return s.has_invoice ? invoiceMarkup(!!s.invoice_is_paid) : '<span class="' + statusBadge(s.status) + '"><span></span>' + esc(statusLabel(s.status)) + '</span>';
+    return s.has_invoice ? invoiceStatusMarkup(!!s.invoice_is_paid) : '<span class="' + statusBadge(s.status) + '"><span></span>' + esc(statusLabel(s.status)) + '</span>';
+  }
+  function invoiceMarkup(inv) {
+    if (!inv) return '<span class="text-muted">فاکتور صادر نشده</span>';
+    var method = { pos: 'دستگاه پوز', card_transfer: 'کارت به کارت' }[inv.payment_method] || '—';
+    var items = (inv.items || []).map(function (item) {
+      return '<div class="small">' + esc(item.name) + ': ' + fmt(item.price) + ' تومان</div>';
+    }).join('');
+    return '<span class="ph-status ' + (inv.is_paid ? 'ph-status-paid' : 'ph-status-invoiced') + '"><span></span>' + (inv.is_paid ? 'پرداخت شده' : 'پرداخت نشده') + '</span>' +
+      '<strong class="d-block">' + fmt(inv.total_amount) + ' تومان</strong><details><summary class="small">فاکتور ' + esc(inv.invoice_number) + '</summary>' +
+      '<div class="small">مدت محاسبه‌شده: ' + fmtTime(inv.billed_minutes) + '</div><div class="small">هزینه زمان: ' + fmt(inv.time_amount) + ' تومان</div>' + items +
+      '<div class="small">جمع کافه: ' + fmt(inv.cafe_total) + ' تومان</div><div class="small fw-bold">جمع کل: ' + fmt(inv.total_amount) + ' تومان</div>' +
+      '<div class="small">روش پرداخت: ' + esc(method) + '</div>' +
+      (inv.tracking_code ? '<div class="small">کد رهگیری: <span dir="ltr">' + esc(inv.tracking_code) + '</span></div>' : '') +
+      (inv.paid_at ? '<div class="small">زمان پرداخت: ' + jalaliDateTime(inv.paid_at) + '</div>' : '') + '</details>';
   }
   function actionsMarkup(s) {
     if (!s.has_invoice) return actionButtons(s.status);
@@ -134,11 +177,13 @@
   function actionButtons(st) {
     if (st === 'waiting') {
       return '<button class="btn ph-row-btn ph-row-start" data-act="start" title="شروع تایمر"><i data-lucide="play" aria-hidden="true"></i></button>' +
-        '<button class="btn ph-row-btn ph-row-cancel" data-act="cancel" title="لغو"><i data-lucide="x" aria-hidden="true"></i></button>';
+        '<button class="btn ph-row-btn ph-row-cancel" data-act="cancel" title="لغو"><i data-lucide="x" aria-hidden="true"></i></button>' +
+        '<details><summary class="small">ثبت زمان واقعی</summary><input class="form-control form-control-sm mt-1" type="text" data-entry-date data-jalali dir="ltr" placeholder="تاریخ شمسی ورود"><input class="form-control form-control-sm mt-1" type="time" data-entry-time aria-label="ساعت واقعی ورود"><button class="btn btn-sm btn-outline-primary mt-1" data-act="correct-start">ثبت زمان ورود</button></details>';
     }
     if (st === 'active') {
       return '<button class="btn ph-row-btn ph-row-pause" data-act="stop" title="توقف تایمر"><i data-lucide="pause" aria-hidden="true"></i></button>' +
-        '<button class="btn ph-row-btn ph-row-end" data-act="end" title="پایان حضور"><i data-lucide="square" aria-hidden="true"></i></button>';
+        '<button class="btn ph-row-btn ph-row-end" data-act="end" title="پایان حضور"><i data-lucide="square" aria-hidden="true"></i></button>' +
+        '<details><summary class="small">ثبت خروج واقعی</summary><input class="form-control form-control-sm mt-1" type="text" data-exit-date data-jalali dir="ltr" placeholder="تاریخ شمسی خروج"><input class="form-control form-control-sm mt-1" type="time" data-exit-time aria-label="ساعت واقعی خروج"><button class="btn btn-sm btn-outline-danger mt-1" data-act="correct-end">ثبت زمان خروج</button></details>';
     }
     if (st === 'paused') {
       return '<button class="btn ph-row-btn ph-row-start" data-act="start" title="ادامه تایمر"><i data-lucide="play" aria-hidden="true"></i></button>' +
@@ -173,12 +218,9 @@
       }
       post(API + 'sessions/', payload).then(function (d) {
         toast('ورود ثبت شد.', 'success');
-        // refresh the table so the new row appears with server state
-        return get(API + 'sessions/active/').then(function (list) {
-          var rows = list.results || list || [];
-          // simplest: reload today's sessions via full refresh
-          window.location.reload();
-        });
+        var url = new URL(window.location.href);
+        url.searchParams.set('day', payload.session_date);
+        window.location.assign(url.toString());
       }).catch(function (err) { toast(err.message, 'danger'); });
     });
   }
@@ -310,7 +352,16 @@
       var id = tr.getAttribute('data-id');
       var act = btn.getAttribute('data-act');
       if (act === 'invoice') { openInvoice(tr); return; }
-      post(API + 'sessions/' + id + '/' + act + '/', {})
+      var apiAct = act === 'correct-start' ? 'start' : (act === 'correct-end' ? 'end' : act);
+      var payload = {};
+      if (act === 'correct-start') {
+        payload.entry_at = localTimestamp(tr.querySelector('[data-entry-date]').value, tr.querySelector('[data-entry-time]').value);
+        if (!payload.entry_at) { toast('تاریخ شمسی و ساعت واقعی ورود را وارد کنید.', 'danger'); return; }
+      } else if (act === 'correct-end') {
+        payload.exit_at = localTimestamp(tr.querySelector('[data-exit-date]').value, tr.querySelector('[data-exit-time]').value);
+        if (!payload.exit_at) { toast('تاریخ شمسی و ساعت واقعی خروج را وارد کنید.', 'danger'); return; }
+      }
+      post(API + 'sessions/' + id + '/' + apiAct + '/', payload)
         .then(function (d) {
           toast(actLabel(act) + ' انجام شد.', 'success');
           updateRow(d);
@@ -319,7 +370,7 @@
     });
   }
   function actLabel(a) {
-    return { start: 'شروع', stop: 'توقف', end: 'پایان', cancel: 'لغو' }[a] || a;
+    return { start: 'شروع', 'correct-start': 'ثبت زمان ورود', stop: 'توقف', end: 'پایان', 'correct-end': 'ثبت زمان خروج', cancel: 'لغو' }[a] || a;
   }
   function updateRow(s) {
     if (!$table) return;
@@ -327,6 +378,8 @@
     if (!tr) { renderRow(s); startClock(); return; }
     tr.setAttribute('data-status', s.status);
     tr.setAttribute('data-entry', s.entry_at || '');
+    tr.setAttribute('data-exit', s.exit_at || '');
+    tr.setAttribute('data-session-date', s.session_date || '');
     tr.setAttribute('data-paused-at', s.paused_at || '');
     tr.setAttribute('data-paused-seconds', s.paused_seconds || 0);
     tr.setAttribute('data-billable', s.billable_minutes || 0);
@@ -337,8 +390,9 @@
     if (actions) actions.innerHTML = actionsMarkup(s);
     var timer = tr.querySelector('[data-role="timer"]');
     if (timer) timer.textContent = (st === 'active' || st === 'paused') ? (s.elapsed_label || fmtDuration(s.elapsed_seconds)) : '—';
-    var times = tr.querySelector('[data-role="times"]');
-    if (times) times.innerHTML = '<div>ورود: ' + fmtClock(s.entry_at) + '</div><div class="text-muted">خروج: ' + fmtClock(s.exit_at) + '</div>';
+    renderTimes(tr);
+    var invoice = tr.querySelector('[data-role="invoice"]');
+    if (invoice && s.invoice_detail) invoice.innerHTML = invoiceMarkup(s.invoice_detail);
     icons();
     updateCounters();
     if (st === 'active') startClock();
@@ -467,7 +521,9 @@
           if (row) {
             row.setAttribute('data-has-invoice', '1');
             var statusCell = row.querySelector('[data-role="status"]');
-            if (statusCell) statusCell.innerHTML = invoiceMarkup(!!inv.is_paid);
+            if (statusCell) statusCell.innerHTML = invoiceStatusMarkup(!!inv.is_paid);
+            var invoiceCell = row.querySelector('[data-role="invoice"]');
+            if (invoiceCell) invoiceCell.innerHTML = invoiceMarkup(inv);
             var actions = row.querySelector('[data-role="actions"]');
             if (actions) actions.innerHTML = '<span class="ph-invoice-done" title="' + esc(inv.invoice_number || '') + '">' + esc(inv.invoice_number || 'ثبت شد') + '</span>';
             icons();
@@ -485,9 +541,70 @@
   var $refresh = document.getElementById('ph-refresh');
   if ($refresh) $refresh.addEventListener('click', function () { window.location.reload(); });
 
+  if ($priceForm) $priceForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var input = document.getElementById('ph-price-input');
+    var error = document.getElementById('ph-price-error');
+    var save = document.getElementById('ph-price-save');
+    var value = Number(input.value);
+    if (!input.value || !Number.isInteger(value) || value < 0) {
+      error.textContent = 'هزینه معتبر و غیرمنفی وارد کنید.';
+      error.hidden = false;
+      return;
+    }
+    save.disabled = true;
+    error.hidden = true;
+    fetch(API + 'config/', { method: 'PUT', credentials: 'same-origin', headers: headers(), body: JSON.stringify({ price_per_15_minutes: value }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(apiError(b) || ('HTTP ' + r.status)); return b; }); })
+      .then(function (d) {
+        currentPrice = Number(d.price_per_15_minutes) || 0;
+        if ($priceBadge) $priceBadge.textContent = fmt(currentPrice);
+        toast('هزینه هر ۱۵ دقیقه ذخیره شد.', 'success');
+        if (window.bootstrap) bootstrap.Modal.getInstance(document.getElementById('ph-price-modal')).hide();
+      })
+      .catch(function (err) { error.textContent = err.message; error.hidden = false; })
+      .finally(function () { save.disabled = false; });
+  });
+
+  function showLogDay() {
+    var input = document.getElementById('ph-log-date');
+    var iso = input && window.penJalaliToISO ? window.penJalaliToISO(input.value) : null;
+    if (!iso) { toast('تاریخ شمسی را به شکل سال/ماه/روز وارد کنید.', 'danger'); return; }
+    var url = new URL(window.location.href);
+    url.searchParams.set('day', iso);
+    window.location.assign(url.toString());
+  }
+  var $logDate = document.getElementById('ph-log-date');
+  var $logSubmit = document.getElementById('ph-log-date-submit');
+  if ($logSubmit) $logSubmit.addEventListener('click', showLogDay);
+  if ($logDate) $logDate.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); showLogDay(); } });
+  var $logToday = document.getElementById('ph-log-today');
+  if ($logToday) $logToday.addEventListener('click', function () { window.location.assign(window.location.pathname); });
+
+  if ($table) {
+    $table.addEventListener('focusin', function (e) {
+      var tr = e.target.closest('tr[data-id]');
+      if (!tr) return;
+      var entryDate = tr.querySelector('[data-entry-date]');
+      var exitDate = tr.querySelector('[data-exit-date]');
+      if (entryDate && !entryDate.value) entryDate.value = jalaliDate(tr.getAttribute('data-session-date'));
+      if (exitDate && !exitDate.value) exitDate.value = jalaliDate(tr.getAttribute('data-session-date'));
+      if (window.penAttachJalaliPickers) window.penAttachJalaliPickers();
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     startClock();
     updateCounters();
+    if ($table) $table.querySelectorAll('tr[data-id]').forEach(function (tr) {
+      renderTimes(tr);
+      var entryDate = tr.querySelector('[data-entry-date]');
+      var exitDate = tr.querySelector('[data-exit-date]');
+      if (entryDate) entryDate.value = jalaliDate(tr.getAttribute('data-session-date'));
+      if (exitDate) exitDate.value = jalaliDate(tr.getAttribute('data-session-date'));
+      var paidAt = tr.querySelector('[data-paid-at]');
+      if (paidAt) paidAt.textContent = jalaliDateTime(paidAt.getAttribute('data-paid-at'));
+    });
     if (window.penAttachJalaliPickers) window.penAttachJalaliPickers();
     var dateDisplay = document.getElementById('ph-date-display');
     if (dateDisplay) {
@@ -498,6 +615,8 @@
     get('/api/playhouse/config/').then(function (d) {
       currentPrice = Number(d.price_per_15_minutes) || 0;
       if ($priceBadge) $priceBadge.textContent = fmt(currentPrice);
+      var priceInput = document.getElementById('ph-price-input');
+      if (priceInput) priceInput.value = currentPrice;
     }).catch(function () {});
   });
 })();

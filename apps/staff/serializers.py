@@ -69,6 +69,8 @@ class LeaveRequestSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     actions = serializers.SerializerMethodField()
     start_date = JalaliDateField()
     end_date = JalaliDateField()
+    start_time = serializers.TimeField(read_only=True)
+    end_time = serializers.TimeField(read_only=True)
     duration_display = serializers.CharField(read_only=True)
     unit_display = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
@@ -79,7 +81,7 @@ class LeaveRequestSerializer(CRUDActionsMixin, serializers.ModelSerializer):
         model = LeaveRequest
         fields = (
             "id", "user", "user_display", "person", "leave_type", "leave_type_name",
-            "start_date", "end_date", "unit", "unit_display", "duration",
+            "start_date", "end_date", "start_time", "end_time", "unit", "unit_display", "duration",
             "duration_display", "description", "attachment", "status",
             "status_display", "reviewed_by", "reviewed_at", "rejection_reason",
             "created_at", "updated_at", "actions",
@@ -155,6 +157,8 @@ class LeaveRequestCreateSerializer(serializers.Serializer):
     leave_type = serializers.PrimaryKeyRelatedField(queryset=LeaveType.objects.none())
     start_date = JalaliDateField()
     end_date = JalaliDateField()
+    start_time = serializers.TimeField(required=False, allow_null=True)
+    end_time = serializers.TimeField(required=False, allow_null=True)
     unit = serializers.ChoiceField(
         choices=LeaveRequest.Unit.choices, default=LeaveRequest.Unit.DAY,
     )
@@ -166,6 +170,7 @@ class LeaveRequestCreateSerializer(serializers.Serializer):
         # Only active leave types may be selected — the catalog is the source
         # of truth, never a free string.
         self.fields["leave_type"].queryset = LeaveType.objects.filter(
+            code__in=LeaveType.STAFF_REQUEST_CODES,
             is_active=True, is_deleted=False,
         )
 
@@ -178,6 +183,29 @@ class LeaveRequestCreateSerializer(serializers.Serializer):
         if attrs.get("unit") == LeaveRequest.Unit.HALF_DAY and start != end:
             raise serializers.ValidationError(
                 {"unit": "مرخصی نیم‌روز فقط برای یک روز مجاز است."}
+            )
+        unit = attrs.get("unit", LeaveRequest.Unit.DAY)
+        start_time, end_time = attrs.get("start_time"), attrs.get("end_time")
+        if unit == LeaveRequest.Unit.HOUR:
+            if start != end:
+                raise serializers.ValidationError(
+                    {"end_date": "مرخصی ساعتی باید برای یک روز باشد."}
+                )
+            if not start_time or not end_time:
+                raise serializers.ValidationError(
+                    {"start_time": "ساعت شروع و پایان را برای مرخصی ساعتی وارد کنید."}
+                )
+            if start_time.second or start_time.microsecond or end_time.second or end_time.microsecond:
+                raise serializers.ValidationError(
+                    {"start_time": "ساعت را با دقت دقیقه وارد کنید."}
+                )
+            if end_time <= start_time:
+                raise serializers.ValidationError(
+                    {"end_time": "ساعت پایان باید بعد از ساعت شروع باشد."}
+                )
+        elif start_time or end_time:
+            raise serializers.ValidationError(
+                {"start_time": "ساعت شروع و پایان فقط برای مرخصی ساعتی ثبت می‌شود."}
             )
         return attrs
 

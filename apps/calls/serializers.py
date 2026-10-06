@@ -4,7 +4,14 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from apps.core.serializers import CRUDActionsMixin
-from apps.calls.models import CallResult, CallSubject, FollowUpStatus, InboundCall
+from apps.calls.models import (
+    CallResult,
+    CallFollowUpLog,
+    CallSubject,
+    FollowUpStatus,
+    InboundCall,
+    NEW_CALL_RESULT_CHOICES,
+)
 
 
 class InboundCallSerializer(CRUDActionsMixin, serializers.ModelSerializer):
@@ -42,6 +49,48 @@ class InboundCallSerializer(CRUDActionsMixin, serializers.ModelSerializer):
 
     def get_assignee_display(self, obj) -> str:
         return _label_of(obj.assignee)
+
+class CallFollowUpLogSerializer(serializers.ModelSerializer):
+    actor_display = serializers.SerializerMethodField()
+    previous_status_display = serializers.CharField(source="get_previous_status_display", read_only=True)
+    new_status_display = serializers.CharField(source="get_new_status_display", read_only=True)
+
+    class Meta:
+        model = CallFollowUpLog
+        fields = ("actor_display", "previous_status_display", "new_status_display", "note", "next_follow_up_at", "created_at")
+
+    def get_actor_display(self, obj) -> str:
+        return _label_of(obj.actor)
+
+
+class CallDetailSerializer(InboundCallSerializer):
+    person_display = serializers.SerializerMethodField()
+    department_ref_display = serializers.SerializerMethodField()
+    subject_ref_display = serializers.SerializerMethodField()
+    related_lead_display = serializers.SerializerMethodField()
+    follow_up_history = serializers.SerializerMethodField()
+
+    class Meta(InboundCallSerializer.Meta):
+        fields = InboundCallSerializer.Meta.fields + (
+            "person_display", "department_ref_display", "subject_ref_display",
+            "related_lead_display", "follow_up_history",
+        )
+
+    def get_person_display(self, obj) -> str:
+        return str(obj.person) if obj.person_id else ""
+
+    def get_department_ref_display(self, obj) -> str:
+        return str(obj.department_ref) if obj.department_ref_id else ""
+
+    def get_subject_ref_display(self, obj) -> str:
+        return str(obj.subject_ref) if obj.subject_ref_id else ""
+
+    def get_related_lead_display(self, obj) -> str:
+        return str(obj.related_lead) if obj.related_lead_id else ""
+
+    def get_follow_up_history(self, obj):
+        logs = obj.follow_up_logs.select_related("actor").order_by("-created_at")
+        return CallFollowUpLogSerializer(logs, many=True).data
 
 
 def _label_of(user) -> str:
@@ -99,7 +148,7 @@ class CallCreateSerializer(serializers.Serializer):
     subject_ref = CallSubjectField(required=False, allow_null=True)
     description = serializers.CharField(required=False, allow_blank=True)
     result = serializers.ChoiceField(
-        choices=CallResult.choices, default=CallResult.ANSWERED, required=False,
+        choices=NEW_CALL_RESULT_CHOICES, default=CallResult.ANSWERED, required=False,
     )
     direction = serializers.ChoiceField(
         choices=InboundCall.Direction.choices,

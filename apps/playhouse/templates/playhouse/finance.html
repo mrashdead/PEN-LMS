@@ -6,30 +6,43 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-  <a href="{% url 'playhouse-dashboard' %}" class="btn btn-light">
-    <i data-lucide="arrow-right" class="size-4 me-1"></i> بازگشت به پذیرش
-  </a>
-  <div class="btn-group ms-auto" role="group" aria-label="بازه گزارش">
-    <button type="button" class="btn btn-outline-primary active" data-period="daily">امروز</button>
-    <button type="button" class="btn btn-outline-primary" data-period="weekly">هفته جاری</button>
-    <button type="button" class="btn btn-outline-primary" data-period="monthly">ماه جاری</button>
-  </div>
+<div class="mb-3">
+  <a href="{% url 'playhouse-dashboard' %}" class="btn btn-light btn-sm"><i data-lucide="arrow-right" class="size-4 me-1"></i> بازگشت به پذیرش</a>
 </div>
+
+<section class="card mb-3" aria-labelledby="ph-fin-filter-title">
+  <div class="card-body p-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <h2 class="h6 mb-0" id="ph-fin-filter-title">بازه گزارش</h2>
+      <div class="btn-group btn-group-sm" role="group" aria-label="بازه‌های آماده">
+        <button type="button" class="btn btn-outline-primary active" data-preset="today">امروز</button>
+        <button type="button" class="btn btn-outline-primary" data-preset="week">۷ روز اخیر</button>
+        <button type="button" class="btn btn-outline-primary" data-preset="month">ماه جاری</button>
+        <button type="button" class="btn btn-outline-primary" data-preset="previous-month">ماه قبل</button>
+      </div>
+    </div>
+    <div class="row g-2 align-items-end">
+      <div class="col-6 col-md-3"><label class="form-label small mb-1" for="ph-fin-from">از تاریخ</label><input id="ph-fin-from" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" inputmode="numeric" value="{{ today_jalali }}" placeholder="۱۴۰۵/۰۷/۰۱" aria-label="شروع بازه شمسی"></div>
+      <div class="col-6 col-md-3"><label class="form-label small mb-1" for="ph-fin-to">تا تاریخ</label><input id="ph-fin-to" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" inputmode="numeric" value="{{ today_jalali }}" placeholder="۱۴۰۵/۰۷/۳۰" aria-label="پایان بازه شمسی"></div>
+      <div class="col-12 col-md-auto"><button type="button" class="btn btn-primary w-100" id="ph-fin-apply"><i data-lucide="filter" class="size-4 me-1"></i> اعمال بازه</button></div>
+      <div class="col text-muted small text-md-end" id="ph-fin-period" aria-live="polite">—</div>
+    </div>
+    <div class="alert alert-danger py-2 mt-3 mb-0" id="ph-fin-error" role="alert" hidden></div>
+  </div>
+</section>
 
 <div class="row g-3 mb-3">
-  <div class="col-6 col-xl-3"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">فاکتور پرداخت‌شده</div><div class="fs-4 fw-bold mt-2" id="ph-fin-invoices">—</div></div></div></div>
-  <div class="col-6 col-xl-3"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">درآمد زمان بازی</div><div class="fs-4 fw-bold mt-2" id="ph-fin-time">—</div><small>تومان</small></div></div></div>
-  <div class="col-6 col-xl-3"><div class="card border-0 shadow-sm h-100"><div class="card-body"><div class="text-muted small">آیتم‌های کافه</div><div class="fs-4 fw-bold mt-2" id="ph-fin-cafe">—</div><small>تومان</small></div></div></div>
-  <div class="col-6 col-xl-3"><div class="card border-0 shadow-sm h-100 bg-primary text-white"><div class="card-body"><div class="opacity-75 small">جمع کل دریافتی</div><div class="fs-4 fw-bold mt-2" id="ph-fin-total">—</div><small class="opacity-75">تومان</small></div></div></div>
+  <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body py-3"><div class="text-muted small">فاکتور پرداخت‌شده</div><div class="fs-4 fw-bold mt-2 ph-fin-number" id="ph-fin-invoices">—</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body py-3"><div class="text-muted small">درآمد زمان بازی <span class="fw-normal">(تومان)</span></div><div class="fs-4 fw-bold mt-2 ph-fin-number" id="ph-fin-time">—</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body py-3"><div class="text-muted small">آیتم‌های کافه <span class="fw-normal">(تومان)</span></div><div class="fs-4 fw-bold mt-2 ph-fin-number" id="ph-fin-cafe">—</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body py-3"><div class="text-muted small">جمع کل دریافتی <span class="fw-normal">(تومان)</span></div><div class="fs-4 fw-bold mt-2 ph-fin-number" id="ph-fin-total">—</div></div></div></div>
 </div>
 
-<div class="card border-0 shadow-sm">
-  <div class="card-header bg-transparent border-0 pt-4 px-4 d-flex align-items-center">
-    <div><h6 class="mb-1 card-title">جزئیات پرداخت‌ها</h6><p class="mb-0 text-muted fs-14" id="ph-fin-period">—</p></div>
-    <button type="button" class="btn btn-sm btn-light ms-auto" id="ph-fin-refresh"><i data-lucide="refresh-cw" class="size-4 me-1"></i> بروزرسانی</button>
+<div class="card">
+  <div class="card-header bg-transparent d-flex align-items-center">
+    <h6 class="mb-0 card-title">جزئیات پرداخت‌ها</h6>
   </div>
-  <div class="card-body px-4 pb-4">
+  <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table align-middle mb-0">
         <thead class="table-light"><tr><th>شماره فاکتور</th><th>نام کودک</th><th>روش پرداخت</th><th>کد رهگیری</th><th>زمان بازی</th><th>کافه</th><th>جمع</th><th>تاریخ پرداخت</th></tr></thead>
@@ -41,6 +54,6 @@
 {% endblock %}
 
 {% block page_js %}
-<script>window.__PLAYHOUSE_FINANCE_API__ = "/api/playhouse/finance/report/";</script>
+<script>window.__PLAYHOUSE_FINANCE_API__ = "/api/playhouse/finance/report/"; window.__PLAYHOUSE_FINANCE_TODAY__ = "{{ today }}";</script>
 <script src="{% asset_v_url 'assets/pen/js/playhouse-finance.js' %}"></script>
 {% endblock %}

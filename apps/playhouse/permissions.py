@@ -15,6 +15,7 @@ from rest_framework.views import View
 OPERATOR_ROLES = {"employee", "supervisor", "manager", "hr", "workflow_admin"}
 #: Roles allowed to mark invoices paid (finance-sensitive).
 FINANCE_ROLES = {"manager", "hr", "workflow_admin"}
+PRICE_EDITOR_ROLES = FINANCE_ROLES | {"supervisor"}
 
 
 class IsPlayhouseOperator(BasePermission):

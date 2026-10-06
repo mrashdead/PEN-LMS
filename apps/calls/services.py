@@ -63,6 +63,8 @@ def log_call(*, actor, caller_name: str, caller_phone: str, called_at,
     """
     if not is_call_operator(actor):
         raise CallServiceError("شما مجاز به ثبت تماس نیستید.")
+    if result == CallResult.NO_ANSWER:
+        raise CallServiceError("گزینهٔ «پاسخ داده نشد» برای ثبت تماس جدید در دسترس نیست.")
     if not (caller_phone or "").strip():
         raise CallServiceError("شماره تماس الزامی است.")
     if not (subject or "").strip():

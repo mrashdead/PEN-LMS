@@ -10,7 +10,7 @@
         <div><label class="form-label" for="caller-phone">شماره تماس</label><input id="caller-phone" class="form-control" required maxlength="20" inputmode="tel" dir="ltr" autocomplete="tel"></div>
         <div><label class="form-label" for="caller-name">نام تماس‌گیرنده <span class="calls-optional">اختیاری</span></label><input id="caller-name" class="form-control" maxlength="256" autocomplete="name"></div>
         <div><label class="form-label" for="call-subject">موضوع</label><input id="call-subject" class="form-control" required maxlength="256"></div>
-        <div><label class="form-label" for="call-result">نتیجه</label><select id="call-result" class="form-select"><option value="answered">پاسخ داده شد</option><option value="no_answer">پاسخ داده نشد</option><option value="busy">اشغال</option><option value="transferred">ارجاع</option><option value="follow_up_agreed">قرار پیگیری</option><option value="other">سایر</option></select></div>
+        <div><label class="form-label" for="call-result">نتیجهٔ تماس</label><select id="call-result" class="form-select"><option value="answered">پاسخ داده شد</option><option value="busy">اشغال</option><option value="transferred">ارجاع</option><option value="follow_up_agreed">قرار پیگیری</option><option value="other">سایر</option></select></div>
       </div>
       <details class="calls-more" id="call-more"><summary>جزئیات بیشتر <span class="calls-optional">بخش مرتبط، توضیحات و زمان پیگیری</span></summary>
         <div class="calls-form-grid calls-more-grid">
@@ -41,9 +41,13 @@
       <div><strong id="call-overdue">—</strong><span>پیگیری عقب‌افتاده</span></div>
     </div>
     <div id="call-list-message" class="alert alert-danger" role="alert" hidden></div>
-    <div class="table-responsive"><table class="table align-middle calls-table"><thead><tr><th scope="col">زمان</th><th scope="col">تماس‌گیرنده</th><th scope="col">موضوع</th><th scope="col">نتیجه</th><th scope="col">پیگیری</th></tr></thead><tbody id="call-rows"></tbody></table></div>
+    <div class="table-responsive"><table class="table align-middle calls-table"><thead><tr><th scope="col">زمان</th><th scope="col">تماس‌گیرنده</th><th scope="col">موضوع</th><th scope="col">نتیجه</th><th scope="col">پیگیری</th><th scope="col">جزئیات</th></tr></thead><tbody id="call-rows"></tbody></table></div>
   </section>
 </div>
+<dialog id="call-details-dialog" class="calls-details-dialog" aria-labelledby="call-details-title">
+  <div class="calls-details-header"><div><p>اطلاعات ثبت‌شده</p><h2 id="call-details-title">جزئیات تماس</h2></div><button type="button" class="btn btn-outline-secondary" id="call-details-close" aria-label="بستن جزئیات">بستن</button></div>
+  <div id="call-details-content" aria-live="polite"><p>در حال دریافت جزئیات…</p></div>
+</dialog>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
@@ -64,6 +68,66 @@
     if (!value) return ''; const date = new Date(value);
     return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('fa-IR', {hour: '2-digit', minute: '2-digit'}).format(date);
   };
+  const dateTimeLabel = value => value ? `${dateLabel(value)}، ${timeLabel(value)}` : 'ثبت نشده';
+  const hasValue = value => value !== null && value !== undefined && String(value).trim() !== '' && value !== '—';
+  const detailSection = (content, title, fields) => {
+    const visible = fields.filter(([, value]) => hasValue(value));
+    if (!visible.length) return;
+    const section = document.createElement('section'); section.className = 'calls-details-section';
+    const heading = document.createElement('h3'); heading.textContent = title;
+    const grid = document.createElement('dl'); grid.className = 'calls-details-grid';
+    visible.forEach(([label, value]) => { const item = document.createElement('div'); const term = document.createElement('dt'); const description = document.createElement('dd'); term.textContent = label; description.textContent = String(value); item.append(term, description); grid.append(item); });
+    section.append(heading, grid); content.append(section);
+  };
+  const renderCallDetails = call => {
+    const content = $('call-details-content'); content.replaceChildren();
+    detailSection(content, 'تماس', [
+      ['نام تماس‌گیرنده', call.caller_display], ['شماره تماس', call.caller_phone],
+      ['زمان تماس', dateTimeLabel(call.called_at)], ['نتیجه', call.result_display],
+      ...(call.direction !== 'inbound' ? [['جهت تماس', call.direction_display]] : []),
+      ['ثبت‌کننده', call.receiver_display],
+    ]);
+    if (hasValue(call.description)) {
+      const section = document.createElement('section'); section.className = 'calls-details-section';
+      const heading = document.createElement('h3'); heading.textContent = 'توضیحات';
+      const text = document.createElement('p'); text.className = 'calls-details-description'; text.textContent = call.description;
+      section.append(heading, text); content.append(section);
+    }
+    detailSection(content, 'ارتباط‌های ثبت‌شده', [
+      ['بخش مرتبط', call.department_ref_display || call.department],
+      ['موضوع استاندارد', call.subject_ref_display], ['شخص مرتبط', call.person_display],
+      ['لید مرتبط', call.related_lead_display],
+    ]);
+    const historyItems = call.follow_up_history || [];
+    const followUpFields = [];
+    if (call.follow_up_status !== 'none') followUpFields.push(['وضعیت', call.follow_up_display]);
+    if (hasValue(call.next_follow_up_at)) followUpFields.push(['زمان پیگیری', dateTimeLabel(call.next_follow_up_at)]);
+    if (call.is_overdue_follow_up) followUpFields.push(['موعد پیگیری', 'گذشته است']);
+    if (hasValue(call.assignee_display) && call.assignee_display !== call.receiver_display) followUpFields.push(['مسئول پیگیری', call.assignee_display]);
+    if (hasValue(call.follow_up_note)) followUpFields.push(['یادداشت', call.follow_up_note]);
+    if (followUpFields.length || historyItems.length) {
+      detailSection(content, 'پیگیری', followUpFields);
+      if (historyItems.length) {
+        const section = document.createElement('section'); section.className = 'calls-details-section calls-details-history';
+        const heading = document.createElement('h3'); heading.textContent = 'سابقهٔ پیگیری';
+        const list = document.createElement('ol');
+        historyItems.forEach(entry => { const row = document.createElement('li'); const title = document.createElement('strong'); title.textContent = `${entry.new_status_display}`; const meta = document.createElement('span'); meta.textContent = `${dateTimeLabel(entry.created_at)}${hasValue(entry.actor_display) ? ` · ${entry.actor_display}` : ''}`; row.append(title, meta); if (hasValue(entry.note)) { const note = document.createElement('p'); note.textContent = entry.note; row.append(note); } if (hasValue(entry.next_follow_up_at)) { const next = document.createElement('span'); next.textContent = `پیگیری بعدی: ${dateTimeLabel(entry.next_follow_up_at)}`; row.append(next); } list.append(row); });
+        section.append(heading, list); content.append(section);
+      }
+    }
+  };
+  let detailsTrigger = null;
+  const showCallDetails = async (item, trigger) => {
+    detailsTrigger = trigger;
+    const dialog = $('call-details-dialog'); $('call-details-title').textContent = item.subject || 'جزئیات تماس';
+    $('call-details-content').replaceChildren(Object.assign(document.createElement('p'), {textContent: 'در حال دریافت جزئیات…'}));
+    dialog.showModal();
+    try { renderCallDetails(await api(`${item.id}/`)); }
+    catch (error) { const message = document.createElement('p'); message.className = 'calls-details-error'; message.textContent = `دریافت جزئیات ممکن نشد: ${error.message}`; $('call-details-content').replaceChildren(message); }
+    $('call-details-close').focus();
+  };
+  $('call-details-close').addEventListener('click', () => $('call-details-dialog').close());
+  $('call-details-dialog').addEventListener('close', () => detailsTrigger?.focus());
   const load = async () => { try {
     $('call-list-message').hidden = true;
     const filters = new URLSearchParams();
@@ -77,7 +141,7 @@
     const table = $('call-rows'); table.replaceChildren();
     if (!(body.results || []).length) {
       const row = document.createElement('tr'); const empty = document.createElement('td');
-      empty.colSpan = 5; empty.className = 'calls-empty'; empty.textContent = 'تماسی در این فهرست پیدا نشد.';
+      empty.colSpan = 6; empty.className = 'calls-empty'; empty.textContent = 'تماسی در این فهرست پیدا نشد.';
       row.append(empty); table.append(row); return;
     }
     body.results.forEach(item => {
@@ -95,6 +159,11 @@
           catch (error) { show($('call-list-message'), error.message, true); button.disabled = false; }
         }); followUp.append(button);
       }
+      const detailsCell = document.createElement('td'); const detailsButton = document.createElement('button');
+      detailsButton.type = 'button'; detailsButton.className = 'btn btn-sm btn-outline-primary'; detailsButton.textContent = 'مشاهده';
+      detailsButton.setAttribute('aria-haspopup', 'dialog'); detailsButton.setAttribute('aria-controls', 'call-details-dialog');
+      detailsButton.setAttribute('aria-label', `جزئیات تماس ${item.caller_display}، ${item.subject}`);
+      detailsButton.addEventListener('click', () => showCallDetails(item, detailsButton)); detailsCell.append(detailsButton); row.append(detailsCell);
       table.append(row);
     });
   } catch(error) { show($('call-list-message'), error.message, true); } };

@@ -47,7 +47,6 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     {"key": "workspace-reports", "flag": "workspace_reports", "title": "گزارش‌ها و تحلیل‌ها", "section": "گزارش‌ها", "default_roles": REPORT_ACCESS_ROLES},
     {"key": "playhouse-dashboard", "flag": "playhouse_dashboard", "title": "خانه بازی", "section": "خانه بازی", "default_roles": OPERATOR_ROLES},
     {"key": "playhouse-finance", "flag": "playhouse_finance", "title": "گزارش مالی خانه بازی", "section": "خانه بازی", "default_roles": FINANCE_ROLES},
-    {"key": "playhouse-settings", "flag": "playhouse_settings", "title": "تنظیمات خانه بازی", "section": "خانه بازی", "default_roles": FINANCE_ROLES},
     {"key": "leads-dashboard", "flag": "leads_dashboard", "title": "مدیریت لیدها", "section": "مدیریت لیدها", "default_roles": LEAD_OPERATOR_ROLES},
     {"key": "workspace-org-chart", "flag": "workspace_org_chart", "title": "نمودار سازمانی", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
     {"key": "workspace-perm-manage", "flag": "workspace_perm_manage", "title": "مدیریت مجوز کاربران", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},

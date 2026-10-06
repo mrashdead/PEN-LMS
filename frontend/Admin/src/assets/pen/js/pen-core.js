@@ -94,7 +94,7 @@
     if (!el || !confirm || !window.bootstrap) return;
     var name = options.name || 'این رکورد';
     var code = options.code ? ' با کد ' + options.code : '';
-    message.textContent = 'آیا از حذف «' + name + '»' + code + ' اطمینان دارید؟ سوابق غیرفعال می‌شود.';
+    message.textContent = options.message || ('آیا از حذف «' + name + '»' + code + ' اطمینان دارید؟ سوابق غیرفعال می‌شود.');
     error.hidden = true;
     error.textContent = '';
     confirm.disabled = false;
@@ -114,7 +114,7 @@
         });
       }).then(function () {
         instance.hide();
-        if (window.penToast) window.penToast('رکورد با موفقیت غیرفعال شد ✓', 'success');
+        if (window.penToast) window.penToast(options.successMessage || 'رکورد با موفقیت غیرفعال شد ✓', 'success');
         if (typeof options.onSuccess === 'function') options.onSuccess();
         else if (options.redirect) window.location.assign(options.redirect);
       }).catch(function (e) {

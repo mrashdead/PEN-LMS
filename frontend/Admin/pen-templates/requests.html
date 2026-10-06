@@ -6,28 +6,17 @@
 {% endblock %}
 {% block content %}
 <div class="pen-requests" id="requests-app">
-  <section class="pen-requests-hero" aria-labelledby="requests-title">
-    <div class="pen-requests-hero-copy">
-      <span class="pen-eyebrow"><i data-lucide="workflow" class="size-4"></i> گردش کار یکپارچه</span>
-      <h1 id="requests-title">هر خدمت، یک درخواست روشن و قابل پیگیری</h1>
-      <p>فرم مناسب را انتخاب کنید، اطلاعات را کامل کنید و تمام مراحل بررسی را در یک مسیر ببینید.</p>
-      <div class="d-flex flex-wrap gap-2 mt-4">
-        <button class="btn btn-primary btn-lg" type="button" data-request-tab="new"><i data-lucide="plus" class="size-4 me-1"></i> ساخت درخواست جدید</button>
-        <button class="btn btn-soft-light btn-lg" type="button" data-request-tab="mine"><i data-lucide="inbox" class="size-4 me-1"></i> دیدن درخواست‌های من</button>
+  <div class="card">
+    <div class="card-header">
+      <div class="pen-request-tabs" role="tablist" aria-label="بخش درخواست‌ها">
+        <button class="pen-request-tab is-active" type="button" role="tab" aria-selected="true" data-request-tab="new">درخواست جدید</button>
+        <button class="pen-request-tab" type="button" role="tab" aria-selected="false" data-request-tab="mine">درخواست‌های من</button>
+        <button class="pen-request-tab" type="button" role="tab" aria-selected="false" data-request-tab="work">کارهای ارجاع‌شده <span class="pen-tab-count" id="work-count">—</span></button>
+        <button class="pen-request-tab" type="button" role="tab" aria-selected="false" data-request-tab="drafts">پیش‌نویس‌ها</button>
+        <button class="pen-request-tab" type="button" role="tab" aria-selected="false" data-request-tab="completed">تکمیل‌شده</button>
       </div>
     </div>
-    <div class="pen-requests-hero-mark" aria-hidden="true"><i data-lucide="route" class="size-16"></i></div>
-  </section>
-  <section class="row g-3 mt-1" aria-label="خلاصه درخواست‌ها">
-    <div class="col-6 col-xl-3"><div class="pen-request-kpi"><span>همه درخواست‌ها</span><strong id="kpi-total">—</strong><i data-lucide="files" class="size-5"></i></div></div>
-    <div class="col-6 col-xl-3"><div class="pen-request-kpi"><span>در حال بررسی</span><strong id="kpi-review">—</strong><i data-lucide="hourglass" class="size-5"></i></div></div>
-    <div class="col-6 col-xl-3"><div class="pen-request-kpi"><span>نیازمند اقدام من</span><strong id="kpi-action">—</strong><i data-lucide="hand" class="size-5"></i></div></div>
-    <div class="col-6 col-xl-3"><div class="pen-request-kpi"><span>تکمیل‌شده</span><strong id="kpi-done">—</strong><i data-lucide="circle-check" class="size-5"></i></div></div>
-  </section>
-  <div class="pen-request-tabs mt-4" role="tablist" aria-label="بخش درخواست‌ها">
-    <button class="pen-request-tab is-active" type="button" role="tab" aria-selected="true" data-request-tab="new"><i data-lucide="sparkles" class="size-4"></i> درخواست جدید</button>
-    <button class="pen-request-tab" type="button" role="tab" aria-selected="false" data-request-tab="mine"><i data-lucide="clipboard-list" class="size-4"></i> درخواست‌های من</button><button class="pen-request-tab" type="button" role="tab" aria-selected="false" data-request-tab="work"><i data-lucide="inbox" class="size-4"></i> کارهای ارجاع‌شده <span class="pen-tab-count" id="work-count">—</span></button><button class="pen-request-tab" type="button" role="tab" aria-selected="false" data-request-tab="drafts"><i data-lucide="file-edit" class="size-4"></i> پیش‌نویس‌ها</button><button class="pen-request-tab" type="button" role="tab" aria-selected="false" data-request-tab="completed"><i data-lucide="circle-check" class="size-4"></i> تکمیل‌شده</button>
-  </div>
+    <div class="card-body">
   <section id="request-new-panel" class="pen-request-panel" role="tabpanel">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3"><div><h2 class="h5 mb-1">خدمت موردنظر را انتخاب کنید</h2><p class="text-muted mb-0">فرم‌ها بر اساس حوزهٔ کاری شما و فیلدهای تعریف‌شده نمایش داده می‌شوند.</p></div><div class="pen-request-search"><i data-lucide="search" class="size-4"></i><input id="schema-search" type="search" placeholder="جستجوی خدمت یا فرم…" aria-label="جستجوی فرم"></div></div>
     <div class="pen-request-categories" id="request-categories" aria-label="دسته‌بندی خدمات"></div>
@@ -40,6 +29,8 @@
   <section id="request-work-panel" class="pen-request-panel" role="tabpanel" hidden><div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3"><div><h2 class="h5 mb-1">کارهای ارجاع‌شده به من</h2><p class="text-muted mb-0">فقط وظایفی که در مرحلهٔ جاری باید انجام دهید.</p></div><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary" id="work-refresh" type="button"><i data-lucide="refresh-cw" class="size-4 me-1"></i> نوسازی</button></div></div><div class="pen-request-list" id="work-list"></div></section>
   <section id="request-filter-panel" class="pen-request-panel" role="tabpanel" hidden></section>
   <section id="req-detail-view" class="pen-request-detail" hidden><button type="button" class="btn btn-sm btn-light mb-3" id="detail-back"><i data-lucide="arrow-right" class="size-4 me-1"></i> بازگشت به درخواست‌ها</button><div class="row g-4"><div class="col-12 col-xl-8"><div class="card pen-detail-card"><div class="card-header"><div class="d-flex flex-wrap gap-2 align-items-center"><h2 class="h5 mb-0 flex-grow-1" id="rd-title">—</h2><span class="pen-badge pen-badge-processing" id="rd-status">—</span></div><p class="mb-0 text-muted fs-14 mt-2" id="rd-meta"></p></div><div class="card-body"><div class="pen-current-stage" id="rd-whonow"><i data-lucide="circle-dot" class="size-5"></i><span id="rd-whonow-text">—</span></div><h3 class="h6 mt-4 mb-2">اطلاعات ثبت‌شده</h3><div id="rd-info"></div><h3 class="h6 mt-4 mb-2">تاریخچهٔ گردش کار</h3><ol class="pen-timeline" id="rd-timeline"></ol></div></div></div><div class="col-12 col-xl-4"><div class="card"><div class="card-header"><h3 class="h6 mb-0">اقدام بعدی</h3></div><div class="card-body"><button type="button" class="btn btn-outline-danger w-100 mb-2" id="rd-cancel" hidden>لغو درخواست</button><div id="rd-actions"><p class="text-muted fs-14 mb-0">در حال بارگذاری…</p></div></div></div><div class="card mt-4"><div class="card-header"><h3 class="h6 mb-0">افراد درگیر</h3></div><div class="card-body"><ul class="list-unstyled mb-0 vstack gap-2" id="rd-people"></ul></div></div></div></div></section>
+    </div>
+  </div>
 </div>
 <div class="modal fade" id="action-modal" tabindex="-1" aria-labelledby="action-label" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h6 mb-0" id="action-label">اقدام</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div><div class="modal-body"><p class="fs-14 text-muted" id="action-hint"></p><label class="form-label" for="action-comment">توضیح</label><textarea id="action-comment" class="form-control" rows="3" placeholder="توضیح خود را بنویسید…"></textarea><div id="action-error" class="pen-error-summary mt-2" role="alert" hidden><ul class="mb-0"></ul></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">انصراف</button><button type="button" id="action-confirm" class="btn btn-primary">ثبت اقدام</button></div></div></div></div>
 {% endblock %}

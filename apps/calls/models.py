@@ -47,6 +47,13 @@ class CallResult(models.TextChoices):
     OTHER = "other", "سایر"
 
 
+# Keep missed attempts readable in existing history, while new call logs only
+# offer outcomes the operator can report from the current workspace form.
+NEW_CALL_RESULT_CHOICES = tuple(
+    choice for choice in CallResult.choices if choice[0] != CallResult.NO_ANSWER
+)
+
+
 class CallSubject(DomainModel):
     """
     کاتالوگ موضوع‌های تماس — منبع حقیقتِ picklist.

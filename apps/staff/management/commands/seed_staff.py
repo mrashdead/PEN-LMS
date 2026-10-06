@@ -23,14 +23,8 @@ from apps.workflow.models import State, Transition, WorkflowDefinition
 LEAVE_TYPES: list[dict[str, Any]] = [
     {"code": "annual", "name": "مرخصی استحقاقی", "accrual": "annual",
      "default_days": 26, "requires_document": False},
-    {"code": "sick", "name": "مرخصی استعلاجی", "accrual": "sick",
-     "default_days": 0, "requires_document": True},
     {"code": "unpaid", "name": "مرخصی بدون حقوق", "accrual": "unpaid",
      "default_days": 0, "requires_document": False},
-    {"code": "emergency", "name": "مرخصی اضطراری", "accrual": "annual",
-     "default_days": 5, "requires_document": False},
-    {"code": "maternity", "name": "مرخصی زایمان", "accrual": "unlimited",
-     "default_days": 90, "requires_document": True},
 ]
 
 WORKFLOW_BLUEPRINTS: dict[str, dict[str, Any]] = {
@@ -141,6 +135,14 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"[{'created' if created else 'updated'}] leave-type {obj.code}"
             )
+
+        # Retain old types for historical requests, but keep them out of the
+        # active catalog so only the two supported options can be requested.
+        retired = LeaveType.objects.filter(
+            is_deleted=False,
+        ).exclude(code__in=LeaveType.STAFF_REQUEST_CODES).update(is_active=False)
+        if retired:
+            self.stdout.write(f"[deactivated] {retired} unsupported leave type(s)")
 
         # ── Workflow definitions ──────────────────────────────────────────
         for code, blueprint in WORKFLOW_BLUEPRINTS.items():

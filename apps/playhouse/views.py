@@ -32,6 +32,7 @@ from apps.playhouse.permissions import (
     FINANCE_ROLES,
     IsPlayhouseFinance,
     IsPlayhouseOperator,
+    PRICE_EDITOR_ROLES,
 )
 from apps.playhouse.serializers import (
     ActiveSessionSerializer,
@@ -78,20 +79,21 @@ class ConfigView(GenericAPIView):
     def put(self, request):
         # Only finance/manager roles may change billing settings.
         roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
-        if not roles & FINANCE_ROLES:
+        if not roles & PRICE_EDITOR_ROLES:
             return Response(
-                {"detail": "فقط مدیران می‌توانند تنظیمات را تغییر دهند."},
+                {"detail": "فقط سرپرستان و مدیران می‌توانند نرخ خانه بازی را تغییر دهند."},
                 status=status.HTTP_403_FORBIDDEN,
             )
         ser = self.get_serializer(data=request.data)
         ser.is_valid(raise_exception=True)
         d = ser.validated_data
+        current = PlayhouseConfig.get_solo()
         config = PlayhouseService().update_config(
             operator=request.user,
             price_per_15_minutes=d["price_per_15_minutes"],
-            open_time=d.get("open_time"),
-            close_time=d.get("close_time"),
-            is_open_now=d.get("is_open_now", True),
+            open_time=d.get("open_time", current.open_time),
+            close_time=d.get("close_time", current.close_time),
+            is_open_now=d.get("is_open_now", current.is_open_now),
         )
         return Response({
             "price_per_15_minutes": config.price_per_15_minutes,
@@ -298,6 +300,8 @@ class FinanceReportView(GenericAPIView):
                 start = end = today
         except ValueError:
             return Response({"detail": "بازه تاریخ نامعتبر."}, status=400)
+        if start > end:
+            return Response({"detail": "تاریخ شروع بازه نمی‌تواند بعد از تاریخ پایان باشد."}, status=400)
 
         base = PlayhouseInvoice.objects.filter(paid_at__date__range=[start, end])
         time_agg = base.aggregate(invoices=Count("id"), time_total=Sum("time_amount"))

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from django.db.models import Q
 from rest_framework import generics, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.models import AuditEvent
 from apps.education.models import CourseLesson
 from apps.leads.models import Lead
 from apps.leads.permissions import IsLeadAssessor, IsLeadOperator, IsLeadTeacher, is_lead_operator
@@ -23,15 +26,32 @@ from apps.persons.services import DuplicateNationalCodeError, PersonService
 person_service = PersonService()
 
 
+class LeadPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
 class LeadListCreateView(generics.ListCreateAPIView):
     serializer_class = LeadSerializer
     permission_classes = (IsLeadAssessor,)
+    pagination_class = LeadPagination
 
     def get_queryset(self):
         qs = leads_for_user(self.request.user)
         status_filter = self.request.query_params.get("status")
         if status_filter:
-            qs = qs.filter(status=status_filter)
+            if status_filter == Lead.Status.SENT:
+                qs = qs.filter(status__in=[Lead.Status.SENT, "scheduled"])
+            else:
+                qs = qs.filter(status=status_filter)
+        query = self.request.query_params.get("q", "").strip()
+        if query:
+            qs = qs.filter(
+                Q(student_name__icontains=query)
+                | Q(phone__icontains=query)
+                | Q(code__icontains=query)
+            )
         return qs
 
     def create(self, request, *args, **kwargs):
@@ -43,10 +63,7 @@ class LeadListCreateView(generics.ListCreateAPIView):
         return LeadCreateSerializer if self.request.method == "POST" else LeadSerializer
 
     def perform_create(self, serializer):
-        lead = serializer.save(created_by=self.request.user)
-        if lead.assessment_date:
-            lead.status = Lead.Status.SCHEDULED
-            lead.save(update_fields=["status", "updated_at"])
+        serializer.save(created_by=self.request.user, status=Lead.Status.SENT)
 
 
 class LeadDetailView(generics.RetrieveUpdateAPIView):
@@ -80,6 +97,24 @@ class LeadActionView(APIView):
             lead.assessor = person
             lead.status = Lead.Status.SENT
             lead.save(update_fields=["assessor", "status", "updated_at"])
+        elif action == "delete":
+            if not is_lead_operator(request.user):
+                return Response({"detail": "حذف مورد تعیین سطح فقط برای کارکنان مجاز است."}, status=403)
+            if lead.status not in (Lead.Status.NEW, Lead.Status.SENT, Lead.Status.LOST, "scheduled"):
+                return Response(
+                    {"detail": "حذف فقط در مراحل اولیه و پیش از ثبت نتیجه تعیین سطح امکان‌پذیر است."},
+                    status=400,
+                )
+            lead.soft_delete()
+            AuditEvent.record(
+                kind=AuditEvent.Kind.FIELD_CHANGE,
+                summary="حذف نرم مورد تعیین سطح",
+                actor=request.user,
+                obj=lead,
+                request=request,
+                metadata={"action": "soft_delete", "resource": "leads.lead", "status": lead.status},
+            )
+            return Response({"detail": "مورد تعیین سطح حذف شد.", "id": str(lead.pk)})
         elif action == "assess":
             if not (request.user.role_codes() & {"teacher", "employee", "supervisor", "manager", "hr", "workflow_admin"}):
                 return Response({"detail": "دسترسی ثبت ارزیابی ندارید."}, status=403)

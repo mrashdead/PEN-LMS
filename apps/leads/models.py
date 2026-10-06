@@ -16,7 +16,6 @@ class Lead(DomainModel):
 
     class Status(models.TextChoices):
         NEW = "new", "لید جدید"
-        SCHEDULED = "scheduled", "جلسه تعیین شد"
         SENT = "sent", "ارسال‌شده برای استاد"
         ASSESSED = "assessed", "تعیین سطح‌شده"
         RECOMMENDED = "recommended", "دوره معرفی شد"
@@ -84,5 +83,6 @@ class Lead(DomainModel):
 
     @property
     def status_label(self):
+        if self.status == "scheduled":
+            return self.Status.SENT.label
         return self.get_status_display()
-

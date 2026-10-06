@@ -56,18 +56,14 @@
     });
   }
   function updateSource() {
-    var source = form.elements.source.value;
+    var source = 'offerings';
+    form.elements.source.value = source;
     var current = form.elements.status.value;
     form.elements.status.innerHTML = '<option value="">همهٔ وضعیت‌ها</option>' + Object.keys(statuses[source]).map(function (key) {
       return '<option value="' + key + '">' + statuses[source][key] + '</option>';
     }).join('');
     if (statuses[source][current]) form.elements.status.value = current;
-    pressed('[data-capacity-source]', source, 'data-capacity-source');
-    setText('capacity-parent-heading', source === 'offerings' ? 'دوره' : 'ترم');
-    setText('capacity-source-help', source === 'offerings'
-      ? 'ظرفیت و ثبت‌نام هر برگزاری دوره را بررسی کنید.'
-      : 'عضویت در کلاس‌های آموزشی به تفکیک ترم؛ فیلتر دوره بر اساس جلسات متصل به دوره اعمال می‌شود.');
-    document.querySelector('label[for="capacity-status"]').textContent = source === 'offerings' ? 'وضعیت برگزاری' : 'وضعیت کلاس';
+    document.querySelector('label[for="capacity-status"]').textContent = 'وضعیت برگزاری';
   }
   function queryUrl() {
     var params = new URLSearchParams();
@@ -168,7 +164,7 @@
       if (state.pickers[kind] !== request) return;
       var previous = select.value;
       var retained = previous ? select.options[select.selectedIndex].cloneNode(true) : null;
-      select.innerHTML = '<option value="">' + (kind === 'course' ? 'همهٔ دوره‌ها' : 'همهٔ کلاس‌ها / برگزاری‌ها') + '</option>';
+      select.innerHTML = '<option value="">' + (kind === 'course' ? 'همهٔ دوره‌ها' : 'همهٔ برگزاری‌ها') + '</option>';
       data.results.forEach(function (row) { select.add(new Option(row.label, row.id)); });
       if (retained && !data.results.some(function (row) { return row.id === previous; })) select.add(retained);
       select.value = selected || previous;
@@ -222,7 +218,6 @@
   document.getElementById('capacity-next').addEventListener('click', function () { if (state.next) load(state.next, state.page + 1, false); });
 
   var saved = new URLSearchParams(window.location.search);
-  if (saved.get('source') === 'classes') form.elements.source.value = 'classes';
   updateSource();
   ['status', 'capacity', 'from', 'to', 'group', 'page_size'].forEach(function (key) {
     var field = form.elements[key], value = saved.get(key);

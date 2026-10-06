@@ -200,7 +200,11 @@ class LeaveTypeListView(generics.ListAPIView):
 
     permission_classes = (IsActiveUser, IsStaffUser)
     serializer_class = LeaveTypeSerializer
-    queryset = LeaveType.objects.filter(is_active=True, is_deleted=False).order_by("name")
+    queryset = LeaveType.objects.filter(
+        code__in=LeaveType.STAFF_REQUEST_CODES,
+        is_active=True,
+        is_deleted=False,
+    ).order_by("name")
 
 
 class LeaveRequestListCreateView(generics.ListCreateAPIView):
@@ -245,6 +249,8 @@ class LeaveRequestListCreateView(generics.ListCreateAPIView):
                 start_date=serializer.validated_data["start_date"],
                 end_date=serializer.validated_data["end_date"],
                 unit=serializer.validated_data.get("unit", LeaveRequest.Unit.DAY),
+                start_time=serializer.validated_data.get("start_time"),
+                end_time=serializer.validated_data.get("end_time"),
                 description=serializer.validated_data.get("description", ""),
                 attachment=serializer.validated_data.get("attachment"),
             )

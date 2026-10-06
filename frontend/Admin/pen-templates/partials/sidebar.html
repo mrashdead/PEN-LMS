@@ -281,16 +281,6 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
         </li>
         {% endif %}
-        {% if sidebar_visibility.playhouse_settings %}
-        <li class="nav-item">
-          <a href="{% url 'playhouse-settings' %}" title="تنظیمات خانه بازی"
-             class="nav-link{% if urlname == 'playhouse-settings' %} active{% endif %}"
-             {% if urlname == 'playhouse-settings' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="settings"></i></span>
-            <span class="content">تنظیمات خانه بازی</span>
-          </a>
-        </li>
-        {% endif %}
         {% if sidebar_visibility.leads_teacher_assessments and not sidebar_sections.teacher %}
         <li class="nav-item">
           <a href="{% url 'leads-teacher-assessments' %}" title="تعیین‌سطح‌های من"

@@ -180,7 +180,7 @@
           '<ul class="dropdown-menu dropdown-menu-end">' +
           (actions.view ? '<li><button type="button" class="dropdown-item" data-open><i data-lucide="eye" class="size-4"></i> مشاهده</button></li>' : '') +
           (actions.edit ? '<li><button type="button" class="dropdown-item" data-edit><i data-lucide="pencil" class="size-4"></i> ویرایش</button></li>' : '') +
-          (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(CFG.api + row.id + '/delete/') + '" data-delete-name="' + esc(label) + '" data-delete-code="' + esc(row.code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف نرم</button></li>' : '') +
+          (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(CFG.api + row.id + '/delete/') + '" data-delete-name="' + esc(label) + '" data-delete-code="' + esc(row.code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف</button></li>' : '') +
           '</ul></div>';
         rowsHtml.push('<tr data-id="' + esc(row.id) + '" data-idx="' + i + '" data-group-row="' + esc(groupKey) + '" role="button" tabindex="0"' +
           (hidden ? ' hidden' : '') + '>' + tds +
@@ -325,7 +325,7 @@
     if (row.actions && row.actions.delete && row.id) {
       var bDelete = document.createElement('button');
       bDelete.className = 'btn btn-outline-danger';
-      bDelete.innerHTML = '<i data-lucide="trash-2" class="size-4 me-1"></i> حذف نرم';
+      bDelete.innerHTML = '<i data-lucide="trash-2" class="size-4 me-1"></i> حذف';
       bDelete.addEventListener('click', function () {
         window.penOpenDeleteModal({
           url: CFG.api + row.id + '/delete/',

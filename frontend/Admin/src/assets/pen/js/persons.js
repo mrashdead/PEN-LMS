@@ -105,7 +105,7 @@
         (actions.view ? '<li><button type="button" class="dropdown-item" data-person-view><i data-lucide="eye" class="size-4"></i> مشاهده</button></li>' : '') +
         (actions.edit ? '<li><button type="button" class="dropdown-item" data-person-edit><i data-lucide="pencil" class="size-4"></i> ویرایش</button></li>' : '') +
         (ctx.directory === 'education' && ctx.can_create_user && row.person_type === 'student' && !row.has_user ? '<li><button type="button" class="dropdown-item" data-person-create-user><i data-lucide="user-plus" class="size-4"></i> ساخت حساب کاربری</button></li>' : '') +
-        (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(personResourceUrl(row.id, 'delete')) + '" data-delete-name="' + esc(label.trim()) + '" data-delete-code="' + esc(row.national_code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف نرم</button></li>' : '') +
+        (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(personResourceUrl(row.id, 'delete')) + '" data-delete-name="' + esc(label.trim()) + '" data-delete-code="' + esc(row.national_code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف</button></li>' : '') +
         '</ul></div>';
       return '<tr>' +
         '<td><strong class="persons-name">' + esc(label.trim() || '—') + '</strong><small class="persons-secondary" dir="ltr">' + esc(row.national_code || '—') + '</small></td>' +
@@ -233,7 +233,7 @@
         footer.appendChild(createUser);
       }
       if (person.actions && person.actions.delete) {
-        var del = document.createElement('button'); del.className = 'btn btn-outline-danger'; del.innerHTML = '<i data-lucide="trash-2" class="size-4 me-1"></i> حذف نرم';
+        var del = document.createElement('button'); del.className = 'btn btn-outline-danger'; del.innerHTML = '<i data-lucide="trash-2" class="size-4 me-1"></i> حذف';
         del.addEventListener('click', function () { window.penOpenDeleteModal({url: personResourceUrl(person.id, 'delete'), name: person.display_name || labelForPerson(person), code: person.national_code || person.id, onSuccess: function () { detailModal.hide(); loadList(apiUrlWithParams(), true); }}); }); footer.appendChild(del);
       }
       detailModal.show();

@@ -4,7 +4,8 @@
   var API = window.__LEADS_API__ || '/api/leads/';
   var appRoot = document.querySelector('[data-lead-app]');
   var teacherMode = Boolean(appRoot && appRoot.dataset.leadMode === 'teacher');
-  var state = { rows: [], filter: 'all', assessors: [] };
+  var state = { rows: [], filter: 'all', assessors: [], page: 1, pageSize: 20, count: 0, request: 0, query: '', status: '' };
+  var searchTimer = null;
   var modal = null;
 
   function esc(value) { return window.htmlEscape ? window.htmlEscape(value) : (value == null ? '' : String(value).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[c]; })); }
@@ -28,26 +29,51 @@
 
   function renderRows() {
     var list = document.getElementById('lead-list');
-    var rows = state.rows.filter(function (row) {
-      if (state.filter === 'all') return true;
-      if (teacherMode && state.filter === 'pending') return row.status === 'scheduled' || row.status === 'sent';
-      if (teacherMode && state.filter === 'completed') return row.status === 'assessed' || row.status === 'recommended' || row.status === 'enrolled';
-      if (state.filter === 'new') return row.status === 'new' || row.status === 'scheduled';
-      if (state.filter === 'sent') return row.status === 'sent' || row.status === 'assessed';
-      if (state.filter === 'recommended') return row.status === 'recommended';
-      return row.status === state.filter;
-    });
-    list.innerHTML = rows.length ? rows.map(card).join('') : '<div class="lead-empty"><i data-lucide="' + (teacherMode ? 'clipboard-check' : 'search-x') + '" aria-hidden="true"></i><strong>' + (teacherMode ? 'تعیین‌سطحی در این فیلتر نیست' : 'لیدی در این مرحله نیست') + '</strong><span>' + (teacherMode ? 'لیدهای تخصیص‌یافته پس از ارسال کارمند در این صف دیده می‌شوند.' : 'با فیلتر دیگری صف را بررسی کنید.') + '</span></div>';
+    if (!list) return;
+    if (!teacherMode) {
+      var rows = state.rows;
+      list.innerHTML = rows.length ? rows.map(function (row) {
+        var date = row.assessment_date ? fmtDate(row.assessment_date) + (row.assessment_time ? ' · ' + fmtTime(row.assessment_time) : '') : '—';
+        return '<tr><td><strong class="lead-table-name">' + esc(row.student_name) + '</strong><small dir="ltr">' + esc(row.phone) + ' · ' + esc(row.code) + '</small></td><td>' + esc(date) + '</td><td>' + esc(row.assessor_name || '—') + '</td><td><span class="' + statusClass(row.status === 'scheduled' ? 'sent' : row.status) + '">' + esc(row.status_label) + '</span></td><td>' + esc(row.created_by_name || '—') + '</td><td><button type="button" class="btn btn-sm btn-outline-primary lead-open" data-id="' + esc(row.id) + '">جزئیات</button></td></tr>';
+      }).join('') : '<tr><td colspan="6" class="lead-table-message"><strong>' + (state.query || state.status ? 'نتیجه‌ای پیدا نشد' : 'هنوز لیدی ثبت نشده') + '</strong><span>' + (state.query || state.status ? 'عبارت جست‌وجو یا فیلتر وضعیت را تغییر دهید.' : 'با ثبت لید جدید، پیگیری آن را از همین فهرست انجام دهید.') + '</span></td></tr>';
+      var start = state.count ? (state.page - 1) * state.pageSize + 1 : 0;
+      var end = Math.min(state.page * state.pageSize, state.count);
+      var pages = Math.max(1, Math.ceil(state.count / state.pageSize));
+      var summary = document.getElementById('lead-result-summary');
+      if (summary) summary.textContent = state.count ? 'نمایش ' + start.toLocaleString('fa-IR') + ' تا ' + end.toLocaleString('fa-IR') + ' از ' + state.count.toLocaleString('fa-IR') + ' لید' : '۰ لید';
+      var pageSummary = document.getElementById('lead-page-summary');
+      if (pageSummary) pageSummary.textContent = state.count ? state.count.toLocaleString('fa-IR') + ' مورد' : 'بدون نتیجه';
+      var indicator = document.getElementById('lead-page-indicator');
+      if (indicator) indicator.textContent = 'صفحهٔ ' + state.page.toLocaleString('fa-IR') + ' از ' + pages.toLocaleString('fa-IR');
+      var prev = document.getElementById('lead-prev'), next = document.getElementById('lead-next');
+      if (prev) prev.disabled = state.page <= 1;
+      if (next) next.disabled = state.page >= pages;
+    } else {
+      var filtered = state.rows.filter(function (row) {
+        if (state.filter === 'all') return true;
+        if (state.filter === 'pending') return row.status === 'sent' || row.status === 'scheduled';
+        if (state.filter === 'completed') return row.status === 'assessed' || row.status === 'recommended' || row.status === 'enrolled';
+        return row.status === state.filter;
+      });
+      list.innerHTML = filtered.length ? filtered.map(card).join('') : '<div class="lead-empty"><i data-lucide="clipboard-check" aria-hidden="true"></i><strong>تعیین‌سطحی در این فیلتر نیست</strong><span>لیدهای تخصیص‌یافته پس از ارسال کارمند در این صف دیده می‌شوند.</span></div>';
+    }
     icons();
     list.querySelectorAll('.lead-open').forEach(function (button) { button.addEventListener('click', function () { openDetail(button.dataset.id); }); });
   }
 
   function loadRows() {
     var list = document.getElementById('lead-list');
-    if (list) list.setAttribute('aria-busy', 'true');
-    return get(API).then(function (data) { state.rows = data.results || data || []; renderRows(); }).finally(function () {
-      if (list) list.setAttribute('aria-busy', 'false');
-    });
+    if (!list) return Promise.resolve();
+    list.setAttribute('aria-busy', 'true');
+    var request = ++state.request;
+    if (teacherMode) return get(API).then(function (data) { state.rows = data.results || data || []; renderRows(); }).finally(function () { list.setAttribute('aria-busy', 'false'); });
+    var params = new URLSearchParams({ page: String(state.page), page_size: String(state.pageSize) });
+    if (state.query) params.set('q', state.query);
+    if (state.status) params.set('status', state.status);
+    return get(API + '?' + params.toString()).then(function (data) {
+      if (request !== state.request) return;
+      state.rows = data.results || []; state.count = data.count || 0; renderRows();
+    }).finally(function () { if (request === state.request) list.setAttribute('aria-busy', 'false'); });
   }
 
   function loadAssessors() {
@@ -78,9 +104,10 @@
   }
 
   function actionMarkup(lead) {
-    if (teacherMode) return lead.status === 'sent' ? actionButton('ثبت نتیجه تعیین سطح', 'assess', 'btn-primary') : '';
-    if (lead.status === 'new' || lead.status === 'scheduled') return actionButton('ارسال برای استاد', 'send', 'btn-primary') + actionButton('بایگانی', 'archive', 'btn-light');
-    if (lead.status === 'sent') return actionButton('ثبت نتیجه تعیین سطح', 'assess', 'btn-primary') + actionButton('بایگانی', 'archive', 'btn-light');
+    if (teacherMode) return lead.status === 'sent' || lead.status === 'scheduled' ? actionButton('ثبت نتیجه تعیین سطح', 'assess', 'btn-primary') : '';
+    if (lead.status === 'new' || lead.status === 'scheduled') return actionButton('ارسال برای استاد', 'send', 'btn-primary') + actionButton('حذف تعیین سطح', 'delete', 'btn-outline-danger') + actionButton('بایگانی', 'archive', 'btn-light');
+    if (lead.status === 'sent') return actionButton('ثبت نتیجه تعیین سطح', 'assess', 'btn-primary') + actionButton('حذف تعیین سطح', 'delete', 'btn-outline-danger') + actionButton('بایگانی', 'archive', 'btn-light');
+    if (lead.status === 'lost') return actionButton('حذف تعیین سطح', 'delete', 'btn-outline-danger');
     if (lead.status === 'assessed') return actionButton('معرفی دوره', 'recommend', 'btn-primary');
     if (lead.status === 'recommended') return actionButton('ادامه ثبت‌نام', 'enroll', 'btn-primary');
     return '';
@@ -149,6 +176,13 @@
         }
         courseSelect.removeAttribute('aria-invalid');
         post(API + lead.id + '/recommend/', { course: courseSelect.value, lesson: lessonSelect.value || null, recommendation: document.getElementById('lead-action-recommendation').value.trim() }).then(done).catch(fail);
+      });
+    } else if (action === 'delete') {
+      window.penOpenDeleteModal({
+        url: API + lead.id + '/delete/',
+        message: 'مورد تعیین سطح «' + (lead.student_name || '') + '» حذف شود؟',
+        successMessage: 'مورد تعیین سطح حذف شد.',
+        onSuccess: function () { if (modal) modal.hide(); window.location.reload(); }
       });
     } else if (action === 'enroll') {
       window.location.href = '/workspace/enrollments/?lead=' + encodeURIComponent(lead.id);
@@ -242,13 +276,22 @@
     var submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
     post(API, { student_name: document.getElementById('lead-student-name').value.trim(), age: Number(document.getElementById('lead-age').value), phone: toAsciiDigits(phoneInput.value), neighborhood: document.getElementById('lead-neighborhood').value.trim(), father_job: document.getElementById('lead-father-job').value.trim(), mother_job: document.getElementById('lead-mother-job').value.trim(), allergy_notes: document.getElementById('lead-allergy').value.trim(), assessment_date: iso, assessment_time: timeInput.value, assessor: document.getElementById('lead-assessor').value, course: courseInput.value || null, lesson: lessonInput.value || null })
-      .then(function () { toast('لید و نوبت تعیین سطح ثبت شد.', 'success'); window.location.reload(); })
+      .then(function () { toast('لید ثبت و برای استاد ارسال شد.', 'success'); window.location.reload(); })
       .catch(function (e) { errors.querySelector('ul').innerHTML = '<li>' + esc(e.message) + '</li>'; errors.hidden = false; })
       .finally(function () { submit.disabled = false; });
     });
   }
 
   document.querySelectorAll('.lead-filters button').forEach(function (button) { button.addEventListener('click', function () { document.querySelectorAll('.lead-filters button').forEach(function (b) { b.classList.remove('is-active'); b.setAttribute('aria-pressed', 'false'); }); button.classList.add('is-active'); button.setAttribute('aria-pressed', 'true'); state.filter = button.dataset.filter; renderRows(); }); });
+  var searchInput = document.getElementById('lead-search');
+  var statusInput = document.getElementById('lead-status-filter');
+  var sizeInput = document.getElementById('lead-page-size');
+  if (searchInput) searchInput.addEventListener('input', function () { clearTimeout(searchTimer); searchTimer = setTimeout(function () { state.query = searchInput.value.trim(); state.page = 1; loadRows().catch(function (e) { toast(e.message, 'danger'); }); }, 300); });
+  if (statusInput) statusInput.addEventListener('change', function () { state.status = statusInput.value; state.page = 1; loadRows().catch(function (e) { toast(e.message, 'danger'); }); });
+  if (sizeInput) sizeInput.addEventListener('change', function () { state.pageSize = Number(sizeInput.value) || 20; state.page = 1; loadRows().catch(function (e) { toast(e.message, 'danger'); }); });
+  var prevButton = document.getElementById('lead-prev'), nextButton = document.getElementById('lead-next');
+  if (prevButton) prevButton.addEventListener('click', function () { if (state.page > 1) { state.page--; loadRows().catch(function (e) { toast(e.message, 'danger'); }); } });
+  if (nextButton) nextButton.addEventListener('click', function () { if (state.page * state.pageSize < state.count) { state.page++; loadRows().catch(function (e) { toast(e.message, 'danger'); }); } });
   function refreshRows() {
     return loadRows().then(function () { return form ? loadAssessors() : null; });
   }

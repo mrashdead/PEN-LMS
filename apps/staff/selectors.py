@@ -254,6 +254,9 @@ def leave_report(filters: StaffFilters) -> dict[str, Any]:
                 "end_date": r.end_date.isoformat(),
                 "start_date_jalali": _jalali_day_label(r.start_date),
                 "end_date_jalali": _jalali_day_label(r.end_date),
+                "start_time": r.start_time.strftime("%H:%M") if r.start_time else None,
+                "end_time": r.end_time.strftime("%H:%M") if r.end_time else None,
+                "time_range_display": r.time_range_display,
                 "duration_display": r.duration_display,
             }
             for r in pending[:20]

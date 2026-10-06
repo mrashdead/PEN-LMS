@@ -109,7 +109,7 @@
                           <li><button type="button" class="dropdown-item text-danger" data-delete-action
                             data-delete-url="/api/forms/submissions/{{ s.id }}/delete/"
                             data-delete-name="{{ s.form_schema.title|escape }}"
-                            data-delete-code="{{ s.submission_number|default:s.id }}"><i data-lucide="trash-2" class="size-4"></i> حذف نرم</button></li>
+                            data-delete-code="{{ s.submission_number|default:s.id }}"><i data-lucide="trash-2" class="size-4"></i> حذف</button></li>
                         {% endif %}
                       </ul>
                     </div>

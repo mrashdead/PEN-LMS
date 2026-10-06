@@ -10,6 +10,7 @@
     <div class="ph-rate-card" aria-label="نرخ فعلی خانه بازی">
       <span class="ph-rate-label">نرخ هر ۱۵ دقیقه</span>
       <strong><span id="ph-price-value">—</span> <small>تومان</small></strong>
+      {% if can_edit_playhouse_price %}<button type="button" class="btn btn-sm btn-outline-light mt-2" data-bs-toggle="modal" data-bs-target="#ph-price-modal"><i data-lucide="pencil" aria-hidden="true"></i> تغییر نرخ</button>{% endif %}
     </div>
   </section>
 
@@ -41,7 +42,7 @@
         <div class="row g-3">
           <div class="col-6 ph-field"><label for="ph-first">نام</label><input type="text" id="ph-first" name="first_name" class="form-control" placeholder="مثلاً آوا" required></div>
           <div class="col-6 ph-field"><label for="ph-last">نام خانوادگی</label><input type="text" id="ph-last" name="last_name" class="form-control" placeholder="مثلاً محمدی" required></div>
-          <div class="col-5 ph-field"><label for="ph-age">سن</label><div class="ph-input-suffix-wrap"><input type="number" id="ph-age" name="age" class="form-control" min="0" max="120" placeholder="—"><span>سال</span></div></div>
+          <div class="col-5 ph-field"><label for="ph-age">سن (سال)</label><input type="number" id="ph-age" name="age" class="form-control" min="0" max="120"></div>
           <div class="col-7 ph-field"><label for="ph-mobile">شماره والدین</label><input type="text" id="ph-mobile" name="guardian_mobile" class="form-control" inputmode="tel" dir="ltr" placeholder="0912…"></div>
         </div>
 
@@ -61,20 +62,27 @@
 
     <section class="ph-sessions-panel" aria-labelledby="ph-sessions-title">
       <div class="ph-sessions-heading">
-        <h2 id="ph-sessions-title">نوبت‌های امروز</h2>
-        <div class="ph-list-actions"><a class="btn ph-outline-action" href="{% url 'playhouse-attendance' %}"><i data-lucide="clipboard-list" aria-hidden="true"></i> دفتر رفت‌وآمد</a>{% if is_playhouse_finance %}<a class="btn ph-outline-action" href="{% url 'playhouse-finance' %}"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i> گزارش مالی</a>{% endif %}<button type="button" class="btn ph-icon-action" id="ph-refresh" title="بروزرسانی لیست"><i data-lucide="refresh-cw" aria-hidden="true"></i><span class="visually-hidden">بروزرسانی</span></button></div>
+        <h2 id="ph-sessions-title">مراجعه‌های روز <span class="text-muted" id="ph-selected-day-label">{{ selected_day_jalali }}</span></h2>
+        <div class="ph-list-actions">{% if is_playhouse_finance %}<a class="btn ph-outline-action" href="{% url 'playhouse-finance' %}"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i> گزارش مالی</a>{% endif %}<button type="button" class="btn ph-icon-action" id="ph-refresh" title="بروزرسانی لیست"><i data-lucide="refresh-cw" aria-hidden="true"></i><span class="visually-hidden">بروزرسانی</span></button></div>
       </div>
 
-      <div class="ph-live-strip"><div><span class="ph-live-pulse"></span><strong>تایمرهای فعال</strong><span class="ph-live-value" id="ph-active-count">۰</span></div><div><i data-lucide="calendar-check-2" aria-hidden="true"></i><span>نمایش امروز</span><span class="ph-live-value" id="ph-today-count">—</span></div></div>
+      <div class="d-flex flex-wrap align-items-end gap-2 my-3" role="search">
+        <div class="ph-field"><label for="ph-log-date">نمایش سوابق روز</label><input type="text" id="ph-log-date" class="form-control ph-date-input" value="{{ selected_day_jalali }}" data-jalali autocomplete="off" dir="ltr" inputmode="numeric" aria-label="انتخاب تاریخ شمسی برای نمایش سابقه"></div>
+        <button type="button" class="btn ph-outline-action" id="ph-log-date-submit">نمایش روز</button>
+        <button type="button" class="btn btn-light" id="ph-log-today">امروز</button>
+      </div>
+
+      <div class="ph-live-strip"><div><span class="ph-live-pulse"></span><strong>تایمرهای فعال این روز</strong><span class="ph-live-value" id="ph-active-count">۰</span></div><div><i data-lucide="calendar-check-2" aria-hidden="true"></i><span>تعداد مراجعه</span><span class="ph-live-value" id="ph-today-count">—</span></div></div>
 
       <div class="ph-table-shell"><div class="table-responsive"><table class="table ph-session-table align-middle mb-0" id="ph-session-table">
-        <thead><tr><th>ورود / خروج</th><th>کودک</th><th>تماس والدین</th><th>مدت حضور</th><th>وضعیت</th><th class="text-end">عملیات</th></tr></thead>
+        <thead><tr><th>ورود / خروج</th><th>کودک</th><th>والد و تماس</th><th>ثبت‌کننده</th><th>مدت حضور</th><th>وضعیت</th><th>فاکتور و پرداخت</th><th class="text-end">عملیات</th></tr></thead>
         <tbody>
           {% for s in sessions %}
-            <tr data-id="{{ s.id }}" data-status="{{ s.status }}" data-entry="{{ s.entry_at|date:'c'|default:'' }}" data-paused-at="{{ s.paused_at|date:'c'|default:'' }}" data-paused-seconds="{{ s.paused_seconds|default:0 }}" data-billable="{{ s.billable_minutes|default:0 }}">
+            <tr data-id="{{ s.id }}" data-status="{{ s.status }}" data-session-date="{{ s.session_date|date:'Y-m-d'|default:selected_day }}" data-entry="{{ s.entry_at|date:'c'|default:'' }}" data-exit="{{ s.exit_at|date:'c'|default:'' }}" data-paused-at="{{ s.paused_at|date:'c'|default:'' }}" data-paused-seconds="{{ s.paused_seconds|default:0 }}" data-billable="{{ s.billable_minutes|default:0 }}">
               <td class="ph-time-cell" data-role="times"><span>ورود: {{ s.entry_at|date:'H:i'|default:'—' }}</span><span>خروج: {{ s.exit_at|date:'H:i'|default:'—' }}</span></td>
               <td><div class="ph-child-name">{{ s.member.display_name }}</div><div class="ph-child-age">{% if s.member.age %}{{ s.member.age }} ساله{% else %}سن ثبت نشده{% endif %}</div></td>
-              <td dir="ltr" class="ph-phone-cell">{{ s.member.guardian_mobile|default:'—' }}</td>
+              <td><div>{{ s.member.guardian_name|default:'—' }}</div><div dir="ltr" class="ph-phone-cell">{{ s.member.guardian_mobile|default:'—' }}</div><small class="text-muted">{{ s.member.notes|default:'' }}</small></td>
+              <td data-role="operator">{{ s.operator.get_full_name|default:s.operator.username }}<small class="d-block text-muted">ثبت: {{ s.created_at|date:'H:i' }}</small></td>
               <td class="ph-timer-cell" data-role="timer">{% if s.status == 'active' or s.status == 'paused' %}{{ s.elapsed_label }}{% elif s.status == 'finished' %}{{ s.billable_label }}{% else %}—{% endif %}</td>
               <td data-role="status">
                 {% if s.invoice %}
@@ -82,15 +90,30 @@
                   {% else %}<span class="ph-status ph-status-invoiced"><span></span>فاکتور صادر شد</span>{% endif %}
                 {% else %}<span class="ph-status ph-status-{{ s.status }}"><span></span>{{ s.get_status_display }}</span>{% endif %}
               </td>
+              <td data-role="invoice">
+                {% if s.invoice %}
+                  <span class="ph-status {% if s.invoice.is_paid %}ph-status-paid{% else %}ph-status-invoiced{% endif %}"><span></span>{% if s.invoice.is_paid %}پرداخت شده{% else %}پرداخت نشده{% endif %}</span>
+                  <strong class="d-block">{{ s.invoice.total_amount|floatformat:0 }} تومان</strong>
+                  <details><summary class="small">فاکتور {{ s.invoice.invoice_number }}</summary>
+                    <div class="small mt-1">هزینه زمان: {{ s.invoice.time_amount|floatformat:0 }} تومان</div>
+                    {% for item in s.invoice.items.all %}<div class="small">{{ item.name }}: {{ item.price|floatformat:0 }} تومان</div>{% endfor %}
+                    <div class="small">جمع کافه: {{ s.invoice.cafe_total|floatformat:0 }} تومان</div>
+                    <div class="small">روش پرداخت: {{ s.invoice.get_payment_method_display|default:'—' }}</div>
+                    {% if s.invoice.tracking_code %}<div class="small">کد رهگیری: <span dir="ltr">{{ s.invoice.tracking_code }}</span></div>{% endif %}
+                    {% if s.invoice.paid_at %}<div class="small">پرداخت: <span data-paid-at="{{ s.invoice.paid_at|date:'c' }}">{{ s.invoice.paid_at|date:'H:i' }}</span></div>{% endif %}
+                  </details>
+                {% else %}<span class="text-muted">فاکتور صادر نشده</span>{% endif %}
+              </td>
               <td class="text-end"><div class="ph-row-actions" data-role="actions">
-                {% if s.status == 'waiting' %}<button class="btn ph-row-btn ph-row-start" data-act="start" title="شروع تایمر"><i data-lucide="play" aria-hidden="true"></i></button><button class="btn ph-row-btn ph-row-cancel" data-act="cancel" title="لغو"><i data-lucide="x" aria-hidden="true"></i></button>
+                {% if s.status == 'waiting' %}<button class="btn ph-row-btn ph-row-start" data-act="start" title="شروع تایمر"><i data-lucide="play" aria-hidden="true"></i></button><button class="btn ph-row-btn ph-row-cancel" data-act="cancel" title="لغو"><i data-lucide="x" aria-hidden="true"></i></button><details class="text-start mt-1"><summary class="small">ثبت زمان واقعی</summary><input class="form-control form-control-sm mt-1" type="text" data-entry-date data-jalali dir="ltr" placeholder="تاریخ شمسی ورود"><input class="form-control form-control-sm mt-1" type="time" data-entry-time aria-label="ساعت واقعی ورود"><button class="btn btn-sm btn-outline-primary mt-1" data-act="correct-start">ثبت زمان ورود</button></details>
                 {% elif s.status == 'active' %}<button class="btn ph-row-btn ph-row-pause" data-act="stop" title="توقف تایمر"><i data-lucide="pause" aria-hidden="true"></i></button><button class="btn ph-row-btn ph-row-end" data-act="end" title="پایان حضور"><i data-lucide="square" aria-hidden="true"></i></button>
+                  <details class="text-start mt-1"><summary class="small">ثبت خروج واقعی</summary><input class="form-control form-control-sm mt-1" type="text" data-exit-date data-jalali dir="ltr" placeholder="تاریخ شمسی خروج"><input class="form-control form-control-sm mt-1" type="time" data-exit-time aria-label="ساعت واقعی خروج"><button class="btn btn-sm btn-outline-danger mt-1" data-act="correct-end">ثبت زمان خروج</button></details>
                 {% elif s.status == 'paused' %}<button class="btn ph-row-btn ph-row-start" data-act="start" title="ادامه تایمر"><i data-lucide="play" aria-hidden="true"></i></button><button class="btn ph-row-btn ph-row-end" data-act="end" title="پایان حضور"><i data-lucide="square" aria-hidden="true"></i></button>
                 {% elif s.status == 'finished' and not s.invoice %}<button class="btn ph-row-btn ph-row-invoice" data-act="invoice" title="صدور فاکتور"><i data-lucide="receipt" aria-hidden="true"></i><span>فاکتور</span></button>
                 {% elif s.status == 'finished' and s.invoice %}<span class="ph-invoice-done" title="{{ s.invoice.invoice_number }}">{{ s.invoice.invoice_number|default:'ثبت شد' }}</span>{% endif %}
               </div></td>
             </tr>
-          {% empty %}<tr class="ph-empty"><td colspan="6"><div class="ph-empty-state"><div class="ph-empty-icon"><i data-lucide="sparkles" aria-hidden="true"></i></div><strong>هنوز ورودی ثبت نشده است</strong><span>اولین کودک امروز را از فرم سمت راست ثبت کنید.</span></div></td></tr>{% endfor %}
+          {% empty %}<tr class="ph-empty"><td colspan="8"><div class="ph-empty-state"><div class="ph-empty-icon"><i data-lucide="sparkles" aria-hidden="true"></i></div><strong>برای این روز ورودی ثبت نشده است</strong><span>برای ثبت مراجعه جدید از فرم پذیرش استفاده کنید.</span></div></td></tr>{% endfor %}
         </tbody>
       </table></div></div>
     </section>
@@ -98,6 +121,17 @@
 </div>
 
 {% include "playhouse/partials/invoice_modal.html" %}
+{% if can_edit_playhouse_price %}
+<div class="modal fade" id="ph-price-modal" tabindex="-1" aria-labelledby="ph-price-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content">
+    <form id="ph-price-form" novalidate>
+      <div class="modal-header"><h2 class="modal-title fs-5" id="ph-price-title">تعیین هزینه هر ۱۵ دقیقه</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div>
+      <div class="modal-body"><label for="ph-price-input" class="form-label">هزینه هر ۱۵ دقیقه <span class="text-danger">*</span></label><div class="input-group"><input type="number" class="form-control" id="ph-price-input" min="0" step="1000" required dir="ltr"><span class="input-group-text">تومان</span></div><div id="ph-price-error" class="text-danger small mt-2" role="alert" hidden></div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">انصراف</button><button type="submit" class="btn btn-primary" id="ph-price-save">ذخیره نرخ</button></div>
+    </form>
+  </div></div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block page_js %}

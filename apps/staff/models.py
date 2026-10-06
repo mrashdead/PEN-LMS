@@ -220,6 +220,8 @@ class TimesheetEntry(DomainModel):
 class LeaveType(DomainModel):
     """نوع مرخصی — منبع حقیقت قابل انتخاب، نه رشته‌ی آزاد."""
 
+    STAFF_REQUEST_CODES = ("annual", "unpaid")
+
     class Accrual(models.TextChoices):
         UNLIMITED = "unlimited", "نامحدود"
         ANNUAL = "annual", "سالانه (استحقاقی)"
@@ -282,6 +284,8 @@ class LeaveRequest(DomainModel):
     )
     start_date = models.DateField(db_index=True)
     end_date = models.DateField(db_index=True)
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
     unit = models.CharField(max_length=16, choices=Unit.choices, default=Unit.DAY, db_index=True)
     # Duration in the chosen unit, denormalized at validation time so reports
     # aggregate a numeric column instead of recomputing per-row calendar math.
@@ -348,7 +352,14 @@ class LeaveRequest(DomainModel):
     @property
     def duration_display(self) -> str:
         unit_label = dict(self.Unit.choices).get(self.unit, self.unit)
-        return f"{self.duration} {dict(self.Unit.choices).get(self.unit, unit_label)}"
+        amount = format(self.duration.normalize(), "f")
+        return f"{amount} {unit_label}"
+
+    @property
+    def time_range_display(self) -> str:
+        if not self.start_time or not self.end_time:
+            return ""
+        return f"{self.start_time.strftime('%H:%M')} تا {self.end_time.strftime('%H:%M')}"
 
     def overlaps(self, start, end) -> bool:
         """Does [start, end] intersect this request's date range?"""
@@ -363,6 +374,17 @@ class LeaveRequest(DomainModel):
             raise ValidationError(
                 {"unit": "مرخصی نیم‌روز فقط برای یک روز مجاز است."}
             )
+        if self.unit == self.Unit.HOUR:
+            if self.start_date != self.end_date:
+                raise ValidationError({"end_date": "مرخصی ساعتی باید برای یک روز باشد."})
+            if not self.start_time or not self.end_time:
+                raise ValidationError({"start_time": "ساعت شروع و پایان برای مرخصی ساعتی الزامی است."})
+            if self.start_time.second or self.start_time.microsecond or self.end_time.second or self.end_time.microsecond:
+                raise ValidationError({"start_time": "ساعت را با دقت دقیقه وارد کنید."})
+            if self.end_time <= self.start_time:
+                raise ValidationError({"end_time": "ساعت پایان باید بعد از ساعت شروع باشد."})
+        elif self.start_time or self.end_time:
+            raise ValidationError({"start_time": "ساعت شروع و پایان فقط برای مرخصی ساعتی ثبت می‌شود."})
         if self.leave_type_id and self.leave_type.requires_document and not self.attachment:
             raise ValidationError({"attachment": "این نوع مرخصی نیازمند مدرک است."})
 

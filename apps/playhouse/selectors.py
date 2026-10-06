@@ -129,9 +129,9 @@ def invoices_between(
     """Invoices optionally filtered by paid date range, for finance reports."""
     qs = PlayhouseInvoice.objects.select_related(
         "session", "member", "operator"
-    ).order_by("-created_at")
+    ).order_by("-paid_at")
     if start:
-        qs = qs.filter(created_at__date__gte=start)
+        qs = qs.filter(paid_at__date__gte=start)
     if end:
-        qs = qs.filter(created_at__date__lte=end)
+        qs = qs.filter(paid_at__date__lte=end)
     return qs

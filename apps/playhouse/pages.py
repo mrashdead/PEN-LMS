@@ -7,6 +7,8 @@ on the API side — the page just gates visibility for staff.
 """
 from __future__ import annotations
 
+from datetime import date
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import Http404
 from django.utils import timezone
@@ -36,22 +38,21 @@ class PlayhouseDashboardPage(PlayhousePageMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["sessions"] = selectors.sessions_today()
         context["today"] = timezone.localdate()
+        raw_day = self.request.GET.get("day", "")
+        try:
+            selected_day = date.fromisoformat(raw_day) if raw_day else context["today"]
+        except ValueError:
+            selected_day = context["today"]
+        context["sessions"] = selectors.sessions_on(selected_day)
+        context["selected_day"] = selected_day.isoformat()
+        context["selected_day_jalali"] = jalali_date_str(selected_day)
         # Keep ASCII digits in the input: jalalidatepicker parses the numeric
         # value itself, while the calendar labels remain Persian.
         context["today_jalali"] = jalali_date_str(context["today"])
-        return context
-
-
-class PlayhouseAttendancePage(PlayhousePageMixin, TemplateView):
-    """Searchable daily register and recovery tools for incomplete visits."""
-    template_name = "playhouse/attendance.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["today"] = timezone.localdate().isoformat()
-        context["today_jalali"] = jalali_date_str(timezone.localdate())
+        context["can_edit_playhouse_price"] = bool(
+            set(self.request.user.role_codes()) & (FINANCE_ROLES | {"supervisor"})
+        ) if hasattr(self.request.user, "role_codes") else False
         return context
 
 
@@ -60,31 +61,16 @@ class PlayhouseFinancePage(LoginRequiredMixin, TemplateView):
 
     template_name = "playhouse/finance.html"
 
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return super().dispatch(request, *args, **kwargs)
-        roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
-        if not request.user.is_active or not roles & FINANCE_ROLES:
-            raise Http404
-        return super().dispatch(request, *args, **kwargs)
-
-
-class PlayhouseSettingsPage(LoginRequiredMixin, TemplateView):
-    """Manager-only page: 15-minute price + working hours."""
-
-    template_name = "playhouse/settings.html"
-
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return super().dispatch(request, *args, **kwargs)
-        roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
-        if not request.user.is_active or not roles & FINANCE_ROLES:
-            raise Http404
-        return super().dispatch(request, *args, **kwargs)
-
     def get_context_data(self, **kwargs):
-        from apps.playhouse.models import PlayhouseConfig
-
         context = super().get_context_data(**kwargs)
-        context["config"] = PlayhouseConfig.get_solo()
+        context["today"] = timezone.localdate().isoformat()
+        context["today_jalali"] = jalali_date_str(timezone.localdate())
         return context
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
+        roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
+        if not request.user.is_active or not roles & FINANCE_ROLES:
+            raise Http404
+        return super().dispatch(request, *args, **kwargs)

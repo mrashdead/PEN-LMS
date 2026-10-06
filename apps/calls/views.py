@@ -23,6 +23,7 @@ from apps.calls.selectors import (
 )
 from apps.calls.serializers import (
     CallCreateSerializer,
+    CallDetailSerializer,
     CallSubjectSerializer,
     FollowUpSerializer,
     InboundCallSerializer,
@@ -125,10 +126,12 @@ class CallListCreateView(generics.ListCreateAPIView):
 
 class CallDetailView(generics.RetrieveAPIView):
     permission_classes = (IsActiveUser, CanAccessCalls)
-    serializer_class = InboundCallSerializer
+    serializer_class = CallDetailSerializer
 
     def get_queryset(self):
-        return calls_visible_to(self.request.user)
+        return calls_visible_to(self.request.user).select_related(
+            "person", "receiver", "assignee", "department_ref", "subject_ref", "related_lead",
+        )
 
 
 class CallFollowUpView(APIView):

@@ -89,7 +89,7 @@
                 data-delete-name="{{ submission.form_schema.title|escape }}"
                 data-delete-code="{{ submission.submission_number|default:submission.id }}"
                 data-delete-redirect="{% url 'submission-list' %}">
-                <i data-lucide="trash-2" class="size-4 me-2"></i> حذف نرم
+                <i data-lucide="trash-2" class="size-4 me-2"></i> حذف
               </button>
             {% endif %}
           </div>
@@ -103,7 +103,7 @@
               data-delete-name="{{ submission.form_schema.title|escape }}"
               data-delete-code="{{ submission.submission_number|default:submission.id }}"
               data-delete-redirect="{% url 'submission-list' %}">
-              <i data-lucide="trash-2" class="size-4 me-2"></i> حذف نرم
+              <i data-lucide="trash-2" class="size-4 me-2"></i> حذف
             </button>
           </div>
         {% endif %}
