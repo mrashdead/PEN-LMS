@@ -246,6 +246,34 @@
 }
 html[data-sidebar="small"] .msg-badge-on-icon:not([hidden]) { display: inline-flex; }
 
+/* Keep compact navigation icon-only. The messages label also carries the
+   Bootstrap .d-flex utility, whose !important declaration otherwise wins. */
+html[data-sidebar="small"] .navbar-menu .nav-item > .nav-link > .content {
+  display: none !important;
+}
+
+.sidebar-version {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  padding: .5rem .625rem;
+  border-top: 1px solid var(--dx-sidebar-border);
+  color: var(--dx-sidebar-menu-title);
+  font-size: .7rem;
+  line-height: 1.3;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.sidebar-version-compact { display: none; }
+html[data-sidebar="small"] .sidebar-version { min-height: 2.75rem; padding-inline: .2rem; font-size: .62rem; }
+html[data-sidebar="small"] .sidebar-version-full { display: none; }
+html[data-sidebar="small"] .sidebar-version-compact { display: inline; }
+
 /* ── Jalali datepicker above Bootstrap modals ─────────────────────── */
 /* jdp-container ships with position:absolute but NO z-index, so inside a
    modal (z-index 1040) it renders behind the dialog and is unclickable.
@@ -800,6 +828,16 @@ jdp-overlay   { z-index: 1075 !important; }
 .ph-page .ph-rate-label { color: var(--ph-muted) !important; font-size: .75rem; }
 .ph-page .ph-rate-card strong { margin: 0; font-size: 1rem; font-variant-numeric: tabular-nums; }
 .ph-page .ph-rate-card strong small { color: var(--ph-muted); font-size: .72rem; }
+.ph-page .ph-hero-tools { display: flex; align-items: center; gap: .55rem; }
+.ph-page .ph-cafe-manage-card { display: flex; align-items: center; gap: .55rem; padding: .45rem .65rem; border: 1px solid var(--ph-line); border-radius: .45rem; background: var(--dx-body-bg); color: var(--ph-ink); text-align: start; }
+.ph-page .ph-cafe-manage-card > i:first-child { color: var(--dx-primary); }
+.ph-page .ph-cafe-manage-card > i:last-child { color: var(--ph-muted); font-size: .85rem; }
+.ph-page .ph-cafe-manage-card span { display: grid; gap: .05rem; }
+.ph-page .ph-cafe-manage-card strong { font-size: .75rem; font-weight: 700; }
+.ph-page .ph-cafe-manage-card small { color: var(--ph-muted); font-size: .65rem; }
+.ph-page .ph-cafe-manage-card:hover { border-color: var(--dx-primary); background: var(--dx-primary-bg-subtle); }
+.ph-page #ph-cafe-preset-list .ph-cafe-preset-row + .ph-cafe-preset-row { margin-top: .15rem; }
+.ph-page #ph-cafe-preset-list .ph-cafe-preset-row .btn { white-space: nowrap; }
 .ph-page .ph-layout { grid-template-columns: minmax(19rem, 22rem) minmax(0, 1fr); gap: 1rem; }
 .ph-page .ph-intake-panel, .ph-page .ph-sessions-panel { border-color: var(--ph-line); border-radius: .65rem; box-shadow: none; }
 .ph-page .ph-intake-panel { padding: 1.1rem; position: static; }
@@ -823,7 +861,7 @@ jdp-overlay   { z-index: 1075 !important; }
 .ph-page .ph-primary-action, .ph-page .ph-secondary-action, .ph-page .ph-outline-action, .ph-page .ph-icon-action { min-height: 2.45rem; border-radius: .4rem; box-shadow: none; }
 .ph-fin-number { font-variant-numeric: tabular-nums; }
 @media (max-width: 991.98px) { .ph-page .ph-layout { grid-template-columns: 1fr; } }
-@media (max-width: 575.98px) { .ph-page .ph-hero { align-items: center; flex-direction: row; padding: 0 0 .8rem; }.ph-page .ph-sessions-panel, .ph-page .ph-intake-panel { padding: .9rem; }.ph-page .ph-rate-card { width: auto; }.ph-page .ph-rate-label { font-size: .68rem; } }
+@media (max-width: 575.98px) { .ph-page .ph-hero { align-items: center; flex-direction: row; padding: 0 0 .8rem; }.ph-page .ph-hero-tools { gap: .35rem; }.ph-page .ph-sessions-panel, .ph-page .ph-intake-panel { padding: .9rem; }.ph-page .ph-rate-card { width: auto; }.ph-page .ph-rate-label { font-size: .68rem; }.ph-page .ph-cafe-manage-card { gap: .3rem; padding: .35rem .45rem; }.ph-page .ph-cafe-manage-card small { display: none; } }
 
 /* Reports & analytics dashboard */
 [data-bs-theme="dark"] .pen-reports {
@@ -1540,6 +1578,45 @@ jdp-container {
   overscroll-behavior: contain;
 }
 
+/* Keep long dialogs inside the viewport and scroll their content area.
+   Some forms wrap the modal header/body/footer in one outer <form>, so the
+   form itself must join the modal's flex column for Bootstrap scrolling to
+   constrain the body correctly. */
+.modal .modal-content {
+  max-height: calc(100dvh - 2rem);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modal .modal-content > form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modal .modal-content > .modal-body,
+.modal .modal-content > form > .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal .modal-content > .modal-header,
+.modal .modal-content > .modal-footer,
+.modal .modal-content > form > .modal-header,
+.modal .modal-content > form > .modal-footer { flex: 0 0 auto; }
+
+/* Native dialogs used by the staff and calls workspaces. */
+dialog.staff-reject-dialog:not(.staff-details-dialog) {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 @media (max-width: 991.98px) {
   .page-wrapper { margin-inline: 0 !important; }
   #main-content { padding-inline: 0; }
@@ -1562,9 +1639,9 @@ jdp-container {
   #main-content .card-header,
   #main-content .card-footer { flex-wrap: wrap; gap: .625rem; }
   #main-content .btn-group { max-width: 100%; flex-wrap: wrap; }
-  #main-content .modal-dialog { margin: .5rem; }
-  #main-content .modal-content { max-height: calc(100dvh - 1rem); }
-  #main-content .modal-body { overflow-y: auto; }
+  .modal-dialog { margin: .5rem; }
+  .modal .modal-content { max-height: calc(100dvh - 1rem); }
+  .modal .modal-footer { flex-wrap: wrap; gap: .5rem; }
 }
 
 @media (max-width: 575.98px) {
@@ -1575,7 +1652,30 @@ jdp-container {
   #main-content .card-body { padding: 1rem; }
   #main-content .table-responsive > .table { margin-bottom: 0; }
   #main-content .form-label { overflow-wrap: anywhere; }
-  #main-content .modal-dialog { margin: .375rem; }
-  #main-content .modal-content { max-height: calc(100dvh - .75rem); }
+  .modal-dialog { margin: .375rem; }
+  .modal .modal-content { max-height: calc(100dvh - .75rem); }
+  .modal .modal-footer > .btn { max-width: 100%; white-space: normal; }
   jdp-container { max-width: calc(100vw - .5rem); }
+}
+[dir="rtl"] .res-management-page .card-header { gap: .75rem; }
+.res-management-page .card-header > .flex-grow-1 { min-width: 8rem; }
+.res-management-page #res-search { min-width: 15rem; }
+.res-page-size-label { white-space: nowrap; }
+.res-page-size-label select { min-width: 4.5rem; }
+.res-management-page .res-table-compact { min-width: 48rem; }
+.res-management-page .res-table-compact thead { position: sticky; top: 0; z-index: 2; }
+.res-management-page .res-table-compact th,
+.res-management-page .res-table-compact td { padding: .55rem .75rem; }
+.res-management-page .res-table-compact td:nth-child(2) { min-width: 12rem; max-width: 20rem; white-space: normal; }
+.res-session-number { display: inline-flex; min-width: 1.8rem; justify-content: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.res-management-page .pen-group-row th { display: flex; align-items: center; gap: .15rem; background: var(--dx-tertiary-bg, #f6f7f9); }
+.res-group-title { font-weight: 700; }
+.res-group-teacher { margin-inline-start: .65rem; color: var(--bs-secondary-color, #6c757d); font-weight: 400; }
+.res-group-code { margin-inline-start: auto; display: inline-block; font-size: .78rem; }
+@media (max-width: 767.98px) {
+  .res-management-page .card-header { align-items: stretch !important; }
+  .res-management-page .card-header > .d-flex { width: 100%; }
+  .res-management-page #res-search { min-width: 0; width: 100%; }
+  .res-management-page .res-table-compact th,
+  .res-management-page .res-table-compact td { padding: .5rem; }
 }

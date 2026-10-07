@@ -116,6 +116,13 @@ class PlayhouseMember(DomainModel):
     )
     first_name = models.CharField(max_length=128, db_index=True)
     last_name = models.CharField(max_length=128, db_index=True)
+    national_code = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="کد ملی کودک برای ثبت مراجعه و اتصال به پرونده موجود",
+    )
     age = models.PositiveSmallIntegerField(null=True, blank=True, help_text="سن بچه (سال)")
     guardian_mobile = models.CharField(
         max_length=20,
@@ -259,6 +266,23 @@ class PlayhouseSession(DomainModel):
     def billable_label(self) -> str:
         m = self.billable_minutes
         return f"{m // 60}:{m % 60:02d}"
+
+
+class PlayhouseCafePreset(DomainModel):
+    """Reusable cafe item name and default price for playhouse invoices."""
+
+    name = models.CharField(max_length=200, help_text="نام آیتم آماده کافه")
+    price = models.DecimalField(max_digits=12, decimal_places=0, help_text="قیمت پیش‌فرض (تومان)")
+
+    class Meta:
+        app_label = "playhouse"
+        db_table = "playhouse_cafe_preset"
+        verbose_name = "آیتم آماده کافه خانه بازی"
+        verbose_name_plural = "آیتم‌های آماده کافه خانه بازی"
+        ordering = ("name",)
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.price:,})"
 
 
 class PlayhouseInvoiceItem(DomainModel):

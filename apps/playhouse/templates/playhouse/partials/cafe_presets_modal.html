@@ -1,0 +1,37 @@
+<div class="modal fade" id="ph-cafe-presets-modal" tabindex="-1" aria-labelledby="ph-cafe-presets-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title fs-5" id="ph-cafe-presets-title">مدیریت آیتم‌های کافه</h2>
+          <p class="text-muted small mb-0 mt-1">آیتم‌ها و قیمت‌های ذخیره‌شده در فاکتور قابل انتخاب هستند.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+      </div>
+      <div class="modal-body">
+        <form id="ph-cafe-preset-form" class="row g-2 align-items-end" novalidate>
+          <div class="col-6">
+            <label for="ph-cafe-preset-name" class="form-label">نام آیتم</label>
+            <input id="ph-cafe-preset-name" type="text" maxlength="200" class="form-control" placeholder="مثلاً آب‌میوه" required>
+          </div>
+          <div class="col-4">
+            <label for="ph-cafe-preset-price" class="form-label">قیمت (تومان)</label>
+            <input id="ph-cafe-preset-price" type="text" inputmode="numeric" autocomplete="off" dir="ltr" class="form-control" placeholder="مثلاً ۵۰,۰۰۰" required>
+          </div>
+          <div class="col-2 d-grid">
+            <button type="submit" class="btn btn-primary" aria-label="افزودن آیتم آماده"><i data-lucide="plus" aria-hidden="true"></i></button>
+          </div>
+        </form>
+        <div id="ph-cafe-preset-error" class="text-danger small mt-2" role="alert" hidden></div>
+        <div class="d-flex justify-content-between align-items-center border-top mt-3 pt-3 mb-2">
+          <strong class="small">فهرست ذخیره‌شده</strong>
+          <span class="text-muted small">برای تغییر، نام یا قیمت را ویرایش و ذخیره کنید.</span>
+        </div>
+        <div id="ph-cafe-preset-list" class="small" aria-live="polite"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button>
+      </div>
+    </div>
+  </div>
+</div>

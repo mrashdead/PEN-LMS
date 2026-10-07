@@ -221,6 +221,8 @@
                     <div class="col-12 col-md-6"><label class="form-label" for="id_email">ایمیل</label>{{ person_form.email }}<div id="help-email" class="form-text">در صورت ورود، قالب ایمیل بررسی می‌شود.</div></div>
                     <div class="col-12 col-md-6"><label class="form-label" for="id_gender">جنسیت</label>{{ person_form.gender }}</div>
                     <div class="col-12 col-md-6"><label class="form-label" for="id_birth_date">تاریخ تولد</label>{{ person_form.birth_date }}</div>
+                    <div class="col-12 col-md-6" data-person-role-fields="student" hidden><label class="form-label" for="id_emergency_phone_number">شماره تماس اضطراری</label>{{ person_form.emergency_phone_number }}</div>
+                    <div class="col-12 col-md-6" data-person-role-fields="student" hidden><label class="form-label" for="id_emergency_contact_name">نام یا نسبت شخص تماس اضطراری</label>{{ person_form.emergency_contact_name }}</div>
                     <div class="col-12" data-person-role-fields="teacher" hidden><label class="form-label" for="id_specialization">تخصص‌ها / دروس قابل تدریس</label>{{ person_form.specialization }}<div id="help-specialization" class="form-text">عنوان درس یا رشته را با ویرگول جدا کنید.</div></div>
                   </div>
                 </details>
@@ -337,6 +339,8 @@
                 <div class="col-md-6"><label class="form-label" for="person-edit-email">ایمیل</label><input class="form-control" id="person-edit-email" name="email" dir="ltr" type="email"></div>
                 <div class="col-md-6"><label class="form-label" for="person-edit-gender">جنسیت</label><select class="form-select" id="person-edit-gender" name="gender"><option value="unspecified">مشخص نشده</option><option value="male">مرد</option><option value="female">زن</option></select></div>
                 <div class="col-md-6"><label class="form-label" for="person-edit-birth-date">تاریخ تولد</label><input class="form-control" id="person-edit-birth-date" name="birth_date" data-jalali dir="ltr" inputmode="numeric" autocomplete="off" placeholder="سال/ماه/روز"></div>
+                <div class="col-md-6" data-person-edit-role-fields="student"><label class="form-label" for="person-edit-emergency-phone">شماره تماس اضطراری</label><input class="form-control" id="person-edit-emergency-phone" dir="ltr" inputmode="numeric" maxlength="11" pattern="09[0-9۰-۹]{9}"></div>
+                <div class="col-md-6" data-person-edit-role-fields="student"><label class="form-label" for="person-edit-emergency-name">نام یا نسبت شخص تماس اضطراری</label><input class="form-control" id="person-edit-emergency-name" maxlength="128"></div>
               </div>
             </details></div>
             <div class="col-12 d-flex flex-wrap align-items-center justify-content-between gap-2"><div class="form-check"><input class="form-check-input" type="checkbox" id="person-edit-active" name="is_active"><label class="form-check-label" for="person-edit-active">پروندهٔ شخص فعال باشد</label></div><small id="person-edit-account-status" class="text-muted"></small></div>

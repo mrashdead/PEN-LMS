@@ -84,6 +84,8 @@ class PersonDefinitionService:
                 mother_first_name=parents.get("mother_first_name") or "",
                 mother_last_name=parents.get("mother_last_name") or "",
                 mother_phone=parents.get("mother_phone_number") or "",
+                emergency_contact_name=parents.get("emergency_contact_name") or "",
+                emergency_phone=parents.get("emergency_phone_number") or "",
                 is_custody_case=bool(parents.get("is_custody_case")),
                 custody_note=parents.get("custody_note") or "",
             )

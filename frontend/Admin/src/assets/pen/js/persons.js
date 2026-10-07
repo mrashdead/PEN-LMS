@@ -166,6 +166,7 @@
         ['پدر', [student.father_first_name, student.father_last_name].filter(Boolean).join(' '), student.father_phone],
         ['مادر', [student.mother_first_name, student.mother_last_name].filter(Boolean).join(' '), student.mother_phone],
       ].filter(function (item) { return item[1] || item[2]; });
+      if (student.emergency_contact_name || student.emergency_phone) familyRows.push(['تماس اضطراری', student.emergency_contact_name, student.emergency_phone]);
       var familyHtml = personHasType(person, 'student') ? '<div class="mt-4 pt-3 border-top"><h6 class="fw-semibold mb-2">والدین و تکفل</h6>' +
         (familyRows.length ? '<div class="row g-2">' + familyRows.map(function (item) {
           return '<div class="col-md-6"><span class="text-muted fs-14">' + esc(item[0]) + ':</span> ' + esc(item[1] || '—') +
@@ -419,6 +420,7 @@
     [['person-edit-father-first', student.father_first_name], ['person-edit-father-last', student.father_last_name],
      ['person-edit-father-phone', student.father_phone], ['person-edit-mother-first', student.mother_first_name],
      ['person-edit-mother-last', student.mother_last_name], ['person-edit-mother-phone', student.mother_phone],
+     ['person-edit-emergency-name', student.emergency_contact_name], ['person-edit-emergency-phone', student.emergency_phone],
      ['person-edit-custody-note', student.custody_note]].forEach(function (item) { setValue(item[0], item[1]); });
     var staff = person.staff_profile || {};
     setValue('person-edit-specialization', staff.specialization);
@@ -781,6 +783,8 @@
         addIfChanged(studentData, 'mother_first_name', 'person-edit-mother-first', profile.mother_first_name);
         addIfChanged(studentData, 'mother_last_name', 'person-edit-mother-last', profile.mother_last_name);
         addIfChanged(studentData, 'mother_phone', 'person-edit-mother-phone', profile.mother_phone);
+        addIfChanged(studentData, 'emergency_contact_name', 'person-edit-emergency-name', profile.emergency_contact_name);
+        addIfChanged(studentData, 'emergency_phone', 'person-edit-emergency-phone', profile.emergency_phone);
         var custody = document.getElementById('person-edit-custody').checked;
         if (custody !== !!profile.is_custody_case) studentData.is_custody_case = custody;
         addIfChanged(studentData, 'custody_note', 'person-edit-custody-note', profile.custody_note);

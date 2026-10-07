@@ -31,7 +31,7 @@ from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
-from apps.core.models import DomainModel
+from apps.core.models import AppendOnlyDomainModel, DomainModel
 from apps.core.utils import persian_numbers
 
 _ALIVE = models.Q(is_deleted=False)
@@ -769,6 +769,8 @@ class OfferingEnrollment(DomainModel):
         CASH = "cash", "نقدی"
         POS = "pos", "کارت‌خوان (POS)"
         CHEQUE = "cheque", "چک"
+        CARD_TRANSFER = "card_transfer", "کارت‌به‌کارت"
+        MIXED = "mixed", "ترکیبی"
 
     class DiscountType(models.TextChoices):
         NONE = "none", "بدون تخفیف"
@@ -801,7 +803,7 @@ class OfferingEnrollment(DomainModel):
         default=0, help_text="مبلغ قابل‌پرداخت پس از تخفیف (تومان)"
     )
     payment_method = models.CharField(
-        max_length=10, choices=PaymentMethod.choices, default=PaymentMethod.CASH
+        max_length=16, choices=PaymentMethod.choices, default=PaymentMethod.CASH
     )
     # Cheque details (only meaningful when payment_method == cheque).
     cheque_count = models.PositiveSmallIntegerField(default=0)
@@ -880,6 +882,47 @@ class OfferingEnrollment(DomainModel):
             if self.cheque_count and self.cheque_count != len(self.cheques):
                 raise ValidationError({"cheque_count": "تعداد چک با فهرست چک‌ها هم‌خوان نیست."})
         self.final_amount = self.compute_final()
+
+
+class EnrollmentPayment(AppendOnlyDomainModel):
+    """یک ردیف پرداخت مستقل برای ثبت تاریخچهٔ قابل رهگیری ثبت‌نام."""
+
+    class Method(models.TextChoices):
+        CASH = "cash", "نقدی"
+        POS = "pos", "کارت‌خوان (POS)"
+        CHEQUE = "cheque", "چک"
+        CARD_TRANSFER = "card_transfer", "کارت‌به‌کارت"
+
+    enrollment = models.ForeignKey(
+        OfferingEnrollment, on_delete=models.PROTECT, related_name="payments"
+    )
+    amount = models.PositiveIntegerField(help_text="مبلغ پرداخت به تومان")
+    method = models.CharField(max_length=16, choices=Method.choices)
+    tracking_code = models.CharField(max_length=32, unique=True, blank=True)
+    payer_name = models.CharField(max_length=160, blank=True, default="", help_text="نام شخصی که مبلغ را پرداخت کرده است")
+    reference = models.CharField(max_length=128, blank=True, default="", help_text="شمارهٔ رسید یا مرجع بانکی")
+    cheque_number = models.CharField(max_length=64, blank=True, default="")
+    cheque_payee = models.CharField(max_length=160, blank=True, default="")
+    cheque_due_date = models.DateField(null=True, blank=True)
+    paid_at = models.DateTimeField(default=timezone.now, db_index=True)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="enrollment_payments",
+        null=True, blank=True,
+    )
+
+    class Meta:
+        db_table = "education_enrollment_payment"
+        ordering = ("-paid_at", "-created_at")
+        indexes = [models.Index(fields=["enrollment", "-paid_at"], name="edu_payment_enroll_idx")]
+        constraints = [models.CheckConstraint(condition=models.Q(amount__gt=0), name="edu_payment_amount_gt_zero")]
+
+    def save(self, *args, **kwargs):
+        if not self.tracking_code:
+            self.tracking_code = f"PAY-{self.pk.hex[:20].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.tracking_code} · {self.amount}"
 
 
 class EnrollmentRefund(DomainModel):

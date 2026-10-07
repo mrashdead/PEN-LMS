@@ -17,7 +17,7 @@
   var CAN_WRITE = window.__PEN_RES_WRITE__ === true;
   var CSRF = window.getCookie ? window.getCookie('csrftoken') : '';
 
-  var state = { page: 1, filters: {}, search: '' };
+  var state = { page: 1, pageSize: (CFG.pageSizeOptions && CFG.pageSizeOptions[0]) || 20, filters: {}, search: '' };
   // Group expansion survives API reloads during this page session without browser storage.
   var groupExpansion = {};
 
@@ -26,6 +26,7 @@
   var $count = document.getElementById('res-count');
   var $pager = document.getElementById('res-pager');
   var $search = document.getElementById('res-search');
+  var $pageSize = document.getElementById('res-page-size');
   var $filters = document.getElementById('res-filters');
   var $add = document.getElementById('res-add');
   var $modalEl = document.getElementById('res-modal');
@@ -50,7 +51,8 @@
   function statusLabel(value, row) {
     if (row && value === 'open' && Number(row.capacity) > 0 && Number(row.enrolled_count) >= Number(row.capacity)) return 'تکمیل ظرفیت';
     return ({draft: 'پیش‌نویس', open: 'باز (ثبت‌نام)', closed: 'بسته',
-      running: 'در حال برگزاری', finished: 'پایان‌یافته', cancelled: 'لغوشده'})[value] || value || '—';
+      running: 'در حال برگزاری', finished: 'پایان‌یافته', cancelled: 'لغوشده',
+      scheduled: 'برنامه‌ریزی‌شده', held: 'برگزارشده'})[value] || value || '—';
   }
 
   function cellHtml(col, row) {
@@ -60,8 +62,11 @@
                : '<span class="badge bg-light text-muted border">خیر</span>';
     }
     if (col.type === 'badge') {
-      return '<span class="badge bg-primary-subtle text-primary">' + esc(col.field === 'status' ? statusLabel(v, row) : (v == null || v === '' ? '—' : v)) + '</span>';
+      var badgeTone = ({scheduled: 'bg-info-subtle text-info-emphasis', held: 'bg-success-subtle text-success', cancelled: 'bg-secondary-subtle text-secondary'})[v] || 'bg-primary-subtle text-primary';
+      return '<span class="badge ' + badgeTone + '">' + esc(col.field === 'status' ? statusLabel(v, row) : (v == null || v === '' ? '—' : v)) + '</span>';
     }
+    if (col.type === 'number') return '<span class="res-session-number">' + window.persianNumbers(v == null || v === '' ? '—' : v) + '</span>';
+    if (col.type === 'time') return '<span class="text-nowrap" dir="ltr">' + window.persianNumbers(v == null || v === '' ? '—' : v) + '</span>';
     if (col.type === 'money') {
       return '<span class="text-nowrap">' + money(v) + (col.suffix ? ' ' + esc(col.suffix) : '') + '</span>';
     }
@@ -125,6 +130,7 @@
     Object.keys(state.filters).forEach(function (k) { params.set(k, state.filters[k]); });
     if (state.search) params.set(CFG.searchParam || 'search', state.search);
     params.set('page', state.page);
+    if (CFG.pageSizeOptions) params.set('page_size', state.pageSize);
     return params.toString();
   }
 
@@ -157,17 +163,24 @@
       var previousGroup = null;
       var groupIndex = 0;
       results.forEach(function (row, i) {
-        var groupValue = CFG.groupBy ? (row[CFG.groupBy] || 'بدون گروه') : null;
-        var groupKey = String(groupValue);
+        var groupValue = CFG.groupBy ? (row[CFG.groupBy] || 'بدون کد کلاس') : null;
+        var groupKey = String(groupValue || '');
+        if (CFG.groupBy && !row[CFG.groupBy]) {
+          // Legacy sessions without a class code still need meaningful
+          // grouping; avoid merging unrelated lessons into one fake class.
+          groupKey += '|' + [row.offering, row.lesson, row.teacher].map(function (v) { return v || ''; }).join('|');
+        }
         if (CFG.groupBy && groupValue !== previousGroup) {
           var isExpanded = groupExpansion[groupKey] !== false;
           var groupId = 'res-group-' + groupIndex++;
           rowsHtml.push('<tr class="table-light pen-group-row" data-group-key="' + esc(groupKey) + '">' +
             '<th colspan="' + (CFG.columns.length + 1) + '" class="py-2 fw-semibold">' +
             '<button type="button" class="btn btn-sm btn-link p-0 me-2 align-middle" data-group-toggle="' + esc(groupKey) + '"' +
-            ' aria-expanded="' + (isExpanded ? 'true' : 'false') + '" aria-controls="' + groupId + '" aria-label="نمایش یا مخفی کردن گروه ' + esc(groupValue) + '">' +
+            ' aria-expanded="' + (isExpanded ? 'true' : 'false') + '" aria-controls="' + groupId + '" aria-label="نمایش یا مخفی کردن کلاس ' + esc(row.class_code || row.lesson_title || 'بدون کد کلاس') + '">' +
             '<i data-lucide="chevron-' + (isExpanded ? 'down' : 'left') + '" class="size-4"></i></button>' +
-            '<span class="text-muted me-2">گروه کلاس</span><code dir="ltr">' + esc(groupValue) + '</code></th></tr>');
+            '<span class="res-group-title">' + esc(row.lesson_title || 'بدون درس') + '</span>' +
+            (row.teacher_name ? '<span class="res-group-teacher">' + esc(row.teacher_name) + '</span>' : '') +
+            (row.class_code ? '<code class="res-group-code" dir="ltr">' + esc(row.class_code) + '</code>' : '<span class="res-group-code text-muted">بدون کد کلاس</span>') + '</th></tr>');
           previousGroup = groupValue;
         }
         var hidden = CFG.groupBy && groupExpansion[groupKey] === false;
@@ -855,6 +868,11 @@
     $search.addEventListener('input', function () {
       clearTimeout(t);
       t = setTimeout(function () { state.search = $search.value.trim(); state.page = 1; load(); }, 300);
+    });
+    if ($pageSize) $pageSize.addEventListener('change', function () {
+      state.pageSize = parseInt($pageSize.value, 10) || 20;
+      state.page = 1;
+      load();
     });
     if ($add && CAN_WRITE) $add.addEventListener('click', openCreate);
     // «تشکیل کلاس» button (sessions page) → formation wizard

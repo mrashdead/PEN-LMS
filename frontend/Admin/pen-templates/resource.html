@@ -11,7 +11,7 @@
 
 <div class="row">
   <div class="col-12">
-    <div class="card">
+    <div class="card{% if config.compact %} res-management-page{% endif %}">
       <div class="card-header d-flex flex-column flex-md-row gap-3 align-items-md-center">
         <div class="flex-grow-1">
           <h6 class="mb-0 card-title">{{ resource_title }}</h6>
@@ -21,6 +21,14 @@
             <input type="search" id="res-search" class="form-control ps-9" placeholder="جستجو…" aria-label="جستجو">
             <i data-lucide="search" class="size-4 text-muted position-absolute top-50 start-0 ms-3 translate-middle-y"></i>
           </div>
+          {% if config.pageSizeOptions %}
+          <label class="res-page-size-label d-flex align-items-center gap-2 mb-0">
+            <span class="text-muted small">تعداد در صفحه</span>
+            <select id="res-page-size" class="form-select form-select-sm" aria-label="تعداد موارد در صفحه">
+              {% for size in config.pageSizeOptions %}<option value="{{ size }}"{% if forloop.first %} selected{% endif %}>{{ size }}</option>{% endfor %}
+            </select>
+          </label>
+          {% endif %}
           <div id="res-filters" class="d-flex flex-wrap gap-2" aria-label="فیلترهای صفحه"></div>
           {% if can_write %}
             {% if config.formationLink %}
@@ -39,7 +47,7 @@
 
       <div class="card-body pt-0">
         <div class="table-card table-responsive" id="res-table" aria-busy="false">
-          <table class="table table-hover align-middle mb-0">
+          <table class="table table-hover align-middle mb-0{% if config.compact %} res-table-compact{% endif %}">
             <thead class="table-light">
               <tr id="res-thead-row"></tr>
             </thead>

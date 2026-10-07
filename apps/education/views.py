@@ -27,7 +27,9 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.http import HttpResponse
 from django.utils import timezone
+from django.db.models.functions import Coalesce
 from rest_framework import generics, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -58,6 +60,7 @@ from apps.education.models import (
     Lesson,
     Location,
     OfferingEnrollment,
+    EnrollmentPayment,
     ParentReportDelivery,
     SessionMaterial,
 )
@@ -73,6 +76,8 @@ from apps.education.serializers import (
     LessonSerializer,
     LocationSerializer,
     OfferingEnrollmentSerializer,
+    EnrollmentPaymentSerializer,
+    EnrollmentPaymentCreateSerializer,
     EnrollmentWaitlistSerializer,
     SessionMaterialSerializer,
 )
@@ -81,6 +86,7 @@ from apps.education.services import (
     EducationServiceError,
     bulk_attendance,
     create_offering_enrollment,
+    record_enrollment_payment,
     convert_offering_enrollment_to_class,
     process_enrollment_refund,
     request_enrollment_refund,
@@ -436,6 +442,7 @@ class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
                 cheque_count=serializer.validated_data.get("cheque_count", 0),
                 cheques=serializer.validated_data.get("cheques") or [],
                 reference=serializer.validated_data.get("reference", ""),
+                payment_lines=serializer.validated_data.get("payments"),
                 enrolled_at=serializer.validated_data.get("enrolled_at"),
             )
         except CapacityExceededError:
@@ -460,6 +467,56 @@ class OfferingEnrollmentDetailView(generics.RetrieveUpdateAPIView):
     queryset = OfferingEnrollment.objects.filter(is_deleted=False).select_related(
         "offering", "offering__course", "student"
     )
+
+
+class EnrollmentPaymentListView(generics.ListAPIView):
+    """Searchable, paginated ledger across every course enrollment."""
+    serializer_class = EnrollmentPaymentSerializer
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
+
+    def get_queryset(self):
+        qs = EnrollmentPayment.objects.select_related(
+            "enrollment__student", "enrollment__offering__course",
+            "enrollment__offering", "recorded_by",
+        ).filter(enrollment__is_deleted=False).annotate(
+            remaining_balance=models.F("enrollment__final_amount")
+            - Coalesce(models.Sum("enrollment__payments__amount"), models.Value(0))
+        )
+        params = self.request.query_params
+        if params.get("student"):
+            qs = qs.filter(enrollment__student_id=params["student"])
+        if params.get("enrollment"):
+            qs = qs.filter(enrollment_id=params["enrollment"])
+        if params.get("course"):
+            qs = qs.filter(enrollment__offering__course_id=params["course"])
+        if params.get("method"):
+            qs = qs.filter(method=params["method"])
+        if params.get("q"):
+            from django.db.models import Q
+            q = params["q"].strip()
+            qs = qs.filter(Q(tracking_code__icontains=q) | Q(reference__icontains=q)
+                           | Q(payer_name__icontains=q)
+                           | Q(enrollment__student__first_name__icontains=q)
+                           | Q(enrollment__student__last_name__icontains=q))
+        return qs.order_by("-paid_at", "-created_at")
+
+
+class EnrollmentPaymentCreateView(APIView):
+    permission_classes = (IsActiveUser, IsManagerOrAdmin)
+
+    def post(self, request, pk):
+        enrollment = OfferingEnrollment.objects.filter(pk=pk, is_deleted=False).first()
+        if enrollment is None:
+            return Response({"error": "ثبت‌نام یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = EnrollmentPaymentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            payment = record_enrollment_payment(
+                enrollment=enrollment, actor=request.user, payment=serializer.validated_data,
+            )
+        except EducationServiceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(EnrollmentPaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
 
 
 class OfferingEnrollmentConvertToClassView(APIView):
@@ -772,9 +829,16 @@ class LearnerReportCardDeliveryView(APIView):
         return Response({"sent": True, "message": "گزارش برای ولی پیامک شد."})
 
 
+class SessionPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
 class SessionListCreateView(generics.ListCreateAPIView):
     serializer_class = ClassSessionSerializer
     permission_classes = (IsActiveUser, StrictDjangoModelPermissions, IsAcademicManager)
+    pagination_class = SessionPagination
 
     def get_queryset(self):
         # DataScope (criterion §13-2): shared service-level scoping replaces

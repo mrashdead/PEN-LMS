@@ -366,6 +366,8 @@ class StudentProfile(DomainModel):
     mother_first_name = models.CharField(max_length=128, blank=True, default="")
     mother_last_name = models.CharField(max_length=128, blank=True, default="")
     mother_phone = models.CharField(max_length=11, blank=True, default="")
+    emergency_contact_name = models.CharField(max_length=128, blank=True, default="")
+    emergency_phone = models.CharField(max_length=11, blank=True, default="")
     class_section = models.CharField(max_length=32, blank=True, default="", help_text="شعبه کلاس")
     school_year = models.CharField(max_length=16, blank=True, default="", help_text="سال تحصیلی، مثال 1405-1406")
     enrollment_date = models.DateField(null=True, blank=True)

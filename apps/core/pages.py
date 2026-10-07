@@ -329,6 +329,8 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "canEdit": True,          # manual per-session adjustment, task §3.ب
         "formationLink": True,    # «تشکیل کلاس» button on the page header
         "groupBy": "class_code",
+        "compact": True,
+        "pageSizeOptions": [20, 50, 100],
         "sortBy": ["class_code", "session_number", "session_date", "start_time"],
         "filters": [
             {"param": "status", "label": "وضعیت", "type": "select", "options": [
@@ -337,18 +339,15 @@ RESOURCE_CONFIG: dict[str, dict] = {
                 {"value": "held", "label": "برگزارشده"},
                 {"value": "cancelled", "label": "لغوشده"},
             ]},
-            {"param": "class_code", "label": "کد کلاس", "type": "text", "placeholder": "مثلاً CLS-PY-01"},
+            {"param": "class_code", "label": "کد کلاس", "type": "text", "placeholder": "کد کلاس را بنویسید"},
             {"param": "date", "label": "تاریخ جلسه", "type": "text", "dir": "ltr", "placeholder": "۱۴۰۵/۰۷/۰۱"},
         ],
         "columns": [
-            {"field": "session_number", "label": "جلسه"},
+            {"field": "session_number", "label": "شماره", "type": "number"},
             {"field": "lesson_title", "label": "درس"},
-            {"field": "offering_title", "label": "برگزاری"},
-            {"field": "topic", "label": "موضوع"},
-            {"field": "session_date", "label": "تاریخ"},
-            {"field": "start_time", "label": "زمان"},
             {"field": "teacher_name", "label": "استاد"},
-            {"field": "location_name", "label": "محل"},
+            {"field": "session_date", "label": "تاریخ"},
+            {"field": "start_time", "label": "ساعت", "type": "time"},
             {"field": "status", "label": "وضعیت", "type": "badge"},
         ],
         "form": [
@@ -683,6 +682,12 @@ class EnrollmentPage(StaffRequiredMixin, TemplateView):
     """Financial enrollment form for a student and course offering."""
 
     template_name = "enrollment.html"
+
+
+class EnrollmentPaymentsPage(StaffRequiredMixin, TemplateView):
+    """Searchable payment ledger linked from the enrollment workspace."""
+
+    template_name = "enrollment_payments.html"
 
 
 class EnrollmentDirectoryPage(StaffRequiredMixin, TemplateView):

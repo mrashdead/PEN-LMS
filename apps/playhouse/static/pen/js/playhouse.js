@@ -23,6 +23,14 @@
     return fetch(url, { credentials: 'same-origin', headers: headers() })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(apiError(b) || ('HTTP ' + r.status)); return b; }); });
   }
+  function remove(url) {
+    return fetch(url, { method: 'DELETE', credentials: 'same-origin', headers: headers() })
+      .then(function (r) { if (!r.ok) return r.json().catch(function () { return {}; }).then(function (b) { throw new Error(apiError(b) || ('HTTP ' + r.status)); }); });
+  }
+  function patchJson(url, body) {
+    return fetch(url, { method: 'PATCH', credentials: 'same-origin', headers: headers(), body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(apiError(b) || ('HTTP ' + r.status)); return b; }); });
+  }
   function apiError(body) {
     if (!body) return '';
     if (typeof body === 'string') return body;
@@ -164,11 +172,11 @@
         session_date: fd.get('session_date') || undefined,
         member_pk: fd.get('member_pk') || null,
         person_pk: fd.get('person_pk') || null,
-        national_code: fd.get('national_code') || '',
-        student_code: fd.get('student_code') || '',
+        national_code: (fd.get('national_code') || '').trim(),
       };
-      if (!payload.member_pk && !payload.person_pk && (!payload.national_code || !payload.student_code)) {
-        toast('برای فرد جدید، کد ملی و کد دانش‌آموزی/شناسه را وارد کنید؛ یا یک فرد قبلی را انتخاب کنید.', 'danger');
+      if (!payload.national_code) {
+        toast('کد ملی کودک را وارد کنید.', 'danger');
+        document.getElementById('ph-national-code').focus();
         return;
       }
       post(API + 'sessions/', payload).then(function (d) {
@@ -200,7 +208,6 @@
     var $age = document.getElementById('ph-age');
     var $mobile = document.getElementById('ph-mobile');
     var $nationalCode = document.getElementById('ph-national-code');
-    var $studentCode = document.getElementById('ph-student-code');
     var sTimer = null;
     function clearMemberSelection(clearFields) {
       $pk.value = '';
@@ -215,7 +222,6 @@
         $age.value = '';
         $mobile.value = '';
         if ($nationalCode) $nationalCode.value = '';
-        if ($studentCode) $studentCode.value = '';
       }
     }
     function chooseMember(member) {
@@ -225,8 +231,7 @@
       $last.value = member.last_name || '';
       $age.value = member.age == null ? '' : member.age;
       $mobile.value = member.guardian_mobile || '';
-      if ($nationalCode) $nationalCode.value = '';
-      if ($studentCode) $studentCode.value = '';
+      if ($nationalCode) $nationalCode.value = member.national_code || '';
       $search.value = member.display_name || '';
       $selectedName.textContent = member.display_name || 'عضو انتخاب‌شده';
       $selectedMeta.textContent = (member.meta || (member.guardian_mobile ? ('شماره والدین: ' + member.guardian_mobile) : 'اطلاعات قبلی بارگذاری شد'));
@@ -257,7 +262,8 @@
             b.type = 'button';
             b.className = 'ph-member-option';
             b.setAttribute('role', 'option');
-            b.innerHTML = '<span class="ph-member-option-avatar">' + esc((m.first_name || '؟').slice(0, 1)) + '</span><span class="flex-grow-1"><strong>' + esc(m.display_name) + '</strong><small>' + esc(m.guardian_mobile || 'شماره والدین ثبت نشده') + '</small></span><i data-lucide="arrow-left" aria-hidden="true"></i>';
+            var details = [m.meta, m.guardian_mobile || 'شماره والدین ثبت نشده'].filter(Boolean).join(' · ');
+            b.innerHTML = '<span class="ph-member-option-avatar">' + esc((m.first_name || '؟').slice(0, 1)) + '</span><span class="flex-grow-1"><strong>' + esc(m.display_name) + '</strong><small>' + esc(details) + '</small></span><i data-lucide="arrow-left" aria-hidden="true"></i>';
             b.addEventListener('click', function () { chooseMember(m); });
             $results.appendChild(b);
           });
@@ -266,7 +272,7 @@
       }, 250);
     });
     $memberClear.addEventListener('click', function () { clearMemberSelection(true); $search.value = ''; $search.focus(); });
-    $selectedRemove.addEventListener('click', function () { clearMemberSelection(false); $search.value = ''; $search.focus(); });
+    $selectedRemove.addEventListener('click', function () { clearMemberSelection(false); if ($nationalCode) $nationalCode.value = ''; $search.value = ''; $search.focus(); });
     // clicking outside closes the list
     document.addEventListener('click', function (e) { if (!$results.contains(e.target) && e.target !== $search) $results.classList.add('d-none'); });
   }
@@ -280,6 +286,8 @@
       if ((pk && pk.value) || (personPk && personPk.value)) {
         pk.value = '';
         if (personPk) personPk.value = '';
+        var nationalCode = document.getElementById('ph-national-code');
+        if (nationalCode) nationalCode.value = '';
         var selected = document.getElementById('ph-selected-member');
         if (selected) selected.hidden = true;
       }
@@ -357,12 +365,31 @@
   // ── invoice modal ───────────────────────────────────────────────────
   var $invModal = document.getElementById('ph-invoice-modal');
   var cafeRows = function () { return Array.prototype.slice.call(document.querySelectorAll('#ph-cafe-items .ph-cafe-row')); };
+  function amountDigits(value) {
+    return String(value || '').replace(/[۰-۹]/g, function (digit) { return String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)); })
+      .replace(/[٠-٩]/g, function (digit) { return String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)); }).replace(/\D/g, '');
+  }
+  function parseAmount(value) { return Number(amountDigits(value)) || 0; }
+  function formatAmountInput(input) {
+    var caret = input.selectionStart || 0;
+    var digitsBeforeCaret = amountDigits(input.value.slice(0, caret)).length;
+    var digits = amountDigits(input.value);
+    var formatted = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    input.value = formatted;
+    var nextCaret = 0;
+    var seenDigits = 0;
+    while (nextCaret < formatted.length && seenDigits < digitsBeforeCaret) {
+      if (/\d/.test(formatted.charAt(nextCaret))) seenDigits++;
+      nextCaret++;
+    }
+    input.setSelectionRange(nextCaret, nextCaret);
+  }
   function computeTotal() {
     var timeAmountEl = document.getElementById('ph-invoice-time-amount');
     var totalEl = document.getElementById('ph-invoice-total');
     var timeAmount = Number(timeAmountEl && timeAmountEl.dataset.amount) || 0;
     var cafe = cafeRows().reduce(function (sum, row) {
-      var price = Number((row.querySelector('input[aria-label="قیمت"]').value || '').replace(/[^\d]/g, '')) || 0;
+      var price = parseAmount(row.querySelector('input[aria-label="قیمت"]').value);
       return sum + price;
     }, 0);
     if (totalEl) totalEl.textContent = fmt(timeAmount + cafe);
@@ -418,15 +445,21 @@
     row.className = 'row g-2 ph-cafe-row mt-0';
     row.innerHTML =
       '<div class="col-6"><input type="text" class="form-control" placeholder="نام آیتم" aria-label="نام آیتم"></div>' +
-      '<div class="col-5"><input type="number" class="form-control" placeholder="قیمت" min="0" aria-label="قیمت"></div>' +
+      '<div class="col-5"><input type="text" class="form-control" placeholder="قیمت" inputmode="numeric" autocomplete="off" dir="ltr" aria-label="قیمت"></div>' +
       '<div class="col-1 d-flex align-items-center"><button type="button" class="btn btn-sm btn-light ph-cafe-remove" title="حذف"><i data-lucide="x"></i></button></div>';
     wrap.appendChild(row);
     icons();
     bindCafeRow(row);
     computeTotal();
+    return row;
   }
   function bindCafeRow(row) {
-    row.querySelectorAll('input').forEach(function (inp) { inp.addEventListener('input', computeTotal); });
+    row.querySelectorAll('input').forEach(function (inp) {
+      inp.addEventListener('input', function () {
+        if (inp.getAttribute('aria-label') === 'قیمت') formatAmountInput(inp);
+        computeTotal();
+      });
+    });
   }
   if (document.getElementById('ph-cafe-items')) {
     cafeRows().forEach(bindCafeRow);
@@ -439,6 +472,145 @@
     });
   }
 
+  var cafePresets = [];
+  var $cafePresetSelect = document.getElementById('ph-cafe-preset-select');
+  var $cafePresetList = document.getElementById('ph-cafe-preset-list');
+  function renderCafePresets() {
+    if ($cafePresetSelect) {
+      $cafePresetSelect.innerHTML = '<option value="">انتخاب از فهرست آماده</option>';
+      cafePresets.forEach(function (preset) {
+        var option = document.createElement('option');
+        option.value = preset.id;
+        option.textContent = preset.name + ' — ' + fmt(preset.price) + ' تومان';
+        $cafePresetSelect.appendChild(option);
+      });
+    }
+    if ($cafePresetList) {
+      $cafePresetList.innerHTML = '';
+      if (!cafePresets.length) {
+        $cafePresetList.textContent = 'هنوز آیتمی در فهرست آماده ثبت نشده است.';
+      } else {
+        cafePresets.forEach(function (preset) {
+          var item = document.createElement('div');
+          item.className = 'row g-1 align-items-center border-top py-1 ph-cafe-preset-row';
+          item.setAttribute('data-id', preset.id);
+          var name = document.createElement('div');
+          name.className = 'col-5';
+          var nameInput = document.createElement('input');
+          nameInput.type = 'text';
+          nameInput.maxLength = 200;
+          nameInput.className = 'form-control form-control-sm';
+          nameInput.setAttribute('aria-label', 'نام آیتم آماده');
+          nameInput.value = preset.name;
+          name.appendChild(nameInput);
+          var price = document.createElement('div');
+          price.className = 'col-4';
+          var priceInput = document.createElement('input');
+          priceInput.type = 'text';
+          priceInput.inputMode = 'numeric';
+          priceInput.dir = 'ltr';
+          priceInput.className = 'form-control form-control-sm';
+          priceInput.setAttribute('aria-label', 'قیمت آیتم آماده');
+          priceInput.value = String(preset.price);
+          formatAmountInput(priceInput);
+          priceInput.addEventListener('input', function () { formatAmountInput(priceInput); });
+          price.appendChild(priceInput);
+          var actions = document.createElement('div');
+          actions.className = 'col-3 d-flex gap-1';
+          var save = document.createElement('button');
+          save.type = 'button';
+          save.className = 'btn btn-sm btn-light ph-cafe-preset-save';
+          save.textContent = 'ذخیره';
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'btn btn-sm btn-light text-danger ph-cafe-preset-delete';
+          button.setAttribute('aria-label', 'حذف ' + preset.name + ' از فهرست آماده');
+          button.textContent = 'حذف';
+          actions.appendChild(save);
+          actions.appendChild(button);
+          item.appendChild(name);
+          item.appendChild(price);
+          item.appendChild(actions);
+          $cafePresetList.appendChild(item);
+        });
+      }
+    }
+  }
+  function loadCafePresets() {
+    if (!$cafePresetSelect) return;
+    get(API + 'cafe-presets/').then(function (items) {
+      cafePresets = Array.isArray(items) ? items : [];
+      renderCafePresets();
+    }).catch(function () {
+      var error = document.getElementById('ph-cafe-preset-error');
+      if (error) { error.hidden = false; error.textContent = 'بارگذاری فهرست آیتم‌های آماده انجام نشد.'; }
+    });
+  }
+  if ($cafePresetSelect) {
+    loadCafePresets();
+    document.getElementById('ph-cafe-preset-add').addEventListener('click', function () {
+      var preset = cafePresets.filter(function (item) { return String(item.id) === $cafePresetSelect.value; })[0];
+      if (!preset) return;
+      var row = addCafeRow();
+      row.querySelector('input[aria-label="نام آیتم"]').value = preset.name;
+      var priceInput = row.querySelector('input[aria-label="قیمت"]');
+      priceInput.value = String(preset.price);
+      formatAmountInput(priceInput);
+      computeTotal();
+      $cafePresetSelect.value = '';
+    });
+    var $presetForm = document.getElementById('ph-cafe-preset-form');
+    $presetForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var nameInput = document.getElementById('ph-cafe-preset-name');
+      var priceInput = document.getElementById('ph-cafe-preset-price');
+      var error = document.getElementById('ph-cafe-preset-error');
+      var name = nameInput.value.trim();
+      var price = parseAmount(priceInput.value);
+      if (!name || !price) {
+        error.hidden = false;
+        error.textContent = 'نام و قیمت آیتم را وارد کنید.';
+        return;
+      }
+      error.hidden = true;
+      post(API + 'cafe-presets/', { name: name, price: price }).then(function (preset) {
+        cafePresets.push(preset);
+        cafePresets.sort(function (a, b) { return a.name.localeCompare(b.name, 'fa'); });
+        renderCafePresets();
+        nameInput.value = '';
+        priceInput.value = '';
+      }).catch(function (err) {
+        error.hidden = false;
+        error.textContent = err.message;
+      });
+    });
+    document.getElementById('ph-cafe-preset-price').addEventListener('input', function (event) { formatAmountInput(event.target); });
+    $cafePresetList.addEventListener('click', function (event) {
+      var error = document.getElementById('ph-cafe-preset-error');
+      var row = event.target.closest('.ph-cafe-preset-row');
+      if (!row) return;
+      var id = row.getAttribute('data-id');
+      var removeButton = event.target.closest('.ph-cafe-preset-delete');
+      if (removeButton) {
+        remove(API + 'cafe-presets/' + id + '/').then(function () {
+          cafePresets = cafePresets.filter(function (item) { return String(item.id) !== id; });
+          renderCafePresets();
+        }).catch(function (err) { error.hidden = false; error.textContent = err.message; });
+        return;
+      }
+      var saveButton = event.target.closest('.ph-cafe-preset-save');
+      if (!saveButton) return;
+      var name = row.querySelector('input[aria-label="نام آیتم آماده"]').value.trim();
+      var price = parseAmount(row.querySelector('input[aria-label="قیمت آیتم آماده"]').value);
+      patchJson(API + 'cafe-presets/' + id + '/', { name: name, price: price }).then(function (updated) {
+        cafePresets = cafePresets.map(function (item) { return String(item.id) === id ? updated : item; });
+        cafePresets.sort(function (a, b) { return a.name.localeCompare(b.name, 'fa'); });
+        error.hidden = true;
+        renderCafePresets();
+      }).catch(function (err) { error.hidden = false; error.textContent = err.message; });
+    });
+  }
+
   var $submit = document.getElementById('ph-invoice-submit');
   if ($submit) {
     $submit.addEventListener('click', function () {
@@ -448,7 +620,7 @@
         var name = row.querySelector('input[aria-label="نام آیتم"]').value.trim();
         var price = row.querySelector('input[aria-label="قیمت"]').value.trim();
         if (!name && !price) return null;
-        return { name: name, price: Number(price.replace(/[^\d]/g, '')) || 0 };
+        return { name: name, price: parseAmount(price) };
       }).filter(Boolean);
       var methodEl = document.querySelector('input[name="ph-pay-method"]:checked');
       var method = methodEl ? methodEl.value : '';

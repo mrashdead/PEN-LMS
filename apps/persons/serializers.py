@@ -96,6 +96,7 @@ class StudentProfileEditSerializer(serializers.ModelSerializer):
         fields = (
             "father_first_name", "father_last_name", "father_phone",
             "mother_first_name", "mother_last_name", "mother_phone",
+            "emergency_contact_name", "emergency_phone",
             "is_custody_case", "custody_note",
         )
 
@@ -112,6 +113,9 @@ class StudentProfileEditSerializer(serializers.ModelSerializer):
         return self._validate_parent_phone(value)
 
     def validate_mother_phone(self, value):
+        return self._validate_parent_phone(value)
+
+    def validate_emergency_phone(self, value):
         return self._validate_parent_phone(value)
 
 
@@ -313,6 +317,8 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             "has_special_needs": profile.has_special_needs,
             "is_custody_case": profile.is_custody_case,
             "custody_note": profile.custody_note,
+            "emergency_contact_name": profile.emergency_contact_name,
+            "emergency_phone": profile.emergency_phone,
         }
 
     def get_account_creation_missing_fields(self, obj):
@@ -432,6 +438,7 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
                 profile_data = {
                     "father_first_name": "", "father_last_name": "", "father_phone": "",
                     "mother_first_name": "", "mother_last_name": "", "mother_phone": "",
+                    "emergency_contact_name": "", "emergency_phone": "",
                     "is_custody_case": False, "custody_note": "",
                 }
                 data["student_profile"] = profile_data
@@ -450,7 +457,7 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
                     profile_data[field] = value
         if not can_view_full_person_detail(_request_user(self), instance):
             if profile_data:
-                for field in ("father_phone", "mother_phone"):
+                for field in ("father_phone", "mother_phone", "emergency_phone"):
                     if profile_data.get(field):
                         profile_data[field] = mask_identifier(profile_data[field])
         return data

@@ -8,12 +8,17 @@ from rest_framework import serializers
 
 from apps.playhouse.models import (
     PlayhouseConfig,
+    PlayhouseCafePreset,
     PlayhouseInvoice,
     PlayhouseInvoiceItem,
     PlayhouseMember,
     PlayhouseSession,
 )
-from apps.persons.validation import is_valid_iranian_mobile, national_code_error
+from apps.persons.validation import (
+    is_valid_iranian_mobile,
+    national_code_error,
+    normalize_national_code,
+)
 
 
 class PlayhouseMemberSerializer(serializers.ModelSerializer):
@@ -39,7 +44,7 @@ class CreateSessionSerializer(serializers.Serializer):
     session_date = serializers.DateField(required=False, allow_null=True)
     member_pk = serializers.UUIDField(required=False, allow_null=True)
     person_pk = serializers.UUIDField(required=False, allow_null=True)
-    national_code = serializers.CharField(max_length=10, min_length=10, required=False, allow_blank=True, default="")
+    national_code = serializers.CharField(max_length=10, min_length=10, required=True, allow_blank=False)
     student_code = serializers.CharField(max_length=32, required=False, allow_blank=True, default="")
 
     def validate_guardian_mobile(self, value):
@@ -49,11 +54,12 @@ class CreateSessionSerializer(serializers.Serializer):
         return value
 
     def validate_national_code(self, value):
-        value = (value or "").strip()
-        if value:
-            error = national_code_error(value, require_location=True)
-            if error:
-                raise serializers.ValidationError(error)
+        value = normalize_national_code(value)
+        if not value:
+            raise serializers.ValidationError("کد ملی کودک الزامی است.")
+        error = national_code_error(value, require_location=True)
+        if error:
+            raise serializers.ValidationError(error)
         return value
 
 
@@ -112,6 +118,24 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlayhouseInvoiceItem
         fields = ["id", "name", "price"]
+
+
+class PlayhouseCafePresetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PlayhouseCafePreset
+        fields = ["id", "name", "price"]
+        read_only_fields = ["id"]
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("نام آیتم را وارد کنید.")
+        duplicates = PlayhouseCafePreset.objects.filter(name__iexact=value)
+        if self.instance:
+            duplicates = duplicates.exclude(pk=self.instance.pk)
+        if duplicates.exists():
+            raise serializers.ValidationError("این نام از قبل در فهرست آماده وجود دارد.")
+        return value
 
 
 class PlayhouseInvoiceSerializer(serializers.ModelSerializer):

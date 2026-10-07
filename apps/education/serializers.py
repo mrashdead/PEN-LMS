@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from django.db import transaction
+from django.db.models import Sum
 from rest_framework import serializers
 
 from apps.core.fields import JalaliDateField, PersianCharField
@@ -21,6 +22,7 @@ from apps.education.models import (
     Lesson,
     Location,
     OfferingEnrollment,
+    EnrollmentPayment,
     EnrollmentWaitlist,
     EnrollmentRefund,
     SessionMaterial,
@@ -531,6 +533,7 @@ class OfferingEnrollmentSerializer(CRUDActionsMixin, serializers.ModelSerializer
     offering_title = serializers.CharField(source="offering.title", read_only=True)
     enrolled_at = JalaliDateField(required=False)
     final_class_enrollment_id = serializers.UUIDField(read_only=True, allow_null=True)
+    payments = serializers.ListField(child=serializers.DictField(), required=False, write_only=True)
 
     class Meta:
         model = OfferingEnrollment
@@ -538,13 +541,16 @@ class OfferingEnrollmentSerializer(CRUDActionsMixin, serializers.ModelSerializer
                   "course_amount", "discount_type", "discount_value", "final_amount",
                   "payment_method", "cheque_count", "cheques", "reference",
                   "enrolled_at", "is_active", "lifecycle_status",
-                  "final_class_enrollment_id", "created_at", "updated_at", "lead")
+                  "final_class_enrollment_id", "created_at", "updated_at", "lead",
+                  "payments")
         read_only_fields = (
             "id", "final_amount", "lifecycle_status", "final_class_enrollment_id",
             "created_at", "updated_at",
         )
 
     def validate(self, attrs):
+        if self.instance is not None and "payments" in attrs:
+            raise serializers.ValidationError({"payments": "پرداخت‌های ثبت‌شده فقط از مسیر افزودن پرداخت قابل ثبت هستند."})
         # Mirror the model's single rule so the API returns field errors, not 500.
         offering = attrs.get("offering") or (self.instance.offering if self.instance else None)
         student = attrs.get("student") or (self.instance.student if self.instance else None)
@@ -576,8 +582,75 @@ class OfferingEnrollmentSerializer(CRUDActionsMixin, serializers.ModelSerializer
             attrs["_final"] = max(base - dv, 0)
         else:
             attrs["_final"] = base
+        if attrs.get("payments") is not None:
+            if sum(row["amount"] for row in attrs["payments"]) > attrs["_final"]:
+                raise serializers.ValidationError({"payments": "جمع پرداخت‌ها نمی‌تواند از مبلغ نهایی دوره بیشتر باشد."})
+            for row in attrs["payments"]:
+                if row["cheque_due_date"]:
+                    try:
+                        row["cheque_due_date"] = JalaliDateField().to_internal_value(row["cheque_due_date"])
+                    except serializers.ValidationError as exc:
+                        raise serializers.ValidationError({"payments": f"تاریخ سررسید چک معتبر نیست: {exc.detail}"})
         return attrs
 
+    def validate_payments(self, rows):
+        if not rows:
+            raise serializers.ValidationError("حداقل یک ردیف پرداخت وارد کنید.")
+        normalized = []
+        for index, row in enumerate(rows, 1):
+            method = row.get("method")
+            if method not in EnrollmentPayment.Method.values:
+                raise serializers.ValidationError(f"روش پرداخت ردیف {index} معتبر نیست.")
+            try:
+                amount = int(row.get("amount", 0))
+            except (TypeError, ValueError):
+                amount = 0
+            if amount <= 0:
+                raise serializers.ValidationError(f"مبلغ ردیف {index} باید بیشتر از صفر باشد.")
+            line = {"method": method, "amount": amount,
+                    "payer_name": str(row.get("payer_name", ""))[:160],
+                    "reference": str(row.get("reference", ""))[:128],
+                    "cheque_number": str(row.get("cheque_number", ""))[:64],
+                    "cheque_payee": str(row.get("cheque_payee", ""))[:160],
+                    "cheque_due_date": row.get("cheque_due_date") or None}
+            normalized.append(line)
+        return normalized
+
+
+class EnrollmentPaymentSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source="enrollment.student.display_name", read_only=True)
+    course_title = serializers.CharField(source="enrollment.offering.course.title", read_only=True)
+    offering_title = serializers.CharField(source="enrollment.offering.title", read_only=True)
+    recorded_by_name = serializers.SerializerMethodField()
+    remaining_balance = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EnrollmentPayment
+        fields = ("id", "enrollment", "student_name", "course_title", "offering_title",
+                  "amount", "method", "tracking_code", "payer_name", "reference", "cheque_number",
+                  "cheque_payee", "cheque_due_date", "paid_at", "recorded_by_name", "remaining_balance")
+        read_only_fields = fields
+
+    def get_recorded_by_name(self, obj):
+        if obj.recorded_by_id is None:
+            return "ثبت قدیمی؛ ثبت‌کننده مشخص نیست"
+        return obj.recorded_by.get_full_name() or obj.recorded_by.get_username()
+
+    def get_remaining_balance(self, obj):
+        if hasattr(obj, "remaining_balance"):
+            return max(0, obj.remaining_balance)
+        paid = obj.enrollment.payments.aggregate(total=Sum("amount"))["total"] or 0
+        return max(0, obj.enrollment.final_amount - paid)
+
+
+class EnrollmentPaymentCreateSerializer(serializers.Serializer):
+    method = serializers.ChoiceField(choices=EnrollmentPayment.Method.choices)
+    amount = serializers.IntegerField(min_value=1)
+    reference = serializers.CharField(max_length=128, required=False, allow_blank=True)
+    payer_name = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    cheque_number = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    cheque_payee = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    cheque_due_date = JalaliDateField(required=False, allow_null=True)
 
 class EnrollmentRefundSerializer(serializers.ModelSerializer):
     class Meta:

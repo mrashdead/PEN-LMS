@@ -97,7 +97,7 @@ class MemberResolutionTest(TestCase):
         s = PlayhouseService().create_session(
             operator=self.op, first_name="نیلا", last_name="کریمی",
             age=5, guardian_mobile="09123334444",
-            national_code="0012345678", student_code="PH-1001",
+            national_code="0012345672", student_code="PH-1001",
         )
         self.assertIsNotNone(s.member.person_id)
         person = s.member.person
@@ -126,7 +126,7 @@ class MemberResolutionTest(TestCase):
         response = client.post(
             "/api/playhouse/sessions/",
             {"first_name": member.first_name, "last_name": member.last_name,
-             "member_pk": str(member.pk)},
+             "member_pk": str(member.pk), "national_code": "0012345672"},
             format="json",
         )
         self.assertEqual(response.status_code, 201, response.data)
@@ -135,7 +135,7 @@ class MemberResolutionTest(TestCase):
     def test_pen_student_can_be_selected_and_linked(self):
         person = make_person(
             first_name="دانش‌آموز", last_name="پن", mobile="09123334444",
-            person_type="student",
+            person_type="student", national_code="0012345672",
         )
         client = APIClient()
         client.force_authenticate(user=self.op)
@@ -145,7 +145,7 @@ class MemberResolutionTest(TestCase):
         response = client.post(
             "/api/playhouse/sessions/",
             {"first_name": person.first_name, "last_name": person.last_name,
-             "person_pk": str(person.pk)},
+             "person_pk": str(person.pk), "national_code": person.national_code},
             format="json",
         )
         self.assertEqual(response.status_code, 201, response.data)
@@ -334,6 +334,7 @@ class ApiTest(TestCase):
         data = {
             "first_name": "علی", "last_name": "احمدی", "age": 6,
             "guardian_mobile": "09121111111",
+            "national_code": "0012345672",
         }
         data.update(over)
         return self.client.post("/api/playhouse/sessions/", data, format="json")
@@ -515,7 +516,7 @@ class ConfigSettingsTest(TestCase):
         PlayhouseConfig._singleton_pk = None
         r = self.client.post(
             "/api/playhouse/sessions/",
-            {"first_name": "ب", "last_name": "ت", "age": 5, "guardian_mobile": "09120000099"},
+            {"first_name": "ب", "last_name": "ت", "age": 5, "guardian_mobile": "09120000099", "national_code": "0012345672"},
             format="json",
         )
         self.assertEqual(r.status_code, 400)
@@ -527,7 +528,7 @@ class ConfigSettingsTest(TestCase):
         PlayhouseConfig._singleton_pk = None
         r = self.client.post(
             "/api/playhouse/sessions/",
-            {"first_name": "ب", "last_name": "ت", "age": 5, "guardian_mobile": "09120000098"},
+            {"first_name": "ب", "last_name": "ت", "age": 5, "guardian_mobile": "09120000098", "national_code": "0012345672"},
             format="json",
         )
         # current time may fall inside the window; assert either accepted or blocked-with-message

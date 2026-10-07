@@ -56,13 +56,14 @@ def active_sessions() -> QuerySet[PlayhouseSession]:
 
 def member_autocomplete(query: str, limit: int = 20) -> QuerySet[PlayhouseMember]:
     """Members matching first/last name or guardian mobile (for the picker)."""
-    qs: QuerySet[PlayhouseMember] = PlayhouseMember.objects.all()
+    qs: QuerySet[PlayhouseMember] = PlayhouseMember.objects.select_related("person").all()
     if query:
         clean = query.strip()
         qs = qs.filter(
             Q(first_name__icontains=clean)
             | Q(last_name__icontains=clean)
             | Q(guardian_mobile__icontains=clean)
+            | Q(national_code__icontains=clean)
         )
     return qs.order_by("-created_at")[:limit]
 
@@ -80,6 +81,7 @@ def member_and_person_autocomplete(query: str, limit: int = 25) -> list[dict]:
             "person_pk": str(member.person_id) if member.person_id else "",
             "first_name": member.first_name,
             "last_name": member.last_name,
+            "national_code": (member.person.national_code if member.person_id else member.national_code) or "",
             "age": member.age,
             "guardian_mobile": member.guardian_mobile,
             "display_name": member.display_name,
@@ -98,6 +100,7 @@ def member_and_person_autocomplete(query: str, limit: int = 25) -> list[dict]:
                 | Q(last_name__icontains=clean)
                 | Q(mobile__icontains=clean)
                 | Q(student_code__icontains=clean)
+                | Q(national_code__icontains=clean)
             )
         for person in people.order_by("-created_at")[: limit - len(results)]:
             if str(person.pk) in linked_people:
@@ -115,6 +118,7 @@ def member_and_person_autocomplete(query: str, limit: int = 25) -> list[dict]:
                 "person_pk": str(person.pk),
                 "first_name": person.first_name,
                 "last_name": person.last_name,
+                "national_code": person.national_code,
                 "age": age,
                 "guardian_mobile": person.mobile,
                 "display_name": person.display_name,
@@ -129,7 +133,7 @@ def invoices_between(
     """Invoices optionally filtered by paid date range, for finance reports."""
     qs = PlayhouseInvoice.objects.select_related(
         "session", "member", "operator"
-    ).order_by("-paid_at")
+    ).prefetch_related("items").order_by("-paid_at")
     if start:
         qs = qs.filter(paid_at__date__gte=start)
     if end:

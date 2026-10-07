@@ -145,6 +145,14 @@ class PersonDefinitionForm(forms.Form):
         label="شماره موبایل مادر", max_length=20, required=False,
         widget=_text_widget(direction="ltr", inputmode="numeric", maxlength="11", pattern="09[0-9۰-۹]{9}"),
     )
+    emergency_contact_name = forms.CharField(
+        label="نام یا نسبت شخص تماس اضطراری", max_length=128, required=False,
+        widget=_text_widget(autocomplete="off"),
+    )
+    emergency_phone_number = forms.CharField(
+        label="شماره تماس اضطراری", max_length=20, required=False,
+        widget=_text_widget(direction="ltr", inputmode="numeric", maxlength="11", pattern="09[0-9۰-۹]{9}"),
+    )
     is_custody_case = forms.BooleanField(
         label="پرونده دارای وضعیت تکفل ویژه است", required=False,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -208,6 +216,9 @@ class PersonDefinitionForm(forms.Form):
 
     def clean_mother_phone_number(self) -> str:
         return self._clean_parent_phone("mother_phone_number")
+
+    def clean_emergency_phone_number(self) -> str:
+        return self._clean_parent_phone("emergency_phone_number")
 
     def clean_password(self) -> str:
         value = self.cleaned_data.get("password") or ""

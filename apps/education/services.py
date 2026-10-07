@@ -18,6 +18,7 @@ from typing import Iterable, Optional
 
 from django.db import IntegrityError, models, transaction
 from django.db.models import Q
+from django.db.models import Sum
 from django.utils import timezone
 
 from apps.core.utils import persian_date, persian_numbers
@@ -27,6 +28,7 @@ from apps.education.models import (
     CourseOffering,
     EnrollmentWaitlist,
     EnrollmentRefund,
+    EnrollmentPayment,
     GradeRecord,
     OfferingEnrollment,
     SessionScheduleRevision,
@@ -90,6 +92,7 @@ def create_offering_enrollment(
     cheque_count: int = 0,
     cheques=None,
     reference: str = "",
+    payment_lines=None,
     enrolled_at=None,
     lifecycle_status: str = OfferingEnrollment.LifecycleStatus.CONFIRMED,
 ) -> OfferingEnrollment:
@@ -120,13 +123,23 @@ def create_offering_enrollment(
         if course_amount is not None
         else sum(link.lesson.tuition or 0 for link in locked.course.lesson_links)
     )
+    payment_lines = payment_lines or []
+    legacy_method = payment_method or OfferingEnrollment.PaymentMethod.CASH
+    if payment_lines:
+        legacy_method = payment_lines[0]["method"] if len(payment_lines) == 1 else OfferingEnrollment.PaymentMethod.MIXED
+        cheque_rows = [row for row in payment_lines if row["method"] == EnrollmentPayment.Method.CHEQUE]
+        cheque_count = len(cheque_rows)
+        cheques = [{"amount": row["amount"], "payee": row.get("cheque_payee", ""),
+                    "due_date": str(row.get("cheque_due_date") or ""),
+                    "tracking_no": row.get("cheque_number", "")} for row in cheque_rows]
+        reference = payment_lines[0].get("reference", "") if len(payment_lines) == 1 else ""
     enrollment = OfferingEnrollment(
         offering=locked,
         student=student,
         course_amount=max(amount, 0),
         discount_type=discount_type or OfferingEnrollment.DiscountType.NONE,
         discount_value=max(int(discount_value or 0), 0),
-        payment_method=payment_method or OfferingEnrollment.PaymentMethod.CASH,
+        payment_method=legacy_method,
         cheque_count=max(int(cheque_count or 0), 0),
         cheques=cheques or [],
         reference=(reference or "")[:128],
@@ -135,6 +148,14 @@ def create_offering_enrollment(
     )
     enrollment.full_clean()
     enrollment.save()
+    for row in payment_lines:
+        EnrollmentPayment.objects.create(
+            enrollment=enrollment, amount=row["amount"], method=row["method"],
+            payer_name=row.get("payer_name", ""),
+            reference=row.get("reference", ""), cheque_number=row.get("cheque_number", ""),
+            cheque_payee=row.get("cheque_payee", ""), cheque_due_date=row.get("cheque_due_date"),
+            recorded_by=actor,
+        )
     if actor is not None and getattr(actor, "is_authenticated", False):
         from apps.core.models import AuditEvent
         AuditEvent.record(
@@ -146,6 +167,26 @@ def create_offering_enrollment(
     locked.save(update_fields=["enrolled_count", "updated_at"])
     logger.info("offering enrollment %s created for %s by %s", enrollment.pk, student, actor)
     return enrollment
+
+
+@transaction.atomic
+def record_enrollment_payment(*, enrollment: OfferingEnrollment, actor, payment: dict) -> EnrollmentPayment:
+    """Append one payment to an existing enrollment without exceeding its balance."""
+    locked = OfferingEnrollment.objects.select_for_update().get(pk=enrollment.pk, is_deleted=False)
+    paid = locked.payments.aggregate(total=Sum("amount"))["total"] or 0
+    amount = int(payment["amount"])
+    if amount <= 0:
+        raise EducationServiceError("مبلغ پرداخت باید بیشتر از صفر باشد.")
+    if paid + amount > locked.final_amount:
+        raise EducationServiceError("مبلغ پرداخت از ماندهٔ ثبت‌نام بیشتر است.")
+    return EnrollmentPayment.objects.create(
+        enrollment=locked, recorded_by=actor, amount=amount,
+        method=payment["method"], payer_name=payment.get("payer_name", ""),
+        reference=payment.get("reference", ""),
+        cheque_number=payment.get("cheque_number", ""),
+        cheque_payee=payment.get("cheque_payee", ""),
+        cheque_due_date=payment.get("cheque_due_date"),
+    )
 
 
 @transaction.atomic

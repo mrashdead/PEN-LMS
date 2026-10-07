@@ -24,6 +24,7 @@ from rest_framework.exceptions import ValidationError
 from apps.playhouse import selectors
 from apps.playhouse.models import (
     PlayhouseConfig,
+    PlayhouseCafePreset,
     PlayhouseInvoice,
     PlayhouseInvoiceItem,
     PlayhouseSession,
@@ -42,6 +43,7 @@ from apps.playhouse.serializers import (
     PlayhouseConfigSerializer,
     PlayhouseInvoiceSerializer,
     PlayhouseMemberSerializer,
+    PlayhouseCafePresetSerializer,
 )
 from apps.playhouse.services import PlayhouseService, PlayhouseServiceError
 
@@ -104,6 +106,42 @@ class ConfigView(GenericAPIView):
 
     # PATCH mirrors PUT (partial semantics handled by the serializer defaults).
     patch = put
+
+
+class CafePresetListCreateView(ListAPIView):
+    """GET/POST — list or add reusable cafe items for invoices."""
+
+    permission_classes = [IsPlayhouseOperator]
+    serializer_class = PlayhouseCafePresetSerializer
+    queryset = PlayhouseCafePreset.objects.all()
+
+    def get(self, request, *args, **kwargs):
+        serializer = self.get_serializer(self.get_queryset(), many=True)
+        return Response(serializer.data)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CafePresetDetailView(RetrieveAPIView):
+    """PATCH/DELETE — update or remove a saved cafe item."""
+
+    permission_classes = [IsPlayhouseOperator]
+    serializer_class = PlayhouseCafePresetSerializer
+    queryset = PlayhouseCafePreset.objects.all()
+
+    def patch(self, request, *args, **kwargs):
+        serializer = self.get_serializer(self.get_object(), data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, *args, **kwargs):
+        self.get_object().delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class SessionListCreateView(CreateAPIView):
@@ -319,6 +357,14 @@ class FinanceReportView(GenericAPIView):
         invoices = selectors.invoices_between(start, end).filter(
             paid_at__date__range=[start, end]
         )
+        cafe_sales = (
+            PlayhouseInvoiceItem.objects.filter(
+                invoice__paid_at__date__range=[start, end]
+            )
+            .values("name")
+            .annotate(quantity=Count("id"), total=Sum("price"))
+            .order_by("-quantity", "name")
+        )
         return Response(
             {
                 "period": {"from": start.isoformat(), "to": end.isoformat()},
@@ -336,17 +382,35 @@ class FinanceReportView(GenericAPIView):
                     }
                     for m in by_method
                 ],
+                "cafe_item_sales": [
+                    {
+                        "name": item["name"],
+                        "quantity": item["quantity"],
+                        "total": item["total"] or 0,
+                    }
+                    for item in cafe_sales
+                ],
                 "invoices": [
                     {
                         "id": str(i.pk),
                         "number": i.invoice_number,
                         "member": i.member.display_name,
+                        "member_age": i.member.age,
+                        "guardian_name": i.member.guardian_name,
+                        "guardian_mobile": i.member.guardian_mobile,
+                        "operator": i.operator.get_full_name() or i.operator.get_username(),
+                        "entry_at": i.session.entry_at,
+                        "exit_at": i.session.exit_at,
                         "method": i.payment_method,
                         "tracking": i.tracking_code,
                         "time_amount": i.time_amount,
                         "cafe_total": i.cafe_total,
                         "total": i.total_amount,
                         "paid_at": i.paid_at,
+                        "items": [
+                            {"name": item.name, "price": item.price}
+                            for item in i.items.all()
+                        ],
                     }
                     for i in invoices
                 ],

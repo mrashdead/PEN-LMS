@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load asset_v %}
+{% block title %}دفتر پرداخت{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="دفتر پرداخت" section="آموزشگاه" icon="wallet-cards" subtitle="سوابق پرداخت، کدهای رهگیری و ماندهٔ ثبت‌نام‌ها" %}
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-end mb-3">
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'workspace-enrollments' %}"><i data-lucide="arrow-right" class="size-4 me-1" aria-hidden="true"></i> بازگشت به ثبت‌نام</a>
+</div>
+<section class="card" aria-labelledby="payment-history-title">
+  <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div><h2 id="payment-history-title" class="h6 mb-1">فهرست پرداخت‌ها</h2><p class="text-muted fs-14 mb-0">هر پرداخت با دانش‌آموز، دوره، پرداخت‌کننده و ثبت‌کننده‌اش ثبت شده است.</p></div>
+    <div class="d-flex flex-wrap gap-2">
+      <input id="payment-history-search" type="search" class="form-control form-control-sm" placeholder="نام، رسید یا کد رهگیری" aria-label="جستجو در پرداخت‌ها">
+      <select id="payment-history-method" class="form-select form-select-sm" aria-label="فیلتر روش پرداخت"><option value="">همهٔ روش‌ها</option><option value="cash">نقدی</option><option value="pos">کارت‌خوان</option><option value="card_transfer">کارت‌به‌کارت</option><option value="cheque">چک</option></select>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <caption class="visually-hidden">دفتر پرداخت‌های ثبت‌شده</caption>
+      <thead class="table-light"><tr><th>دانش‌آموز</th><th>دوره / برگزاری</th><th>روش، مبلغ و مانده</th><th>کد رهگیری</th><th>رسید / مشخصات چک</th><th>پرداخت‌کننده</th><th>ثبت‌کننده</th><th>زمان ثبت</th><th>عملیات</th></tr></thead>
+      <tbody id="payment-history-rows"><tr><td colspan="9" class="text-center py-4 text-muted">در حال دریافت سوابق…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="card-footer d-flex justify-content-center"><button id="payment-history-more" type="button" class="btn btn-light btn-sm" hidden>نمایش پرداخت‌های بیشتر</button></div>
+</section>
+
+<div class="modal fade" id="payment-add-modal" tabindex="-1" aria-labelledby="payment-add-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form id="payment-add-form">
+      <div class="modal-header"><div><h2 class="modal-title fs-5" id="payment-add-title">ثبت پرداخت جدید</h2><p class="text-muted fs-13 mb-0" id="payment-add-context"></p></div><button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="بستن"></button></div>
+      <div class="modal-body"><input type="hidden" id="payment-add-enrollment"><div id="payment-add-error" class="alert alert-danger py-2" hidden></div>
+        <div class="alert alert-primary py-2 d-flex justify-content-between gap-3"><span>ماندهٔ این ثبت‌نام</span><strong><span id="payment-add-balance">—</span> تومان</strong></div>
+        <div class="mb-3"><label class="form-label" for="payment-add-method">روش پرداخت</label><select id="payment-add-method" class="form-select"><option value="cash">نقدی</option><option value="pos">کارت‌خوان (POS)</option><option value="card_transfer">کارت‌به‌کارت</option><option value="cheque">چک</option></select></div>
+        <div class="mb-3"><label class="form-label" for="payment-add-amount">مبلغ (تومان)</label><input id="payment-add-amount" class="form-control" inputmode="numeric" dir="ltr" required></div>
+        <div class="mb-3"><label class="form-label" for="payment-add-payer">نام پرداخت‌کننده</label><input id="payment-add-payer" class="form-control" placeholder="مثلاً نام والد یا نماینده"></div>
+        <div class="mb-3"><label class="form-label" for="payment-add-reference">کد رسید / مرجع</label><input id="payment-add-reference" class="form-control" dir="ltr"></div>
+        <div id="payment-add-cheque-fields" class="row g-2 d-none"><div class="col-12 col-md-4"><label class="form-label" for="payment-add-cheque-number">شماره چک</label><input id="payment-add-cheque-number" class="form-control" dir="ltr"></div><div class="col-12 col-md-4"><label class="form-label" for="payment-add-payee">در وجه</label><input id="payment-add-payee" class="form-control"></div><div class="col-12 col-md-4"><label class="form-label" for="payment-add-due">سررسید</label><input id="payment-add-due" class="form-control" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۱/۱۵"></div></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">انصراف</button><button type="submit" class="btn btn-primary">ثبت پرداخت</button></div>
+    </form>
+  </div></div>
+</div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/enrollment-payments.js' %}"></script>
+{% endblock %}

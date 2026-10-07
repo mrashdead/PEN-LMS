@@ -92,9 +92,19 @@ class PlayhouseService:
                         guardian_mobile, member_pk, person_pk=None,
                         national_code="", student_code="") -> PlayhouseMember:
         if member_pk:
-            member = PlayhouseMember.objects.filter(pk=member_pk).first()
+            member = PlayhouseMember.objects.select_related("person").filter(pk=member_pk).first()
             if member is None:
                 raise PlayhouseServiceError("عضو انتخاب‌شده پیدا نشد.")
+            entered_code = (national_code or "").strip()
+            if member.person_id:
+                person_code = (member.person.national_code or "").strip()
+                if entered_code and person_code and entered_code != person_code:
+                    raise PlayhouseServiceError("کد ملی با پرونده دانش‌آموز انتخاب‌شده مطابقت ندارد.")
+                member.national_code = person_code or entered_code or member.national_code
+            elif entered_code:
+                member.national_code = entered_code
+            if member.national_code:
+                member.save(update_fields=["national_code", "updated_at"])
             return member
 
         if person_pk:
@@ -105,18 +115,25 @@ class PlayhouseService:
             ).first()
             if person is None:
                 raise PlayhouseServiceError("دانش‌آموز انتخاب‌شده پیدا نشد.")
+            entered_code = (national_code or "").strip()
+            if entered_code and entered_code != person.national_code:
+                raise PlayhouseServiceError("کد ملی با پرونده دانش‌آموز انتخاب‌شده مطابقت ندارد.")
             member = PlayhouseMember.objects.filter(person=person).first()
             if member is not None:
+                if member.national_code != person.national_code:
+                    member.national_code = person.national_code
+                    member.save(update_fields=["national_code", "updated_at"])
                 return member
             return PlayhouseMember.objects.create(
                 person=person,
                 first_name=person.first_name,
                 last_name=person.last_name,
+                national_code=person.national_code,
                 age=age,
                 guardian_mobile=(guardian_mobile or person.mobile or "").strip(),
             )
 
-        person = self._maybe_link_person(first_name, last_name, guardian_mobile)
+        person = self._maybe_link_person(first_name, last_name, guardian_mobile) if not national_code else None
         if person is None and national_code:
             person = Person.objects.filter(
                 national_code=national_code.strip(),
@@ -139,10 +156,38 @@ class PlayhouseService:
                 person_type=Person.Type.STUDENT,
                 registered_by=operator,
             )
+        member_code = (person.national_code if person else national_code) or ""
+        if person is not None:
+            member = PlayhouseMember.objects.filter(person=person).first()
+            if member is not None:
+                if member.national_code != member_code:
+                    member.national_code = member_code
+                    member.save(update_fields=["national_code", "updated_at"])
+                return member
+
+        if national_code:
+            member_query = PlayhouseMember.objects.filter(
+                national_code=national_code.strip(),
+            )
+            if person is not None:
+                member_query = member_query.filter(person__isnull=True)
+            existing_member = member_query.first()
+            if existing_member is not None:
+                changed_fields = []
+                if person is not None:
+                    existing_member.person = person
+                    changed_fields.append("person")
+                if existing_member.national_code != member_code:
+                    existing_member.national_code = member_code
+                    changed_fields.append("national_code")
+                if changed_fields:
+                    existing_member.save(update_fields=[*changed_fields, "updated_at"])
+                return existing_member
         member = PlayhouseMember.objects.create(
             person=person,
             first_name=first_name.strip(),
             last_name=last_name.strip(),
+            national_code=member_code.strip(),
             age=age,
             guardian_mobile=guardian_mobile.strip(),
         )

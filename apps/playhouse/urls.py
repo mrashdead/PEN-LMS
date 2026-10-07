@@ -9,6 +9,8 @@ from apps.playhouse import views
 
 urlpatterns = [
     path("config/", views.ConfigView.as_view(), name="ph-config"),
+    path("cafe-presets/", views.CafePresetListCreateView.as_view(), name="ph-cafe-presets"),
+    path("cafe-presets/<uuid:pk>/", views.CafePresetDetailView.as_view(), name="ph-cafe-preset-detail"),
     path("sessions/", views.SessionListCreateView.as_view(), name="ph-session-create"),
     path("sessions/active/", views.ActiveSessionsView.as_view(), name="ph-sessions-active"),
     path("attendance/", views.AttendanceReportView.as_view(), name="ph-attendance"),

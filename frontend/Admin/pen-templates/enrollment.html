@@ -13,7 +13,7 @@
       <div class="card-header d-flex align-items-center justify-content-between gap-3">
         <div class="d-flex align-items-center gap-3"><span class="pen-card-heading-icon bg-primary-subtle text-primary" aria-hidden="true"><i data-lucide="user-round-plus" class="size-5"></i></span>
         <div><h2 class="h6 mb-1 card-title" id="enrollment-form-title">ثبت‌نام دانش‌آموز</h2><p class="text-muted fs-14 mb-0">اطلاعات دانش‌آموز، دوره و روش پرداخت را وارد کنید.</p></div></div>
-        <a class="btn btn-outline-secondary btn-sm" href="{% url 'workspace-enrollment-directory' %}"><i data-lucide="list" class="size-4 me-1" aria-hidden="true"></i> پیگیری ثبت‌نام‌ها</a>
+        <div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary btn-sm" href="{% url 'workspace-enrollment-payments' %}"><i data-lucide="wallet-cards" class="size-4 me-1" aria-hidden="true"></i> دفتر پرداخت</a><a class="btn btn-outline-secondary btn-sm" href="{% url 'workspace-enrollment-directory' %}"><i data-lucide="list" class="size-4 me-1" aria-hidden="true"></i> پیگیری ثبت‌نام‌ها</a></div>
       </div>
       <div class="card-body">
         <form id="enr-form" aria-labelledby="enrollment-form-title" novalidate>
@@ -85,32 +85,17 @@
               </div>
             </div>
 
-            {# 6) payment method #}
+            {# 6) split payment lines #}
             <div class="col-12">
-              <label class="form-label">روش پرداخت <span class="text-danger">*</span></label>
-              <div class="d-flex flex-wrap gap-3">
-                <div class="form-check"><input class="form-check-input" type="radio" name="payment_method" id="pay-cash" value="cash" checked><label class="form-check-label" for="pay-cash">نقدی</label></div>
-                <div class="form-check"><input class="form-check-input" type="radio" name="payment_method" id="pay-pos" value="pos"><label class="form-check-label" for="pay-pos">کارت‌خوان (POS)</label></div>
-                <div class="form-check"><input class="form-check-input" type="radio" name="payment_method" id="pay-cheque" value="cheque"><label class="form-check-label" for="pay-cheque">چک</label></div>
-              </div>
-            </div>
-
-            {# 7) cash/pos reference #}
-            <div class="col-12" id="pay-ref-wrap">
-              <label class="form-label" for="enr-reference">کد پیگیری / رسید</label>
-              <input type="text" id="enr-reference" name="reference" class="form-control" dir="ltr" placeholder="کد مرجع تراکنش">
-            </div>
-
-            {# 8) cheque block #}
-            <div class="col-12 d-none" id="pay-cheque-wrap">
-              <div class="border rounded p-3 bg-body-tertiary">
-                <div class="d-flex align-items-center gap-2 mb-2">
-                  <label class="form-label mb-0" for="enr-cheque-count">تعداد چک</label>
-                  <input type="number" id="enr-cheque-count" min="1" max="12" value="1" class="form-control form-control-sm" style="width:90px" dir="ltr">
-                  <button type="button" id="enr-cheque-build" class="btn btn-sm btn-outline-primary ms-auto">ساخت ردیف‌ها</button>
+              <section class="border rounded-3 p-3 p-lg-4 bg-body-tertiary" aria-labelledby="enr-payments-title">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                  <div><h3 id="enr-payments-title" class="h6 mb-1">پرداخت</h3><p class="text-muted fs-13 mb-0">هر روش پرداخت را جدا ثبت کنید؛ برای هر ردیف کد پیگیری مستقل ساخته می‌شود.</p></div>
+                  <button type="button" id="enr-payment-add" class="btn btn-outline-primary btn-sm"><i data-lucide="plus" class="size-4 me-1" aria-hidden="true"></i> افزودن پرداخت</button>
                 </div>
-                <div id="enr-cheques" class="vstack gap-2"></div>
-              </div>
+                <div id="enr-payment-lines" class="vstack gap-3"></div>
+                <div class="d-flex justify-content-between align-items-center border-top mt-3 pt-3 fs-14"><span>جمع پرداخت اولیه</span><strong><span id="enr-paid-sum">۰</span> تومان</strong></div>
+                <div class="form-text mt-2">می‌توانید بخشی از مبلغ را دریافت کنید و مانده را بعداً از صفحهٔ سوابق پرداخت تکمیل کنید.</div>
+              </section>
             </div>
 
             {# 9) enrolled date #}
@@ -135,7 +120,6 @@
 
 
 </div>
-
 
 {% endblock %}
 

@@ -366,6 +366,13 @@ class ClassSessionGeneratorService:
             schedule=d.schedule,
             start_date=d.start_date,
         )
+        # The instructor selected during class formation is the final
+        # assignment for this course offering. Keep the offering's teacher in
+        # sync with the generated sessions so teacher-scoped class pickers and
+        # offering-level teacher endpoints resolve the same instructor.
+        if d.teacher is not None and d.offering.instructor_id != d.teacher.pk:
+            d.offering.instructor = d.teacher
+            d.offering.save(update_fields=["instructor", "updated_at"])
         result.update({
             "class_code": d.class_code,
             "lesson": {"id": str(d.lesson.pk), "title": d.lesson.title},

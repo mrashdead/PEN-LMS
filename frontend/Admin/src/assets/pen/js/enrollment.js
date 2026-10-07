@@ -27,7 +27,14 @@
     n = Number(n) || 0;
     return window.persianNumbers(n.toLocaleString('en-US').replace(/,/g, '٬'));
   }
-  function toInt(v) { return Number(String(v || '').replace(/[^\d]/g, '')) || 0; }
+  function toInt(v) {
+    var digits = String(v || '').replace(/[۰-۹٠-٩]/g, function (d) {
+      var fa = '۰۱۲۳۴۵۶۷۸۹', ar = '٠١٢٣٤٥٦٧٨٩';
+      return String(fa.indexOf(d) >= 0 ? fa.indexOf(d) : ar.indexOf(d));
+    }).replace(/[^\d]/g, '');
+    return Number(digits) || 0;
+  }
+  function inputMoney(n) { return n ? Number(n).toLocaleString('en-US').replace(/,/g, '٬') : ''; }
 
   var state = { courseAmount: 0, lessons: [] };
   var leadState = null;
@@ -164,7 +171,9 @@
     var final = base;
     if (t === 'percent') final = base - Math.round(base * Math.min(dv, 100) / 100);
     else if (t === 'amount') final = Math.max(base - dv, 0);
+    state.finalAmount = final;
     $final.textContent = fmt(final);
+    updatePaymentTotals();
   }
   $dType.addEventListener('change', function () {
     var t = $dType.value;
@@ -179,44 +188,45 @@
     computeFinal();
   });
 
-  // ── payment method + cheques ────────────────────────────────────────
-  var $chequeWrap = document.getElementById('pay-cheque-wrap');
-  var $refWrap = document.getElementById('pay-ref-wrap');
-  var $chequeCount = document.getElementById('enr-cheque-count');
-  var $cheques = document.getElementById('enr-cheques');
-  document.querySelectorAll('[name="payment_method"]').forEach(function (r) {
-    r.addEventListener('change', function () {
-      var cheque = r.value === 'cheque' && r.checked;
-      $chequeWrap.classList.toggle('d-none', !cheque);
-      $refWrap.classList.toggle('d-none', cheque);
-      if (cheque && !$cheques.children.length) buildCheques();
-    });
-  });
-  function buildCheques() {
-    var n = Math.max(1, Math.min(12, toInt($chequeCount.value) || 1));
-    $cheques.innerHTML = '';
-    for (var i = 0; i < n; i++) {
-      var row = document.createElement('div');
-      row.className = 'row g-2 align-items-end';
-      row.innerHTML =
-        '<div class="col-12 col-md-3"><label class="form-label fs-13">مبلغ (تومان)</label><input class="form-control form-control-sm" data-cheque="amount" dir="ltr" inputmode="numeric"></div>' +
-        '<div class="col-12 col-md-3"><label class="form-label fs-13">در وجه</label><input class="form-control form-control-sm" data-cheque="payee"></div>' +
-        '<div class="col-12 col-md-3"><label class="form-label fs-13">تاریخ سررسید</label><input class="form-control form-control-sm" data-cheque="due_date" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۴/۰۸/۰۱"></div>' +
-        '<div class="col-12 col-md-3"><label class="form-label fs-13">کد پیگیری</label><input class="form-control form-control-sm" data-cheque="tracking_no" dir="ltr"></div>';
-      $cheques.appendChild(row);
+  // ── split payments ───────────────────────────────────────────────────
+  var $paymentLines = document.getElementById('enr-payment-lines');
+  var $paidSum = document.getElementById('enr-paid-sum');
+  function updatePaymentTotals() {
+    if (!$paymentLines || !$paidSum) return;
+    var firstAmount = $paymentLines.querySelector('[data-pay="amount"]');
+    var suggested = state.finalAmount || 0;
+    if (firstAmount && (typeof state.paymentSuggestion === 'undefined' || toInt(firstAmount.value) === state.paymentSuggestion)) {
+      firstAmount.value = suggested ? fmt(suggested) : '';
+      state.paymentSuggestion = suggested;
     }
-    rowMoneyInputs($cheques);
+    var sum = Array.prototype.reduce.call($paymentLines.querySelectorAll('[data-pay="amount"]'), function (n, input) { return n + toInt(input.value); }, 0);
+    $paidSum.textContent = fmt(sum);
+  }
+  function addPaymentLine(prefill) {
+    var row = document.createElement('div');
+    row.className = 'border rounded-2 bg-white p-3';
+    row.innerHTML = '<div class="row g-2 align-items-end">' +
+      '<div class="col-12 col-md-3"><label class="form-label fs-13">روش پرداخت</label><select class="form-select form-select-sm" data-pay="method"><option value="cash">نقدی</option><option value="pos">کارت‌خوان (POS)</option><option value="card_transfer">کارت‌به‌کارت</option><option value="cheque">چک</option></select></div>' +
+      '<div class="col-12 col-md-3"><label class="form-label fs-13">مبلغ (تومان)</label><input class="form-control form-control-sm" data-pay="amount" dir="ltr" inputmode="numeric"></div>' +
+      '<div class="col-12 col-md-2"><label class="form-label fs-13">پرداخت‌کننده</label><input class="form-control form-control-sm" data-pay="payer" placeholder="اختیاری"></div>' +
+      '<div class="col-12 col-md-3"><label class="form-label fs-13">کد رسید / مرجع</label><input class="form-control form-control-sm" data-pay="reference" dir="ltr" placeholder="اختیاری"></div>' +
+      '<div class="col-12 col-md-1"><button type="button" class="btn btn-light btn-sm w-100" data-pay="remove" aria-label="حذف ردیف پرداخت"><i data-lucide="x" class="size-4" aria-hidden="true"></i></button></div>' +
+      '<div class="col-12 row g-2 d-none" data-pay="cheque-fields"><div class="col-12 col-md-4"><label class="form-label fs-13">شماره چک</label><input class="form-control form-control-sm" data-pay="cheque-number" dir="ltr"></div><div class="col-12 col-md-4"><label class="form-label fs-13">در وجه</label><input class="form-control form-control-sm" data-pay="payee"></div><div class="col-12 col-md-4"><label class="form-label fs-13">سررسید</label><input class="form-control form-control-sm" data-pay="due" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۱/۱۵"></div></div></div>';
+    $paymentLines.appendChild(row);
+    var method = row.querySelector('[data-pay="method"]');
+    method.addEventListener('change', function () { row.querySelector('[data-pay="cheque-fields"]').classList.toggle('d-none', method.value !== 'cheque'); });
+    row.querySelector('[data-pay="remove"]').addEventListener('click', function () { if ($paymentLines.children.length > 1) row.remove(); updatePaymentTotals(); });
+    var amount = row.querySelector('[data-pay="amount"]');
+    amount.value = inputMoney(prefill);
+    amount.addEventListener('input', function () {
+      amount.value = inputMoney(toInt(amount.value));
+      updatePaymentTotals();
+    });
+    icons();
     if (window.penAttachJalaliPickers) window.penAttachJalaliPickers();
   }
-  document.getElementById('enr-cheque-build').addEventListener('click', buildCheques);
-  function rowMoneyInputs(scope) {
-    scope.querySelectorAll('[data-cheque="amount"]').forEach(function (inp) {
-      inp.addEventListener('input', function () {
-        var d = inp.value.replace(/[^\d]/g, '');
-        inp.value = d ? Number(d).toLocaleString('en-US').replace(/,/g, '٬') : '';
-      });
-    });
-  }
+  document.getElementById('enr-payment-add').addEventListener('click', function () { addPaymentLine(); });
+  addPaymentLine(state.courseAmount);
 
   // ── submit ──────────────────────────────────────────────────────────
   document.getElementById('enr-form').addEventListener('submit', function (e) {
@@ -227,32 +237,30 @@
     var student = $sHidden.value, offering = $offering.value;
     if (!student) return fail('یک دانش‌آموز انتخاب کنید.');
     if (!offering) return fail('برگزاری را انتخاب کنید.');
-    var method = (document.querySelector('[name="payment_method"]:checked') || {}).value || 'cash';
+    var payments = Array.prototype.map.call($paymentLines.children, function (row) {
+      var method = row.querySelector('[data-pay="method"]').value;
+      return {
+        method: method,
+        amount: toInt(row.querySelector('[data-pay="amount"]').value),
+        payer_name: row.querySelector('[data-pay="payer"]').value.trim(),
+        reference: row.querySelector('[data-pay="reference"]').value.trim(),
+        cheque_number: row.querySelector('[data-pay="cheque-number"]').value.trim(),
+        cheque_payee: row.querySelector('[data-pay="payee"]').value.trim(),
+        cheque_due_date: row.querySelector('[data-pay="due"]').value.trim()
+      };
+    });
+    if (!payments.length || payments.some(function (line) { return line.amount <= 0; })) return fail('مبلغ همهٔ ردیف‌های پرداخت باید بیشتر از صفر باشد.');
+    if (payments.reduce(function (sum, line) { return sum + line.amount; }, 0) > (state.finalAmount || 0)) return fail('جمع پرداخت‌ها از مبلغ قابل‌پرداخت بیشتر است.');
     var payload = {
       offering: offering, student: student,
       course_amount: state.courseAmount,
       discount_type: $dType.value,
       discount_value: toInt($dVal.value),
-      payment_method: method,
+      payments: payments,
     };
     if (LEAD_ID) payload.lead = LEAD_ID;
     var enrolledAt = document.getElementById('enr-date').value.trim();
     if (enrolledAt) payload.enrolled_at = enrolledAt; // empty → server default
-    if (method === 'cheque') {
-      var cheques = Array.prototype.slice.call($cheques.children).map(function (row) {
-        return {
-          amount: toInt(row.querySelector('[data-cheque="amount"]').value),
-          payee: row.querySelector('[data-cheque="payee"]').value.trim(),
-          due_date: row.querySelector('[data-cheque="due_date"]').value.trim(),
-          tracking_no: row.querySelector('[data-cheque="tracking_no"]').value.trim(),
-        };
-      });
-      if (!cheques.length) return fail('حداقل یک چک وارد کنید.');
-      payload.cheques = cheques;
-      payload.cheque_count = cheques.length;
-    } else {
-      payload.reference = document.getElementById('enr-reference').value.trim();
-    }
     fetch(ENROLL, { method: 'POST', credentials: 'same-origin', headers: headers(), body: JSON.stringify(payload) })
       .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); })
       .then(function (res) {
@@ -263,7 +271,7 @@
         toast(res.b.waitlisted ? 'ظرفیت تکمیل است؛ دانش‌آموز در صف انتظار قرار گرفت.' : 'ثبت‌نام انجام شد ✓', res.b.waitlisted ? 'warning' : 'success');
         document.getElementById('enr-form').reset();
         $sPicked.textContent = ''; state.courseAmount = 0; renderAmount();
-        $cheques.innerHTML = ''; $chequeWrap.classList.add('d-none'); $refWrap.classList.remove('d-none');
+        $paymentLines.innerHTML = ''; state.paymentSuggestion = undefined; addPaymentLine();
         loadRecent();
         loadWaitlist();
       })

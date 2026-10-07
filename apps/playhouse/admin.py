@@ -8,11 +8,18 @@ from django.contrib import admin
 
 from apps.playhouse.models import (
     PlayhouseConfig,
+    PlayhouseCafePreset,
     PlayhouseInvoice,
     PlayhouseInvoiceItem,
     PlayhouseMember,
     PlayhouseSession,
 )
+
+
+@admin.register(PlayhouseCafePreset)
+class PlayhouseCafePresetAdmin(admin.ModelAdmin):
+    list_display = ("name", "price", "updated_at")
+    search_fields = ("name",)
 
 
 @admin.register(PlayhouseConfig)
