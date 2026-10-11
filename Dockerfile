@@ -37,8 +37,9 @@ COPY --chown=pen:pen apps ./apps
 COPY --chown=pen:pen frontend/Admin/pen-templates ./frontend/Admin/pen-templates
 COPY --from=frontend --chown=pen:pen /build/src/assets ./frontend/Admin/src/assets
 COPY --chown=pen:pen docker/gunicorn.conf.py docker/healthcheck.py ./docker/
-RUN mkdir -p /app/media /app/staticfiles /app/run \
-    && chown pen:pen /app/media /app/staticfiles /app/run
+RUN mkdir -p /app/media /app/staticfiles /app/run /app/backups \
+    && chown pen:pen /app/media /app/staticfiles /app/run /app/backups \
+    && chmod 2770 /app/backups
 USER pen
 EXPOSE 8000
 CMD ["gunicorn", "--config", "docker/gunicorn.conf.py", "pen.wsgi:application"]

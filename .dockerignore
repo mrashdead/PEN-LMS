@@ -8,6 +8,9 @@
 !apps/**
 !docker/
 !docker/**
+!scripts/
+!scripts/**
+!Dockerfile.backup
 !frontend/
 !frontend/Admin/
 !frontend/Admin/package.json

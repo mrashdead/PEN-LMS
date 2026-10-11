@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}رخدادهای امنیتی{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="رخدادهای امنیتی" section="مدیریت سازمان" %}
+{% endblock %}
+
+{% block content %}
+<section aria-labelledby="audit-events-title">
+  <div class="card">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <h2 id="audit-events-title" class="h5 mb-1">تاریخچهٔ رویدادهای امنیتی و دسترسی</h2>
+        <p class="text-muted mb-0">رویدادهای ثبت‌شده در سامانه؛ این تاریخچه فقط‌خواندنی است.</p>
+      </div>
+      <form method="get" class="d-flex flex-wrap align-items-end gap-2">
+        <div>
+          <label for="audit-kind" class="form-label mb-1">نوع رویداد</label>
+          <select id="audit-kind" name="kind" class="form-select form-select-sm">
+            <option value="">همهٔ رویدادها</option>
+            {% for value, label in event_kinds %}
+              <option value="{{ value }}"{% if selected_kind == value %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-sm btn-primary" type="submit">اعمال فیلتر</button>
+      </form>
+    </div>
+    <div class="card-body p-0">
+      {% if page_obj.object_list %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col">زمان</th>
+              <th scope="col">نوع</th>
+              <th scope="col">کاربر</th>
+              <th scope="col">شرح</th>
+              <th scope="col">نشانی / درخواست</th>
+              <th scope="col">جزئیات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for event in page_obj %}
+            <tr>
+              <td class="text-nowrap">{{ event.created_at|date:"Y/m/d H:i:s" }}</td>
+              <td><span class="badge bg-light text-dark">{{ event.get_kind_display }}</span></td>
+              <td>{{ event.actor|default:"ناشناس" }}</td>
+              <td>{{ event.summary }}</td>
+              <td>
+                {% if event.ip_address %}<div dir="ltr" class="text-end">{{ event.ip_address }}</div>{% endif %}
+                {% if event.metadata.method or event.metadata.path %}
+                  <code dir="ltr" class="d-block text-end">{{ event.metadata.method }} {{ event.metadata.path }}</code>
+                {% endif %}
+              </td>
+              <td>
+                {% if event.metadata %}
+                  <details>
+                    <summary class="text-primary">نمایش</summary>
+                    <dl class="small mb-0 mt-2">
+                      {% for key, value in event.metadata.items %}
+                      <dt>{{ key }}</dt><dd class="mb-1 text-break">{{ value }}</dd>
+                      {% endfor %}
+                    </dl>
+                  </details>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center p-5">
+        <i data-lucide="shield-check" class="size-8 text-muted mb-2" aria-hidden="true"></i>
+        <p class="mb-0 text-muted">برای این فیلتر رویدادی ثبت نشده است.</p>
+      </div>
+      {% endif %}
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="card-footer">
+      <nav aria-label="صفحه‌بندی رخدادها">
+        <ul class="pagination justify-content-center mb-0">
+          {% if page_obj.has_previous %}
+          <li class="page-item"><a class="page-link" href="?{% if selected_kind %}kind={{ selected_kind|urlencode }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">قبلی</a></li>
+          {% endif %}
+          <li class="page-item disabled"><span class="page-link">صفحهٔ {{ page_obj.number }} از {{ page_obj.paginator.num_pages }}</span></li>
+          {% if page_obj.has_next %}
+          <li class="page-item"><a class="page-link" href="?{% if selected_kind %}kind={{ selected_kind|urlencode }}&amp;{% endif %}page={{ page_obj.next_page_number }}">بعدی</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

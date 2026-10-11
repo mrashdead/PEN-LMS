@@ -1,0 +1,13 @@
+ARG POSTGRES_IMAGE=postgres:18-bookworm
+FROM ${POSTGRES_IMAGE}
+
+RUN groupadd --gid 10001 pen \
+    && usermod --append --groups pen postgres \
+    && install -d --owner=postgres --group=pen --mode=2770 /app/backups
+
+COPY --chown=postgres:pen scripts/docker-backup-service.sh /usr/local/bin/docker-backup-service.sh
+RUN chmod 0750 /usr/local/bin/docker-backup-service.sh
+
+USER postgres
+ENTRYPOINT []
+CMD ["/usr/local/bin/docker-backup-service.sh"]

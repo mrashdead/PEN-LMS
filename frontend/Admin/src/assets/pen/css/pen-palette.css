@@ -127,31 +127,41 @@
   color-scheme: dark;
 }
 :root[data-bs-theme="dark"][data-pen-palette="sky"] {
-  --dx-sidebar-bg: #17243A;
+  --dx-sidebar-bg: #6EACDA;
+  --dx-sidebar-border: #548DB7;
   --dx-topbar-bg: #17243A;
   --dx-accent: #78B8FF;
+  --pen-sidebar-active-indicator: #050A14;
 }
 :root[data-bs-theme="dark"][data-pen-palette="rose"] {
-  --dx-sidebar-bg: #1C2940;
+  --dx-sidebar-bg: #FC85AE;
+  --dx-sidebar-border: #440c44;
   --dx-topbar-bg: #1C2940;
   --dx-accent: #FD86A9;
+  --pen-sidebar-active-indicator: #050A14;
 }
 :root[data-bs-theme="dark"][data-pen-palette="sky"],
 :root[data-bs-theme="dark"][data-pen-palette="rose"] {
-  --dx-sidebar-menu-title: #7F8CA3;
-  --dx-sidebar-link-color: #B8C2D3;
-  --dx-sidebar-link-hover-color: #fff;
-  --dx-sidebar-link-bg-hover-color: rgba(255,255,255,.1);
-  --dx-sidebar-link-active-color: #fff;
-  --dx-sidebar-link-bg-active-color: rgba(255,255,255,.15);
-  --dx-sidebar-link-sub-color: #B8C2D3;
-  --dx-sidebar-link-sub-hover-color: #fff;
-  --dx-sidebar-link-sub-active-color: #fff;
-  --dx-sidebar-link-sub-effect-color: rgba(255,255,255,.08);
+  --dx-sidebar-menu-title: #050A14;
+  --dx-sidebar-link-color: #050A14;
+  --dx-sidebar-link-hover-color: #050A14;
+  --dx-sidebar-link-bg-hover-color: rgba(5,10,20,.08);
+  --dx-sidebar-link-active-color: #050A14;
+  --dx-sidebar-link-bg-active-color: rgba(5,10,20,.16);
+  --dx-sidebar-link-sub-color: #050A14;
+  --dx-sidebar-link-sub-hover-color: #050A14;
+  --dx-sidebar-link-sub-active-color: #050A14;
+  --dx-sidebar-link-sub-effect-color: rgba(5,10,20,.24);
 }
 :root[data-bs-theme="dark"][data-pen-palette] .main-sidebar .nav-link.active {
-  box-shadow: inset -3px 0 0 var(--dx-accent);
+  box-shadow: inset -3px 0 0 var(--pen-sidebar-active-indicator, var(--dx-accent));
 }
+
+/* Use the dark mark on the two light sidebar colors in dark mode. */
+:root[data-bs-theme="dark"][data-pen-palette="sky"] #main-sidebar .navbar-brand .logo-dark,
+:root[data-bs-theme="dark"][data-pen-palette="rose"] #main-sidebar .navbar-brand .logo-dark { display: block; }
+:root[data-bs-theme="dark"][data-pen-palette="sky"] #main-sidebar .navbar-brand .logo-light,
+:root[data-bs-theme="dark"][data-pen-palette="rose"] #main-sidebar .navbar-brand .logo-light { display: none; }
 
 /* Strong colors stay in navigation and actions; pink highlights stay sparse. */
 :root[data-pen-palette] .main-sidebar .nav-link.active { border-radius: .6rem; }

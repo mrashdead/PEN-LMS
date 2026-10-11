@@ -5,7 +5,6 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.urls import reverse_lazy
-from rest_framework.authtoken.views import obtain_auth_token
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from apps.core import views as core_views
@@ -19,7 +18,8 @@ urlpatterns = [
 
     # API Auth
     path('api/', include('rest_framework.urls')),
-    path('api/auth/token/', obtain_auth_token, name='api-token-auth'),
+    path('api/auth/token/', core_views.DashboardTokenObtainView.as_view(), name='api-token-auth'),
+    path('api/auth/token/revoke/', core_views.DashboardTokenRevokeView.as_view(), name='api-token-revoke'),
 
     # Workflow / core API
     path('api/workflow/', include('apps.workflow.urls')),
@@ -65,7 +65,7 @@ urlpatterns = [
     path('dashboard/password/reset/done/', auth_views.PasswordResetDoneView.as_view(
         template_name='registration/password_reset_done.html',
     ), name='password-reset-done'),
-    path('dashboard/password/reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(
+    path('dashboard/password/reset/<uidb64>/<token>/', core_views.DashboardPasswordResetConfirmView.as_view(
         template_name='registration/password_reset_confirm.html',
         success_url=reverse_lazy('password-reset-complete'),
     ), name='password-reset-confirm'),

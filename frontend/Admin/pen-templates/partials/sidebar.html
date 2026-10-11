@@ -346,6 +346,25 @@ Add a page: one nav-item; add a section: copy a collapse block.
         </li>
         {% endif %}
 
+        {% if is_sys_admin %}
+        <li class="nav-item">
+          <a href="{% url 'workspace-audit-events' %}" title="رخدادهای امنیتی"
+             class="nav-link{% if urlname == 'workspace-audit-events' %} active{% endif %}"
+             {% if urlname == 'workspace-audit-events' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="shield-alert"></i></span>
+            <span class="content">رخدادهای امنیتی</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'workspace-backups' %}" title="پشتیبان‌گیری"
+             class="nav-link{% if urlname == 'workspace-backups' %} active{% endif %}"
+             {% if urlname == 'workspace-backups' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="database"></i></span>
+            <span class="content">پشتیبان‌گیری</span>
+          </a>
+        </li>
+        {% endif %}
+
         {% endif %}
 
       </ul>

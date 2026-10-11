@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}پشتیبان‌گیری{% endblock %}
+{% block page_heading %}
+  {% include "partials/page-heading.html" with title="پشتیبان‌گیری" section="مدیریت سازمان" %}
+{% endblock %}
+
+{% block content %}
+<section aria-labelledby="backups-title">
+  <div class="card">
+    <div class="card-header">
+      <h2 id="backups-title" class="h5 mb-1">نسخه‌های پشتیبان روزانه</h2>
+      <p class="text-muted mb-0">پشتیبان شامل کل دیتابیس و فایل‌های رسانه‌ای سامانه است. پنج نسخهٔ اخیر نگهداری می‌شود.</p>
+    </div>
+    <div class="card-body p-0">
+      {% if backups %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr><th scope="col">تاریخ ایجاد</th><th scope="col">نام فایل</th><th scope="col">حجم</th><th scope="col">دریافت</th></tr>
+          </thead>
+          <tbody>
+            {% for backup in backups %}
+            <tr>
+              <td class="text-nowrap">{{ backup.modified|date:"Y/m/d H:i" }}</td>
+              <td><code dir="ltr">{{ backup.name }}</code></td>
+              <td class="text-nowrap">{{ backup.size|filesizeformat }}</td>
+              <td>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'workspace-backup-download' filename=backup.name %}">
+                  <i data-lucide="download" class="size-4 me-1" aria-hidden="true"></i>دانلود فایل
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center p-5">
+        <i data-lucide="database" class="size-8 text-muted mb-2" aria-hidden="true"></i>
+        <p class="mb-1">هنوز نسخهٔ پشتیبانی آماده نشده است.</p>
+        <p class="small text-muted mb-0">سرویس پشتیبان‌گیری پس از راه‌اندازی، هر روز یک نسخه می‌سازد.</p>
+      </div>
+      {% endif %}
+    </div>
+    <div class="card-footer small text-muted">
+      فایل پشتیبان حاوی اطلاعات خصوصی است و فقط برای مدیران سامانه قابل دریافت است.
+    </div>
+  </div>
+</section>
+{% endblock %}

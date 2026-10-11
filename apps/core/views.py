@@ -5,18 +5,84 @@ import logging
 from django.contrib import messages
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView
+from django.contrib.auth.views import (
+    LoginView,
+    LogoutView,
+    PasswordChangeView,
+    PasswordResetConfirmView,
+)
 from django.core.exceptions import PermissionDenied
 from django.db import DatabaseError, connection
 from django.http import JsonResponse
 from django.shortcuts import redirect, resolve_url
 from django.urls import reverse_lazy
 from django.views.generic import TemplateView
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle, UserRateThrottle
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.authtoken.models import Token
+from rest_framework.views import APIView
 
 from apps.core.utils import english_numbers
 from apps.core.login_security import blocked, clear_failures, record_failure
+from apps.core.authentication import ExpiringTokenAuthentication, revoke_token
 
 logger = logging.getLogger(__name__)
+
+
+class DashboardTokenObtainView(ObtainAuthToken):
+    """Issue API tokens with the configured login throttle."""
+
+    authentication_classes = []
+    permission_classes = []
+    throttle_classes = [AnonRateThrottle, ScopedRateThrottle]
+    throttle_scope = "login"
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+        if getattr(user, "is_deleted", False):
+            raise AuthenticationFailed("این حساب غیرفعال است.")
+        token, _ = Token.objects.get_or_create(user=user)
+        from apps.core.models import AuditEvent
+
+        AuditEvent.record(
+            kind=AuditEvent.Kind.LOGIN,
+            summary="ورود موفق کاربر از طریق API.",
+            actor=user,
+            obj=user,
+            request=request,
+            metadata={"method": request.method, "path": request.path, "auth_method": "api_token"},
+        )
+        return Response({"token": token.key})
+
+
+class DashboardTokenRevokeView(APIView):
+    """Revoke the authenticated API token so it can no longer be reused."""
+
+    authentication_classes = [ExpiringTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [UserRateThrottle]
+
+    def post(self, request, *args, **kwargs):
+        revoke_token(request.user)
+        from apps.core.models import AuditEvent
+
+        AuditEvent.record(
+            kind=AuditEvent.Kind.FIELD_CHANGE,
+            summary="کاربر توکن API حساب خود را باطل کرد.",
+            actor=request.user,
+            obj=request.user,
+            request=request,
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def healthz(request):
@@ -81,6 +147,15 @@ class DashboardLoginView(LoginView):
         ).strip()
         if not getattr(self, "_login_blocked", False) and username and self.request.POST.get("password"):
             record_failure(self.request, username)
+        if username:
+            from apps.core.models import AuditEvent
+
+            AuditEvent.record(
+                kind=AuditEvent.Kind.ACCESS_DENIED,
+                summary="تلاش برای ورود به داشبورد ناموفق یا مسدود شد.",
+                metadata={"username": username, "path": self.request.path},
+                request=self.request,
+            )
         return super().form_invalid(form)
 
     def form_valid(self, form):
@@ -125,6 +200,38 @@ class DashboardPasswordChangeView(LoginRequiredMixin, PasswordChangeView):
                 "تغییر رمز عبور این نوع حساب فقط توسط مدیریت سامانه انجام می‌شود."
             )
         return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        revoke_token(self.request.user)
+        from apps.core.models import AuditEvent
+
+        AuditEvent.record(
+            kind=AuditEvent.Kind.FIELD_CHANGE,
+            summary="کاربر رمز عبور حساب خود را تغییر داد.",
+            actor=self.request.user,
+            obj=self.request.user,
+            request=self.request,
+        )
+        return response
+
+
+class DashboardPasswordResetConfirmView(PasswordResetConfirmView):
+    """Revoke API tokens when a user completes password recovery."""
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        revoke_token(form.user)
+        from apps.core.models import AuditEvent
+
+        AuditEvent.record(
+            kind=AuditEvent.Kind.FIELD_CHANGE,
+            summary="کاربر رمز عبور خود را از طریق بازیابی تغییر داد.",
+            actor=form.user,
+            obj=form.user,
+            request=self.request,
+        )
+        return response
 
 
 class DashboardHomeView(LoginRequiredMixin, TemplateView):

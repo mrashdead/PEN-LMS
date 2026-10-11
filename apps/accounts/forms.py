@@ -6,6 +6,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
+from apps.core.authentication import revoke_token
+
 
 class UserSelect(forms.Select):
     def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
@@ -82,4 +84,5 @@ class AdminPasswordResetForm(forms.Form):
         target = self.cleaned_data["target_user"]
         target.set_password(self.cleaned_data["new_password1"])
         target.save(update_fields=["password", "updated_at"])
+        revoke_token(target)
         return target

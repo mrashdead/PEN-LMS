@@ -33,3 +33,8 @@ def issue_token(user) -> Token:
     """Return the user's stable API token, creating it when needed."""
     token, _ = Token.objects.get_or_create(user=user)
     return token
+
+
+def revoke_token(user) -> None:
+    """Revoke existing API credentials after a password change."""
+    Token.objects.filter(user=user).delete()

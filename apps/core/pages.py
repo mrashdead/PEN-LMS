@@ -15,16 +15,24 @@ consumers.
 """
 from __future__ import annotations
 
+import datetime as dt
+import re
+from pathlib import Path
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
-from django.http import Http404
+from django.core.paginator import Paginator
+from django.http import FileResponse, Http404
 from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.views import View
 from django.views.generic import TemplateView
 
 from apps.accounts.forms import AdminPasswordResetForm
+from apps.core.models import AuditEvent
 from apps.core.utils import jalali_datetime_str, persian_date, persian_numbers
 
 # Roles that may see the education/admin surfaces (mirrors the read side of
@@ -575,6 +583,13 @@ class PasswordManagementPage(LoginRequiredMixin, TemplateView):
         )
         if form.is_valid():
             target = form.save(actor=request.user)
+            AuditEvent.record(
+                kind=AuditEvent.Kind.FIELD_CHANGE,
+                summary="مدیر سامانه رمز عبور یک حساب را بازنشانی کرد.",
+                actor=request.user,
+                obj=target,
+                request=request,
+            )
             messages.success(
                 request,
                 f"رمز عبور «{target.get_full_name() or target.username}» با موفقیت تنظیم شد.",
@@ -763,3 +778,94 @@ class PermissionManagePage(OrgManagerMixin, TemplateView):
     """Per-user permission editor: search a person → view/edit roles + groups."""
 
     template_name = "perm_manage.html"
+
+
+class SystemAdminRequiredMixin(LoginRequiredMixin):
+    """Limit system-wide operational data to system administrators."""
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
+        roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
+        if not request.user.is_superuser and not roles & {"manager", "workflow_admin"}:
+            raise Http404
+        return super().dispatch(request, *args, **kwargs)
+
+
+class AuditEventsPage(SystemAdminRequiredMixin, TemplateView):
+    """Read-only security audit feed for system administrators."""
+
+    template_name = "audit_events.html"
+    page_size = 50
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        selected_kind = self.request.GET.get("kind", "")
+        valid_kinds = {value for value, _label in AuditEvent.Kind.choices}
+        if selected_kind not in valid_kinds:
+            selected_kind = ""
+
+        events = AuditEvent.objects.select_related("actor").all()
+        if selected_kind:
+            events = events.filter(kind=selected_kind)
+
+        paginator = Paginator(events, self.page_size)
+        page_obj = paginator.get_page(self.request.GET.get("page"))
+        context.update({
+            "page_obj": page_obj,
+            "event_kinds": AuditEvent.Kind.choices,
+            "selected_kind": selected_kind,
+        })
+        return context
+
+
+class BackupsPage(SystemAdminRequiredMixin, TemplateView):
+    """List the retained automatic database and media backups."""
+
+    template_name = "backups.html"
+    backup_name_pattern = re.compile(r"pen-auto-\d{8}T\d{6}Z\.tar\.gz\Z")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        backup_root = Path(settings.BASE_DIR) / "backups"
+        backups = []
+        if backup_root.is_dir():
+            for path in backup_root.iterdir():
+                if not self.backup_name_pattern.fullmatch(path.name) or not path.is_file():
+                    continue
+                stat = path.stat()
+                backups.append({
+                    "name": path.name,
+                    "size": stat.st_size,
+                    "modified": timezone.localtime(dt.datetime.fromtimestamp(stat.st_mtime, tz=dt.timezone.utc)),
+                })
+        context["backups"] = sorted(backups, key=lambda row: row["modified"], reverse=True)
+        return context
+
+
+class BackupDownloadView(SystemAdminRequiredMixin, View):
+    """Download a generated backup after validating its fixed filename shape."""
+
+    backup_name_pattern = BackupsPage.backup_name_pattern
+
+    def get(self, request, *args, **kwargs):
+        filename = kwargs.get("filename", "")
+        if not self.backup_name_pattern.fullmatch(filename):
+            raise Http404
+        backup_root = (Path(settings.BASE_DIR) / "backups").resolve()
+        path = (backup_root / filename).resolve()
+        if path.parent != backup_root or not path.is_file():
+            raise Http404
+        try:
+            backup_file = path.open("rb")
+        except OSError as exc:
+            raise Http404 from exc
+
+        AuditEvent.record(
+            kind=AuditEvent.Kind.DOWNLOAD,
+            summary="دانلود نسخهٔ پشتیبان سامانه",
+            actor=request.user,
+            request=request,
+            metadata={"filename": filename},
+        )
+        return FileResponse(backup_file, as_attachment=True, filename=filename)

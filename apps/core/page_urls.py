@@ -4,6 +4,9 @@ from __future__ import annotations
 from django.urls import path
 
 from apps.core.pages import (
+    AuditEventsPage,
+    BackupDownloadView,
+    BackupsPage,
     EnrollmentEntityPage,
     EnrollmentDirectoryPage,
     EnrollmentPage,
@@ -30,6 +33,9 @@ from apps.reports.views.reports import ReportsPage
 from apps.reports.views.enrollment_capacity import EnrollmentCapacityPage
 
 urlpatterns = [
+    path("backups/", BackupsPage.as_view(), name="workspace-backups"),
+    path("backups/<str:filename>/download/", BackupDownloadView.as_view(), name="workspace-backup-download"),
+    path("security/events/", AuditEventsPage.as_view(), name="workspace-audit-events"),
     path("profile/", ProfilePage.as_view(), name="workspace-profile"),
     path("password-management/", PasswordManagementPage.as_view(), name="workspace-password-management"),
     path("work/", WorkQueuePage.as_view(), name="workspace-work"),

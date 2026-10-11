@@ -214,7 +214,9 @@ scripts/test_ci.sh
 scripts/smoke_deploy.sh
 !scripts/docker-deploy.sh
 !scripts/docker-backup.sh
+!scripts/docker-backup-service.sh
 !scripts/docker-restore.sh
+!Dockerfile.backup
 !DOCKER-DEPLOY.md
 CI-TEST-DESIGN.md
 

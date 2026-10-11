@@ -152,6 +152,16 @@ bash scripts/docker-deploy.sh
 
 ## ۸. بکاپ و بازیابی
 
+در استقرار Compose، سرویس `backup` پس از بالا آمدن برنامه یک نسخهٔ اولیه می‌سازد و سپس هر روز ساعت ۰۲:۰۰ UTC از PostgreSQL و کل `media` یک فایل فشردهٔ checksumدار تهیه می‌کند. نسخه‌های قدیمی‌تر از پنج روز حذف می‌شوند و در هر حال حداکثر پنج نسخهٔ خودکار اخیر در volume جداگانهٔ `backups` می‌ماند. مدیر یا مدیر سیستم می‌تواند آن‌ها را از صفحهٔ «پشتیبان‌گیری» در پنل (`/workspace/backups/`) دریافت کند؛ دانلودها در رخدادهای حسابرسی ثبت می‌شوند. برای بازیابی فایل دانلودشده، آن را در پوشه‌ای خالی استخراج کنید و مسیر پوشه را به اسکریپت بازیابی بدهید:
+
+```bash
+restore_dir="$(mktemp -d)"
+tar -xzf /path/to/pen-auto-YYYYMMDDTHHMMSSZ.tar.gz -C "$restore_dir"
+bash scripts/docker-restore.sh "$restore_dir"
+```
+
+این volume روی همان میزبان Docker است و فایل‌ها رمزگذاری نمی‌شوند؛ برای بازیابی پس از خرابی یا از دست رفتن میزبان، نسخهٔ دانلودشده را به مخزن بیرونی امن منتقل و آنجا رمزگذاری کنید. سرویس پشتیبان را با `docker compose logs backup` پایش کنید؛ خطای بکاپ در لاگ سرویس ثبت می‌شود.
+
 ```bash
 bash scripts/docker-backup.sh
 bash scripts/docker-restore.sh backups/pen-TIMESTAMP

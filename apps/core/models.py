@@ -278,6 +278,8 @@ class AuditEvent(UUIDPrimaryKeyModel, TimeStampedModel):
     """
 
     class Kind(models.TextChoices):
+        LOGIN = "login", "ورود موفق"
+        LOGOUT = "logout", "خروج موفق"
         ACCESS_DENIED = "access_denied", "رد دسترسی"
         DOWNLOAD = "download", "دانلود فایل"
         SENSITIVE_READ = "sensitive_read", "خواندن داده‌ی حساس"

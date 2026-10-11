@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def audited_exception_handler(exc, context):
     response = drf_exception_handler(exc, context)
     try:
-        if response is not None and response.status_code in (403, 404):
+        if response is not None and response.status_code in (401, 403, 404):
             from apps.core.models import AuditEvent
             from apps.core.utils import get_client_ip
 
@@ -27,17 +27,17 @@ def audited_exception_handler(exc, context):
             actor = getattr(request, "user", None)
             if actor is not None and not getattr(actor, "is_authenticated", False):
                 actor = None
-            # 404 is only interesting on authenticated access to a scoped
-            # object (a probe); 403 always. Both are cheap to record.
+            # 401/403 capture authentication and authorization failures; 404
+            # captures probes against authenticated, scoped resources.
             AuditEvent.objects.create(
                 kind=(
                     AuditEvent.Kind.ACCESS_DENIED
-                    if response.status_code == 403
+                    if response.status_code in (401, 403)
                     else AuditEvent.Kind.SENSITIVE_READ
                 ),
                 actor_id=getattr(actor, "pk", None),
                 summary=(
-                    f"{'دسترسی رد شد' if response.status_code == 403 else 'یافت نشد'}"
+                    f"{'احراز هویت ناموفق' if response.status_code == 401 else 'دسترسی رد شد' if response.status_code == 403 else 'یافت نشد'}"
                     f" — {type(view).__name__ if view else '?'}"
                 ),
                 metadata={

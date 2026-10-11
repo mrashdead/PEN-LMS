@@ -86,6 +86,9 @@ services:
 
   web:
     <<: *app
+    volumes:
+      - media:/app/media
+      - backups:/app/backups:ro
     healthcheck:
       test: ["CMD", "python", "docker/healthcheck.py"]
       interval: 15s
@@ -122,6 +125,31 @@ services:
       redis:
         condition: service_healthy
 
+  backup:
+    image: ${BACKUP_IMAGE:-pen-backup:local}
+    build:
+      context: .
+      dockerfile: Dockerfile.backup
+      args:
+        POSTGRES_IMAGE: ${POSTGRES_IMAGE:-postgres:18-bookworm}
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      POSTGRES_DB: ${DB_NAME:?Set DB_NAME in the Docker environment file}
+      POSTGRES_USER: ${DB_USER:?Set DB_USER in the Docker environment file}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the Docker environment file}
+    volumes:
+      - media:/app/media:ro
+      - backups:/app/backups
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [backend]
+    logging: *logging
+
   proxy:
     image: ${CADDY_IMAGE:-caddy:2-alpine}
     environment:
@@ -148,6 +176,7 @@ volumes:
   postgres:
   redis:
   media:
+  backups:
   static:
   beat:
   caddy_data:
