@@ -77,6 +77,10 @@ class ReportsPage(ReportsPageAccessMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["report_options"] = filter_options()
+        from apps.core.report_dates import project_today
+        from apps.core.utils import to_jalali_date
+        context["report_jalali_year"] = to_jalali_date(project_today()).year
+        context["report_jalali_month"] = to_jalali_date(project_today()).month
         context["report_page"] = self.report_page
         pages = [
             ("overview", "نمای کلی", "گزارش‌های کلیدی و دسترسی سریع"),

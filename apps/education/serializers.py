@@ -134,14 +134,27 @@ class CourseSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     lessons = CourseLessonsField(required=False)
     lesson_titles = serializers.SerializerMethodField()
     total_tuition = serializers.SerializerMethodField()
+    instructor_names = serializers.SerializerMethodField()
 
     class Meta:
         model = Course
         fields = ("id", "code", "title", "description", "objectives",
                   "department", "tuition", "lessons", "lesson_titles",
-                  "total_tuition", "is_active", "legacy_id", "created_at", "updated_at")
+                  "total_tuition", "instructor_names", "is_active", "legacy_id", "created_at", "updated_at")
         fields = fields + ("actions",)
         read_only_fields = ("id", "code", "created_at", "updated_at")
+
+    def get_instructor_names(self, obj):
+        from apps.academics.scoping import education_offerings_visible_to
+        from apps.education.teaching import teacher_identity
+        offerings = getattr(obj, "visible_offerings", None)
+        if offerings is None:
+            request = self.context.get("request")
+            offerings = education_offerings_visible_to(request.user).filter(course=obj) if request else []
+        return "، ".join(dict.fromkeys(
+            identity["name"] if identity else "مدرس تعیین نشده"
+            for identity in (teacher_identity(item.instructor) for item in offerings)
+        )) or "مدرس تعیین نشده"
 
     def get_lesson_titles(self, obj) -> list:
         return [
@@ -263,7 +276,7 @@ class CourseOfferingSerializer(CRUDActionsMixin, serializers.ModelSerializer):
 
     def get_instructor_name(self, obj) -> str:
         t = getattr(obj, "instructor", None)
-        return f"{t.first_name} {t.last_name}".strip() if t else ""
+        return t.display_name if t and not t.is_deleted else "مدرس تعیین نشده"
 
     def get_course_tuition(self, obj) -> int:
         """Use the curriculum total when the legacy course amount is unset."""
@@ -419,7 +432,7 @@ class ClassSessionSerializer(CRUDActionsMixin, serializers.ModelSerializer):
 
     def get_teacher_name(self, obj) -> str:
         t = obj.teacher
-        return f"{t.first_name} {t.last_name}".strip() if t else ""
+        return t.display_name if t and not t.is_deleted else ""
 
     def get_materials(self, obj) -> list[dict]:
         return SessionMaterialSerializer(
@@ -523,6 +536,15 @@ class GradeRecordSerializer(serializers.ModelSerializer):
 
 
 class OfferingEnrollmentSerializer(CRUDActionsMixin, serializers.ModelSerializer):
+    teacher = serializers.SerializerMethodField()
+
+    def get_teacher(self, obj):
+        from apps.education.teaching import teaching_identity
+        membership = obj.final_class_enrollment
+        group = membership.class_group if membership and not membership.is_deleted and not membership.class_group.is_deleted else None
+        return teaching_identity(obj.offering, group)["teacher"]
+
+    free_reason = serializers.CharField(required=False, allow_blank=True, max_length=5000, write_only=True)
     lead = serializers.PrimaryKeyRelatedField(
         queryset=Lead.objects.filter(is_deleted=False),
         required=False,
@@ -542,13 +564,29 @@ class OfferingEnrollmentSerializer(CRUDActionsMixin, serializers.ModelSerializer
                   "payment_method", "cheque_count", "cheques", "reference",
                   "enrolled_at", "is_active", "lifecycle_status",
                   "final_class_enrollment_id", "created_at", "updated_at", "lead",
-                  "payments")
+                  "payments", "is_free", "free_reason", "teacher")
         read_only_fields = (
             "id", "final_amount", "lifecycle_status", "final_class_enrollment_id",
             "created_at", "updated_at",
         )
 
     def validate(self, attrs):
+        is_free = attrs.get("is_free", getattr(self.instance, "is_free", False))
+        if self.instance is not None and is_free != self.instance.is_free:
+            raise serializers.ValidationError({"is_free": "نوع مالی ثبت‌نام پس از ایجاد قابل تغییر نیست."})
+        if is_free and self.instance is None:
+            from apps.education.registration_permissions import can_create_free_enrollment
+            from rest_framework.exceptions import PermissionDenied
+            request = self.context.get("request")
+            if not can_create_free_enrollment(getattr(request, "user", None)):
+                raise PermissionDenied("شما مجوز ثبت‌نام رایگان ندارید.")
+        if attrs.get("free_reason") and (not is_free or self.instance is not None):
+            raise serializers.ValidationError({"free_reason": "دلیل فقط هنگام ایجاد ثبت‌نام رایگان ثبت می‌شود."})
+        if is_free and (attrs.get("payments") or attrs.get("discount_type", "none") != "none"
+                        or attrs.get("discount_value") or attrs.get("cheques")
+                        or attrs.get("cheque_count") or attrs.get("reference")
+                        or attrs.get("payment_method", "cash") != "cash"):
+            raise serializers.ValidationError({"is_free": "ثبت‌نام رایگان نمی‌تواند تخفیف یا مشخصات پرداخت داشته باشد."})
         if self.instance is not None and "payments" in attrs:
             raise serializers.ValidationError({"payments": "پرداخت‌های ثبت‌شده فقط از مسیر افزودن پرداخت قابل ثبت هستند."})
         # Mirror the model's single rule so the API returns field errors, not 500.
@@ -575,13 +613,13 @@ class OfferingEnrollmentSerializer(CRUDActionsMixin, serializers.ModelSerializer
         if pm == OfferingEnrollment.PaymentMethod.CHEQUE and not cheques:
             raise serializers.ValidationError({"cheques": "برای پرداخت چک، حداقل یک چک وارد کنید."})
         # compute final_amount server-side (never trust client)
-        base = attrs.get("course_amount", getattr(self.instance, "course_amount", 0)) or 0
-        if dt == OfferingEnrollment.DiscountType.PERCENT:
-            attrs["_final"] = base - int(round(base * min(max(dv, 0), 100) / 100))
-        elif dt == OfferingEnrollment.DiscountType.AMOUNT:
-            attrs["_final"] = max(base - dv, 0)
-        else:
-            attrs["_final"] = base
+        preview = OfferingEnrollment(
+            course_amount=attrs.get("course_amount", getattr(self.instance, "course_amount", 0)) or 0,
+            discount_type=dt, discount_value=dv, is_free=is_free,
+        )
+        attrs["_final"] = preview.compute_final()
+        if not is_free and "payments" in attrs and not attrs["payments"]:
+            raise serializers.ValidationError({"payments": "حداقل یک ردیف پرداخت وارد کنید."})
         if attrs.get("payments") is not None:
             if sum(row["amount"] for row in attrs["payments"]) > attrs["_final"]:
                 raise serializers.ValidationError({"payments": "جمع پرداخت‌ها نمی‌تواند از مبلغ نهایی دوره بیشتر باشد."})
@@ -594,8 +632,6 @@ class OfferingEnrollmentSerializer(CRUDActionsMixin, serializers.ModelSerializer
         return attrs
 
     def validate_payments(self, rows):
-        if not rows:
-            raise serializers.ValidationError("حداقل یک ردیف پرداخت وارد کنید.")
         normalized = []
         for index, row in enumerate(rows, 1):
             method = row.get("method")
@@ -615,6 +651,12 @@ class OfferingEnrollmentSerializer(CRUDActionsMixin, serializers.ModelSerializer
                     "cheque_due_date": row.get("cheque_due_date") or None}
             normalized.append(line)
         return normalized
+
+    def update(self, instance, validated_data):
+        validated_data["final_amount"] = validated_data.pop("_final")
+        validated_data.pop("free_reason", None)
+        validated_data.pop("lead", None)
+        return super().update(instance, validated_data)
 
 
 class EnrollmentPaymentSerializer(serializers.ModelSerializer):

@@ -17,6 +17,7 @@ import logging
 from typing import Iterable, Optional
 
 from django.db import IntegrityError, models, transaction
+from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.db.models import Sum
 from django.utils import timezone
@@ -88,6 +89,8 @@ def create_offering_enrollment(
     course_amount: int | None = None,
     discount_type: str = OfferingEnrollment.DiscountType.NONE,
     discount_value: int = 0,
+    is_free: bool = False,
+    free_reason: str = "",
     payment_method: str = OfferingEnrollment.PaymentMethod.CASH,
     cheque_count: int = 0,
     cheques=None,
@@ -103,6 +106,14 @@ def create_offering_enrollment(
     duplicates and capacity, so a retry cannot increment ``enrolled_count`` a
     second time or create two money rows.
     """
+    if is_free:
+        from apps.education.registration_permissions import can_create_free_enrollment
+        if not can_create_free_enrollment(actor):
+            raise PermissionDenied("شما مجوز ثبت‌نام رایگان ندارید.")
+        if (discount_type != OfferingEnrollment.DiscountType.NONE or discount_value
+                or payment_lines or cheques or cheque_count or reference
+                or payment_method != OfferingEnrollment.PaymentMethod.CASH):
+            raise EducationServiceError("ثبت‌نام رایگان نمی‌تواند تخفیف یا پرداخت داشته باشد.")
     locked = CourseOffering.objects.select_for_update().get(pk=offering.pk)
     existing = OfferingEnrollment.objects.filter(
         offering=locked,
@@ -110,6 +121,8 @@ def create_offering_enrollment(
         is_deleted=False,
     ).first()
     if existing is not None:
+        if existing.is_free != is_free:
+            raise EducationServiceError("ثبت‌نام قبلی با نوع مالی متفاوت وجود دارد؛ نوع مالی قابل تغییر نیست.")
         return existing
     if locked.status != CourseOffering.Status.OPEN:
         raise EducationServiceError("ثبت‌نام در این برگزاری مجاز نیست.")
@@ -137,6 +150,7 @@ def create_offering_enrollment(
         offering=locked,
         student=student,
         course_amount=max(amount, 0),
+        is_free=is_free,
         discount_type=discount_type or OfferingEnrollment.DiscountType.NONE,
         discount_value=max(int(discount_value or 0), 0),
         payment_method=legacy_method,
@@ -159,9 +173,10 @@ def create_offering_enrollment(
     if actor is not None and getattr(actor, "is_authenticated", False):
         from apps.core.models import AuditEvent
         AuditEvent.record(
-            kind=AuditEvent.Kind.FIELD_CHANGE, summary="ایجاد ثبت‌نام برگزاری",
+            kind=AuditEvent.Kind.FIELD_CHANGE, summary="ایجاد ثبت‌نام رایگان برگزاری" if is_free else "ایجاد ثبت‌نام برگزاری",
             actor=actor, obj=enrollment,
-            metadata={"action": "create", "resource": "offering-enrollments"},
+            metadata={"action": "create", "resource": "offering-enrollments",
+                      **({"is_free": True, "free_reason": free_reason} if is_free else {})},
         )
     locked.enrolled_count += 1
     locked.save(update_fields=["enrolled_count", "updated_at"])
@@ -173,6 +188,8 @@ def create_offering_enrollment(
 def record_enrollment_payment(*, enrollment: OfferingEnrollment, actor, payment: dict) -> EnrollmentPayment:
     """Append one payment to an existing enrollment without exceeding its balance."""
     locked = OfferingEnrollment.objects.select_for_update().get(pk=enrollment.pk, is_deleted=False)
+    if locked.is_free:
+        raise EducationServiceError("برای ثبت‌نام رایگان پرداخت ثبت نمی‌شود.")
     paid = locked.payments.aggregate(total=Sum("amount"))["total"] or 0
     amount = int(payment["amount"])
     if amount <= 0:
@@ -1563,7 +1580,7 @@ def learner_report_cards(user, student=None) -> list[dict]:
 
 def teacher_classes(user) -> list[dict]:
     """
-    Offerings assigned to this teacher (instructor == their Person) with the
+    Offerings related through instructor, live class or live session with the
     sessions each one already has. Powers the teacher dashboard and the class
     pickers on the attendance / report-card pages.
 
@@ -1574,27 +1591,39 @@ def teacher_classes(user) -> list[dict]:
     the dashboard cards show. roster_size comes from ONE grouped count, not
     per-class queries.
     """
-    from django.db.models import Count
+    from django.db.models import Count, Prefetch
+    from apps.academics.models import ClassGroup
+    from apps.academics.scoping import education_offerings_visible_to
+    from apps.education.teaching import teaching_identity, offering_status_label
 
+    management_access = bool(set(user.role_codes()) & {"manager", "workflow_admin", "hr"})
     person = getattr(user, "person", None)
     if person is None:
         return []
     offerings = list(
-        CourseOffering.objects.filter(
-            instructor=person, is_deleted=False, is_active=True
-        )
-        .select_related("course", "location")
+        education_offerings_visible_to(user).filter(
+            Q(instructor=person)
+            | Q(class_groups__teacher=person, class_groups__is_deleted=False)
+            | Q(sessions__teacher=person, sessions__is_deleted=False),
+            is_deleted=False,
+        ).distinct()
+        .select_related("course", "location", "instructor")
+        .prefetch_related(Prefetch("class_groups", queryset=ClassGroup.objects.filter(
+            Q(teacher=person) | Q(offering__instructor=person)
+        ).select_related("teacher", "term"), to_attr="visible_groups"))
         .order_by("-start_date", "-created_at")
     )
     if not offerings:
         return []
-    today = dt.date.today()
+    today = timezone.localdate()
     offering_ids = [o.pk for o in offerings]
 
     sessions_qs = (
         ClassSession.objects.filter(
             offering_id__in=offering_ids, is_deleted=False
         )
+        .filter(Q(offering__instructor=person) | Q(teacher=person)
+                | Q(class_group__teacher=person, class_group__is_deleted=False))
         .exclude(status=ClassSession.Status.CANCELLED)
         .annotate(recorded=Count("attendances", filter=Q(attendances__is_deleted=False)))
         .order_by("session_date", "start_time")
@@ -1607,7 +1636,11 @@ def teacher_classes(user) -> list[dict]:
         str(r["offering_id"]): r["n"]
         for r in OfferingEnrollment.objects.filter(
             offering_id__in=offering_ids, is_active=True, is_deleted=False
-        ).values("offering_id").annotate(n=Count("id"))
+        ).filter(Q(offering__instructor=person)
+                 | Q(final_class_enrollment__class_group__teacher=person,
+                     final_class_enrollment__is_deleted=False,
+                     final_class_enrollment__class_group__is_deleted=False))
+        .values("offering_id").annotate(n=Count("id"))
     }
 
     out = []
@@ -1628,6 +1661,16 @@ def teacher_classes(user) -> list[dict]:
             "roster_size": roster_sizes.get(str(o.pk), 0),
             "start_date": o.start_date.isoformat() if o.start_date else "",
             "status": o.status,
+            "status_label": offering_status_label(o),
+            "is_active": o.is_active,
+            "can_manage": bool(o.is_active and (management_access or o.instructor_id == person.pk)),
+            "can_write_progress_report": bool(o.is_active and o.instructor_id == person.pk),
+            "end_date": o.end_date.isoformat() if o.end_date else "",
+            **teaching_identity(o),
+            "class_groups": [{"id": str(g.pk), "name": g.name, "code": g.code,
+                              "term": g.term.title, "room": g.room,
+                              "schedule": g.schedule, "is_active": g.is_active,
+                              **teaching_identity(o, g)} for g in o.visible_groups],
             "stats": {
                 "total": len(rows),
                 "held": sum(1 for s in rows if s.status == ClassSession.Status.HELD),

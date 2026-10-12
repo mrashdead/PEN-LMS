@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from apps.forms.permissions import ELEVATED_ROLES
 from apps.forms.templatetags.forms_extras import FORMS_URL_NAMES
-from apps.playhouse.permissions import FINANCE_ROLES, OPERATOR_ROLES
+from apps.playhouse.permissions import FINANCE_ROLES, KITCHEN_ROLES, OPERATOR_ROLES
 from apps.leads.permissions import LEAD_OPERATOR_ROLES
 from apps.reports.permissions import REPORT_ACCESS_ROLES, can_access_capacity_report
 from apps.core.sidebar import SIDEBAR_ITEMS, visibility_flags_for, visible_sidebar_sections
@@ -38,6 +38,7 @@ def user_flags(request):
             "is_reports_user": False,
             "is_playhouse_user": False,
             "is_playhouse_finance": False,
+            "is_playhouse_kitchen": False,
             "is_leads_user": False,
             "is_lead_operator": False,
             "is_lead_teacher": False,
@@ -68,6 +69,7 @@ def user_flags(request):
         "can_capacity_report": can_access_capacity_report(user),
         "is_playhouse_user": bool(roles & OPERATOR_ROLES),
         "is_playhouse_finance": bool(roles & FINANCE_ROLES),
+        "is_playhouse_kitchen": bool(roles & (KITCHEN_ROLES | FINANCE_ROLES)),
         "is_leads_user": bool(roles & (LEAD_OPERATOR_ROLES | {"teacher"})),
         "is_lead_operator": bool(roles & LEAD_OPERATOR_ROLES),
         "is_lead_teacher": "teacher" in roles,

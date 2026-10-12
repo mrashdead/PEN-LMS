@@ -20,7 +20,7 @@ def assigned_leads_for_teacher(user):
     """Return only leads assigned to the authenticated teacher's own profile."""
     qs = Lead.objects.select_related("assessor", "course", "lesson")
     person = getattr(user, "person", None)
-    if not person or not person.is_active or not person.is_teacher():
+    if not person or not person.is_active or not person.can_assess_leads:
         return qs.none()
     return qs.filter(assessor=person).order_by("assessment_date", "assessment_time", "-created_at")
 
@@ -36,7 +36,7 @@ def assessors():
         & (Q(type_assignments__valid_to__isnull=True) | Q(type_assignments__valid_to__gte=now))
     )
     return (
-        Person.objects.filter(is_active=True, is_deleted=False)
+        Person.objects.filter(is_active=True, is_deleted=False, can_assess_leads=True)
         .filter(Q(person_type=Person.Type.TEACHER) | current_teacher_assignment)
         .distinct()
         .order_by("first_name", "last_name")

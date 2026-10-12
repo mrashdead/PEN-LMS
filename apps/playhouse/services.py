@@ -8,6 +8,7 @@ creating an invoice). Views/pages only serialise HTTP input and call these.
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import date
 from decimal import Decimal
 
@@ -20,6 +21,9 @@ from apps.playhouse.models import (
     PlayhouseInvoice,
     PlayhouseInvoiceItem,
     PlayhouseInvoiceSeq,
+    PlayhouseCafeOrder,
+    PlayhouseCafeOrderItem,
+    PlayhousePayment,
     PlayhouseMember,
     PlayhouseSession,
 )
@@ -100,6 +104,12 @@ class PlayhouseService:
                 person_code = (member.person.national_code or "").strip()
                 if entered_code and person_code and entered_code != person_code:
                     raise PlayhouseServiceError("کد ملی با پرونده دانش‌آموز انتخاب‌شده مطابقت ندارد.")
+                if entered_code and not person_code:
+                    if Person.objects.filter(national_code=entered_code, is_deleted=False).exclude(pk=member.person_id).exists():
+                        raise PlayhouseServiceError("این کد ملی به پرونده شخص دیگری متصل است.")
+                    member.person.national_code = entered_code
+                    member.person.is_temporary = False
+                    member.person.save(update_fields=["national_code", "is_temporary", "updated_at"])
                 member.national_code = person_code or entered_code or member.national_code
             elif entered_code:
                 member.national_code = entered_code
@@ -126,6 +136,7 @@ class PlayhouseService:
                 return member
             return PlayhouseMember.objects.create(
                 person=person,
+                temporary_id=person.temporary_id,
                 first_name=person.first_name,
                 last_name=person.last_name,
                 national_code=person.national_code,
@@ -146,15 +157,17 @@ class PlayhouseService:
                 is_active=True,
                 is_deleted=False,
             ).first()
-        if person is None and national_code and student_code:
+        if person is None:
             person = Person.objects.create(
-                national_code=national_code.strip(),
-                student_code=student_code.strip(),
+                national_code=national_code.strip() or None,
+                student_code=student_code.strip() or None,
                 first_name=first_name.strip(),
                 last_name=last_name.strip(),
                 mobile=(guardian_mobile or "").strip(),
                 person_type=Person.Type.STUDENT,
                 registered_by=operator,
+                temporary_id=uuid.uuid4() if not national_code.strip() else None,
+                is_temporary=not bool(national_code.strip()),
             )
         member_code = (person.national_code if person else national_code) or ""
         if person is not None:
@@ -162,7 +175,9 @@ class PlayhouseService:
             if member is not None:
                 if member.national_code != member_code:
                     member.national_code = member_code
-                    member.save(update_fields=["national_code", "updated_at"])
+                if not member.temporary_id and person.temporary_id:
+                    member.temporary_id = person.temporary_id
+                member.save(update_fields=["national_code", "temporary_id", "updated_at"])
                 return member
 
         if national_code:
@@ -177,6 +192,9 @@ class PlayhouseService:
                 if person is not None:
                     existing_member.person = person
                     changed_fields.append("person")
+                if person is not None and person.temporary_id:
+                    existing_member.temporary_id = person.temporary_id
+                    changed_fields.append("temporary_id")
                 if existing_member.national_code != member_code:
                     existing_member.national_code = member_code
                     changed_fields.append("national_code")
@@ -185,6 +203,7 @@ class PlayhouseService:
                 return existing_member
         member = PlayhouseMember.objects.create(
             person=person,
+            temporary_id=person.temporary_id if person and person.is_temporary else None,
             first_name=first_name.strip(),
             last_name=last_name.strip(),
             national_code=member_code.strip(),
@@ -194,12 +213,79 @@ class PlayhouseService:
         return member
 
     def _maybe_link_person(self, first_name, last_name, guardian_mobile):
-        """Best-effort: link to an existing Person on exact (first,last[,mobile])."""
+        """Link only on exact name + contact; names alone are ambiguous."""
+        if not (guardian_mobile or "").strip():
+            return None
         qs = Person.objects.filter(first_name__iexact=first_name.strip(),
-                                   last_name__iexact=last_name.strip())
-        if guardian_mobile:
-            qs = qs.filter(mobile=guardian_mobile.strip())
+                                   last_name__iexact=last_name.strip(),
+                                   mobile=guardian_mobile.strip())
         return qs.order_by("-created_at").first()
+
+    @transaction.atomic
+    def update_member(self, *, member, data) -> PlayhouseMember:
+        """Edit identity/profile fields while leaving every session untouched."""
+        locked = PlayhouseMember.objects.select_for_update().select_related("person").get(pk=member.pk)
+        person = locked.person
+        if person is None:
+            # Compatibility for legacy rows that predate canonical Person links.
+            person = Person.objects.create(
+                national_code=locked.national_code or None,
+                first_name=locked.first_name,
+                last_name=locked.last_name,
+                mobile=locked.guardian_mobile,
+                person_type=Person.Type.STUDENT,
+                is_temporary=not bool(locked.national_code),
+                temporary_id=locked.temporary_id or uuid.uuid4(),
+            )
+            locked.person = person
+            locked.temporary_id = person.temporary_id
+
+        national_code = data.get("national_code", person.national_code or "")
+        national_code = national_code or None
+        target = None
+        if national_code:
+            target = Person.objects.select_for_update().filter(
+                national_code=national_code, is_deleted=False
+            ).exclude(pk=person.pk).first()
+        if target:
+            linked_elsewhere = PlayhouseMember.objects.filter(person=target).exclude(pk=locked.pk).exists()
+            if linked_elsewhere:
+                raise PlayhouseServiceError("این کد ملی به پرونده دیگری در سوابق خانه بازی متصل است.")
+            # Move the stable temporary identifier to the existing canonical
+            # person so the member/session history continues through one link.
+            if person.temporary_id and not target.temporary_id:
+                target.temporary_id = person.temporary_id
+            # Retain the provisional Person row for audit/history while
+            # moving the stable identifier and member link to the canonical
+            # official record.
+            person.is_deleted = True
+            person.is_active = False
+            person.temporary_id = None
+            person.save(update_fields=["is_deleted", "is_active", "temporary_id", "updated_at"])
+            person = target
+            locked.person = target
+
+        for key in ("first_name", "last_name", "student_code"):
+            if key in data:
+                setattr(person, key, data[key] or (None if key == "student_code" else ""))
+        if "guardian_mobile" in data:
+            person.mobile = data["guardian_mobile"]
+        if national_code != person.national_code:
+            person.national_code = national_code
+        person.is_temporary = not bool(person.national_code)
+        if person.is_temporary and not person.temporary_id:
+            person.temporary_id = uuid.uuid4()
+        person.save()
+
+        locked.first_name = person.first_name
+        locked.last_name = person.last_name
+        locked.national_code = person.national_code or ""
+        locked.temporary_id = person.temporary_id
+        for key in ("age", "guardian_mobile", "guardian_name"):
+            if key in data:
+                setattr(locked, key, data[key])
+        locked.save()
+        return locked
 
     # ─── تایمر ───
     @transaction.atomic
@@ -305,6 +391,168 @@ class PlayhouseService:
 
     # ─── فاکتور ───
     @transaction.atomic
+    def create_cafe_order(self, *, session, operator, items, payments=None, kitchen_note=""):
+        """Append a cafe order and optional split payments to an active visit."""
+        locked = PlayhouseSession.objects.select_for_update().get(pk=session.pk)
+        if locked.status not in {PlayhouseSession.Status.ACTIVE, PlayhouseSession.Status.PAUSED}:
+            raise PlayhouseServiceError("ثبت سفارش فقط برای مراجعه داخل خانه‌بازی ممکن است.")
+        if not items:
+            raise PlayhouseServiceError("حداقل یک آیتم برای سفارش وارد کنید.")
+        order = PlayhouseCafeOrder.objects.create(
+            session=locked, created_by=operator, kitchen_note=(kitchen_note or "").strip()
+        )
+        for item in items:
+            name = str(item.get("name") or "").strip()
+            try:
+                price = Decimal(str(item.get("unit_price", item.get("price"))))
+                quantity = int(item.get("quantity", 1))
+            except (ValueError, TypeError, ArithmeticError):
+                raise PlayhouseServiceError("تعداد یا قیمت یکی از آیتم‌ها نامعتبر است.")
+            if not name or price < 0 or quantity < 1 or quantity > 99:
+                raise PlayhouseServiceError("نام، قیمت و تعداد آیتم‌ها را بررسی کنید.")
+            PlayhouseCafeOrderItem.objects.create(
+                order=order, name=name, unit_price=price, quantity=quantity,
+                note=str(item.get("note") or "").strip(),
+            )
+        rows = self._create_payments(session=locked, operator=operator, payments=payments or [], cafe_order=order)
+        current_orders_total = sum(
+            (item.line_total for item in PlayhouseCafeOrderItem.objects.filter(
+                order__session=locked,
+                order__status__in=[PlayhouseCafeOrder.Status.NEW, PlayhouseCafeOrder.Status.PREPARING, PlayhouseCafeOrder.Status.READY],
+            )), Decimal("0")
+        )
+        current_paid = sum(
+            (row.amount for row in PlayhousePayment.objects.filter(session=locked, reversed_at__isnull=True)), Decimal("0")
+        )
+        if current_paid > current_orders_total:
+            raise PlayhouseServiceError("مبلغ پرداخت از جمع سفارش‌های کافه بیشتر است.")
+        return order
+
+    @transaction.atomic
+    def add_session_payments(self, *, session, operator, payments):
+        locked = PlayhouseSession.objects.select_for_update().get(pk=session.pk)
+        if locked.status == PlayhouseSession.Status.CANCELLED:
+            raise PlayhouseServiceError("برای مراجعه لغوشده پرداخت ثبت نمی‌شود.")
+        if not payments:
+            raise PlayhouseServiceError("حداقل یک مبلغ پرداخت وارد کنید.")
+        invoice = locked.invoice
+        if locked.status == PlayhouseSession.Status.FINISHED and not invoice:
+            raise PlayhouseServiceError("ابتدا فاکتور مراجعه را صادر یا اصلاح کنید.")
+        if invoice:
+            if invoice.is_paid and not invoice.session.payments.filter(reversed_at__isnull=True).exists():
+                raise PlayhouseServiceError("این فاکتور قدیمی پرداخت‌شده است و پرداخت تازه نمی‌پذیرد.")
+        rows = self._create_payments(session=locked, operator=operator, payments=payments)
+        if invoice:
+            if invoice.paid_amount > invoice.total_amount:
+                raise PlayhouseServiceError("مبلغ پرداخت از مانده فاکتور بیشتر است.")
+            invoice.is_paid = invoice.total_amount > 0 and invoice.paid_amount >= invoice.total_amount
+            invoice.paid_at = timezone.now() if invoice.is_paid else None
+            invoice.save(update_fields=["is_paid", "paid_at", "updated_at"])
+        else:
+            cafe_total = sum((item.line_total for item in PlayhouseCafeOrderItem.objects.filter(
+                order__session=locked,
+                order__status__in=[PlayhouseCafeOrder.Status.NEW, PlayhouseCafeOrder.Status.PREPARING, PlayhouseCafeOrder.Status.READY],
+            )), Decimal("0"))
+            current_paid = sum((row.amount for row in PlayhousePayment.objects.filter(
+                session=locked, reversed_at__isnull=True
+            )), Decimal("0"))
+            if current_paid > cafe_total:
+                raise PlayhouseServiceError("مبلغ پرداخت از جمع سفارش‌های فعال کافه بیشتر است.")
+        return rows
+
+    def _create_payments(self, *, session, operator, payments, cafe_order=None):
+        rows = []
+        for payment in payments:
+            method = str(payment.get("method") or "")
+            try:
+                amount = Decimal(str(payment.get("amount")))
+            except (ValueError, TypeError, ArithmeticError):
+                raise PlayhouseServiceError("مبلغ پرداخت نامعتبر است.")
+            tracking_code = str(payment.get("tracking_code") or "").strip()
+            if method not in PlayhousePayment.Method.values or amount <= 0:
+                raise PlayhouseServiceError("روش یا مبلغ پرداخت نامعتبر است.")
+            if method == PlayhousePayment.Method.CARD_TRANSFER and not tracking_code:
+                raise PlayhouseServiceError("برای کارت‌به‌کارت کد رهگیری لازم است.")
+            invoice = None
+            try:
+                invoice = session.invoice
+            except PlayhouseInvoice.DoesNotExist:
+                pass
+            rows.append(PlayhousePayment.objects.create(
+                session=session, invoice=invoice, created_by=operator,
+                cafe_order=cafe_order, method=method, amount=amount, tracking_code=tracking_code,
+            ))
+        return rows
+
+    @transaction.atomic
+    def set_cafe_order_status(self, *, order, operator, status_value):
+        locked = PlayhouseCafeOrder.objects.select_for_update().get(pk=order.pk)
+        if locked.status in {PlayhouseCafeOrder.Status.CANCELLED, PlayhouseCafeOrder.Status.READY}:
+            raise PlayhouseServiceError("وضعیت این سفارش دیگر قابل تغییر نیست.")
+        if status_value not in {PlayhouseCafeOrder.Status.PREPARING, PlayhouseCafeOrder.Status.READY}:
+            raise PlayhouseServiceError("وضعیت سفارش نامعتبر است.")
+        locked.status = status_value
+        if status_value == PlayhouseCafeOrder.Status.READY:
+            locked.ready_at = timezone.now()
+            locked.ready_by = operator
+        locked.save(update_fields=["status", "ready_at", "ready_by", "updated_at"])
+        return locked
+
+    @transaction.atomic
+    def cancel_cafe_order(self, *, order, operator, note=""):
+        locked = PlayhouseCafeOrder.objects.select_for_update().select_related("session").get(pk=order.pk)
+        if locked.status == PlayhouseCafeOrder.Status.CANCELLED:
+            raise PlayhouseServiceError("این سفارش قبلاً لغو شده است.")
+        if not (note or "").strip():
+            raise PlayhouseServiceError("برای لغو سفارش، دلیل را ثبت کنید.")
+        if locked.session.status == PlayhouseSession.Status.FINISHED:
+            raise PlayhouseServiceError("سفارش پس از صدور فاکتور قابل لغو نیست.")
+        if locked.payments.filter(reversed_at__isnull=True).exists():
+            raise PlayhouseServiceError("ابتدا پرداخت‌های این سفارش را با ذکر دلیل برگشت بزنید.")
+        locked.status = PlayhouseCafeOrder.Status.CANCELLED
+        locked.cancelled_at = timezone.now()
+        locked.cancelled_by = operator
+        locked.cancellation_note = (note or "").strip()
+        locked.save(update_fields=["status", "cancelled_at", "cancelled_by", "cancellation_note", "updated_at"])
+        return locked
+
+    @transaction.atomic
+    def void_invoice(self, *, invoice, operator, note):
+        """Void a bill without deleting it; payment rows can be carried to a replacement bill."""
+        locked = PlayhouseInvoice.objects.select_for_update().get(pk=invoice.pk)
+        reason = (note or "").strip()
+        if not reason:
+            raise PlayhouseServiceError("برای ابطال فاکتور، دلیل را ثبت کنید.")
+        if locked.is_voided:
+            raise PlayhouseServiceError("این فاکتور قبلاً باطل شده است.")
+        locked.is_voided = True
+        locked.voided_at = timezone.now()
+        locked.voided_by = operator
+        locked.void_note = reason
+        locked.is_paid = False
+        locked.save(update_fields=["is_voided", "voided_at", "voided_by", "void_note", "is_paid", "updated_at"])
+        return locked
+
+    @transaction.atomic
+    def reverse_payment(self, *, payment, operator, note):
+        locked = PlayhousePayment.objects.select_for_update().select_related("invoice").get(pk=payment.pk)
+        reason = (note or "").strip()
+        if not reason:
+            raise PlayhouseServiceError("برای برگشت پرداخت، دلیل را ثبت کنید.")
+        if locked.reversed_at:
+            raise PlayhouseServiceError("این پرداخت قبلاً برگشت خورده است.")
+        locked.reversed_at = timezone.now()
+        locked.reversed_by = operator
+        locked.reversal_note = reason
+        locked.save(update_fields=["reversed_at", "reversed_by", "reversal_note", "updated_at"])
+        invoice = locked.invoice
+        if invoice and not invoice.is_voided:
+            invoice.is_paid = invoice.total_amount > 0 and invoice.paid_amount >= invoice.total_amount
+            invoice.paid_at = timezone.now() if invoice.is_paid else None
+            invoice.save(update_fields=["is_paid", "paid_at", "updated_at"])
+        return locked
+
+    @transaction.atomic
     def create_invoice(
         self,
         *,
@@ -314,6 +562,8 @@ class PlayhouseService:
         payment_method: str = "",
         tracking_code: str = "",
         notes: str = "",
+        discount_amount: int | Decimal = 0,
+        discount_note: str = "",
     ) -> PlayhouseInvoice:
         """
         Build the invoice for a finished session.
@@ -327,7 +577,7 @@ class PlayhouseService:
             raise PlayhouseServiceError(
                 "برای صدور فاکتور، نوبت باید «پایان یافته» باشد."
             )
-        if hasattr(locked, "invoice"):
+        if locked.invoices.filter(is_voided=False).exists():
             raise PlayhouseServiceError("برای این نوبت قبلاً فاکتور صادر شده است.")
 
         config = PlayhouseConfig.get_solo()
@@ -340,6 +590,19 @@ class PlayhouseService:
             time_amount=time_amount,
         )
 
+        try:
+            orders = PlayhouseCafeOrder.objects.filter(
+                session=locked, status__in=[PlayhouseCafeOrder.Status.NEW, PlayhouseCafeOrder.Status.PREPARING, PlayhouseCafeOrder.Status.READY]
+            ).prefetch_related("items")
+            for order in orders:
+                for order_item in order.items.all():
+                    PlayhouseInvoiceItem.objects.create(
+                        invoice=invoice, name=order_item.name,
+                        price=order_item.unit_price, quantity=order_item.quantity,
+                    )
+        except Exception:
+            raise
+
         for item in cafe_items or []:
             name = (item.get("name") or "").strip()
             price_raw = item.get("price")
@@ -350,8 +613,27 @@ class PlayhouseService:
             except (ValueError, ArithmeticError):
                 continue
             PlayhouseInvoiceItem.objects.create(
-                invoice=invoice, name=name, price=price
+                invoice=invoice, name=name, price=price,
             )
+
+        try:
+            discount = Decimal(str(discount_amount or 0))
+        except (ValueError, ArithmeticError):
+            raise PlayhouseServiceError("مبلغ تخفیف نامعتبر است.")
+        if discount < 0 or discount > invoice.time_amount + invoice.cafe_total:
+            raise PlayhouseServiceError("مبلغ تخفیف از مبلغ فاکتور بیشتر است.")
+        invoice.discount_amount = discount
+        invoice.discount_note = (discount_note or "").strip()
+        invoice.save(update_fields=["discount_amount", "discount_note", "updated_at"])
+        already_paid = sum((row.amount for row in PlayhousePayment.objects.filter(
+            session=locked, reversed_at__isnull=True
+        )), Decimal("0"))
+        if already_paid > invoice.total_amount:
+            raise PlayhouseServiceError("تخفیف باعث می‌شود مبلغ پرداخت‌شده از مبلغ فاکتور بیشتر شود.")
+        PlayhousePayment.objects.filter(session=locked, invoice__isnull=True).update(invoice=invoice)
+        invoice.is_paid = invoice.total_amount > 0 and invoice.paid_amount >= invoice.total_amount
+        invoice.paid_at = timezone.now() if invoice.is_paid and invoice.total_amount > 0 else None
+        invoice.save(update_fields=["is_paid", "paid_at", "updated_at"])
 
         if payment_method or tracking_code:
             # record_payment re-fetches a locked instance and saves it; its
@@ -362,7 +644,7 @@ class PlayhouseService:
                 operator=operator,
                 payment_method=payment_method,
                 tracking_code=tracking_code,
-                paid=bool(payment_method and tracking_code),
+                paid=bool(payment_method and (tracking_code or payment_method == PlayhouseInvoice.PaymentMethod.CASH)),
             )
         return invoice
 
@@ -429,15 +711,26 @@ class PlayhouseService:
         paid: bool = True,
     ) -> PlayhouseInvoice:
         locked = PlayhouseInvoice.objects.select_for_update().get(pk=invoice.pk)
+        if locked.is_voided:
+            raise PlayhouseServiceError("برای فاکتور باطل‌شده نمی‌توان پرداخت ثبت کرد.")
+        if locked.is_paid and not locked.session.payments.filter(reversed_at__isnull=True).exists():
+            raise PlayhouseServiceError("این فاکتور قبلاً پرداخت شده است.")
         if payment_method not in PlayhouseInvoice.PaymentMethod.values:
             raise PlayhouseServiceError("روش پرداخت نامعتبر است.")
         if paid:
-            if not tracking_code:
+            if payment_method != PlayhouseInvoice.PaymentMethod.CASH and not tracking_code:
                 raise PlayhouseServiceError("برای پرداخت، کد رهگیری الزامی است.")
+            allocated = sum((p.amount for p in locked.session.payments.filter(reversed_at__isnull=True)), Decimal("0"))
+            remaining = max(Decimal("0"), locked.total_amount - allocated)
+            if remaining > 0:
+                PlayhousePayment.objects.create(
+                    session=locked.session, invoice=locked, created_by=operator,
+                    method=payment_method, amount=remaining, tracking_code=tracking_code,
+                )
         locked.payment_method = payment_method
         locked.tracking_code = tracking_code
-        locked.is_paid = paid
-        locked.paid_at = timezone.now() if paid else None
+        locked.is_paid = locked.paid_amount >= locked.total_amount if paid else False
+        locked.paid_at = timezone.now() if locked.is_paid else None
         locked.save(update_fields=[
             "payment_method", "tracking_code", "is_paid", "paid_at", "updated_at",
         ])

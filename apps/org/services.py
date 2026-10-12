@@ -634,6 +634,8 @@ def set_user_roles(*, user_id, role_codes: list[str], actor) -> dict:
     grantable = hierarchy.allowed_targets(actor_roles, is_superuser=actor.is_superuser) | {
         "student", "teacher", "employee", "supervisor", "manager", "workflow_admin"
     }
+    if actor.is_superuser or actor_roles & {"manager", "workflow_admin", "hr"}:
+        grantable.update({"playhouse_kitchen", "playhouse_counter"})
     if not actor.is_superuser:
         # A manager may not grant the top admin role; only workflow_admin can.
         if "workflow_admin" in wanted and "workflow_admin" not in actor_roles:

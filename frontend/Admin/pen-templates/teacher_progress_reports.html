@@ -5,15 +5,15 @@
   {% include "partials/page-heading.html" with title="گزارش پیشرفت دانش‌آموزان" section="پنل مدرس" section_url="/workspace/teacher/" %}
 {% endblock %}
 {% block content %}
-<main id="progress-teacher" class="progress-workspace" data-system-date="{{ system_date }}">
-  <p class="text-muted mb-4">برای هر دانش‌آموز گزارش روزانه، هفتگی یا ماهانه بنویسید. پس از ارسال، گزارش در پرتال او نمایش داده می‌شود.</p>
+<main id="progress-teacher" class="progress-workspace" data-system-date="{{ system_date }}" data-timezone="{{ report_timezone }}">
+  <p class="text-muted mb-4">برای یک دانش‌آموز یا همهٔ هنرجویان کلاس گزارش روزانه، هفتگی یا ماهانه بنویسید.</p>
   <div id="progress-message" class="alert" role="status" aria-live="polite" hidden></div>
   <section class="card mb-4" aria-labelledby="progress-selection-title">
     <div class="card-body">
-      <h2 id="progress-selection-title" class="h6 mb-3">انتخاب دانش‌آموز</h2>
+      <h2 id="progress-selection-title" class="h6 mb-3">انتخاب کلاس و گیرندهٔ گزارش</h2>
       <div class="row g-3">
         <div class="col-12 col-md-6"><label for="progress-class" class="form-label">کلاس / دوره</label><select id="progress-class" class="form-select"><option value="">در حال دریافت کلاس‌ها…</option></select></div>
-        <div class="col-12 col-md-6"><label for="progress-student" class="form-label">دانش‌آموز</label><select id="progress-student" class="form-select" disabled><option value="">ابتدا کلاس را انتخاب کنید</option></select></div>
+        <div class="col-12 col-md-6"><label for="progress-student" class="form-label">دانش‌آموز / گیرندهٔ گزارش</label><select id="progress-student" class="form-select" disabled><option value="">ابتدا کلاس را انتخاب کنید</option></select></div>
       </div>
     </div>
   </section>
@@ -27,17 +27,19 @@
         <h3 id="progress-form-title" class="h6 mb-3">گزارش جدید</h3>
         <div class="row g-3">
           <div class="col-12 col-md-5"><label for="progress-period" class="form-label">نوع گزارش</label><select id="progress-period" name="period" class="form-select"><option value="daily">روزانه</option><option value="weekly">هفتگی</option><option value="monthly">ماهانه</option></select></div>
-          <div class="col-12 col-md-7"><span class="form-label d-block" id="progress-period-label">بازه گزارش</span><output id="progress-period-range" class="form-control bg-light d-flex align-items-center gap-2" aria-live="polite" aria-labelledby="progress-period-label" dir="rtl"></output><input id="progress-start" name="period_start" type="hidden"><input id="progress-end" name="period_end" type="hidden"></div>
+          <div class="col-12 col-md-7"><span class="form-label d-block" id="progress-period-label">تاریخ گزارش</span><output id="progress-period-range" class="form-control bg-light d-flex align-items-center gap-2" aria-live="polite" aria-labelledby="progress-period-label" dir="rtl"></output></div>
           <div class="col-12"><label for="progress-title" class="form-label">عنوان گزارش</label><input id="progress-title" name="title" class="form-control" required maxlength="200" placeholder="مثلاً پیشرفت در حل تمرین‌های این هفته"></div>
-          <div class="col-12"><label for="progress-summary" class="form-label">شرح عملکرد و پیشرفت</label><textarea id="progress-summary" name="summary" class="form-control" rows="4" required maxlength="10000"></textarea></div>
+          <div class="col-12"><label for="progress-summary" class="form-label">شرح عملکرد و پیشرفت</label><textarea id="progress-summary" name="summary" class="form-control" rows="4" required maxlength="10000" placeholder="آنچه دانش‌آموز امروز آموخته، میزان مشارکت و پیشرفتش را بنویسید."></textarea></div>
           <div class="col-12 col-md-6"><label for="progress-strengths" class="form-label">نقاط قوت <span class="text-muted">(اختیاری)</span></label><textarea id="progress-strengths" name="strengths" class="form-control" rows="3" maxlength="10000"></textarea></div>
           <div class="col-12 col-md-6"><label for="progress-improvements" class="form-label">موارد نیازمند تمرین <span class="text-muted">(اختیاری)</span></label><textarea id="progress-improvements" name="improvements" class="form-control" rows="3" maxlength="10000"></textarea></div>
           <div class="col-12 col-md-6"><label for="progress-homework" class="form-label">تکالیف <span class="text-muted">(اختیاری)</span></label><textarea id="progress-homework" name="homework" class="form-control" rows="3" maxlength="10000"></textarea></div>
           <div class="col-12 col-md-6"><label for="progress-next-steps" class="form-label">برنامهٔ ادامهٔ یادگیری <span class="text-muted">(اختیاری)</span></label><textarea id="progress-next-steps" name="next_steps" class="form-control" rows="3" maxlength="10000"></textarea></div>
+          <input id="progress-start" name="period_start" type="hidden"><input id="progress-end" name="period_end" type="hidden">
+          <input name="start_time" type="hidden"><input name="end_time" type="hidden">
         </div>
       </div>
       <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3">
-        <p class="text-muted fs-13 mb-0">پیش‌نویس فقط نزد شماست. گزارش ارسال‌شده قابل ویرایش نیست.</p>
+        <div><p id="progress-save-hint" class="text-muted fs-13 mb-0">پیش‌نویس فقط نزد شماست. گزارش ارسال‌شده قابل ویرایش نیست.</p><p id="progress-class-report-help" class="text-muted fs-13 mb-0" hidden>گزارش کلاسی بلافاصله برای همهٔ هنرجویان فعال کلاس ارسال می‌شود.</p></div>
         <div class="d-flex gap-2"><button id="progress-save" type="submit" class="btn btn-outline-primary">ذخیره پیش‌نویس</button><button id="progress-send" type="submit" class="btn btn-primary">ارسال به دانش‌آموز</button></div>
       </div>
     </form>
@@ -53,5 +55,6 @@
 </main>
 {% endblock %}
 {% block page_js %}
+<script src="{% asset_v_url 'assets/pen/js/report-dates.js' %}"></script>
 <script src="{% asset_v_url 'assets/pen/js/progress-reports.js' %}"></script>
 {% endblock %}

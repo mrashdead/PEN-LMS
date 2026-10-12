@@ -99,16 +99,23 @@
       body.innerHTML =
         '<div class="lead-detail-grid"><div><span>وضعیت</span><strong><span class="' + statusClass(lead.status) + '">' + esc(lead.status_label) + '</span></strong></div><div><span>شماره تماس</span><strong dir="ltr">' + esc(lead.phone) + '</strong></div><div><span>سن</span><strong>' + esc(lead.age || '—') + '</strong></div><div><span>محله</span><strong>' + esc(lead.neighborhood || '—') + '</strong></div><div><span>جلسه</span><strong>' + esc(fmtDate(lead.assessment_date) + (lead.assessment_time ? ' · ' + fmtTime(lead.assessment_time) : '')) + '</strong></div><div><span>استاد / مسئول</span><strong>' + esc(lead.assessor_name || 'تعیین نشده') + '</strong></div>' + (teacherMode ? '' : '<div><span>ثبت‌کننده</span><strong>' + esc(lead.created_by_name || '—') + '</strong></div>') + '</div>' +
         '<div class="lead-detail-note"><span>حساسیت یا آلرژی</span><p>' + esc(lead.allergy_notes || 'موردی ثبت نشده') + '</p></div>' +
-        (lead.assessment_result ? '<div class="lead-detail-note"><span>نتیجه تعیین سطح' + (lead.assessment_score != null ? ' · امتیاز ' + esc(lead.assessment_score) : '') + '</span><p>' + esc(lead.assessment_result) + '</p></div>' : '') +
-        (lead.course_title ? '<div class="lead-detail-note"><span>پیشنهاد آموزشی</span><p>' + esc(lead.course_title) + (lead.lesson_title ? ' · ' + esc(lead.lesson_title) : '') + (lead.recommendation ? '<br>' + esc(lead.recommendation) : '') + '</p></div>' : '') +
+        historyMarkup(lead) +
         '<div class="lead-detail-actions" data-lead-id="' + esc(lead.id) + '">' + actionMarkup(lead) + '</div>';
       body.querySelectorAll('.lead-action').forEach(function (button) { button.addEventListener('click', function () { runAction(lead, button.dataset.action); }); });
       icons(); showModal();
     }).catch(function (e) { toast(e.message, 'danger'); });
   }
 
+  function historyMarkup(lead) {
+    var assessments = (lead.assessment_history || []).map(function (a) { return '<div class="lead-detail-note"><span>نتیجه تعیین سطح · ' + esc(a.assessor || 'ارزیاب') + (a.created_at ? ' · ' + esc(fmtDate(a.created_at)) : '') + '</span><p>' + esc(a.result) + '</p></div>'; }).join('');
+    var recommendations = (lead.recommendation_history || []).map(function (r) { return '<div class="lead-detail-note"><span>دوره معرفی‌شده · ' + esc(r.assessor || 'ارزیاب') + (r.created_at ? ' · ' + esc(fmtDate(r.created_at)) : '') + '</span><p>' + esc(r.course) + (r.lesson ? ' · ' + esc(r.lesson) : '') + (r.note ? '<br>' + esc(r.note) : '') + '</p></div>'; }).join('');
+    if (!assessments && lead.assessment_result) assessments = '<div class="lead-detail-note"><span>نتیجه تعیین سطح</span><p>' + esc(lead.assessment_result) + '</p></div>';
+    if (!recommendations && lead.course_title && ['recommended', 'enrolled'].indexOf(lead.status) !== -1) recommendations = '<div class="lead-detail-note"><span>دورهٔ معرفی‌شدهٔ قبلی</span><p>' + esc(lead.course_title) + (lead.lesson_title ? ' · ' + esc(lead.lesson_title) : '') + (lead.recommendation ? '<br>' + esc(lead.recommendation) : '') + '</p></div>';
+    return assessments + recommendations;
+  }
+
   function actionMarkup(lead) {
-    if (teacherMode) return lead.status === 'sent' || lead.status === 'scheduled' ? actionButton('ثبت نتیجه تعیین سطح', 'assess', 'btn-primary') : '';
+    if (teacherMode) return lead.status === 'sent' || lead.status === 'scheduled' ? actionButton('ثبت نتیجه تعیین سطح', 'assess', 'btn-primary') : (lead.status === 'assessed' ? actionButton('معرفی دوره', 'recommend', 'btn-primary') : '');
     if (lead.status === 'new' || lead.status === 'scheduled') return actionButton('ارسال برای استاد', 'send', 'btn-primary') + actionButton('حذف تعیین سطح', 'delete', 'btn-outline-danger') + actionButton('بایگانی', 'archive', 'btn-light');
     if (lead.status === 'sent') return actionButton('ثبت نتیجه تعیین سطح', 'assess', 'btn-primary') + actionButton('حذف تعیین سطح', 'delete', 'btn-outline-danger') + actionButton('بایگانی', 'archive', 'btn-light');
     if (lead.status === 'lost') return actionButton('حذف تعیین سطح', 'delete', 'btn-outline-danger');
@@ -124,7 +131,7 @@
       body.querySelector('.lead-detail-actions').innerHTML = '<div class="lead-inline-form"><label class="form-label">انتخاب استاد یا مسئول</label><select id="lead-action-assessor" class="form-select"><option value="">— انتخاب کنید —</option>' + options + '</select><button type="button" class="btn btn-primary" id="lead-action-save">ارسال</button></div>';
       document.getElementById('lead-action-save').addEventListener('click', function () { post(API + lead.id + '/send/', { assessor: document.getElementById('lead-action-assessor').value }).then(done).catch(fail); });
     } else if (action === 'assess') {
-      body.querySelector('.lead-detail-actions').innerHTML = '<div class="lead-inline-form"><div class="row g-2"><div class="col-4"><label class="form-label" for="lead-action-score">امتیاز از ۱۰۰</label><input id="lead-action-score" class="form-control" type="number" min="0" max="100" dir="ltr" inputmode="numeric"></div><div class="col-8"><label class="form-label" for="lead-action-result">نتیجه و سطح پیشنهادی</label><textarea id="lead-action-result" class="form-control" rows="2" required aria-describedby="lead-action-result-help" placeholder="مثلاً سطح A2؛ نیاز به تمرین مکالمه دارد"></textarea><div id="lead-action-result-help" class="form-text">سطح، توانایی فعلی و نکتهٔ مهم برای ادامهٔ پیگیری را بنویسید.</div></div></div><button type="button" class="btn btn-primary" id="lead-action-save">ثبت نتیجه</button></div>';
+      body.querySelector('.lead-detail-actions').innerHTML = '<div class="lead-inline-form"><div class="row g-2"><div class="col-12"><label class="form-label" for="lead-action-result">نتیجه تعیین سطح</label><textarea id="lead-action-result" class="form-control" rows="3" required aria-describedby="lead-action-result-help" placeholder="مثلاً سطح A2؛ نیاز به تمرین مکالمه دارد"></textarea><div id="lead-action-result-help" class="form-text">سطح، توانایی فعلی و نکتهٔ مهم برای ادامهٔ پیگیری را بنویسید.</div></div></div><button type="button" class="btn btn-primary" id="lead-action-save">ثبت نتیجه</button></div>';
       document.getElementById('lead-action-save').addEventListener('click', function () {
         var resultInput = document.getElementById('lead-action-result');
         var result = resultInput.value.trim();
@@ -135,7 +142,7 @@
           return;
         }
         resultInput.removeAttribute('aria-invalid');
-        post(API + lead.id + '/assess/', { score: document.getElementById('lead-action-score').value || null, result: result }).then(done).catch(fail);
+        post(API + lead.id + '/assess/', { result: result }).then(done).catch(fail);
       });
     } else if (action === 'recommend') {
       body.querySelector('.lead-detail-actions').innerHTML = '<div class="lead-inline-form"><div class="row g-2"><div class="col-6"><label class="form-label" for="lead-action-course">دوره پیشنهادی</label><select id="lead-action-course" class="form-select" required aria-describedby="lead-action-course-help"><option value="">— انتخاب دوره —</option></select><div id="lead-action-course-help" class="form-text" role="status" aria-live="polite">در حال دریافت دوره‌ها…</div></div><div class="col-6"><label class="form-label" for="lead-action-lesson">درس پیشنهادی</label><select id="lead-action-lesson" class="form-select" disabled aria-describedby="lead-action-lesson-help"><option value="">ابتدا دوره را انتخاب کنید</option></select><div id="lead-action-lesson-help" class="form-text" aria-live="polite">درس‌های همان دوره پس از انتخاب نمایش داده می‌شوند.</div></div><div class="col-12"><label class="form-label" for="lead-action-recommendation">توضیح معرفی</label><textarea id="lead-action-recommendation" class="form-control" rows="2"></textarea></div></div><button type="button" class="btn btn-primary" id="lead-action-save">ثبت معرفی دوره</button></div>';
@@ -179,7 +186,7 @@
           return;
         }
         courseSelect.removeAttribute('aria-invalid');
-        post(API + lead.id + '/recommend/', { course: courseSelect.value, lesson: lessonSelect.value || null, recommendation: document.getElementById('lead-action-recommendation').value.trim() }).then(done).catch(fail);
+        post('/api/leads/' + lead.id + '/recommend/', { course: courseSelect.value, lesson: lessonSelect.value || null, recommendation: document.getElementById('lead-action-recommendation').value.trim() }).then(done).catch(fail);
       });
     } else if (action === 'delete') {
       window.penOpenDeleteModal({
@@ -236,25 +243,6 @@
       phoneInput.classList.remove('is-invalid');
     });
 
-    var courseInput = document.getElementById('lead-course');
-    var lessonInput = document.getElementById('lead-lesson');
-    courseInput.addEventListener('change', function () {
-      lessonInput.disabled = true;
-      lessonInput.innerHTML = '<option value="">' + (courseInput.value ? 'در حال دریافت درس‌ها…' : 'ابتدا دوره را انتخاب کنید') + '</option>';
-      if (!courseInput.value) return;
-      get('/api/education/courses/' + encodeURIComponent(courseInput.value) + '/').then(function (course) {
-        var lessons = course.lesson_titles || [];
-        lessonInput.innerHTML = '<option value="">— انتخاب درس (اختیاری) —</option>' + lessons.map(function (lesson) {
-          return '<option value="' + esc(lesson.id) + '">' + esc(lesson.title) + '</option>';
-        }).join('');
-        if (!lessons.length) lessonInput.innerHTML = '<option value="">برای این دوره درسی تعریف نشده</option>';
-        lessonInput.disabled = !lessons.length;
-      }).catch(function () {
-        lessonInput.innerHTML = '<option value="">دریافت درس‌ها ناموفق بود</option>';
-        lessonInput.disabled = true;
-      });
-    });
-
     form.addEventListener('submit', function (event) {
     event.preventDefault();
     var errors = document.getElementById('lead-form-errors');
@@ -279,7 +267,7 @@
     var iso = window.penJalaliToISO ? window.penJalaliToISO(date) : null;
     var submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
-    post(API, { student_name: document.getElementById('lead-student-name').value.trim(), age: Number(document.getElementById('lead-age').value), phone: toAsciiDigits(phoneInput.value), neighborhood: document.getElementById('lead-neighborhood').value.trim(), father_job: document.getElementById('lead-father-job').value.trim(), mother_job: document.getElementById('lead-mother-job').value.trim(), allergy_notes: document.getElementById('lead-allergy').value.trim(), assessment_date: iso, assessment_time: timeInput.value, assessor: document.getElementById('lead-assessor').value, course: courseInput.value || null, lesson: lessonInput.value || null })
+    post(API, { student_name: document.getElementById('lead-student-name').value.trim(), age: Number(document.getElementById('lead-age').value), phone: toAsciiDigits(phoneInput.value), neighborhood: document.getElementById('lead-neighborhood').value.trim(), father_job: document.getElementById('lead-father-job').value.trim(), mother_job: document.getElementById('lead-mother-job').value.trim(), allergy_notes: document.getElementById('lead-allergy').value.trim(), assessment_date: iso, assessment_time: timeInput.value, assessor: document.getElementById('lead-assessor').value })
       .then(function () { toast('لید ثبت و برای استاد ارسال شد.', 'success'); window.location.reload(); })
       .catch(function (e) { errors.querySelector('ul').innerHTML = '<li>' + esc(e.message) + '</li>'; errors.hidden = false; })
       .finally(function () { submit.disabled = false; });

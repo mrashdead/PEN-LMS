@@ -38,7 +38,8 @@
 
   function statusMarkup(row) {
     var status = STATUS[row.status] || [row.status_label || 'نامشخص', 'secondary'];
-    return '<span class="badge bg-' + status[1] + '-subtle text-' + status[1] + ' registration-status">' + escapeHtml(status[0]) + '</span>';
+    return '<span class="badge bg-' + status[1] + '-subtle text-' + status[1] + ' registration-status">' + escapeHtml(status[0]) + '</span>' +
+      (row.is_free ? '<span class="badge bg-primary-subtle text-primary ms-1">ثبت‌نام رایگان</span>' : '');
   }
 
   function rowMarkup(row) {
@@ -48,10 +49,12 @@
     var group = row.class_group || {};
     var courseText = link(course.title || 'بدون دوره', course.url, 'fw-semibold');
     var offeringText = offering.title ? '<div class="fs-13 text-muted">' + link(offering.title + (offering.code ? ' · ' + offering.code : ''), offering.url) + '</div>' : '';
+    var teacherText = '<div class="fs-13 text-muted">مدرس دوره: ' + escapeHtml(row.instructor ? row.instructor.name : 'مدرس تعیین نشده') + '</div>' +
+      (group.title ? '<div class="fs-13 text-muted">مدرس کلاس: ' + escapeHtml(row.class_teacher ? row.class_teacher.name : 'مدرس تعیین نشده') + '</div>' : '');
     var groupText = group.title ? link(group.title + (group.code ? ' · ' + group.code : ''), group.url) : '<span class="text-muted">تخصیص کلاس نشده</span>';
     return '<tr>' +
       '<td><div class="fw-semibold">' + link(person.name || 'شخص', person.url) + '</div><div class="text-muted fs-13">' + escapeHtml(person.student_code || '') + '</div></td>' +
-      '<td>' + courseText + offeringText + '</td>' +
+      '<td>' + courseText + offeringText + teacherText + '</td>' +
       '<td>' + groupText + (group.term ? '<div class="text-muted fs-13">' + escapeHtml(group.term) + '</div>' : '') + '</td>' +
       '<td>' + statusMarkup(row) + '</td>' +
       '<td><time datetime="' + escapeHtml(row.date || '') + '">' + escapeHtml(row.date_label || row.date || '—') + '</time></td>' +
@@ -237,6 +240,11 @@
     }
     add('کد', data.code);
     add('وضعیت', data.status);
+    if (data.kind === 'offering' || data.kind === 'class') {
+      add('مدرس برگزاری', data.instructor ? data.instructor.name : 'مدرس تعیین نشده');
+      if (data.kind === 'class') add('مدرس کلاس', data.class_teacher ? data.class_teacher.name : 'مدرس تعیین نشده');
+    }
+    (data.instructors || []).forEach(function (item) { add('مدرس · ' + item.offering, item.instructor ? item.instructor.name : 'مدرس تعیین نشده'); });
     add('ترم', data.term);
     add('توضیحات', data.description);
     (data.links || []).forEach(function (item) { add('مرتبط', item.title, item.url); });
@@ -250,14 +258,69 @@
     doc.getElementById('registration-detail-results').setAttribute('aria-busy', 'false');
   }
 
+  function teachingSchedule(row) {
+    var schedule = row.schedule || {};
+    var labels = {sat: 'شنبه', sun: 'یکشنبه', mon: 'دوشنبه', tue: 'سه‌شنبه', wed: 'چهارشنبه', thu: 'پنجشنبه', fri: 'جمعه'};
+    var days = Array.isArray(schedule.days) ? schedule.days : [];
+    var start = schedule.start || schedule.start_time;
+    var end = schedule.end || schedule.end_time;
+    return '<div>' + escapeHtml(days.map(function (day) { return labels[day] || day; }).join('، ')) +
+      (start ? ' <span dir="ltr">' + escapeHtml(start) + '–' + escapeHtml(end || '—') + '</span>' : '') + '</div>' +
+      '<div class="fs-13 text-muted">' + escapeHtml([row.start_date, row.end_date].filter(Boolean).join(' تا ') || 'زمان‌بندی تعیین نشده') + '</div>' +
+      (row.location ? '<div class="fs-13 text-muted">' + escapeHtml(row.location) + '</div>' : '');
+  }
+
+  function teachingOfferingMarkup(row) {
+    return '<tr><td>' + link(row.title, row.url, 'fw-semibold') + '<div class="fs-13 text-muted">' + escapeHtml(row.course) + ' · ' + escapeHtml(row.code) + '</div>' +
+      (row.assignment_label ? '<div class="fs-13 text-muted">ارتباط مدرس: ' + escapeHtml(row.assignment_label) + '</div>' : '') + '</td>' +
+      '<td><span class="badge text-bg-light">' + escapeHtml(row.status_label) + '</span>' +
+      (row.is_active === false ? '<div class="fs-13 text-muted">غیرفعال</div>' : '') + '</td>' +
+      '<td>' + escapeHtml(row.instructor ? row.instructor.name : 'مدرس تعیین نشده') + '</td>' +
+      '<td>' + teachingSchedule(row) + '</td><td>' + link('جزئیات و ثبت‌نام‌ها', row.url, 'btn btn-sm btn-light') + '</td></tr>';
+  }
+
+  function teachingClassMarkup(row) {
+    return '<tr><td>' + link(row.title, row.url, 'fw-semibold') + '<div class="fs-13 text-muted">' + escapeHtml(row.course || 'بدون برگزاری دوره') + ' · ' + escapeHtml(row.code) + '</div>' +
+      (row.assignment_label ? '<div class="fs-13 text-muted">ارتباط مدرس: ' + escapeHtml(row.assignment_label) + '</div>' : '') + '</td>' +
+      '<td>' + escapeHtml(row.term) + '<div class="fs-13 text-muted">' + escapeHtml(row.status_label) + '</div></td>' +
+      '<td>' + escapeHtml(row.class_teacher ? row.class_teacher.name : 'مدرس تعیین نشده') + '</td>' +
+      '<td>' + teachingSchedule(row) + '</td><td>' + link('جزئیات و اعضا', row.url, 'btn btn-sm btn-light') + '</td></tr>';
+  }
+
+  function renderTeaching(doc, data) {
+    var teaching = data.teaching || {}, summary = teaching.summary || {}, offerings = teaching.offerings || [];
+    doc.getElementById('registration-teaching-summary').innerHTML = metricMarkup([
+      ['برگزاری دوره', number(summary.offerings)], ['در حال برگزاری', number(summary.running)],
+      ['پیش‌ثبت‌نام', number(summary.preregistration)], ['کلاس', number(summary.classes)]
+    ]);
+    var sections = [
+      {title: 'دوره‌های در حال برگزاری', status: 'running'},
+      {title: 'دوره‌های پیش‌ثبت‌نام', status: 'open'},
+      {title: 'سایر وضعیت‌های دوره', status: 'other'}
+    ];
+    doc.getElementById('registration-teaching-offerings').innerHTML = sections.map(function (section, index) {
+      var rows = offerings.filter(function (row) { return section.status === 'other' ? row.status !== 'running' && row.status !== 'open' : row.status === section.status; });
+      var heading = 'registration-teaching-status-' + index;
+      return '<section class="card mb-4" aria-labelledby="' + heading + '"><div class="card-header"><h3 id="' + heading + '" class="h6 mb-0">' + section.title + ' (' + number(rows.length) + ')</h3></div>' +
+        '<div class="table-responsive"><table class="table table-hover align-middle mb-0"><caption class="visually-hidden">' + section.title + '</caption>' +
+        '<thead class="table-light"><tr><th scope="col">دوره / برگزاری</th><th scope="col">وضعیت</th><th scope="col">مدرس برگزاری</th><th scope="col">زمان‌بندی / محل</th><th scope="col">جزئیات</th></tr></thead><tbody>' +
+        (rows.length ? rows.map(teachingOfferingMarkup).join('') : '<tr><td colspan="5" class="text-center py-4 text-muted">دوره‌ای در این وضعیت وجود ندارد.</td></tr>') + '</tbody></table></div></section>';
+    }).join('');
+    var groups = teaching.classes || [];
+    doc.getElementById('registration-teaching-classes').innerHTML = groups.length ? groups.map(teachingClassMarkup).join('') : '<tr><td colspan="5" class="text-center py-4 text-muted">کلاسی به این مدرس اختصاص داده نشده است.</td></tr>';
+    doc.getElementById('registration-teaching-content').hidden = false;
+  }
+
   function renderEntity(doc, data) {
     doc.getElementById('registration-context-title').textContent = data.title || 'جزئیات آموزشی';
     doc.getElementById('registration-identity').innerHTML = data.identity ?
       '<div class="fw-semibold">' + link(data.identity.name, data.identity.url) + '</div>' +
-      '<div class="text-muted fs-14">' + [data.identity.student_code, data.identity.national_code, data.identity.mobile].filter(Boolean).map(escapeHtml).join(' · ') + '</div>' : '';
+      '<div class="text-muted fs-14">' + [data.identity.employee_code || data.identity.student_code, data.identity.national_code, data.identity.mobile].filter(Boolean).map(escapeHtml).join(' · ') + '</div>' : '';
     doc.getElementById('registration-context-meta').innerHTML = contextMarkup(data);
     renderCapacity(doc.getElementById('registration-capacity'), data.capacity);
-    renderRowsInDetail(doc, data);
+    doc.getElementById('registration-related-section').hidden = data.kind === 'teacher';
+    if (data.kind === 'teacher') renderTeaching(doc, data);
+    else renderRowsInDetail(doc, data);
     doc.getElementById('registration-entity-content').hidden = false;
   }
 
@@ -268,9 +331,12 @@
       ['دوره', data.course && data.course.title, data.course && data.course.url],
       ['برگزاری', data.offering && data.offering.title, data.offering && data.offering.url],
       ['کلاس', data.class_group && data.class_group.title, data.class_group && data.class_group.url],
+      ['مدرس برگزاری', data.instructor ? data.instructor.name : 'مدرس تعیین نشده'],
+      ['مدرس کلاس', data.class_teacher ? data.class_teacher.name : (data.class_group ? 'مدرس تعیین نشده' : '')],
       ['وضعیت', (STATUS[data.status] || [data.status_label || 'نامشخص'])[0]],
       ['تاریخ ثبت‌نام', data.date_label || data.date]
     ];
+    if (data.is_free) entries.push(['وضعیت مالی', 'ثبت‌نام رایگان — بدون مبلغ قابل‌پرداخت و بدهی']);
     doc.getElementById('registration-record-summary').innerHTML = entries.filter(function (entry) { return entry[1]; }).map(function (entry) {
       return '<div><small>' + escapeHtml(entry[0]) + '</small>' + link(entry[1], entry[2]) + '</div>';
     }).join('');
@@ -281,7 +347,9 @@
     }).join('') : 'اطلاعات حضور ثبت نشده است.';
     var history = data.history || [];
     doc.getElementById('registration-history').innerHTML = history.length ? history.map(function (item) {
-      return '<li class="pen-timeline-item"><div class="fw-semibold fs-14">' + escapeHtml(item.summary) + '</div><div class="fs-13 text-muted">' + escapeHtml(item.actor) + ' · ' + escapeHtml(item.date) + '</div></li>';
+      return '<li class="pen-timeline-item"><div class="fw-semibold fs-14">' + escapeHtml(item.summary) + '</div>' +
+        (item.reason ? '<div class="fs-14">دلیل: ' + escapeHtml(item.reason) + '</div>' : '') +
+        '<div class="fs-13 text-muted">' + escapeHtml(item.actor) + ' · ' + escapeHtml(item.date) + '</div></li>';
     }).join('') : '<li class="text-muted fs-14">تاریخچه‌ای ثبت نشده است.</li>';
     doc.getElementById('registration-record-content').hidden = false;
   }
@@ -316,6 +384,9 @@
     escapeHtml: escapeHtml,
     rowMarkup: rowMarkup,
     rowsMarkup: rowsMarkup,
-    statusMarkup: statusMarkup
+    statusMarkup: statusMarkup,
+    renderTeaching: renderTeaching,
+    teachingOfferingMarkup: teachingOfferingMarkup,
+    teachingClassMarkup: teachingClassMarkup
   };
 }));

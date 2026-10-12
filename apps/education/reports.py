@@ -27,6 +27,7 @@ from apps.academics.scoping import (
     education_sessions_visible_to,
 )
 from apps.core.utils import to_jalali_date
+from apps.core.report_dates import ReportDateError, ReportRange, preset_dates
 
 
 class ReportError(Exception):
@@ -34,33 +35,16 @@ class ReportError(Exception):
 
 
 def _period_bounds(period: str, ref_date) -> tuple:
-    """Return (start_date, end_date) for day/week/month containing ref_date.
-
-    Week starts Saturday (Iranian convention). All arithmetic is on real
-    dates; tz-aware datetimes are converted to Asia/Tehran local dates first.
-    """
-    import datetime as dt
-
-    if ref_date is None:
-        ref_date = timezone.localdate()
-    elif hasattr(ref_date, "astimezone"):
-        ref_date = timezone.localdate(ref_date)  # aware datetime → Tehran date
-    if period == "day":
-        return ref_date, ref_date
-    if period == "week":
-        # weekday(): Mon=0..Sun=6 → Saturday start ⇒ offset = (weekday+1) % 7
-        offset = (ref_date.weekday() + 1) % 7
-        start = ref_date - dt.timedelta(days=offset)
-        end = start + dt.timedelta(days=6)
-        return start, end
-    if period == "month":
-        start = ref_date.replace(day=1)
-        if ref_date.month == 12:
-            end = ref_date.replace(year=ref_date.year + 1, month=1, day=1) - dt.timedelta(days=1)
-        else:
-            end = ref_date.replace(month=ref_date.month + 1, day=1) - dt.timedelta(days=1)
-        return start, end
-    raise ReportError(f"بازه‌ی گزارش نامعتبر: {period} (day/week/month)")
+    """Calendar range ending at the reference project-local date."""
+    if hasattr(ref_date, "astimezone"):
+        ref_date = timezone.localdate(ref_date, timezone=timezone.get_default_timezone())
+    try:
+        if period in {"month", "monthly"} and ref_date:
+            jalali = to_jalali_date(ref_date)
+            return preset_dates(period, year=jalali.year, month=jalali.month)
+        return preset_dates(period, today=ref_date)
+    except ReportDateError as exc:
+        raise ReportError(str(exc))
 
 
 def attendance_report(
@@ -69,6 +53,7 @@ def attendance_report(
     period: str = "day",
     ref=None,
     group_by_jalali_month: bool = False,
+    bounds: ReportRange | None = None,
 ) -> dict:
     """
     تجمیع حضور بر اساس جلسات واقعی.
@@ -78,10 +63,18 @@ def attendance_report(
     """
     from apps.education.models import AttendanceRecord
 
-    start, end = _period_bounds(period, ref)
+    start, end = (bounds.start, bounds.end) if bounds else _period_bounds(period, ref)
+    try:
+        bounds = (bounds or ReportRange(start, end)).validate()
+    except ReportDateError as exc:
+        raise ReportError(str(exc))
     sessions = education_sessions_visible_to(user).filter(
         session_date__gte=start, session_date__lte=end, is_deleted=False,
     )
+    if bounds.start_time:
+        sessions = sessions.filter(Q(session_date__gt=start) | Q(session_date=start, start_time__gte=bounds.start_time))
+    if bounds.end_time:
+        sessions = sessions.filter(Q(session_date__lt=end) | Q(session_date=end, start_time__lt=bounds.end_time))
     records = (
         AttendanceRecord.objects.filter(
             session__in=sessions, is_deleted=False,

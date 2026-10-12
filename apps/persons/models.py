@@ -26,9 +26,16 @@ class Person(DomainModel):
     # ─── هویت ───
     national_code = models.CharField(
         max_length=10,
+        null=True,
+        blank=True,
         db_index=True,
         help_text="کد ملی — شناسه یکتای شخص (یکتا در میان اشخاص زنده)",
     )
+    # Permanent opaque identity for people first recorded without official IDs.
+    # It is never stored in national_code/student_code and remains stable when
+    # the person's official information is completed later.
+    temporary_id = models.UUIDField(null=True, blank=True, unique=True, editable=False, default=None)
+    is_temporary = models.BooleanField(default=False, db_index=True)
     first_name = models.CharField(max_length=128, db_index=True)
     last_name = models.CharField(max_length=128, db_index=True)
     father_name = models.CharField(max_length=128, blank=True, default="")
@@ -92,6 +99,9 @@ class Person(DomainModel):
 
     # ─── وضعیت ───
     is_active = models.BooleanField(default=True, db_index=True)
+
+    # Explicit opt-in: being a teacher alone does not authorize placement work.
+    can_assess_leads = models.BooleanField(default=False, db_index=True)
 
     # ─── لینک به User (اختیاری — تا زمانی که مدیر دسترسی ندهد، null است) ───
     user = models.OneToOneField(
@@ -218,16 +228,17 @@ class Person(DomainModel):
 
         # کد ملی: فقط ارقام و دقیقاً ۱۰ رقم.
         if not self.national_code:
-            errors.setdefault("national_code", []).append("کد ملی الزامی است.")
+            if not self.is_temporary:
+                errors.setdefault("national_code", []).append("کد ملی الزامی است.")
         else:
             national_error = national_code_error(normalize_national_code(self.national_code))
             if national_error:
                 errors.setdefault("national_code", []).append(national_error)
 
         # موبایل حساب اصلی: دقیقاً ۱۱ رقم و با 09 شروع می‌شود.
-        if not self.mobile:
+        if not self.mobile and not self.is_temporary:
             errors.setdefault("mobile", []).append("شماره موبایل الزامی است.")
-        elif not is_valid_iranian_mobile(self.mobile):
+        elif self.mobile and not is_valid_iranian_mobile(self.mobile):
             errors.setdefault("mobile", []).append(
                 "شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود."
             )
@@ -239,7 +250,7 @@ class Person(DomainModel):
                 errors.setdefault("email", []).append("قالب ایمیل معتبر نیست.")
 
         # اعتبارسنجی person_type
-        if self.person_type == Person.Type.STUDENT and not self.student_code:
+        if self.person_type == Person.Type.STUDENT and not self.student_code and not (self.is_temporary or self.temporary_id):
             errors.setdefault("student_code", []).append("برای دانش‌آموز کد دانش‌آموزی الزامی است.")
 
         if self.person_type in (Person.Type.EMPLOYEE, Person.Type.TEACHER):
@@ -250,7 +261,7 @@ class Person(DomainModel):
             raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
-        self.national_code = normalize_national_code(self.national_code)
+        self.national_code = normalize_national_code(self.national_code) or None
         self.first_name = (self.first_name or "").strip()
         self.last_name = (self.last_name or "").strip()
         self.mobile = "".join(str(self.mobile or "").strip().split())

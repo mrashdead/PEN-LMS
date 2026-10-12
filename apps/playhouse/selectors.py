@@ -6,6 +6,7 @@ queries. N+1 avoidance is baked in via ``select_related``/``prefetch_related``.
 """
 from __future__ import annotations
 
+import uuid
 from datetime import date
 
 from django.db.models import Q, QuerySet
@@ -26,8 +27,8 @@ def sessions_today() -> QuerySet[PlayhouseSession]:
             Q(session_date=timezone.localdate())
             | Q(session_date__isnull=True, created_at__date=timezone.localdate())
         )
-        .select_related("member", "operator", "invoice")
-        .prefetch_related("invoice__items")
+        .select_related("member", "member__person", "operator")
+        .prefetch_related("invoices__items", "invoices__payments", "cafe_orders__items", "cafe_orders__payments", "payments")
         .order_by("entry_at", "created_at")
     )
 
@@ -39,8 +40,8 @@ def sessions_on(day: date) -> QuerySet[PlayhouseSession]:
             Q(session_date=day)
             | Q(session_date__isnull=True, created_at__date=day)
         )
-        .select_related("member", "operator", "ended_by", "invoice")
-        .prefetch_related("invoice__items")
+        .select_related("member", "member__person", "operator", "ended_by")
+        .prefetch_related("invoices__items", "invoices__payments", "cafe_orders__items", "cafe_orders__payments", "payments")
         .order_by("entry_at", "created_at")
     )
 
@@ -49,7 +50,8 @@ def active_sessions() -> QuerySet[PlayhouseSession]:
     """Sessions still inside the playhouse (running timers)."""
     return (
         PlayhouseSession.objects.filter(status=PlayhouseSession.Status.ACTIVE)
-        .select_related("member", "operator")
+        .select_related("member", "member__person", "operator")
+        .prefetch_related("cafe_orders__items", "cafe_orders__payments", "payments")
         .order_by("entry_at")
     )
 
@@ -59,12 +61,17 @@ def member_autocomplete(query: str, limit: int = 20) -> QuerySet[PlayhouseMember
     qs: QuerySet[PlayhouseMember] = PlayhouseMember.objects.select_related("person").all()
     if query:
         clean = query.strip()
-        qs = qs.filter(
+        match = (
             Q(first_name__icontains=clean)
             | Q(last_name__icontains=clean)
             | Q(guardian_mobile__icontains=clean)
             | Q(national_code__icontains=clean)
         )
+        try:
+            match |= Q(temporary_id=uuid.UUID(clean))
+        except (ValueError, AttributeError):
+            pass
+        qs = qs.filter(match)
     return qs.order_by("-created_at")[:limit]
 
 
@@ -82,10 +89,11 @@ def member_and_person_autocomplete(query: str, limit: int = 25) -> list[dict]:
             "first_name": member.first_name,
             "last_name": member.last_name,
             "national_code": (member.person.national_code if member.person_id else member.national_code) or "",
+            "temporary_id": str(member.temporary_id or (member.person.temporary_id if member.person_id else "")),
             "age": member.age,
             "guardian_mobile": member.guardian_mobile,
             "display_name": member.display_name,
-            "meta": "عضو خانه بازی" if not member.person_id else "دانش‌آموز لینک‌شده",
+            "meta": ("فرد موقت" if member.person_id and member.person.is_temporary else "عضو خانه بازی") if not member.person_id or member.person.is_temporary else "دانش‌آموز لینک‌شده",
         }
         for member in members
     ]
@@ -133,7 +141,7 @@ def invoices_between(
     """Invoices optionally filtered by paid date range, for finance reports."""
     qs = PlayhouseInvoice.objects.select_related(
         "session", "member", "operator"
-    ).prefetch_related("items").order_by("-paid_at")
+    ).filter(is_voided=False).prefetch_related("items", "session__payments").order_by("-paid_at")
     if start:
         qs = qs.filter(paid_at__date__gte=start)
     if end:

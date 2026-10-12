@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load asset_v %}
+{% block title %}سفارش‌های کافه خانه‌بازی{% endblock %}
+{% block page_heading %}{% include "partials/page-heading.html" with title="سفارش‌های کافه" section="آشپزخانه" %}{% endblock %}
+{% block content %}
+<main class="ph-kitchen-page" id="ph-kitchen" aria-live="polite">
+  <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div><h1 class="h4 mb-1">صف سفارش‌های کافه</h1><p class="text-muted mb-0">به‌روزرسانی خودکار هر ۴ ثانیه</p></div>
+    <div class="d-flex gap-2"><button type="button" class="btn btn-outline-primary" id="ph-kitchen-notify">فعال‌کردن اعلان</button><button type="button" class="btn btn-primary" id="ph-kitchen-refresh">بروزرسانی</button></div>
+  </header>
+  <div class="alert alert-danger" id="ph-kitchen-error" role="alert" hidden></div>
+  <div class="row g-3" id="ph-kitchen-orders"><div class="col-12 text-center text-muted py-5">در حال دریافت سفارش‌ها…</div></div>
+</main>
+{% endblock %}
+{% block page_js %}
+<script>window.__PLAYHOUSE_API__ = "/api/playhouse/";</script>
+<script src="{% asset_v_url 'assets/pen/js/playhouse-kitchen.js' %}"></script>
+{% endblock %}

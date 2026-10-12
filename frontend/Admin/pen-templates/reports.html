@@ -30,14 +30,26 @@
         </div>
       </div>
       <div class="report-period-switcher d-flex align-items-center gap-2 flex-wrap mb-3" role="group" aria-label="انتخاب بازهٔ زمانی">
-        <button type="button" class="btn btn-sm btn-light" data-report-period="month">ماه جاری</button>
+        <button type="button" class="btn btn-sm btn-light" data-report-period="daily">امروز</button>
+        <button type="button" class="btn btn-sm btn-light" data-report-period="weekly">هفت روز اخیر</button>
+        <button type="button" class="btn btn-sm btn-light" data-report-period="month_week">هفتهٔ ماه</button>
+        <button type="button" class="btn btn-sm btn-light" data-report-period="month">ماه شمسی</button>
         <button type="button" class="btn btn-sm btn-light" data-report-period="quarter">فصل جاری</button>
         <button type="button" class="btn btn-sm btn-light" data-report-period="year">سال جاری</button>
         <button type="button" class="btn btn-sm btn-light" data-report-period="custom">بازهٔ دلخواه</button>
       </div>
+      <output id="report-actual-range" class="d-block text-muted mb-3" aria-live="polite"></output>
       <form id="report-filter-form" class="row g-3 align-items-end" novalidate>
+        <div id="report-calendar-controls" class="col-12" hidden><div class="row g-3">
+          <div class="col-12 col-md-4"><label for="report-year" class="form-label">سال شمسی</label><input id="report-year" class="form-control" type="number" min="1300" max="1600" value="{{ report_jalali_year }}"></div>
+          <div class="col-12 col-md-4"><label for="report-month" class="form-label">ماه شمسی</label><select id="report-month" class="form-select" data-current-month="{{ report_jalali_month }}"></select></div>
+          <div id="report-week-control" class="col-12 col-md-4" hidden><label for="report-week" class="form-label">هفتهٔ ماه</label><select id="report-week" class="form-select"><option value="1">۱: روز ۱ تا ۷</option><option value="2">۲: روز ۸ تا ۱۴</option><option value="3">۳: روز ۱۵ تا ۲۱</option><option value="4">۴: روز ۲۲ تا ۲۸</option><option value="5">۵: روز ۲۹ تا پایان ماه</option></select></div>
+        </div></div>
         <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="report-from">از تاریخ</label><input id="report-from" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۶/۰۱"></div>
         <div class="col-12 col-sm-6 col-xl-2"><label class="form-label" for="report-to">تا تاریخ</label><input id="report-to" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" placeholder="۱۴۰۵/۰۶/۳۱"></div>
+        <div class="col-12 col-sm-6 col-xl-2"><label for="report-start_time" class="form-label">ساعت شروع (اختیاری)</label><input id="report-start_time" type="time" class="form-control" aria-describedby="report-time-help report-filter-error"></div>
+        <div class="col-12 col-sm-6 col-xl-2"><label for="report-end_time" class="form-label">ساعت پایان (اختیاری)</label><input id="report-end_time" type="time" class="form-control" aria-describedby="report-time-help report-filter-error"></div>
+        <p id="report-time-help" class="text-muted fs-13 mb-0">ساعت پایان مرز پایان بازه است. ساعت خالی یعنی تمام روز. ثبت‌نام‌ها با دقت روز و جلسات و رویدادها با ساعت انتخابی فیلتر می‌شوند.</p>
         <div class="col-12 col-sm-6 col-xl-2 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit">به‌روزرسانی</button><button class="btn btn-light" type="button" id="report-reset" title="بازنشانی فیلترها" aria-label="بازنشانی فیلترها"><i data-lucide="rotate-ccw" class="size-4"></i></button></div>
         <div class="col-12"><details class="report-more-filters"><summary>فیلترهای دقیق <span>دپارتمان، دوره و محل آموزش</span></summary><div class="row g-3 pt-3">
           <div class="col-12 col-md-4"><label class="form-label" for="report-department">دپارتمان</label><select id="report-department" class="form-select"><option value="">همهٔ دپارتمان‌ها</option></select></div>
@@ -96,5 +108,6 @@
 
 {% block page_js %}
 <script src="{% static 'assets/libs/apexcharts/dist/apexcharts.min.js' %}"></script>
+<script src="{% asset_v_url 'assets/pen/js/report-dates.js' %}"></script>
 <script src="{% asset_v_url 'assets/pen/js/reports-dashboard.js' %}"></script>
 {% endblock %}

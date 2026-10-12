@@ -16,8 +16,12 @@ _nc_counter = itertools.count(1)
 
 
 def _next_nc() -> str:
-    """Unique 10-digit national code across the whole test run."""
-    return f"{8000000000 + next(_nc_counter)}"
+    """Unique, checksum-valid test national code with the recognized 800 prefix."""
+    first_nine = f"{800000000 + next(_nc_counter):09d}"
+    total = sum(int(first_nine[index]) * (10 - index) for index in range(9))
+    remainder = total % 11
+    check_digit = remainder if remainder < 2 else 11 - remainder
+    return first_nine + str(check_digit)
 
 
 def grant_persons_model_perms(user):

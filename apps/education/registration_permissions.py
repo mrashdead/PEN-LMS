@@ -10,6 +10,16 @@ WRITE_ROLES = {'manager', 'workflow_admin', 'hr'}
 MODELS = {'offering': 'education.offeringenrollment', 'class': 'academics.classenrollment'}
 
 
+def can_create_free_enrollment(user):
+    """Use the existing financial enrollment creation authority, including ACL."""
+    if not user or not user.is_authenticated or not user.is_active or getattr(user, 'is_deleted', False):
+        return False
+    baseline = bool(roles_for(user) & WRITE_ROLES) and user.has_perm('education.add_offeringenrollment')
+    return baseline and acl_strict(
+        user, 'model', MODELS['offering'], 'add', baseline,
+    )
+
+
 def can_access_registrations(user):
     if not user or not user.is_authenticated or not user.is_active or getattr(user, 'is_deleted', False):
         return False

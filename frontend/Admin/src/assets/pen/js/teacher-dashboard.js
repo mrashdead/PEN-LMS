@@ -2,7 +2,7 @@
  * Pen LMS — teacher portal dashboard.
  *
  * Reads two scoped APIs:
- *   GET /api/education/teacher/classes/   → offerings where instructor == me
+ *   GET /api/education/teacher/classes/   → related offerings, classes and sessions
  *   GET /api/education/calendar/me/       → my own week (teacher perspective)
  * No management data is ever fetched here — the class cards and the agenda
  * are the whole surface (task spec §1.1).
@@ -29,6 +29,27 @@
 
   var DAY_NAMES = { sat: 'شنبه', sun: 'یکشنبه', mon: 'دوشنبه', tue: 'سه‌شنبه', wed: 'چهارشنبه', thu: 'پنجشنبه', fri: 'جمعه' };
 
+  function scheduleText(schedule) {
+    schedule = schedule || {};
+    var days = Array.isArray(schedule.days) ? schedule.days : [];
+    var start = schedule.start || schedule.start_time;
+    var end = schedule.end || schedule.end_time;
+    return days.map(function (day) { return DAY_NAMES[day] || day; }).join('، ') +
+      (start ? ' · ' + pn(start) + ' تا ' + pn(end || '—') : '');
+  }
+
+  function renderStandaloneClasses(groups) {
+    var box = document.getElementById('td-standalone-classes');
+    if (!box) return;
+    box.innerHTML = groups.length ? groups.map(function (g) {
+      return '<div class="border-top py-3"><div class="fw-semibold">' + esc(g.name) + ' · ' + esc(g.code) + '</div>' +
+        '<div class="fs-13 text-muted">' + esc(g.term) + ' · ' + (g.is_active ? 'فعال' : 'غیرفعال') +
+        ' · مدرس: ' + esc(g.class_teacher ? g.class_teacher.name : 'مدرس تعیین نشده') +
+        (g.room ? ' · ' + esc(g.room) : '') + '</div>' +
+        '<div class="fs-13">' + esc(scheduleText(g.schedule)) + '</div></div>';
+    }).join('') : '<div class="text-muted fs-13">کلاسی بدون برگزاری مرتبط ندارید.</div>';
+  }
+
   // ── class cards ─────────────────────────────────────────────────────
   function renderClasses(classes) {
     var $box = document.getElementById('td-classes');
@@ -40,57 +61,69 @@
       icons();
       return;
     }
-    $box.innerHTML = classes.map(function (c) {
-      var sched = (c.schedule && c.schedule.days) ? c.schedule.days : [];
-      var time = (c.schedule && c.schedule.start) ? pn(c.schedule.start) + ' تا ' + pn(c.schedule.end || '—') : '';
-      var next = c.stats && c.stats.next ? jal(c.stats.next) : '';
-      var upcoming = (c.sessions || []).filter(function (s) { return !s.past; });
-      var past = (c.sessions || []).filter(function (s) { return s.past; });
-      var pend = (c.stats && c.stats.not_recorded) || 0;
-      return '' +
-        '<div class="col-12 col-lg-6">' +
-        '  <div class="pen-class-card p-3 h-100">' +
-        '    <div class="d-flex align-items-start gap-2">' +
-        '      <div class="flex-grow-1 overflow-hidden">' +
-        '        <h6 class="mb-1 text-truncate">' + esc(c.title || c.course) + '</h6>' +
-        '        <p class="mb-2 fs-13 text-muted text-truncate">' + esc(c.course) +
-                     (c.location ? ' · <i data-lucide="map-pin" class="size-3 d-inline-block align-middle"></i> ' + esc(c.location) : '') + '</p>' +
-        '      </div>' +
-        (pend ? '<span class="badge text-bg-warning flex-shrink-0">' + pn(pend) + ' جلسه بی‌حضور</span>'
-              : '<span class="badge text-bg-success-subtle text-success-emphasis flex-shrink-0">روشن</span>') +
-        '    </div>' +
-        (sched.length || time
-          ? '<div class="pen-week-strip mb-2">' +
-              sched.map(function (d) { return '<span class="pen-week-chip">' + esc(DAY_NAMES[d] || d) + '</span>'; }).join('') +
-              (time ? '<span class="pen-week-chip">' + esc(time) + '</span>' : '') +
-            '</div>'
-          : '') +
-        '    <div class="d-flex fs-13 text-muted gap-3 mb-2 flex-wrap">' +
-        '      <span><i data-lucide="users" class="size-4 d-inline-block align-middle ms-1"></i>' + pn(c.roster_size || 0) + ' دانش‌آموز</span>' +
-        '      <span><i data-lucide="calendar-check" class="size-4 d-inline-block align-middle ms-1"></i>' + pn((c.stats && c.stats.held) || 0) + ' جلسه برگزارشده</span>' +
-        (next ? '<span><i data-lucide="calendar-clock" class="size-4 d-inline-block align-middle ms-1"></i>بعدی: ' + esc(next) + '</span>' : '') +
-        '    </div>' +
-        (upcoming.length || past.length
-          ? '<div class="list-group list-group-flush border-top" style="max-height:150px;overflow-y:auto">' +
-              upcoming.slice(0, 3).map(function (s) {
-                return '<div class="list-group-item d-flex align-items-center gap-2 px-0 py-2">' +
-                  '<span class="badge text-bg-primary-subtle text-primary-emphasis flex-shrink-0">جلسه ' + pn(s.number) + '</span>' +
-                  '<span class="fs-13 flex-grow-1">' + esc(jal(s.date)) + ' · ' + pn(s.start) + '–' + pn(s.end) + '</span>' +
-                  '<a href="/workspace/teacher/attendance/?class=' + encodeURIComponent(c.id) + '&session=' + encodeURIComponent(s.id) + '" class="btn btn-sm btn-outline-primary flex-shrink-0" title="حضور و غیاب"><i data-lucide="user-check" class="size-4"></i></a>' +
-                  '<button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0 td-content-btn" data-content-session="' + esc(s.id) + '" title="موضوع و ضمیمه"><i data-lucide="book-open-edit" class="size-4"></i></button>' +
-                  '</div>';
-              }).join('') +
-              (past.length
-                ? '<a href="/workspace/teacher/attendance/?class=' + encodeURIComponent(c.id) + '&session=' + encodeURIComponent(past[past.length - 1].id) + '"' +
-                  ' class="list-group-item list-group-item-action d-flex align-items-center gap-2 px-0 py-2 text-muted">' +
-                  '<span class="badge text-bg-secondary-subtle text-secondary-emphasis flex-shrink-0">ویرایش</span>' +
-                  '<span class="fs-13 flex-grow-1">آخرین جلسه گذشته: ' + esc(jal(past[past.length - 1].date)) + ' (جلسه ' + pn(past[past.length - 1].number) + ')</span>' +
-                  '<i data-lucide="pencil" class="size-4"></i></a>'
-                : '') +
-            '</div>'
-          : '<p class="fs-13 text-muted mb-0">جلسه‌ای برای این کلاس ساخته نشده است.</p>') +
-        '  </div>' +
-        '</div>';
+    var buckets = [
+      {label: 'در حال برگزاری', rows: classes.filter(function (c) { return c.status === 'running'; })},
+      {label: 'پیش‌ثبت‌نام', rows: classes.filter(function (c) { return c.status === 'open'; })},
+      {label: 'سایر وضعیت‌ها', rows: classes.filter(function (c) { return c.status !== 'running' && c.status !== 'open'; })}
+    ];
+    $box.innerHTML = buckets.map(function (bucket) {
+      return '<div class="col-12"><h6 class="mb-0">' + esc(bucket.label) + ' (' + pn(bucket.rows.length) + ')</h6></div>' +
+        (bucket.rows.length ? bucket.rows.map(function (c) {
+          var sched = (c.schedule && c.schedule.days) ? c.schedule.days : [];
+          var time = (c.schedule && c.schedule.start) ? pn(c.schedule.start) + ' تا ' + pn(c.schedule.end || '—') : '';
+          var next = c.stats && c.stats.next ? jal(c.stats.next) : '';
+          var upcoming = (c.sessions || []).filter(function (s) { return !s.past; });
+          var past = (c.sessions || []).filter(function (s) { return s.past; });
+          var pend = (c.stats && c.stats.not_recorded) || 0;
+          return '' +
+            '<div class="col-12 col-lg-6">' +
+            '  <div class="pen-class-card p-3 h-100">' +
+            '    <div class="d-flex align-items-start gap-2">' +
+            '      <div class="flex-grow-1 overflow-hidden">' +
+            '        <h6 class="mb-1 text-truncate">' + esc(c.title || c.course) + '</h6>' +
+            '        <p class="mb-2 fs-13 text-muted text-truncate">' + esc(c.course) +
+                         (c.location ? ' · <i data-lucide="map-pin" class="size-3 d-inline-block align-middle"></i> ' + esc(c.location) : '') + '</p>' +
+            '      </div>' +
+            '<span class="badge text-bg-light flex-shrink-0">' + esc(c.status_label || c.status) + (c.is_active === false ? ' · غیرفعال' : '') + '</span>' +
+            (pend ? '<span class="badge text-bg-warning flex-shrink-0">' + pn(pend) + ' جلسه بی‌حضور</span>'
+                  : '') +
+            '    </div>' +
+            '<p class="fs-13 text-muted mb-2">مدرس برگزاری: ' + esc(c.instructor ? c.instructor.name : 'مدرس تعیین نشده') + '</p>' +
+            (c.start_date || c.end_date ? '<p class="fs-13 text-muted mb-2">' + esc(jal(c.start_date)) + ' تا ' + esc(jal(c.end_date)) + '</p>' : '') +
+            (c.class_groups || []).map(function (g) { return '<div class="fs-13 mb-2">' + esc(g.name) + ' · ' + esc(g.term) + ' · مدرس: ' + esc(g.class_teacher ? g.class_teacher.name : 'مدرس تعیین نشده') + (g.room ? ' · ' + esc(g.room) : '') + (g.is_active ? '' : ' · غیرفعال') + '<div class="text-muted">' + esc(scheduleText(g.schedule)) + '</div></div>'; }).join('') +
+            (sched.length || time
+              ? '<div class="pen-week-strip mb-2">' +
+                  sched.map(function (d) { return '<span class="pen-week-chip">' + esc(DAY_NAMES[d] || d) + '</span>'; }).join('') +
+                  (time ? '<span class="pen-week-chip">' + esc(time) + '</span>' : '') +
+                '</div>'
+              : '') +
+            '    <div class="d-flex fs-13 text-muted gap-3 mb-2 flex-wrap">' +
+            '      <span><i data-lucide="users" class="size-4 d-inline-block align-middle ms-1"></i>' + pn(c.roster_size || 0) + ' دانش‌آموز</span>' +
+            '      <span><i data-lucide="calendar-check" class="size-4 d-inline-block align-middle ms-1"></i>' + pn((c.stats && c.stats.held) || 0) + ' جلسه برگزارشده</span>' +
+            (next ? '<span><i data-lucide="calendar-clock" class="size-4 d-inline-block align-middle ms-1"></i>بعدی: ' + esc(next) + '</span>' : '') +
+            '    </div>' +
+            (upcoming.length || past.length
+              ? '<div class="list-group list-group-flush border-top" style="max-height:150px;overflow-y:auto">' +
+                  upcoming.slice(0, 3).map(function (s) {
+                    return '<div class="list-group-item d-flex align-items-center gap-2 px-0 py-2">' +
+                      '<span class="badge text-bg-primary-subtle text-primary-emphasis flex-shrink-0">جلسه ' + pn(s.number) + '</span>' +
+                      '<span class="fs-13 flex-grow-1">' + esc(jal(s.date)) + ' · ' + pn(s.start) + '–' + pn(s.end) + '</span>' +
+                      (c.can_manage !== false ? '<a href="/workspace/teacher/attendance/?class=' + encodeURIComponent(c.id) + '&session=' + encodeURIComponent(s.id) + '" class="btn btn-sm btn-outline-primary flex-shrink-0" title="حضور و غیاب"><i data-lucide="user-check" class="size-4"></i></a>' : '') +
+                      '<button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0 td-content-btn" data-content-session="' + esc(s.id) + '" title="موضوع و ضمیمه"><i data-lucide="book-open-edit" class="size-4"></i></button>' +
+                      '</div>';
+                  }).join('') +
+                  (past.length && c.can_manage !== false
+                    ? '<a href="/workspace/teacher/attendance/?class=' + encodeURIComponent(c.id) + '&session=' + encodeURIComponent(past[past.length - 1].id) + '"' +
+                      ' class="list-group-item list-group-item-action d-flex align-items-center gap-2 px-0 py-2 text-muted">' +
+                      '<span class="badge text-bg-secondary-subtle text-secondary-emphasis flex-shrink-0">ویرایش</span>' +
+                      '<span class="fs-13 flex-grow-1">آخرین جلسه گذشته: ' + esc(jal(past[past.length - 1].date)) + ' (جلسه ' + pn(past[past.length - 1].number) + ')</span>' +
+                      '<i data-lucide="pencil" class="size-4"></i></a>'
+                    : '') +
+                '</div>'
+              : '<p class="fs-13 text-muted mb-0">جلسه‌ای برای این کلاس ساخته نشده است.</p>') +
+            '  </div>' +
+            '</div>';
+    }).join('') : '<div class="col-12 text-muted fs-13">دوره‌ای در این وضعیت ندارید.</div>');
     }).join('');
     icons();
     bindContentButtons();
@@ -219,9 +252,12 @@
         var classes = d.results || [];
         renderClasses(classes);
         renderStats(classes);
+        renderStandaloneClasses(d.standalone_classes || []);
       })
       .catch(function (e) {
         var $box = document.getElementById('td-classes');
+        var standalone = document.getElementById('td-standalone-classes');
+        if (standalone) standalone.textContent = 'دریافت کلاس‌ها انجام نشد.';
         if ($box) $box.innerHTML = '<div class="col-12"><div class="pen-empty text-danger">' + esc(e.message) + '</div></div>';
       });
 

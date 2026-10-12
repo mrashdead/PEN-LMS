@@ -114,8 +114,8 @@ class TimesheetEntry(DomainModel):
     """
     یک روز کاری یک کاربر — ورود/خروج و مدت کارکرد.
 
-    یک ردیف در روز برای هر کاربر مجاز است (unique partial index) تا
-    ثبت دوباره‌ی همان روز امکان‌پذیر بماند ولی دو ردیف باز هم‌زمان نباشد.
+    چند نوبت در روز مجاز است؛ سرویس ساعت‌زنی از ایجاد هم‌زمان چند نوبت باز
+    جلوگیری می‌کند و ثبت دستی برای هر مدرس می‌تواند چند نوبت بسازد.
     ساعت‌ها در ستون‌های زمانی جداگانه ذخیره می‌شوند تا مدت کارکرد در SQL
     محاسبه شود (گزارش‌گیری در حجم بالا).
     """
@@ -164,14 +164,6 @@ class TimesheetEntry(DomainModel):
         verbose_name_plural = "Timesheet Entries (ساعت‌های کاری)"
         ordering = ("-work_date", "-check_in")
         constraints = [
-            # یک ردیفِ زنده به ازای هر (کاربر، تاریخ، نوع) — ثبت مجددِ همان
-            # روز بعد از حذف نرم باید مجاز باشد (B5).
-            models.UniqueConstraint(
-                fields=["user", "work_date", "kind"],
-                condition=_ALIVE,
-                name="uniq_staff_timesheet_user_date_kind_alive",
-                violation_error_message="برای این کاربر در این روز قبلاً ساعت کاری ثبت شده است.",
-            ),
             models.CheckConstraint(
                 condition=models.Q(check_out__isnull=True)
                 | models.Q(check_out__gt=models.F("check_in")),
@@ -281,6 +273,8 @@ class LeaveRequest(DomainModel):
     )
     leave_type = models.ForeignKey(
         LeaveType, on_delete=models.PROTECT, related_name="requests", db_index=True,
+        null=True, blank=True,
+        help_text="درخواست‌کننده نوع را تعیین نمی‌کند؛ مسئول بررسی هنگام تصمیم آن را ثبت می‌کند.",
     )
     start_date = models.DateField(db_index=True)
     end_date = models.DateField(db_index=True)

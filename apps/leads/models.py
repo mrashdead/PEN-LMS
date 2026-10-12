@@ -3,8 +3,8 @@ from __future__ import annotations
 import uuid
 
 from django.conf import settings
-from django.core.validators import MaxValueValidator
 from django.db import models
+from django.utils import timezone
 
 from apps.core.models import DomainModel
 from apps.education.models import Course, Lesson
@@ -44,7 +44,6 @@ class Lead(DomainModel):
     lesson = models.ForeignKey(Lesson, on_delete=models.SET_NULL, null=True, blank=True, related_name="leads")
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW, db_index=True)
-    assessment_score = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MaxValueValidator(100)])
     assessment_result = models.TextField(blank=True, default="")
     recommendation = models.TextField(blank=True, default="")
 
@@ -66,12 +65,6 @@ class Lead(DomainModel):
             models.Index(fields=("status", "assessment_date")),
             models.Index(fields=("phone", "status")),
         ]
-        constraints = [
-            models.CheckConstraint(
-                condition=models.Q(assessment_score__isnull=True) | models.Q(assessment_score__lte=100),
-                name="leads_score_lte_100",
-            ),
-        ]
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -86,3 +79,28 @@ class Lead(DomainModel):
         if self.status == "scheduled":
             return self.Status.SENT.label
         return self.get_status_display()
+
+
+class LeadAssessment(models.Model):
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name="assessments")
+    assessor = models.ForeignKey(Person, on_delete=models.SET_NULL, null=True, related_name="lead_assessment_history")
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="lead_assessments_recorded")
+    result = models.TextField()
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ("created_at", "pk")
+
+
+class LeadRecommendation(models.Model):
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name="recommendations")
+    assessment = models.ForeignKey(LeadAssessment, on_delete=models.PROTECT, related_name="recommendations")
+    assessor = models.ForeignKey(Person, on_delete=models.SET_NULL, null=True, related_name="lead_recommendations")
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="lead_recommendations_recorded")
+    course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, related_name="lead_recommendation_history")
+    lesson = models.ForeignKey(Lesson, on_delete=models.SET_NULL, null=True, related_name="lead_recommendation_history")
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ("created_at", "pk")

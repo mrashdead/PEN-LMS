@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from django.db.models import Count, Sum
+from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.generics import (
@@ -25,13 +25,17 @@ from apps.playhouse import selectors
 from apps.playhouse.models import (
     PlayhouseConfig,
     PlayhouseCafePreset,
+    PlayhouseCafeOrder,
     PlayhouseInvoice,
     PlayhouseInvoiceItem,
+    PlayhouseMember,
+    PlayhousePayment,
     PlayhouseSession,
 )
 from apps.playhouse.permissions import (
     FINANCE_ROLES,
     IsPlayhouseFinance,
+    IsPlayhouseKitchen,
     IsPlayhouseOperator,
     PRICE_EDITOR_ROLES,
 )
@@ -40,10 +44,18 @@ from apps.playhouse.serializers import (
     CreateInvoiceSerializer,
     CreateSessionSerializer,
     MarkPaymentSerializer,
+    ReversePaymentSerializer,
     PlayhouseConfigSerializer,
     PlayhouseInvoiceSerializer,
     PlayhouseMemberSerializer,
     PlayhouseCafePresetSerializer,
+    UpdatePlayhouseMemberSerializer,
+    CreateCafeOrderSerializer,
+    AddPaymentSerializer,
+    CafeOrderSerializer,
+    KitchenCafeOrderSerializer,
+    PlayhousePaymentSerializer,
+    VoidInvoiceSerializer,
 )
 from apps.playhouse.services import PlayhouseService, PlayhouseServiceError
 
@@ -167,7 +179,10 @@ class SessionListCreateView(CreateAPIView):
             national_code=data.get("national_code", ""),
             student_code=data.get("student_code", ""),
         )
-        return Response({"id": session.pk}, status=status.HTTP_201_CREATED)
+        return Response({
+            "id": session.pk,
+            "temporary_id": str(session.member.temporary_id) if session.member.temporary_id else "",
+        }, status=status.HTTP_201_CREATED)
 
 
 class MemberAutocompleteView(APIView):
@@ -177,6 +192,23 @@ class MemberAutocompleteView(APIView):
     def get(self, request):
         q = request.query_params.get("q", "")
         return Response({"results": selectors.member_and_person_autocomplete(q, limit=25)})
+
+
+class PlayhouseMemberDetailView(GenericAPIView):
+    """PATCH a child's identity; session/timer columns are never written here."""
+
+    permission_classes = [IsPlayhouseOperator]
+    serializer_class = UpdatePlayhouseMemberSerializer
+
+    @_handle
+    def patch(self, request, pk):
+        member = PlayhouseMember.objects.filter(pk=pk).first()
+        if member is None:
+            return Response({"detail": "کودک پیدا نشد."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated = PlayhouseService().update_member(member=member, data=serializer.validated_data)
+        return Response(PlayhouseMemberSerializer(updated).data)
 
 
 class SessionListView(ListAPIView):
@@ -203,6 +235,86 @@ class ActiveSessionsView(ListAPIView):
 
     def get_queryset(self):
         return selectors.active_sessions()
+
+
+class CafeOrderCreateView(GenericAPIView):
+    permission_classes = [IsPlayhouseOperator]
+    serializer_class = CreateCafeOrderSerializer
+
+    @_handle
+    def post(self, request, session_pk):
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        session = PlayhouseSession.objects.filter(pk=session_pk).first()
+        if session is None:
+            return Response({"detail": "مراجعه پیدا نشد."}, status=404)
+        order = PlayhouseService().create_cafe_order(
+            session=session, operator=request.user,
+            items=ser.validated_data["items"],
+            payments=ser.validated_data.get("payments", []),
+            kitchen_note=ser.validated_data.get("kitchen_note", ""),
+        )
+        return Response(CafeOrderSerializer(order).data, status=201)
+
+
+class SessionPaymentsView(GenericAPIView):
+    permission_classes = [IsPlayhouseOperator]
+    serializer_class = AddPaymentSerializer
+
+    @_handle
+    def post(self, request, session_pk):
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        session = PlayhouseSession.objects.filter(pk=session_pk).first()
+        if session is None:
+            return Response({"detail": "مراجعه پیدا نشد."}, status=404)
+        if session.status == PlayhouseSession.Status.FINISHED:
+            roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
+            if not roles & FINANCE_ROLES:
+                return Response({"detail": "ثبت پرداخت پس از پایان مراجعه به دسترسی مالی نیاز دارد."}, status=403)
+        rows = PlayhouseService().add_session_payments(
+            session=session, operator=request.user, payments=ser.validated_data["payments"]
+        )
+        return Response(PlayhousePaymentSerializer(rows, many=True).data, status=201)
+
+
+class KitchenOrdersView(ListAPIView):
+    permission_classes = [IsPlayhouseKitchen]
+    serializer_class = KitchenCafeOrderSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return PlayhouseCafeOrder.objects.filter(
+            status__in=[PlayhouseCafeOrder.Status.NEW, PlayhouseCafeOrder.Status.PREPARING, PlayhouseCafeOrder.Status.READY],
+            created_at__date=timezone.localdate(),
+        ).select_related("session", "session__member", "created_by", "ready_by", "cancelled_by").prefetch_related("items").order_by("created_at")
+
+
+class KitchenOrderStatusView(GenericAPIView):
+    permission_classes = [IsPlayhouseKitchen]
+
+    @_handle
+    def post(self, request, pk):
+        order = PlayhouseCafeOrder.objects.filter(pk=pk).first()
+        if order is None:
+            return Response({"detail": "سفارش پیدا نشد."}, status=404)
+        status_value = request.data.get("status", PlayhouseCafeOrder.Status.READY)
+        order = PlayhouseService().set_cafe_order_status(order=order, operator=request.user, status_value=status_value)
+        return Response(KitchenCafeOrderSerializer(order).data)
+
+
+class CafeOrderCancelView(GenericAPIView):
+    permission_classes = [IsPlayhouseOperator, IsPlayhouseFinance]
+
+    @_handle
+    def post(self, request, pk):
+        order = PlayhouseCafeOrder.objects.filter(pk=pk).first()
+        if order is None:
+            return Response({"detail": "سفارش پیدا نشد."}, status=404)
+        order = PlayhouseService().cancel_cafe_order(
+            order=order, operator=request.user, note=request.data.get("note", "")
+        )
+        return Response(CafeOrderSerializer(order).data)
 
 
 class AttendanceReportView(ListAPIView):
@@ -264,6 +376,10 @@ class InvoiceCreateView(GenericAPIView):
     def post(self, request, session_pk):
         ser = self.get_serializer(data=request.data)
         ser.is_valid(raise_exception=True)
+        if ser.validated_data.get("discount_amount", 0):
+            roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
+            if not roles & FINANCE_ROLES:
+                return Response({"detail": "ثبت تخفیف نیاز به دسترسی مالی دارد."}, status=403)
         session = PlayhouseSession.objects.filter(pk=session_pk).first()
         if session is None:
             return Response({"detail": "نوبت پیدا نشد."}, status=status.HTTP_404_NOT_FOUND)
@@ -273,6 +389,8 @@ class InvoiceCreateView(GenericAPIView):
             cafe_items=ser.validated_data.get("cafe_items", []),
             payment_method=ser.validated_data.get("payment_method", ""),
             tracking_code=ser.validated_data.get("tracking_code", ""),
+            discount_amount=ser.validated_data.get("discount_amount", 0),
+            discount_note=ser.validated_data.get("discount_note", ""),
         )
         return Response(PlayhouseInvoiceSerializer(invoice).data, status=status.HTTP_201_CREATED)
 
@@ -281,7 +399,7 @@ class InvoiceDetailView(RetrieveAPIView):
     """GET — an invoice with its items and totals."""
 
     permission_classes = [IsPlayhouseOperator]
-    queryset = PlayhouseInvoice.objects.select_related("session", "member")
+    queryset = PlayhouseInvoice.objects.select_related("session", "member").prefetch_related("session__payments", "items")
     serializer_class = PlayhouseInvoiceSerializer
     lookup_url_kwarg = "pk"
 
@@ -309,6 +427,40 @@ class InvoiceMarkPaidView(GenericAPIView):
         return Response(PlayhouseInvoiceSerializer(invoice).data)
 
 
+class InvoiceVoidView(GenericAPIView):
+    permission_classes = [IsPlayhouseOperator, IsPlayhouseFinance]
+    serializer_class = VoidInvoiceSerializer
+
+    @_handle
+    def post(self, request, pk):
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        invoice = PlayhouseInvoice.objects.filter(pk=pk).first()
+        if invoice is None:
+            return Response({"detail": "فاکتور پیدا نشد."}, status=404)
+        invoice = PlayhouseService().void_invoice(
+            invoice=invoice, operator=request.user, note=ser.validated_data["note"]
+        )
+        return Response(PlayhouseInvoiceSerializer(invoice).data)
+
+
+class PaymentReverseView(GenericAPIView):
+    permission_classes = [IsPlayhouseOperator, IsPlayhouseFinance]
+    serializer_class = ReversePaymentSerializer
+
+    @_handle
+    def post(self, request, pk):
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        payment = PlayhousePayment.objects.filter(pk=pk).first()
+        if payment is None:
+            return Response({"detail": "پرداخت پیدا نشد."}, status=404)
+        payment = PlayhouseService().reverse_payment(
+            payment=payment, operator=request.user, note=ser.validated_data["note"]
+        )
+        return Response(PlayhousePaymentSerializer(payment).data)
+
+
 class FinanceReportView(GenericAPIView):
     """
     GET — financial report for the playhouse (گزارش مالی).
@@ -322,70 +474,76 @@ class FinanceReportView(GenericAPIView):
 
     def get(self, request):
         row = self.request.query_params
-        today = timezone.localdate()
-        start = end = None
+        from apps.core.report_dates import ReportDateError, ReportRange
         try:
-            if row.get("from") and row.get("to"):
-                start = date.fromisoformat(row["from"])
-                end = date.fromisoformat(row["to"])
-            elif row.get("period") == "weekly":
-                start = today - timedelta(days=6)
-                end = today
-            elif row.get("period") == "monthly":
-                start = today.replace(day=1)
-                end = today
-            else:  # default daily
-                start = end = today
-        except ValueError:
-            return Response({"detail": "بازه تاریخ نامعتبر."}, status=400)
-        if start > end:
-            return Response({"detail": "تاریخ شروع بازه نمی‌تواند بعد از تاریخ پایان باشد."}, status=400)
+            bounds = ReportRange.from_query(row)
+        except ReportDateError as exc:
+            return Response({"detail": str(exc)}, status=400)
+        start, end = bounds.start, bounds.end
 
-        base = PlayhouseInvoice.objects.filter(paid_at__date__range=[start, end])
-        time_agg = base.aggregate(invoices=Count("id"), time_total=Sum("time_amount"))
+        base = PlayhouseInvoice.objects.filter(is_voided=False).filter(
+            Q(paid_at__gte=bounds.start_at, paid_at__lt=bounds.end_before)
+            | Q(session__payments__created_at__gte=bounds.start_at, session__payments__created_at__lt=bounds.end_before, session__payments__reversed_at__isnull=True)
+        ).distinct()
+        invoices = list(base.select_related("session", "member", "operator").prefetch_related(
+            "items", "session__payments"
+        ).order_by("-created_at"))
+        time_total = sum((invoice.time_amount for invoice in invoices), 0)
         items_total = (
             PlayhouseInvoiceItem.objects.filter(
-                invoice__paid_at__date__range=[start, end]
-            ).aggregate(total=Sum("price"))["total"]
+                invoice__in=base,
+            ).aggregate(total=Sum(F("price") * F("quantity")))["total"]
             or 0
         )
-        by_method = (
-            base.values("payment_method")
-            .annotate(count=Count("id"), total=Sum("time_amount"))
-            .order_by()
-        )
-        invoices = selectors.invoices_between(start, end).filter(
-            paid_at__date__range=[start, end]
-        )
+        payment_rows = list(PlayhousePayment.objects.filter(
+            created_at__gte=bounds.start_at, created_at__lt=bounds.end_before, reversed_at__isnull=True
+        ).select_related("session", "created_by"))
+        payment_totals = {}
+        period_paid_by_session = {}
+        period_last_payment_by_session = {}
+        for payment in payment_rows:
+            row = payment_totals.setdefault(payment.method, {"count": 0, "total": 0})
+            row["count"] += 1
+            row["total"] += payment.amount
+            period_paid_by_session[payment.session_id] = period_paid_by_session.get(payment.session_id, 0) + payment.amount
+            prior = period_last_payment_by_session.get(payment.session_id)
+            if prior is None or payment.created_at > prior:
+                period_last_payment_by_session[payment.session_id] = payment.created_at
+        legacy_paid = list(PlayhouseInvoice.objects.filter(
+            is_voided=False, is_paid=True, paid_at__gte=bounds.start_at, paid_at__lt=bounds.end_before,
+            session__payments__isnull=True,
+        ).select_related("session"))
+        legacy_total = sum((invoice.total_amount for invoice in legacy_paid), 0)
+        received_total = sum((payment.amount for payment in payment_rows), 0) + legacy_total
         cafe_sales = (
             PlayhouseInvoiceItem.objects.filter(
-                invoice__paid_at__date__range=[start, end]
+                invoice__in=base,
             )
             .values("name")
-            .annotate(quantity=Count("id"), total=Sum("price"))
-            .order_by("-quantity", "name")
+            .annotate(quantity_sold=Sum("quantity"), total=Sum(F("price") * F("quantity")))
+            .order_by("-quantity_sold", "name")
         )
         return Response(
             {
-                "period": {"from": start.isoformat(), "to": end.isoformat()},
+                "period": {"from": start.isoformat(), "to": end.isoformat(), "start_at": bounds.start_at.isoformat(), "end_before": bounds.end_before.isoformat(), "timezone": str(timezone.get_default_timezone())},
                 "summary": {
-                    "invoices": time_agg["invoices"] or 0,
-                    "time_total": time_agg["time_total"] or 0,
+                    "invoices": len(invoices),
+                    "time_total": time_total,
                     "items_total": items_total,
-                    "grand_total": (time_agg["time_total"] or 0) + items_total,
+                    "grand_total": received_total,
                 },
                 "by_method": [
                     {
-                        "method": m["payment_method"] or "unpaid",
-                        "count": m["count"],
-                        "total": m["total"] or 0,
+                        "method": method,
+                        "count": values["count"],
+                        "total": values["total"],
                     }
-                    for m in by_method
+                    for method, values in sorted(payment_totals.items())
                 ],
                 "cafe_item_sales": [
                     {
                         "name": item["name"],
-                        "quantity": item["quantity"],
+                        "quantity": item["quantity_sold"],
                         "total": item["total"] or 0,
                     }
                     for item in cafe_sales
@@ -401,14 +559,23 @@ class FinanceReportView(GenericAPIView):
                         "operator": i.operator.get_full_name() or i.operator.get_username(),
                         "entry_at": i.session.entry_at,
                         "exit_at": i.session.exit_at,
-                        "method": i.payment_method,
+                        "method": "split" if len({p.method for p in i.session.payments.all() if not p.is_reversed}) > 1 else i.payment_method,
                         "tracking": i.tracking_code,
                         "time_amount": i.time_amount,
                         "cafe_total": i.cafe_total,
                         "total": i.total_amount,
-                        "paid_at": i.paid_at,
+                        "discount_amount": i.discount_amount,
+                        "discount_note": i.discount_note,
+                        "paid_amount": i.paid_amount,
+                        "balance_amount": i.balance_amount,
+                        "period_paid_amount": period_paid_by_session.get(i.session_id, i.total_amount if i in legacy_paid else 0),
+                        "paid_at": period_last_payment_by_session.get(i.session_id, i.paid_at),
+                        "payments": [
+                            {"method": p.method, "amount": p.amount, "tracking_code": p.tracking_code}
+                            for p in i.session.payments.filter(reversed_at__isnull=True)
+                        ],
                         "items": [
-                            {"name": item.name, "price": item.price}
+                            {"name": item.name, "price": item.price, "quantity": item.quantity, "line_total": item.line_total}
                             for item in i.items.all()
                         ],
                     }

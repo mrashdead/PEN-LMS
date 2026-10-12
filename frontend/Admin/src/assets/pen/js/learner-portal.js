@@ -144,7 +144,7 @@
     var changed = rows.some(function (r) { return Number(r.session.schedule_version || 1) > 1; });
     $scheduleUpdated.textContent = changed ? 'برنامهٔ به‌روزشده' : '';
     $schedule.innerHTML = '<div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="table-light"><tr>' +
-      '<th>تاریخ</th><th>موضوع درس</th><th>ساعت</th><th>محل</th><th>آخرین تغییر</th><th>ضمیمه</th></tr></thead><tbody>' +
+      '<th scope="col">تاریخ</th><th scope="col">موضوع درس</th><th scope="col">استاد</th><th scope="col">ساعت</th><th scope="col">محل</th><th scope="col">آخرین تغییر</th><th scope="col">ضمیمه</th></tr></thead><tbody>' +
       rows.map(function (r) {
         var s = r.session;
         var materials = (s.materials || []).map(function (m) {
@@ -158,6 +158,7 @@
         return '<tr><td class="fw-semibold" dir="ltr">' + esc(r.day) + '</td>' +
           '<td><div class="fw-semibold">' + esc(s.topic || s.title || 'موضوع جلسه ثبت نشده') + '</div>' +
           (Number(s.schedule_version || 1) > 1 ? '<span class="badge bg-warning-subtle text-warning mt-1">برنامه تغییر کرده</span>' : '') + '</td>' +
+          '<td>' + esc(s.teacher || 'مدرس تعیین نشده') + '</td>' +
           '<td dir="ltr">' + pn(s.start || '') + '–' + pn(s.end || '') + '</td>' +
           '<td>' + esc(s.location || '—') + '</td><td class="fs-13 text-muted">' + esc(changedLabel) + '</td><td>' + materials + '</td></tr>';
       }).join('') + '</tbody></table></div>';

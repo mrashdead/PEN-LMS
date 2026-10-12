@@ -279,6 +279,16 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
         </li>
         {% endif %}
+        {% if sidebar_visibility.playhouse_kitchen %}
+        <li class="nav-item">
+          <a href="{% url 'playhouse-kitchen' %}" title="سفارش‌های کافه"
+             class="nav-link{% if urlname == 'playhouse-kitchen' %} active{% endif %}"
+             {% if urlname == 'playhouse-kitchen' %}aria-current="page"{% endif %}>
+            <span class="icons"><i data-lucide="chef-hat"></i></span>
+            <span class="content">سفارش‌های کافه</span>
+          </a>
+        </li>
+        {% endif %}
         {% if sidebar_visibility.playhouse_finance %}
         <li class="nav-item">
           <a href="{% url 'playhouse-finance' %}" title="گزارش مالی خانه بازی"

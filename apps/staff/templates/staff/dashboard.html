@@ -3,7 +3,7 @@
 {% block title %}کارکرد و مرخصی{% endblock %}
 {% block page_heading %}{% include "partials/page-heading.html" with title="کارکرد و مرخصی" section="کارکنان" %}{% endblock %}
 {% block content %}
-<main class="staff-page" id="staff-app" data-reviewer="{{ staff_is_reviewer|yesno:'true,false' }}">
+<main class="staff-page" id="staff-app" data-reviewer="{{ staff_is_reviewer|yesno:'true,false' }}" data-user-id="{{ staff_user_id }}">
   <div id="staff-message" class="alert" role="status" aria-live="polite" hidden></div>
 
   <section class="staff-create" aria-labelledby="staff-create-title">
@@ -23,10 +23,23 @@
       </div>
       <button class="btn btn-primary" id="clock-action" type="button" disabled>ثبت ورود</button>
     </div>
+    {% if staff_is_reviewer %}
+    <form id="manual-timesheet-form" class="staff-form-panel" hidden>
+      <h3>ثبت دستی ساعت مدرس</h3>
+      <input id="manual-timesheet-id" type="hidden">
+      <div class="staff-form-grid">
+        <div><label class="form-label" for="manual-teacher">مدرس</label><select id="manual-teacher" class="form-select" required><option value="">انتخاب مدرس</option></select></div>
+        <div><label class="form-label" for="manual-date">تاریخ کاری</label><input id="manual-date" class="form-control" data-jalali dir="ltr" autocomplete="off" required placeholder="سال/ماه/روز"></div>
+        <div><label class="form-label" for="manual-check-in">ساعت ورود</label><input id="manual-check-in" class="form-control" type="time" step="60" required></div>
+        <div><label class="form-label" for="manual-check-out">ساعت خروج <span class="staff-optional">برای نوبت ناقص خالی بماند</span></label><input id="manual-check-out" class="form-control" type="time" step="60"></div>
+        <div class="staff-form-wide"><label class="form-label" for="manual-note">توضیح <span class="staff-optional">اختیاری</span></label><input id="manual-note" class="form-control" maxlength="500"></div>
+      </div>
+      <div class="staff-form-footer"><button id="manual-timesheet-submit" class="btn btn-primary" type="submit">ثبت نوبت</button><button id="manual-timesheet-cancel" class="btn btn-outline-secondary" type="button">پاک‌کردن فرم</button></div>
+    </form>
+    {% endif %}
     <div id="staff-leave-panel" class="staff-form-panel" role="tabpanel" aria-labelledby="staff-leave-tab" hidden>
       <form id="leave-form">
         <div class="staff-form-grid">
-          <div><label class="form-label" for="leave-type">نوع مرخصی</label><select class="form-select" id="leave-type" required><option value="">انتخاب کنید</option></select></div>
           <div><label class="form-label" for="leave-unit">مدت مرخصی</label><select class="form-select" id="leave-unit"><option value="day">روز کامل</option><option value="half_day">نیم‌روز</option><option value="hour">ساعتی</option></select></div>
           <div id="leave-start-field"><label class="form-label" id="leave-start-label" for="leave-start">از تاریخ</label><input class="form-control" id="leave-start" data-jalali dir="ltr" autocomplete="off" required placeholder="سال/ماه/روز"></div>
           <div id="leave-end-field"><label class="form-label" for="leave-end">تا تاریخ</label><input class="form-control" id="leave-end" data-jalali dir="ltr" autocomplete="off" required placeholder="سال/ماه/روز"></div>
@@ -53,7 +66,7 @@
   </section>
 
   <section class="staff-history" aria-labelledby="staff-history-title">
-    <div class="staff-section-heading"><div><h2 id="staff-history-title">سوابق و درخواست‌ها</h2><p>جزئیات و وضعیت ثبت‌های خود را ببینید.</p></div></div>
+    <div class="staff-section-heading"><div><h2 id="staff-history-title">سوابق و درخواست‌ها</h2><p>جزئیات و وضعیت ثبت‌های خود را ببینید.</p></div>{% if staff_is_reviewer %}<button id="manual-timesheet-open" type="button" class="btn btn-outline-primary">ثبت ساعت مدرس</button>{% endif %}</div>
     <div class="staff-history-toolbar">
       <div class="staff-history-tabs" role="tablist" aria-label="نوع سوابق">
         <button id="staff-timesheets-tab" class="is-active" type="button" role="tab" aria-selected="true" aria-controls="staff-timesheets-panel">ساعت‌های کاری</button>
@@ -91,10 +104,19 @@
     </div>
   </form>
 </dialog>
+<dialog id="staff-leave-review-dialog" class="staff-reject-dialog" aria-labelledby="staff-leave-review-title">
+  <form id="staff-leave-review-form">
+    <h2 id="staff-leave-review-title">بررسی درخواست مرخصی</h2>
+    <label class="form-label" for="staff-review-leave-type">نوع مرخصی</label>
+    <select id="staff-review-leave-type" class="form-select" required><option value="">انتخاب نوع مرخصی</option></select>
+    <div class="staff-reject-actions"><button id="staff-leave-review-cancel" class="btn btn-outline-secondary" type="button">انصراف</button><button class="btn btn-primary" type="submit">ادامه</button></div>
+  </form>
+</dialog>
 <script>
 (() => {
   const root = document.getElementById('staff-app');
   const reviewer = root.dataset.reviewer === 'true';
+  const currentUserId = root.dataset.userId;
   const message = document.getElementById('staff-message');
   const csrf = document.cookie.split('; ').find(item => item.startsWith('csrftoken='))?.split('=')[1] || '';
   const api = async (path, options = {}) => {
@@ -142,6 +164,7 @@
       if (item.start_date === item.end_date) metadata.push(['تاریخ', item.start_date]);
       else metadata.push(['از تاریخ', item.start_date], ['تا تاریخ', item.end_date]);
       metadata.push(['واحد', item.unit_display], ['مدت', item.duration_display]);
+      if (item.reviewed_by_display) metadata.push(['بررسی‌کننده', item.reviewed_by_display]);
       if (item.start_time && item.end_time) {
         metadata.push(['از ساعت', item.start_time.slice(0, 5)], ['تا ساعت', item.end_time.slice(0, 5)]);
       }
@@ -220,12 +243,84 @@
   historyTabs.forEach((name, index) => document.getElementById(`${name}-tab`).addEventListener('click', () =>
     selectTab(historyTabs.map(id => document.getElementById(`${id}-tab`)), historyTabs.map(id => document.getElementById(`${id}-panel`)), index)));
   const dateFilters = () => { const params = new URLSearchParams(); if (document.getElementById('staff-from').value) params.set('from', document.getElementById('staff-from').value); if (document.getElementById('staff-to').value) params.set('to', document.getElementById('staff-to').value); return params.toString(); };
+  const manualForm = document.getElementById('manual-timesheet-form');
+  const manualTime = value => {
+    if (!value) return '';
+    const parts = new Intl.DateTimeFormat('en-GB', {timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).formatToParts(new Date(value));
+    return `${parts.find(part => part.type === 'hour').value}:${parts.find(part => part.type === 'minute').value}`;
+  };
+  const editManualTimesheet = item => {
+    if (!manualForm) return;
+    manualForm.hidden = false;
+    document.getElementById('manual-timesheet-id').value = item.id;
+    document.getElementById('manual-teacher').value = item.user;
+    document.getElementById('manual-date').value = item.work_date;
+    document.getElementById('manual-check-in').value = manualTime(item.check_in);
+    document.getElementById('manual-check-out').value = manualTime(item.check_out);
+    document.getElementById('manual-note').value = item.note || '';
+    document.getElementById('manual-timesheet-submit').textContent = 'ذخیره تغییرات';
+    manualForm.scrollIntoView({behavior: 'smooth', block: 'center'});
+  };
+  if (reviewer && manualForm) {
+    document.getElementById('manual-timesheet-open').addEventListener('click', () => {
+      manualForm.hidden = false;
+      manualForm.scrollIntoView({behavior: 'smooth', block: 'center'});
+    });
+    document.getElementById('manual-timesheet-cancel').addEventListener('click', () => {
+      manualForm.reset();
+      document.getElementById('manual-timesheet-id').value = '';
+      document.getElementById('manual-timesheet-submit').textContent = 'ثبت نوبت';
+    });
+    manualForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const id = document.getElementById('manual-timesheet-id').value;
+      const payload = {
+        user: document.getElementById('manual-teacher').value,
+        work_date: document.getElementById('manual-date').value,
+        check_in_time: document.getElementById('manual-check-in').value,
+        check_out_time: document.getElementById('manual-check-out').value || null,
+        note: document.getElementById('manual-note').value,
+      };
+      try {
+        await api(id ? `timesheets/${id}/` : 'timesheets/', {method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload)});
+        show(id ? 'ساعت کاری به‌روزرسانی شد.' : 'ساعت کاری ثبت شد.');
+        manualForm.reset();
+        document.getElementById('manual-timesheet-id').value = '';
+        document.getElementById('manual-timesheet-submit').textContent = 'ثبت نوبت';
+        await refresh();
+      } catch (error) { show(error.message, true); }
+    });
+  }
   const leaveUnit = document.getElementById('leave-unit');
   const leaveStart = document.getElementById('leave-start');
   const leaveEnd = document.getElementById('leave-end');
   const leaveTimeFields = document.getElementById('leave-time-fields');
   const leaveStartTime = document.getElementById('leave-start-time');
   const leaveEndTime = document.getElementById('leave-end-time');
+  const leaveReviewDialog = document.getElementById('staff-leave-review-dialog');
+  let leaveReviewResolve = null;
+  let leaveReviewTrigger = null;
+  let leaveReviewType = '';
+  const chooseLeaveType = trigger => new Promise(resolve => {
+    leaveReviewResolve = resolve;
+    leaveReviewTrigger = trigger;
+    document.getElementById('staff-leave-review-form').reset();
+    leaveReviewDialog.showModal();
+    document.getElementById('staff-review-leave-type').focus();
+  });
+  document.getElementById('staff-leave-review-form').addEventListener('submit', event => {
+    event.preventDefault();
+    leaveReviewType = document.getElementById('staff-review-leave-type').value;
+    if (leaveReviewResolve) leaveReviewResolve(leaveReviewType || null);
+    leaveReviewResolve = null;
+    leaveReviewDialog.close();
+  });
+  document.getElementById('staff-leave-review-cancel').addEventListener('click', () => {
+    if (leaveReviewResolve) leaveReviewResolve(null);
+    leaveReviewResolve = null;
+    leaveReviewDialog.close();
+  });
+  leaveReviewDialog.addEventListener('close', () => { leaveReviewTrigger?.focus(); leaveReviewTrigger = null; });
   const updateLeaveUnitFields = () => {
     const hourly = leaveUnit.value === 'hour';
     document.getElementById('leave-end-field').hidden = hourly;
@@ -255,13 +350,22 @@
       details.setAttribute('aria-label', `مشاهده جزئیات ${detailTitles[reviewType]} ${summary}`);
       details.addEventListener('click', () => showDetails(item, reviewType, details));
       actions.append(details);
-      if (reviewer && item.status === 'pending') {
+      if (reviewer && item.status === 'pending' && item.user !== currentUserId) {
+        if (reviewType === 'timesheets') {
+          const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'btn btn-sm btn-outline-primary me-1'; edit.textContent = 'ویرایش ساعت';
+          edit.addEventListener('click', () => editManualTimesheet(item)); actions.append(edit);
+        }
         for (const [decision, label] of [['approved', 'تأیید'], ['rejected', 'رد']]) {
           const button = document.createElement('button'); button.type = 'button'; button.className = `btn btn-sm ${decision === 'approved' ? 'btn-outline-primary' : 'btn-link'} me-1`; button.textContent = label;
           button.addEventListener('click', async () => {
+            let selectedType = '';
+            if (reviewType === 'leave-requests') {
+              selectedType = await chooseLeaveType(button);
+              if (!selectedType) return;
+            }
             const reason = decision === 'rejected' ? await requestRejectionReason(button) : '';
             if (decision === 'rejected' && reason === null) return;
-            try { await api(`${reviewType}/${item.id}/review/`, {method: 'POST', body: JSON.stringify({decision, rejection_reason: reason || ''})}); await refresh(); } catch (error) { show(error.message, true); }
+            try { await api(`${reviewType}/${item.id}/review/`, {method: 'POST', body: JSON.stringify({decision, rejection_reason: reason || '', ...(selectedType ? {leave_type: selectedType} : {})})}); await refresh(); } catch (error) { show(error.message, true); }
           }); actions.append(button);
         }
       }
@@ -288,8 +392,10 @@
       } else if (completeEntry) {
         clockState.textContent = 'ساعت کاری امروز کامل است';
         clockSummary.textContent = `ورود ${formatClockTime(completeEntry.check_in)} و خروج ${formatClockTime(completeEntry.check_out)} ثبت شد. مدت کار: ${formatDuration(completeEntry.duration_minutes)}.`;
-        clockAction.hidden = true;
-        clockAction.disabled = true;
+        clockAction.textContent = 'ثبت نوبت جدید';
+        clockAction.dataset.action = 'in';
+        clockAction.hidden = false;
+        clockAction.disabled = false;
       } else {
         clockState.textContent = 'ورود امروز ثبت نشده است';
         clockSummary.textContent = 'برای شروع کار، ورودتان را ثبت کنید.';
@@ -302,7 +408,7 @@
         rows('timesheets/', 'timesheets', (tr, item) => { if (reviewer) cell(tr, item.user_display || item.user); cell(tr, item.work_date); cell(tr, formatClockTime(item.check_in)); cell(tr, formatClockTime(item.check_out)); cell(tr, formatDuration(item.duration_minutes)); cell(tr, item.status_display || item.status); }, 'timesheets'),
         rows('leave-requests/', 'leaves', (tr, item) => {
           if (reviewer) cell(tr, item.user_display);
-          cell(tr, item.leave_type_name);
+          cell(tr, item.leave_type_name || 'در بررسی تعیین می‌شود');
           const range = cell(tr, '');
           range.className = 'staff-leave-range';
           const dates = document.createElement('span');
@@ -339,9 +445,17 @@
     catch (error) { show(error.message, true); }
   };
   document.getElementById('staff-refresh').onclick = refresh;
-  document.getElementById('leave-form').onsubmit = async event => { event.preventDefault(); try { const hourly = leaveUnit.value === 'hour'; await api('leave-requests/', {method: 'POST', body: JSON.stringify({leave_type: document.getElementById('leave-type').value, start_date: leaveStart.value, end_date: hourly ? leaveStart.value : leaveEnd.value, unit: leaveUnit.value, start_time: hourly ? leaveStartTime.value : null, end_time: hourly ? leaveEndTime.value : null, description: document.getElementById('leave-description').value})}); show('درخواست مرخصی ثبت شد.'); event.target.reset(); updateLeaveUnitFields(); selectTab(entryTabs.map(id => document.getElementById(`${id}-tab`)), entryTabs.map(id => document.getElementById(`${id}-panel`)), 0); await refresh(); } catch (error) { show(error.message, true); } };
+  document.getElementById('leave-form').onsubmit = async event => { event.preventDefault(); try { const hourly = leaveUnit.value === 'hour'; await api('leave-requests/', {method: 'POST', body: JSON.stringify({start_date: leaveStart.value, end_date: hourly ? leaveStart.value : leaveEnd.value, unit: leaveUnit.value, start_time: hourly ? leaveStartTime.value : null, end_time: hourly ? leaveEndTime.value : null, description: document.getElementById('leave-description').value})}); show('درخواست مرخصی ثبت شد.'); event.target.reset(); updateLeaveUnitFields(); selectTab(entryTabs.map(id => document.getElementById(`${id}-tab`)), entryTabs.map(id => document.getElementById(`${id}-panel`)), 0); await refresh(); } catch (error) { show(error.message, true); } };
   document.getElementById('work-form').onsubmit = async event => { event.preventDefault(); try { await api('work-reports/', {method: 'POST', body: JSON.stringify({report_date: document.getElementById('work-date').value, title: document.getElementById('work-title').value, description: document.getElementById('work-description').value, spent_minutes: document.getElementById('work-minutes').value || null})}); show('گزارش کاری ثبت شد.'); event.target.reset(); selectTab(entryTabs.map(id => document.getElementById(`${id}-tab`)), entryTabs.map(id => document.getElementById(`${id}-panel`)), 0); await refresh(); } catch (error) { show(error.message, true); } };
-  api('leave-types/').then(body => { const select = document.getElementById('leave-type'); (body.results || body).forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; select.append(option); }); }).catch(error => show(error.message, true));
+  if (reviewer) {
+    Promise.all([api('leave-types/'), api('teachers/')]).then(([typesBody, teachersBody]) => {
+      const types = Array.isArray(typesBody) ? typesBody : typesBody.results || [];
+      const select = document.getElementById('staff-review-leave-type');
+      types.forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; select.append(option); });
+      const teacherSelect = document.getElementById('manual-teacher');
+      (Array.isArray(teachersBody) ? teachersBody : teachersBody.results || []).forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.display_name; teacherSelect.append(option); });
+    }).catch(error => show(error.message, true));
+  }
   refresh();
 })();
 </script>

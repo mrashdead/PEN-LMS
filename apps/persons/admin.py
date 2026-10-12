@@ -108,7 +108,7 @@ class PersonAdmin(JalaliAdminMixin, admin.ModelAdmin):
     fieldsets = (
         ("هویت", {"fields": ("national_code", "first_name", "last_name", "father_name", "birth_date", "gender")}),
         ("تماس", {"fields": ("mobile", "email", "phone", "address", "postal_code")}),
-        ("نوع", {"fields": ("person_type",)}),
+        ("نوع", {"fields": ("person_type", "can_assess_leads")}),
         ("دانش‌آموز", {"fields": ("student_code",), "classes": ("collapse",)}),
         ("کارمند / معلم", {"fields": ("employee_code", "department", "job_title", "hire_date"), "classes": ("collapse",)}),
         ("سیستمی", {"fields": ("user", "is_active", "photo", "registered_by", "created_at_jalali_display", "updated_at_jalali_display")}),

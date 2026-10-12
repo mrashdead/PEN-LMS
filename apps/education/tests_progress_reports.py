@@ -91,6 +91,27 @@ class ProgressReportTests(TestCase):
         self.assertEqual(self.client.post("/api/education/progress-reports/", self.payload, format="json").status_code, 400)
         self.assertFalse(StudentProgressReport.objects.exists())
 
+    def test_iso_today_from_form_is_not_reinterpreted_as_jalali(self):
+        report = self.create_report(period_start=self.today.isoformat(), period_end=self.today.isoformat())
+        stored = StudentProgressReport.objects.get(pk=report["id"])
+        self.assertEqual(stored.period_start, self.today)
+        self.assertEqual(stored.period_end, self.today)
+
+    def test_manual_times_survive_edit_and_invalid_times_are_rejected(self):
+        yesterday = self.today - timedelta(days=1)
+        report = self.create_report(period_start=self.jalali(yesterday), period_end=self.jalali(yesterday), start_time="09:00", end_time="10:00")
+        url = f'/api/education/progress-reports/{report["id"]}/'
+        edited = self.client.patch(url, {"title": "اصلاح عنوان"}, format="json")
+        self.assertEqual(edited.status_code, 200, edited.data)
+        self.assertEqual(edited.data["start_time"], "09:00:00")
+        self.assertEqual(edited.data["period_start"], report["period_start"])
+        invalid = self.client.patch(url, {"end_time": "08:00"}, format="json")
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("بعد از شروع", str(invalid.data))
+        invalid = self.client.patch(url, {"end_time": "25:00"}, format="json")
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("ساعت", str(invalid.data))
+
     def test_other_teacher_cannot_read_edit_or_send_draft(self):
         report = self.create_report()
         stranger = UserFactory(username="progress-draft-stranger", roles=["teacher"])
@@ -162,6 +183,50 @@ class ProgressReportTests(TestCase):
         link.valid_to = self.today - timedelta(days=1)
         link.save()
         self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_class_report_is_delivered_to_each_active_student_with_independent_receipts(self):
+        second_learner = UserFactory(username="progress-student-two", roles=["student"])
+        second_student = make_person(user=second_learner, first_name="نگار", person_type="student")
+        OfferingEnrollment.objects.create(offering=self.offering, student=second_student)
+        payload = {key: value for key, value in self.payload.items() if key != "student"}
+
+        response = self.client.post("/api/education/progress-reports/class/", payload, format="json")
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["count"], 2)
+        reports = StudentProgressReport.objects.filter(class_report_id=response.data["class_report_id"])
+        self.assertEqual(reports.count(), 2)
+        self.assertEqual(set(reports.values_list("student_id", flat=True)), {self.student.pk, second_student.pk})
+        first_report = reports.get(student=self.student)
+        second_report = reports.get(student=second_student)
+        self.assertEqual(first_report.status, StudentProgressReport.Status.SENT)
+        class_history = self.client.get(
+            f"/api/education/progress-reports/class/?offering={self.offering.pk}",
+        )
+        self.assertEqual(class_history.status_code, 200, class_history.data)
+        self.assertEqual(len(self.rows(class_history)), 1)
+        self.assertEqual(self.rows(class_history)[0]["recipient_count"], 2)
+        self.assertEqual(self.rows(class_history)[0]["read_count"], 0)
+
+        self.client.force_authenticate(self.learner)
+        first_listing = self.client.get("/api/education/portal/progress-reports/")
+        self.assertEqual(first_listing.status_code, 200)
+        self.assertTrue(self.rows(first_listing)[0]["is_class_report"])
+        first_receipt = self.client.post(
+            f"/api/education/portal/progress-reports/{first_report.pk}/read/", {}, format="json",
+        )
+        self.assertEqual(first_receipt.status_code, 200)
+        self.client.force_authenticate(self.teacher)
+        updated_class_history = self.client.get(
+            f"/api/education/progress-reports/class/?offering={self.offering.pk}",
+        )
+        self.assertEqual(self.rows(updated_class_history)[0]["read_count"], 1)
+
+        self.client.force_authenticate(second_learner)
+        second_listing = self.client.get("/api/education/portal/progress-reports/")
+        self.assertEqual(second_listing.status_code, 200)
+        self.assertIsNone(self.rows(second_listing)[0]["read_at"])
+        self.assertEqual(self.rows(second_listing)[0]["id"], str(second_report.pk))
 
     def test_teacher_page_and_sidebar_are_available_and_student_page_is_denied(self):
         self.client.force_login(self.teacher)

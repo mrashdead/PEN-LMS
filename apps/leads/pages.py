@@ -49,7 +49,8 @@ class LeadTeacherAssessmentsPage(LoginRequiredMixin, TemplateView):
         if not request.user.is_authenticated:
             return super().dispatch(request, *args, **kwargs)
         roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
-        if "teacher" not in roles:
+        person = getattr(request.user, "person", None)
+        if "teacher" not in roles or not person or not person.can_assess_leads:
             raise Http404
         return super().dispatch(request, *args, **kwargs)
 

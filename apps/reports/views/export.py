@@ -1,9 +1,8 @@
 """Excel export adapter for the reports read model."""
 from __future__ import annotations
 
-from datetime import datetime
-
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -35,14 +34,23 @@ class ReportsExportView(APIView):
             workflow_rows = None
             if report in {"all", "workflow"}:
                 workflow_query = request.query_params.copy()
-                if not any(workflow_query.get(key) for key in ("from", "to", "period", "date_from", "date_to")):
-                    workflow_query["from"] = filters.start.isoformat()
-                    workflow_query["to"] = filters.end.isoformat()
+                workflow_query["from"] = filters.start.isoformat()
+                workflow_query["to"] = filters.end.isoformat()
                 workflow_rows = WorkflowRequestReportSerializer(
                     workflow_report_queryset(workflow_query, user=request.user),
                     many=True,
                 ).data
             sheets = export_rows(data, report, workflow_rows=workflow_rows)
+            bounds = filters.as_dict()
+            sheets.insert(0, ("بازه گزارش", ["فیلتر", "مقدار"], [
+                ["از تاریخ شمسی", bounds["from_jalali"]],
+                ["تا تاریخ شمسی", bounds["to_jalali"]],
+                ["ساعت شروع", bounds["start_time"] or "تمام روز"],
+                ["ساعت پایان (مرز پایان بازه)", bounds["end_time"] or "تمام روز"],
+                ["منطقه زمانی", bounds["timezone"]],
+                ["شروع بازه", bounds["start_at"]],
+                ["پایان بازه (غیرشامل)", bounds["end_before"]],
+            ]))
         except ReportFilterError as exc:
             return Response({"detail": str(exc)}, status=400)
 
@@ -98,7 +106,7 @@ class ReportsExportView(APIView):
         response = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        stamp = datetime.now().strftime("%Y%m%d-%H%M")
+        stamp = timezone.localtime(timezone=timezone.get_default_timezone()).strftime("%Y%m%d-%H%M")
         response["Content-Disposition"] = f'attachment; filename="pen-reports-{stamp}.xlsx"'
         workbook.save(response)
         return response

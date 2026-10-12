@@ -25,6 +25,8 @@ from apps.persons.models import Person
 from apps.persons.services import mask_identifier
 from apps.reports.selectors.reports import ReportFilterError, _clean_uuid, _parse_report_date
 
+from apps.education.teaching import teaching_identity
+
 STATUS_LABELS = dict(OfferingEnrollment.LifecycleStatus.choices)
 STATUS_LABELS['inactive'] = 'غیرفعال'
 
@@ -164,8 +166,8 @@ def filtered_roots(scope, filters):
 
 def hydrate(offered, members):
     return (
-        offered.select_related('student', 'offering__course', 'final_class_enrollment__class_group__term').defer('cheques', 'reference', 'student__address', 'offering__schedule'),
-        members.select_related('student', 'class_group__term', 'class_group__offering__course', 'source_offering_enrollment').defer('student__address', 'class_group__schedule'),
+        offered.select_related('student', 'offering__course', 'offering__instructor', 'final_class_enrollment__class_group__teacher', 'final_class_enrollment__class_group__term').defer('cheques', 'reference', 'student__address', 'offering__schedule'),
+        members.select_related('student', 'class_group__term', 'class_group__offering__course', 'class_group__teacher', 'class_group__offering__instructor', 'source_offering_enrollment').defer('student__address', 'class_group__schedule'),
     )
 
 
@@ -187,6 +189,7 @@ def registration_row(obj, source, scope):
     return {
         'id': str(obj.pk), 'source': source, 'created_at': obj.created_at.isoformat(),
         'student': scope.identity(obj.student),
+        **teaching_identity(offering, group),
         'course': {'id': str(course.pk), 'title': course.title, 'url': f'/workspace/enrollments/courses/{course.pk}/'} if course else None,
         'offering': {'id': str(offering.pk), 'title': offering.title or course.title, 'code': offering.code,
                      'url': f'/workspace/enrollments/offerings/{offering.pk}/', 'status': offering.get_status_display()} if offering else None,
@@ -195,6 +198,7 @@ def registration_row(obj, source, scope):
         'membership_active': bool(membership and membership.is_active and not membership.is_deleted),
         'status': status, 'status_label': STATUS_LABELS.get(status, status),
         'is_active': obj.is_active, 'date': date.isoformat(), 'date_label': jalali_date_str(date),
+        'is_free': obj.is_free if source == 'offering' else bool(linked and linked.is_free),
         'url': f'/workspace/enrollments/records/{source}/{obj.pk}/',
         'actions': {'change': bool(may_change), 'assign_class': bool(may_change and source == 'offering' and not membership and obj.is_active),
                     'reactivate': bool(may_change and not obj.is_active and status != 'refunded'),
@@ -277,7 +281,9 @@ def registration_detail(scope, source, pk):
     row['attendance'] = list(attendance.order_by().values('status').annotate(total=Count('pk')))
     from django.contrib.contenttypes.models import ContentType
     events = AuditEvent.objects.filter(content_type=ContentType.objects.get_for_model(obj), object_id=str(obj.pk)).select_related('actor').order_by('-created_at')[:20]
-    row['history'] = [{'summary': event.summary, 'date': event.created_at_jalali, 'actor': event.actor.get_full_name() if event.actor else 'ثبت نشده'} for event in events]
+    row['history'] = [{'summary': event.summary, 'date': event.created_at_jalali,
+                       'reason': event.metadata.get('free_reason', ''),
+                       'actor': event.actor.get_full_name() if event.actor else 'ثبت نشده'} for event in events]
     if source == 'offering':
         membership = obj.final_class_enrollment
         capacity_target = membership.class_group if membership else obj.offering
@@ -309,9 +315,9 @@ def entity_context(scope, kind, pk):
         qs = Course.objects.filter(is_deleted=False).filter(Q(pk__in=scope.offerings().values('course_id')) | Q(pk__in=scope.classes().values('offering__course_id')))
         model_key, field = 'education.course', 'course'
     elif kind == 'offering':
-        qs, model_key, field = scope.offerings().select_related('course'), 'education.courseoffering', 'offering'
+        qs, model_key, field = scope.offerings().select_related('course', 'instructor'), 'education.courseoffering', 'offering'
     elif kind == 'class':
-        qs, model_key, field = scope.classes().select_related('term', 'offering__course'), 'academics.classgroup', 'class_group'
+        qs, model_key, field = scope.classes().select_related('term', 'teacher', 'offering__course', 'offering__instructor'), 'academics.classgroup', 'class_group'
     else:
         raise Http404
     if not acl_strict(scope.user, 'model', model_key, 'view', True):
@@ -322,6 +328,7 @@ def entity_context(scope, kind, pk):
             'filters': {field: str(obj.pk)}, 'capacity': None, 'description': getattr(obj, 'description', ''), 'links': [],
             'can_add': scope.permissions['class' if kind == 'class' else 'offering']['add']}
     if kind in {'offering', 'class'}:
+        data.update(teaching_identity(obj if kind == 'offering' else obj.offering, obj if kind == 'class' else None))
         data['capacity'] = entity_capacity(obj)
         data['status'] = obj.get_status_display() if kind == 'offering' else ('فعال' if obj.is_active else 'غیرفعال')
         offering = obj if kind == 'offering' else obj.offering
@@ -329,6 +336,9 @@ def entity_context(scope, kind, pk):
             data['links'].append({'title': offering.course.title, 'url': f'/workspace/enrollments/courses/{offering.course_id}/'})
             if kind == 'class': data['links'].append({'title': offering.title or offering.code, 'url': f'/workspace/enrollments/offerings/{offering.pk}/'})
         if kind == 'class': data['term'] = obj.term.title
+    if kind == 'course':
+        data['instructors'] = [{'offering': item.title or item.code, **teaching_identity(item)}
+                               for item in scope.offerings().filter(course=obj).select_related('instructor')]
     return data
 
 

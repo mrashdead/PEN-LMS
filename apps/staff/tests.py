@@ -18,8 +18,15 @@ class TeacherLeaveRequestTests(TestCase):
         jalali_date = to_jalali_date(work_date).strftime("%Y/%m/%d")
         self.client.force_login(teacher)
 
-        response = self.client.post("/api/staff/leave-requests/", {
+        type_attempt = self.client.post("/api/staff/leave-requests/", {
             "leave_type": str(leave_type.pk),
+            "start_date": jalali_date,
+            "end_date": jalali_date,
+            "unit": LeaveRequest.Unit.DAY,
+        })
+        self.assertEqual(type_attempt.status_code, 400)
+
+        response = self.client.post("/api/staff/leave-requests/", {
             "start_date": jalali_date,
             "end_date": jalali_date,
             "unit": LeaveRequest.Unit.DAY,
@@ -34,6 +41,8 @@ class TeacherLeaveRequestTests(TestCase):
         self.assertEqual(record.duration, 1)
         self.assertEqual(response.json()["status"], ReviewStatus.PENDING)
         self.assertEqual(response.json()["status_display"], record.get_status_display())
+        self.assertIsNone(record.leave_type)
+        self.assertEqual(self.client.get("/api/staff/leave-types/").status_code, 403)
 
         listing = self.client.get("/api/staff/leave-requests/")
         self.assertEqual(listing.status_code, 200)
@@ -166,3 +175,74 @@ class TimesheetWorkflowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["timesheet"]["totals"]["entries"], 1)
+
+    def test_reviewer_assigns_leave_type_and_teacher_cannot_review_own_request(self):
+        teacher = UserFactory(username="leave-review-teacher", roles=["teacher", "manager"])
+        leave_type = LeaveType.objects.create(code="annual", name="استحقاقی")
+        day = timezone.localdate() + timedelta(days=2)
+        jalali = to_jalali_date(day).strftime("%Y/%m/%d")
+        self.client.force_login(teacher)
+        response = self.client.post("/api/staff/leave-requests/", {
+            "start_date": jalali, "end_date": jalali, "unit": LeaveRequest.Unit.DAY,
+        })
+        self.assertEqual(response.status_code, 201)
+        request_id = response.json()["id"]
+        self.assertIsNone(response.json()["leave_type"])
+        self.assertEqual(self.client.post(f"/api/staff/leave-requests/{request_id}/review/", {
+            "decision": "approved", "leave_type": str(leave_type.pk),
+        }).status_code, 403)
+
+        reviewer = UserFactory(username="leave-review-other-manager", roles=["manager"])
+        self.client.force_login(reviewer)
+        reviewed = self.client.post(f"/api/staff/leave-requests/{request_id}/review/", {
+            "decision": "approved", "leave_type": str(leave_type.pk),
+        })
+        self.assertEqual(reviewed.status_code, 200)
+        self.assertEqual(reviewed.json()["leave_type"], str(leave_type.pk))
+        self.assertEqual(reviewed.json()["reviewed_by"], str(reviewer.pk))
+        self.assertEqual(reviewed.json()["reviewed_by_display"], reviewer.username)
+        self.assertEqual(LeaveRequest.objects.get(pk=request_id).leave_type, leave_type)
+
+    def test_manual_teacher_timesheets_allow_multiple_shifts_and_incomplete_entry(self):
+        teacher = UserFactory(username="manual-teacher", roles=["teacher"])
+        manager = UserFactory(username="manual-manager", roles=["manager"])
+        day = timezone.localdate()
+        jalali = to_jalali_date(day).strftime("%Y/%m/%d")
+        self.client.force_login(manager)
+        base = {"user": str(teacher.pk), "work_date": jalali, "kind": "regular"}
+        first = self.client.post("/api/staff/timesheets/", {
+            **base, "check_in_time": "08:00", "check_out_time": "12:00",
+        })
+        second = self.client.post("/api/staff/timesheets/", {
+            **base, "check_in_time": "13:00",
+        })
+        self.assertEqual(first.status_code, 201, first.content)
+        self.assertEqual(second.status_code, 201, second.content)
+        self.assertEqual(TimesheetEntry.objects.filter(user=teacher, work_date=day).count(), 2)
+        self.assertIsNone(TimesheetEntry.objects.get(pk=second.json()["id"]).check_out)
+
+        overlap = self.client.post("/api/staff/timesheets/", {
+            **base, "check_in_time": "11:00", "check_out_time": "14:00",
+        })
+        self.assertEqual(overlap.status_code, 400)
+
+        patched = self.client.patch(f"/api/staff/timesheets/{second.json()['id']}/", {
+            "check_out_time": "16:00",
+        }, content_type="application/json")
+        self.assertEqual(patched.status_code, 200, patched.content)
+        self.assertIsNotNone(TimesheetEntry.objects.get(pk=second.json()["id"]).check_out)
+
+        invalid = self.client.post("/api/staff/timesheets/", {
+            **base, "check_in_time": "17:00", "check_out_time": "16:00",
+        })
+        self.assertEqual(invalid.status_code, 400)
+
+    def test_teacher_cannot_create_manual_hours_for_another_teacher(self):
+        teacher = UserFactory(username="manual-denied-teacher", roles=["teacher"])
+        other = UserFactory(username="manual-other-teacher", roles=["teacher"])
+        self.client.force_login(teacher)
+        response = self.client.post("/api/staff/timesheets/", {
+            "user": str(other.pk), "work_date": to_jalali_date(timezone.localdate()).strftime("%Y/%m/%d"),
+            "check_in_time": "08:00", "check_out_time": "12:00",
+        })
+        self.assertEqual(response.status_code, 403)

@@ -78,8 +78,8 @@ def _person_of(user):
 def clock_in(*, user, work_date: Optional[dt.date] = None, kind: str = TimesheetEntry.Kind.REGULAR,
              note: str = "") -> TimesheetEntry:
     """
-    ثبت ورود برای یک روز کاری. اگر ردیفِ زنده‌ی همان روز وجود داشته باشد
-    (مثلاً پس از بازگشتِ عمدی)، همان ردیف برمی‌گردد — عملیات idempotent است.
+    ثبت ورود برای یک نوبت جدید. اگر نوبت باز دیگری برای همان روز باشد،
+    از ساخت هم‌زمان نوبت مبهم جلوگیری می‌شود؛ پس از بسته‌شدن آن، نوبت بعدی مجاز است.
     """
     if user is None or not getattr(user, "is_authenticated", False):
         raise StaffServiceError("کاربر معتبر نیست.")
@@ -89,15 +89,11 @@ def clock_in(*, user, work_date: Optional[dt.date] = None, kind: str = Timesheet
 
     existing = (
         TimesheetEntry.objects.select_for_update()
-        .filter(user=user, work_date=day, kind=kind, is_deleted=False)
+        .filter(user=user, work_date=day, kind=kind, check_out__isnull=True, is_deleted=False)
         .first()
     )
     if existing is not None:
-        if existing.check_out is not None:
-            raise AlreadyClockedInError(
-                "برای این روز ورود و خروج قبلاً ثبت شده است."
-            )
-        return existing
+        raise AlreadyClockedInError("برای این روز یک نوبت کاری باز دارید؛ ابتدا خروج آن را ثبت کنید.")
 
     try:
         return TimesheetEntry.objects.create(
@@ -110,9 +106,9 @@ def clock_in(*, user, work_date: Optional[dt.date] = None, kind: str = Timesheet
             status=ReviewStatus.PENDING,
         )
     except IntegrityError as exc:
-        # Lost the race for the same (user, date, kind) — re-read and return.
+        # A concurrent request may have opened another shift at the same time.
         existing = TimesheetEntry.objects.filter(
-            user=user, work_date=day, kind=kind, is_deleted=False,
+            user=user, work_date=day, kind=kind, check_out__isnull=True, is_deleted=False,
         ).first()
         if existing is not None:
             return existing
@@ -126,7 +122,7 @@ def clock_out(*, user, work_date: Optional[dt.date] = None,
     day = work_date or timezone.localdate()
     entry = (
         TimesheetEntry.objects.select_for_update()
-        .filter(user=user, work_date=day, kind=kind, is_deleted=False)
+        .filter(user=user, work_date=day, kind=kind, check_out__isnull=True, is_deleted=False)
         .order_by("-check_in").first()
     )
     if entry is None:
@@ -147,11 +143,11 @@ def timesheet_status(*, user, day: Optional[dt.date] = None) -> dict:
     rows = list(
         TimesheetEntry.objects.filter(
             user=user, work_date=day, is_deleted=False,
-        ).order_by("kind")
+        ).order_by("kind", "check_in")
     )
     return {
         "date": day.isoformat(),
-        "open_entry_id": str(rows[-1].pk) if rows and rows[-1].is_open else None,
+        "open_entry_id": str(next((row.pk for row in rows if row.is_open), "")) or None,
         "rows": [
             {
                 "id": str(r.pk),
@@ -256,7 +252,7 @@ def _leave_duration(*, start: dt.date, end: dt.date, unit: str,
 
 
 @transaction.atomic
-def create_leave_request(*, user, leave_type, start_date, end_date,
+def create_leave_request(*, user, start_date, end_date,
                          unit: str = LeaveRequest.Unit.DAY,
                          start_time: dt.time | None = None,
                          end_time: dt.time | None = None,
@@ -267,10 +263,8 @@ def create_leave_request(*, user, leave_type, start_date, end_date,
     """
     if user is None or not getattr(user, "is_authenticated", False):
         raise StaffServiceError("کاربر معتبر نیست.")
-    if not leave_type or not getattr(leave_type, "pk", None):
-        raise StaffServiceError("نوع مرخصی الزامی است.")
-    if leave_type.code not in LeaveType.STAFF_REQUEST_CODES:
-        raise StaffServiceError("فقط مرخصی استحقاقی و بدون حقوق قابل ثبت است.")
+    # The requester must not select a leave type. It is assigned by an
+    # authorized reviewer as part of the review decision.
     if not start_date or not end_date:
         raise StaffServiceError("تاریخ شروع و پایان الزامی است.")
     if end_date < start_date:
@@ -310,7 +304,7 @@ def create_leave_request(*, user, leave_type, start_date, end_date,
     request = LeaveRequest(
         user=user,
         person=_person_of(user),
-        leave_type=leave_type,
+        leave_type=None,
         start_date=start_date,
         end_date=end_date,
         start_time=start_time,
@@ -347,7 +341,7 @@ def leave_requests_visible_to(user, *, for_review: bool = False):
 
 @transaction.atomic
 def review_leave_request(*, request_id, actor, decision: str,
-                         comment: str = "", rejection_reason: str = "") -> LeaveRequest:
+                         leave_type=None, comment: str = "", rejection_reason: str = "") -> LeaveRequest:
     """تأیید یا رد درخواست مرخصی — فقط رکوردهای pending، با تاریخچه append-only."""
     if decision not in {ReviewStatus.APPROVED, ReviewStatus.REJECTED}:
         raise InvalidReviewError("تصمیم باید approve یا reject باشد.")
@@ -364,16 +358,21 @@ def review_leave_request(*, request_id, actor, decision: str,
         raise InvalidReviewError(
             f"این درخواست قبلاً بررسی شده است ({request.get_status_display()})."
         )
+    if request.user_id == actor.pk:
+        raise InvalidReviewError("امکان بررسی درخواست مرخصی خودتان را ندارید.")
+    if not leave_type or not getattr(leave_type, "pk", None) or leave_type.code not in LeaveType.STAFF_REQUEST_CODES:
+        raise InvalidReviewError("نوع مرخصی معتبر را انتخاب کنید.")
     if decision == ReviewStatus.REJECTED and not (rejection_reason or "").strip():
         raise InvalidReviewError("برای رد مرخصی، ذکر دلیل الزامی است.")
 
     previous = request.status
+    request.leave_type = leave_type
     request.status = decision
     request.reviewed_by = actor
     request.reviewed_at = timezone.now()
     request.rejection_reason = (rejection_reason or "").strip() if decision == ReviewStatus.REJECTED else ""
     request.save(update_fields=[
-        "status", "reviewed_by", "reviewed_at", "rejection_reason", "updated_at",
+        "leave_type", "status", "reviewed_by", "reviewed_at", "rejection_reason", "updated_at",
     ])
 
     _log_transition(

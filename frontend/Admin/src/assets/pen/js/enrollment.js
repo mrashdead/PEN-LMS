@@ -128,7 +128,7 @@
       offerings = (d.results || []).filter(function (o) { return o.status === 'open' || o.status === 'running' || o.status === 'draft'; });
       $offering.innerHTML = '<option value="">— انتخاب برگزاری —</option>' + offerings.map(function (o) {
         var seats = o.seats_left == null ? 'نامحدود' : window.persianNumbers(o.seats_left) + ' خالی';
-        return '<option value="' + esc(o.id) + '">' + esc(o.course_title || o.title || o.id) + ' — ' + seats + '</option>';
+        return '<option value="' + esc(o.id) + '">' + esc(o.course_title || o.title || o.id) + ' — مدرس: ' + esc(o.instructor_name || 'مدرس تعیین نشده') + ' — ' + seats + '</option>';
       }).join('');
       if (leadCourseId) {
         var matching = offerings.filter(function (o) { return String(o.course) === String(leadCourseId); });
@@ -160,6 +160,19 @@
   var $dUnit = document.getElementById('enr-discount-unit');
   var $courseAmt = document.getElementById('enr-course-amount');
   var $final = document.getElementById('enr-final');
+  var $isFree = document.getElementById('enr-is-free');
+  function isFree() { return !!($isFree && $isFree.checked); }
+  function updateFreeMode() {
+    var free = isFree();
+    $dType.disabled = free;
+    $dVal.disabled = free || $dType.value === 'none';
+    document.getElementById('enr-payment-section').hidden = free;
+    document.getElementById('enr-payment-section').querySelectorAll('input, select, button').forEach(function (input) { input.disabled = free; });
+    var reason = document.getElementById('enr-free-reason-fields');
+    if (reason) reason.hidden = !free;
+    computeFinal();
+  }
+  if ($isFree) $isFree.addEventListener('change', updateFreeMode);
 
   function renderAmount() {
     $courseAmt.value = state.courseAmount ? fmt(state.courseAmount) : '—';
@@ -171,6 +184,7 @@
     var final = base;
     if (t === 'percent') final = base - Math.round(base * Math.min(dv, 100) / 100);
     else if (t === 'amount') final = Math.max(base - dv, 0);
+    if (isFree()) final = 0;
     state.finalAmount = final;
     $final.textContent = fmt(final);
     updatePaymentTotals();
@@ -193,6 +207,7 @@
   var $paidSum = document.getElementById('enr-paid-sum');
   function updatePaymentTotals() {
     if (!$paymentLines || !$paidSum) return;
+    if (isFree()) { $paidSum.textContent = fmt(0); return; }
     var firstAmount = $paymentLines.querySelector('[data-pay="amount"]');
     var suggested = state.finalAmount || 0;
     if (firstAmount && (typeof state.paymentSuggestion === 'undefined' || toInt(firstAmount.value) === state.paymentSuggestion)) {
@@ -237,7 +252,7 @@
     var student = $sHidden.value, offering = $offering.value;
     if (!student) return fail('یک دانش‌آموز انتخاب کنید.');
     if (!offering) return fail('برگزاری را انتخاب کنید.');
-    var payments = Array.prototype.map.call($paymentLines.children, function (row) {
+    var payments = isFree() ? [] : Array.prototype.map.call($paymentLines.children, function (row) {
       var method = row.querySelector('[data-pay="method"]').value;
       return {
         method: method,
@@ -249,15 +264,17 @@
         cheque_due_date: row.querySelector('[data-pay="due"]').value.trim()
       };
     });
-    if (!payments.length || payments.some(function (line) { return line.amount <= 0; })) return fail('مبلغ همهٔ ردیف‌های پرداخت باید بیشتر از صفر باشد.');
+    if (!isFree() && (!payments.length || payments.some(function (line) { return line.amount <= 0; }))) return fail('مبلغ همهٔ ردیف‌های پرداخت باید بیشتر از صفر باشد.');
     if (payments.reduce(function (sum, line) { return sum + line.amount; }, 0) > (state.finalAmount || 0)) return fail('جمع پرداخت‌ها از مبلغ قابل‌پرداخت بیشتر است.');
     var payload = {
       offering: offering, student: student,
       course_amount: state.courseAmount,
-      discount_type: $dType.value,
-      discount_value: toInt($dVal.value),
+      is_free: isFree(),
+      discount_type: isFree() ? 'none' : $dType.value,
+      discount_value: isFree() ? 0 : toInt($dVal.value),
       payments: payments,
     };
+    if (isFree()) payload.free_reason = document.getElementById('enr-free-reason').value.trim();
     if (LEAD_ID) payload.lead = LEAD_ID;
     var enrolledAt = document.getElementById('enr-date').value.trim();
     if (enrolledAt) payload.enrolled_at = enrolledAt; // empty → server default
@@ -272,6 +289,7 @@
         document.getElementById('enr-form').reset();
         $sPicked.textContent = ''; state.courseAmount = 0; renderAmount();
         $paymentLines.innerHTML = ''; state.paymentSuggestion = undefined; addPaymentLine();
+        updateFreeMode();
         loadRecent();
         loadWaitlist();
       })
@@ -290,8 +308,8 @@
       $box.innerHTML = rows.map(function (r) {
         return '<div class="px-3 py-2 border-bottom">' +
           '<div class="d-flex align-items-center gap-2"><strong class="fs-14">' + esc(r.student_name || '') + '</strong>' +
-          '<span class="badge bg-primary-subtle text-primary ms-auto">' + fmt(r.final_amount) + ' ت</span></div>' +
-          '<div class="fs-13 text-muted">' + esc(r.offering_title || '') + ' · ' + esc(PM[r.payment_method] || r.payment_method) +
+          '<span class="badge bg-primary-subtle text-primary ms-auto">' + (r.is_free ? 'ثبت‌نام رایگان' : fmt(r.final_amount) + ' ت') + '</span></div>' +
+          '<div class="fs-13 text-muted">' + esc(r.offering_title || '') + ' · مدرس: ' + esc(r.teacher ? r.teacher.name : 'مدرس تعیین نشده') + (r.is_free ? '' : ' · ' + esc(PM[r.payment_method] || r.payment_method)) +
           (r.discount_type !== 'none' ? ' · تخفیف ' + esc(r.discount_value) + (r.discount_type === 'percent' ? '٪' : 'ت') : '') +
           ' · ' + esc(r.enrolled_at || '') + '</div></div>';
       }).join('');

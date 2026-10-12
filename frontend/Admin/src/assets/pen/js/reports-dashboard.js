@@ -12,6 +12,7 @@
   var reportPage = document.querySelector('.pen-reports').dataset.reportPage || 'overview';
   var charts = {};
   var lastData = null;
+  var loadVersion = 0;
   var state = { query: new URLSearchParams(window.location.search), period: new URLSearchParams(window.location.search).get('period') || '' };
 
   var labels = {
@@ -52,11 +53,13 @@
   }
   function displayLabel(key) { return labels[key] || key || '—'; }
   function dateISO(id) {
-    var value = (document.getElementById(id).value || '').trim();
-    if (!value) return '';
-    var year = Number(value.replace(/[^\d۰-۹]/g, '').slice(0, 4).replace(/[۰-۹]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d); }));
-    if (year >= 1300 && window.penJalaliToISO) return window.penJalaliToISO(value) || value.replace(/\//g, '-');
-    return value.replace(/\//g, '-');
+    // Keep invalid input intact so the server returns the calendar error.
+    return (document.getElementById(id).value || '').trim();
+  }
+  function syncCalendarControls() {
+    document.getElementById('report-calendar-controls').hidden = !['month', 'monthly', 'month_week'].includes(state.period);
+    document.getElementById('report-week-control').hidden = state.period !== 'month_week';
+    document.querySelectorAll('[data-report-period]').forEach(function (button) { button.classList.toggle('active', button.dataset.reportPeriod === (state.period || 'custom')); });
   }
   function currentQuery() {
     var query = new URLSearchParams();
@@ -64,7 +67,11 @@
     var to = dateISO('report-to');
     if (from) query.set('from', from);
     if (to) query.set('to', to);
-    if (state.period && !from && !to) query.set('period', state.period);
+    if (state.period && !from && !to) {
+      query.set('period', state.period);
+      if (['month', 'monthly', 'month_week'].includes(state.period)) ['year', 'month', 'week'].forEach(function (key) { query.set(key, document.getElementById('report-' + key).value); });
+    }
+    ['start_time', 'end_time'].forEach(function (key) { var value = document.getElementById('report-' + key).value; if (value) query.set(key, value); });
     ['department', 'course', 'location'].forEach(function (key) {
       var value = document.getElementById('report-' + key).value;
       if (value) query.set(key, value);
@@ -132,11 +139,12 @@
   function applyQueryToForm(query) {
     var from = query.get('from_jalali') || query.get('from') || '';
     var to = query.get('to_jalali') || query.get('to') || '';
-    if (from && /^\d{4}-\d{2}-\d{2}$/.test(from) && window.penISOToJalali) from = window.penISOToJalali(from);
-    if (to && /^\d{4}-\d{2}-\d{2}$/.test(to) && window.penISOToJalali) to = window.penISOToJalali(to);
+    if (from && /^\d{4}-\d{2}-\d{2}$/.test(from) && Number(from.slice(0, 4)) >= 1700 && window.penISOToJalali) from = window.penISOToJalali(from);
+    if (to && /^\d{4}-\d{2}-\d{2}$/.test(to) && Number(to.slice(0, 4)) >= 1700 && window.penISOToJalali) to = window.penISOToJalali(to);
     document.getElementById('report-from').value = from;
     document.getElementById('report-to').value = to;
-    ['department', 'course', 'location'].forEach(function (key) { document.getElementById('report-' + key).value = query.get(key) || ''; });
+    ['department', 'course', 'location', 'start_time', 'end_time'].forEach(function (key) { document.getElementById('report-' + key).value = query.get(key) || ''; });
+    ['year', 'month', 'week'].forEach(function (key) { if (query.get(key)) document.getElementById('report-' + key).value = query.get(key); });
   }
   function renderFinancial(data) {
     var content = document.getElementById('financial-content');
@@ -157,7 +165,7 @@
     document.getElementById('finance-pending').textContent = faNumber(totals.pending_count);
     document.getElementById('finance-outstanding').textContent = money(totals.pending_amount);
     renderChart('chart-revenue', { chart: { type: 'area' }, colors: ['#0f6b67'], series: [{ name: 'درآمد', data: (data.revenue_trend || []).map(function (row) { return row.value; }) }], xaxis: { categories: (data.revenue_trend || []).map(function (row) { return row.label; }) }, stroke: { curve: 'smooth', width: 3 }, fill: { type: 'gradient', gradient: { opacityFrom: 0.34, opacityTo: 0.03 } } });
-    renderDonut('chart-finance', [totals.paid_count || 0, totals.partial_count || 0, totals.pending_count || 0], ['پرداخت‌شده', 'ناقص', 'در انتظار'], ['#27a88f', '#e5a83b', '#934b70']);
+    renderDonut('chart-finance', [totals.paid_count || 0, totals.partial_count || 0, totals.pending_count || 0, totals.free_count || 0], ['پرداخت‌شده', 'ناقص', 'در انتظار', 'ثبت‌نام رایگان'], ['#27a88f', '#e5a83b', '#934b70', '#5475b8']);
     renderTable('financial-course-rows', data.by_course, [
       { key: 'label', render: function (row) { return '<strong>' + esc(row.label) + '</strong>'; } },
       { key: 'enrollments', render: function (row) { return faNumber(row.enrollments); } },
@@ -189,6 +197,8 @@
   }
   function render(data) {
     lastData = data;
+    var filters = data.filters || {};
+    document.getElementById('report-actual-range').textContent = (filters.from_jalali || '') + (filters.start_time ? ' ' + filters.start_time : '') + ' تا ' + (filters.to_jalali || '') + (filters.end_time ? ' ' + filters.end_time : '') + ' · ' + (filters.timezone || '');
     if (reportPage === 'overview') {
       document.getElementById('kpi-active-courses').textContent = faNumber(data.enrollments && data.enrollments.active_courses);
       document.getElementById('kpi-class-utilization').textContent = faPct(data.enrollments && data.enrollments.capacity && data.enrollments.capacity.occupancy_pct);
@@ -201,10 +211,13 @@
     if (window.penRenderIcons) window.penRenderIcons();
   }
   function load(query) {
+    var version = ++loadVersion;
     hideError(); setLoading(true);
     state.query = query || currentQuery();
-    updateReportUrl();
-    api(endpoints.dashboard, state.query).then(render).catch(function (error) { showError(error.message); }).finally(function () { setLoading(false); });
+    api(endpoints.dashboard, state.query).then(function (data) {
+      if (version !== loadVersion) return;
+      updateReportUrl(); render(data);
+    }).catch(function (error) { if (version === loadVersion) showError(error.message); }).finally(function () { if (version === loadVersion) setLoading(false); });
   }
   function exportReport(kind) {
     var query = currentQuery();
@@ -212,10 +225,14 @@
     window.location.href = endpoints.export + '?' + query.toString();
   }
 
+  var monthInput = document.getElementById('report-month');
+  window.penReportDates.months.forEach(function (name, i) { monthInput.append(new Option(name, String(i + 1))); });
+  monthInput.value = monthInput.dataset.currentMonth;
+  state.period = state.period || (state.query.get('from') ? '' : 'daily');
   fillSelect('report-department', options.departments, 'name', state.query.get('department'));
   fillSelect('report-course', options.courses, 'title', state.query.get('course'));
   fillSelect('report-location', options.locations, 'name', state.query.get('location'));
-  applyQueryToForm(state.query);
+  applyQueryToForm(state.query); syncCalendarControls();
   if (window.penAttachJalaliPickers) window.penAttachJalaliPickers();
   document.getElementById('report-filter-form').addEventListener('submit', function (event) { event.preventDefault(); load(currentQuery()); });
   document.querySelectorAll('[data-report-period]').forEach(function (button) {
@@ -223,14 +240,15 @@
       state.period = button.dataset.reportPeriod === 'custom' ? '' : button.dataset.reportPeriod;
       if (state.period) { document.getElementById('report-from').value = ''; document.getElementById('report-to').value = ''; }
       document.querySelectorAll('[data-report-period]').forEach(function (item) { item.classList.toggle('active', item === button); });
-      load(currentQuery());
+      ['start_time', 'end_time'].forEach(function (key) { document.getElementById('report-' + key).value = ''; });
+      syncCalendarControls(); load(currentQuery());
     });
   });
-  document.getElementById('report-from').addEventListener('input', function () { state.period = ''; });
-  document.getElementById('report-to').addEventListener('input', function () { state.period = ''; });
+  document.getElementById('report-from').addEventListener('input', function () { state.period = ''; syncCalendarControls(); });
+  document.getElementById('report-to').addEventListener('input', function () { state.period = ''; syncCalendarControls(); });
   document.getElementById('report-reset').addEventListener('click', function () {
-    state.period = '';
-    ['report-from', 'report-to'].forEach(function (id) { document.getElementById(id).value = ''; });
+    state.period = 'daily'; syncCalendarControls();
+    ['report-from', 'report-to', 'report-start_time', 'report-end_time'].forEach(function (id) { document.getElementById(id).value = ''; });
     ['report-department', 'report-course', 'report-location'].forEach(function (id) { document.getElementById(id).value = ''; });
     load(new URLSearchParams());
   });
@@ -244,5 +262,6 @@
     });
   });
   window.addEventListener('pen:theme-change', function () { if (lastData) render(lastData); });
+  ['year', 'month', 'week'].forEach(function (key) { document.getElementById('report-' + key).addEventListener('change', function () { load(currentQuery()); }); });
   load(state.query);
 })();

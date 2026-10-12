@@ -245,6 +245,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "columns": [
             {"field": "code", "label": "کد"},
             {"field": "title", "label": "عنوان دوره"},
+            {"field": "instructor_names", "label": "مدرس‌های برگزاری‌ها"},
             {"field": "total_tuition", "label": "شهریهٔ کل", "type": "money", "suffix": "ت"},
             {"field": "is_active", "label": "فعال", "type": "bool"},
         ],
@@ -260,6 +261,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
         "detail": [
             {"field": "code", "label": "کد"},
             {"field": "title", "label": "عنوان"},
+            {"field": "instructor_names", "label": "مدرس‌های برگزاری‌ها"},
             {"field": "description", "label": "توضیحات"},
             {"field": "lesson_titles", "label": "درس‌ها", "type": "list"},
             {"field": "total_tuition", "label": "شهریهٔ کل (مجموع درس‌ها)", "type": "money", "suffix": "تومان"},
@@ -278,6 +280,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
             {"field": "code", "label": "کد برگزاری"},
             {"field": "title", "label": "برگزاری"},
             {"field": "course_title", "label": "دوره"},
+            {"field": "instructor_name", "label": "مدرس"},
             {"field": "capacity", "label": "ظرفیت"},
             {"field": "enrolled_count", "label": "ثبت‌نام"},
             {"field": "start_date", "label": "شروع"},
@@ -318,6 +321,7 @@ RESOURCE_CONFIG: dict[str, dict] = {
             {"field": "code", "label": "کد برگزاری"},
             {"field": "title", "label": "برگزاری"},
             {"field": "course_title", "label": "دوره"},
+            {"field": "instructor_name", "label": "مدرس"},
             {"field": "capacity", "label": "ظرفیت"},
             {"field": "enrolled_count", "label": "ثبت‌نام‌شدگان"},
             {"field": "seats_left_display", "label": "جای خالی"},
@@ -671,7 +675,9 @@ class TeacherProgressReportPage(StaffRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["system_date"] = timezone.localdate().isoformat()
+        from apps.core.report_dates import project_today
+        context["system_date"] = project_today().isoformat()
+        context["report_timezone"] = str(timezone.get_default_timezone())
         return context
 
 
@@ -697,6 +703,12 @@ class EnrollmentPage(StaffRequiredMixin, TemplateView):
     """Financial enrollment form for a student and course offering."""
 
     template_name = "enrollment.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.education.registration_permissions import can_create_free_enrollment
+        context = super().get_context_data(**kwargs)
+        context["can_create_free_enrollment"] = can_create_free_enrollment(self.request.user)
+        return context
 
 
 class EnrollmentPaymentsPage(StaffRequiredMixin, TemplateView):

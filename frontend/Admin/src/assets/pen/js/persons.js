@@ -103,6 +103,7 @@
         '<button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="عملیات ' + esc(label) + '"><i data-lucide="more-horizontal" class="size-4"></i></button>' +
         '<ul class="dropdown-menu dropdown-menu-end">' +
         (actions.view ? '<li><button type="button" class="dropdown-item" data-person-view><i data-lucide="eye" class="size-4"></i> مشاهده</button></li>' : '') +
+        (actions.view && personHasType(row, 'teacher') ? '<li><a class="dropdown-item" href="/workspace/enrollments/teacher/' + encodeURIComponent(row.id) + '/"><i data-lucide="graduation-cap" class="size-4" aria-hidden="true"></i> دوره‌ها و کلاس‌های مدرس</a></li>' : '') +
         (actions.edit ? '<li><button type="button" class="dropdown-item" data-person-edit><i data-lucide="pencil" class="size-4"></i> ویرایش</button></li>' : '') +
         (ctx.directory === 'education' && ctx.can_create_user && row.person_type === 'student' && !row.has_user ? '<li><button type="button" class="dropdown-item" data-person-create-user><i data-lucide="user-plus" class="size-4"></i> ساخت حساب کاربری</button></li>' : '') +
         (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(personResourceUrl(row.id, 'delete')) + '" data-delete-name="' + esc(label.trim()) + '" data-delete-code="' + esc(row.national_code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف</button></li>' : '') +
@@ -177,6 +178,7 @@
       var hasStudentRole = personHasType(person, 'student');
       var enrollmentUrl = '/workspace/enrollments/person/' + encodeURIComponent(person.id) + '/';
       var enrollmentHtml = hasStudentRole ? '<section class="mt-4 pt-3 border-top" aria-labelledby="person-enrollments-title"><div class="d-flex align-items-center justify-content-between gap-2 mb-2"><h6 class="fw-semibold mb-0" id="person-enrollments-title">ثبت‌نام‌ها و دوره‌های آموزشی</h6><a class="btn btn-sm btn-outline-primary" href="' + esc(enrollmentUrl) + '">مشاهده همه</a></div><div id="person-enrollment-preview" data-person-id="' + esc(person.id) + '" class="text-muted fs-14" role="status" aria-live="polite">در حال دریافت سابقهٔ ثبت‌نام…</div></section>' : '';
+      var teachingHtml = personHasType(person, 'teacher') ? '<section class="mt-4 pt-3 border-top"><div class="d-flex align-items-center justify-content-between gap-2"><h6 class="fw-semibold mb-0">دوره‌ها و کلاس‌های مدرس</h6><a class="btn btn-sm btn-outline-primary" href="/workspace/enrollments/teacher/' + encodeURIComponent(person.id) + '/">مشاهده همه</a></div></section>' : '';
       var body = '<div class="pen-detail-meta">' +
         '<div><small>وضعیت پروندهٔ شخص</small><strong>' + esc(status) + '</strong></div>' +
         '<div><small>وضعیت حساب کاربری</small><strong>' + esc(accountStatus) + '</strong></div>' +
@@ -191,7 +193,7 @@
          ['دپارتمان', person.department], ['سمت', person.job_title], ['نام کاربری', person.username]]
         .filter(function (item) { return item[1] != null && String(item[1]).trim() && item[1] !== '—'; })
         .map(function (item) { return '<div class="row g-2"><div class="col-5 text-muted fs-14">' + esc(item[0]) + '</div><div class="col-7">' + esc(item[1]) + '</div></div>'; }).join('') +
-        '</div>' + familyHtml + enrollmentHtml + history;
+        '</div>' + familyHtml + enrollmentHtml + teachingHtml + history;
       document.getElementById('person-detail-title').textContent = person.display_name || labelForPerson(person);
       document.getElementById('person-detail-body').innerHTML = body;
       if (hasStudentRole) {

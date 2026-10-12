@@ -22,4 +22,5 @@ class StaffDashboardPage(LoginRequiredMixin, TemplateView):
             self.request.user.is_superuser
             or set(self.request.user.role_codes()) & {"manager", "workflow_admin", "hr", "supervisor"}
         )
+        context["staff_user_id"] = str(self.request.user.pk)
         return context

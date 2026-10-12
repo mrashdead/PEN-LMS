@@ -6,6 +6,7 @@ import uuid
 from django.db.models import Count, IntegerField, OuterRef, Prefetch, Q, Subquery, Value
 from django.db.models.functions import Coalesce
 
+from apps.core.report_dates import ReportRange
 from apps.reports.permissions import REPORT_ACCESS_ROLES
 from apps.reports.selectors.reports import ReportFilterError, ReportFilters, _parse_report_date
 
@@ -40,14 +41,11 @@ def workflow_report_queryset(query, *, user=None):
     raw_start = query.get("from") or query.get("date_from")
     raw_end = query.get("to") or query.get("date_to")
     period = str(query.get("period") or "").strip().lower()
-    if period:
-        date_query = {"period": period}
-        if raw_start:
-            date_query["from"] = raw_start
-        if raw_end:
-            date_query["to"] = raw_end
-        date_range = ReportFilters.from_query(date_query)
+    bounds = None
+    if period or query.get("start_time") or query.get("end_time"):
+        date_range = ReportFilters.from_query(query)
         start, end = date_range.start, date_range.end
+        bounds = date_range.range
     else:
         start = _parse_report_date(raw_start) if raw_start else None
         end = _parse_report_date(raw_end) if raw_end else None
@@ -56,9 +54,9 @@ def workflow_report_queryset(query, *, user=None):
         if start and end and (end - start).days > 366 * 5:
             raise ReportFilterError("بازهٔ گزارش نمی‌تواند بیشتر از پنج سال باشد.")
     if start:
-        qs = qs.filter(created_at__date__gte=start)
+        qs = qs.filter(created_at__gte=bounds.start_at if bounds else ReportRange(start, start).start_at)
     if end:
-        qs = qs.filter(created_at__date__lte=end)
+        qs = qs.filter(created_at__lt=bounds.end_before if bounds else ReportRange(end, end).end_before)
 
     for key, field in (("workflow", "workflow_definition__code"), ("status", "status"), ("step", "current_state__code")):
         value = str(query.get(key) or "").strip()

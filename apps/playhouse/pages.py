@@ -11,12 +11,14 @@ from datetime import date
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import Http404
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views.generic import TemplateView
 
 from apps.core.utils import jalali_date_str
 from apps.playhouse import selectors
-from apps.playhouse.permissions import FINANCE_ROLES, OPERATOR_ROLES
+from apps.playhouse.models import PlayhouseCafeOrder, PlayhouseInvoice
+from apps.playhouse.permissions import FINANCE_ROLES, KITCHEN_ROLES, OPERATOR_ROLES
 
 
 class PlayhousePageMixin(LoginRequiredMixin):
@@ -26,7 +28,7 @@ class PlayhousePageMixin(LoginRequiredMixin):
         if not request.user.is_authenticated:
             return super().dispatch(request, *args, **kwargs)
         roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
-        if not roles & OPERATOR_ROLES:
+        if not request.user.is_active or not roles & OPERATOR_ROLES:
             raise Http404
         return super().dispatch(request, *args, **kwargs)
 
@@ -63,8 +65,10 @@ class PlayhouseFinancePage(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["today"] = timezone.localdate().isoformat()
-        context["today_jalali"] = jalali_date_str(timezone.localdate())
+        from apps.core.report_dates import project_today
+        context["today"] = project_today().isoformat()
+        context["today_jalali"] = jalali_date_str(project_today())
+        context["report_timezone"] = str(timezone.get_default_timezone())
         return context
 
     def dispatch(self, request, *args, **kwargs):
@@ -74,3 +78,39 @@ class PlayhouseFinancePage(LoginRequiredMixin, TemplateView):
         if not request.user.is_active or not roles & FINANCE_ROLES:
             raise Http404
         return super().dispatch(request, *args, **kwargs)
+
+
+class PlayhouseKitchenPage(LoginRequiredMixin, TemplateView):
+    template_name = "playhouse/kitchen.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
+        roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
+        if not request.user.is_active or not roles & (KITCHEN_ROLES | FINANCE_ROLES):
+            raise Http404
+        return super().dispatch(request, *args, **kwargs)
+
+
+class PlayhouseInvoicePrintPage(PlayhousePageMixin, TemplateView):
+    template_name = "playhouse/print_invoice.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["invoice"] = get_object_or_404(
+            PlayhouseInvoice.objects.select_related("member", "session").prefetch_related("items", "session__payments"),
+            pk=self.kwargs["pk"],
+        )
+        return context
+
+
+class PlayhouseOrderPrintPage(PlayhousePageMixin, TemplateView):
+    template_name = "playhouse/print_order.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["order"] = get_object_or_404(
+            PlayhouseCafeOrder.objects.select_related("session", "session__member", "created_by").prefetch_related("items", "session__payments"),
+            pk=self.kwargs["pk"],
+        )
+        return context

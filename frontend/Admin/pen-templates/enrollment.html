@@ -63,6 +63,19 @@
             </div>
 
             {# 4) discount #}
+            {% if can_create_free_enrollment %}
+            <div class="col-12">
+              <div class="form-check">
+                <input type="checkbox" id="enr-is-free" class="form-check-input" aria-describedby="enr-free-help" aria-controls="enr-free-reason-fields">
+                <label class="form-check-label" for="enr-is-free">ثبت‌نام رایگان</label>
+              </div>
+              <p class="form-text mb-0" id="enr-free-help">بدون مبلغ قابل‌پرداخت و بدهی؛ مستقل از تخفیف.</p>
+              <div id="enr-free-reason-fields" class="mt-2" hidden>
+                <label class="form-label" for="enr-free-reason">دلیل ثبت‌نام رایگان (اختیاری)</label>
+                <textarea id="enr-free-reason" class="form-control" rows="2" maxlength="5000"></textarea>
+              </div>
+            </div>
+            {% endif %}
             <div class="col-12 col-md-6">
               <label class="form-label" for="enr-discount-type">تخفیف</label>
               <div class="input-group">
@@ -81,13 +94,13 @@
               <div class="alert alert-primary d-flex align-items-center gap-2 mb-0">
                 <i data-lucide="wallet" class="size-5"></i>
                 <div class="flex-grow-1">مبلغ قابل‌پرداخت</div>
-                <div class="fs-5 fw-bold"><span id="enr-final">۰</span> <span class="fs-14">تومان</span></div>
+                <div class="fs-5 fw-bold" aria-live="polite"><span id="enr-final">۰</span> <span class="fs-14">تومان</span></div>
               </div>
             </div>
 
             {# 6) split payment lines #}
             <div class="col-12">
-              <section class="border rounded-3 p-3 p-lg-4 bg-body-tertiary" aria-labelledby="enr-payments-title">
+              <section id="enr-payment-section" class="border rounded-3 p-3 p-lg-4 bg-body-tertiary" aria-labelledby="enr-payments-title">
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
                   <div><h3 id="enr-payments-title" class="h6 mb-1">پرداخت</h3><p class="text-muted fs-13 mb-0">هر روش پرداخت را جدا ثبت کنید؛ برای هر ردیف کد پیگیری مستقل ساخته می‌شود.</p></div>
                   <button type="button" id="enr-payment-add" class="btn btn-outline-primary btn-sm"><i data-lucide="plus" class="size-4 me-1" aria-hidden="true"></i> افزودن پرداخت</button>

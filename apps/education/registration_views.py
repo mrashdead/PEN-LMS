@@ -14,6 +14,7 @@ from apps.education.registration_selectors import (
     registration_detail,
 )
 from apps.reports.selectors.reports import ReportFilterError
+from apps.education.teacher_directory import teacher_context
 
 
 def _bad_filter(exc):
@@ -38,6 +39,8 @@ class RegistrationContextView(APIView):
     def get(self, request, kind, pk):
         scope = RegistrationScope(request.user)
         try:
+            if kind in {'teacher', 'teachers'}:
+                return Response(teacher_context(scope, pk))
             context = entity_context(scope, kind, pk)
             params = request.query_params.copy()
             params.update(context["filters"])

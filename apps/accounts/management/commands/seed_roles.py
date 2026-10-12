@@ -22,6 +22,8 @@ DEFAULT_ROLES: list[dict[str, object]] = [
     # through an active persons.StudentGuardian link, so holding "guardian" can
     # never enumerate students.
     {"code": "guardian", "name": "ولی / والدین", "priority": 110},
+    {"code": "playhouse_kitchen", "name": "آشپزخانه خانه‌بازی", "priority": 105},
+    {"code": "playhouse_counter", "name": "کانتر خانه‌بازی", "priority": 104},
 ]
 
 

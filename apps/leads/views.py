@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 
 from apps.core.models import AuditEvent
 from apps.education.models import CourseLesson
-from apps.leads.models import Lead
+from apps.leads.models import Lead, LeadAssessment, LeadRecommendation
 from apps.leads.permissions import IsLeadAssessor, IsLeadOperator, IsLeadTeacher, is_lead_operator
 from apps.leads.selectors import assigned_leads_for_teacher, assessors, leads_for_user
 from apps.leads.serializers import (
@@ -90,6 +90,8 @@ class LeadActionView(APIView):
         if action == "send":
             if not is_lead_operator(request.user):
                 return Response({"detail": "ارسال لید فقط برای کارکنان مجاز است."}, status=403)
+            if lead.status not in (Lead.Status.NEW, Lead.Status.SENT):
+                return Response({"detail": "ارجاع فقط پیش از ثبت نتیجه تعیین سطح امکان‌پذیر است."}, status=400)
             assessor_id = request.data.get("assessor")
             person = assessors().filter(pk=assessor_id).first()
             if not person:
@@ -116,26 +118,37 @@ class LeadActionView(APIView):
             )
             return Response({"detail": "مورد تعیین سطح حذف شد.", "id": str(lead.pk)})
         elif action == "assess":
-            if not (request.user.role_codes() & {"teacher", "employee", "supervisor", "manager", "hr", "workflow_admin"}):
-                return Response({"detail": "دسترسی ثبت ارزیابی ندارید."}, status=403)
+            user_person = getattr(request.user, "person", None)
+            if not user_person or not user_person.can_assess_leads or lead.assessor_id != user_person.pk:
+                return Response({"detail": "فقط ارزیاب تخصیص‌یافته می‌تواند نتیجه را ثبت کند."}, status=403)
+            if lead.status != Lead.Status.SENT:
+                return Response({"detail": "این مورد در انتظار تعیین سطح نیست."}, status=400)
             ser = LeadAssessmentSerializer(data=request.data)
             ser.is_valid(raise_exception=True)
-            lead.assessment_score = ser.validated_data.get("score")
-            lead.assessment_result = ser.validated_data["result"]
+            assessment = LeadAssessment.objects.create(lead=lead, assessor=lead.assessor, recorded_by=request.user, result=ser.validated_data["result"])
+            lead.assessment_result = assessment.result
             lead.status = Lead.Status.ASSESSED
-            lead.save(update_fields=["assessment_score", "assessment_result", "status", "updated_at"])
+            lead.save(update_fields=["assessment_result", "status", "updated_at"])
         elif action == "recommend":
-            if not is_lead_operator(request.user):
-                return Response({"detail": "معرفی دوره فقط برای کارکنان مجاز است."}, status=403)
+            user_person = getattr(request.user, "person", None)
+            if not user_person or not user_person.can_assess_leads or lead.assessor_id != user_person.pk:
+                return Response({"detail": "معرفی دوره فقط برای ارزیاب تخصیص‌یافته مجاز است."}, status=403)
+            if lead.status not in (Lead.Status.ASSESSED, Lead.Status.RECOMMENDED):
+                return Response({"detail": "ابتدا باید تعیین سطح ثبت شود."}, status=400)
+            latest_assessment = lead.assessments.order_by("-created_at", "-pk").first()
+            if not latest_assessment:
+                return Response({"detail": "ابتدا نتیجه تعیین سطح را ثبت کنید."}, status=400)
             ser = LeadRecommendationSerializer(data=request.data)
             ser.is_valid(raise_exception=True)
             course = ser.validated_data["course"]
             lesson = ser.validated_data.get("lesson")
             if lesson and not CourseLesson.objects.filter(course=course, lesson=lesson).exists():
                 return Response({"detail": "درس انتخاب‌شده متعلق به دوره نیست."}, status=400)
+            note = ser.validated_data.get("recommendation", "")
+            LeadRecommendation.objects.create(lead=lead, assessment=latest_assessment, assessor=user_person, recorded_by=request.user, course=course, lesson=lesson, note=note)
             lead.course = course
             lead.lesson = lesson
-            lead.recommendation = ser.validated_data.get("recommendation", "")
+            lead.recommendation = note
             lead.status = Lead.Status.RECOMMENDED
             lead.save(update_fields=["course", "lesson", "recommendation", "status", "updated_at"])
         elif action == "enroll":
@@ -249,8 +262,8 @@ class TeacherLeadAssessmentView(APIView):
             return Response({"detail": "این لید در انتظار ثبت تعیین سطح نیست."}, status=400)
         serializer = LeadAssessmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        lead.assessment_score = serializer.validated_data.get("score")
-        lead.assessment_result = serializer.validated_data["result"]
+        assessment = LeadAssessment.objects.create(lead=lead, assessor=lead.assessor, recorded_by=request.user, result=serializer.validated_data["result"])
+        lead.assessment_result = assessment.result
         lead.status = Lead.Status.ASSESSED
-        lead.save(update_fields=("assessment_score", "assessment_result", "status", "updated_at"))
+        lead.save(update_fields=("assessment_result", "status", "updated_at"))
         return Response(TeacherLeadSerializer(lead).data)

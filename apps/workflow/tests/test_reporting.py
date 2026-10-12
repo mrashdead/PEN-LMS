@@ -1,4 +1,6 @@
 from io import BytesIO
+from datetime import datetime, timezone
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -10,7 +12,8 @@ from apps.workflow.tests.factories import InstanceFactory, WorkflowDefinitionFac
 
 
 class WorkflowReportingTests(TestCase):
-    def test_report_filters_and_exposes_current_assignment_and_form_stage(self):
+    @patch("django.utils.timezone.now", return_value=datetime(2026, 9, 16, 10, tzinfo=timezone.utc))
+    def test_report_filters_and_exposes_current_assignment_and_form_stage(self, _now):
         manager = UserFactory(username="workflow-report-manager", roles=["manager"])
         requester = UserFactory(username="workflow-report-requester", roles=["employee"])
         assignee = UserFactory(username="workflow-report-assignee", roles=["supervisor"])
@@ -29,6 +32,7 @@ class WorkflowReportingTests(TestCase):
             requester=requester,
             current_state=state,
             title="مرخصی مهر",
+            created_at=_now.return_value,
         )
         request_type = RequestType.objects.create(
             code="annual-leave-report", title="مرخصی سالانه", workflow_definition=definition,
@@ -56,6 +60,7 @@ class WorkflowReportingTests(TestCase):
             instance=instance,
             action="submit",
             actor=requester,
+            created_at=_now.return_value,
         )
         ActionLog.objects.create(
             instance=instance,
@@ -64,6 +69,7 @@ class WorkflowReportingTests(TestCase):
             from_state=state,
             to_state=state,
             comment="بررسی شد",
+            created_at=_now.return_value,
         )
         self.client.force_login(manager)
 

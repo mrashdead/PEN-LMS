@@ -7,7 +7,7 @@ only boundary.
 """
 from __future__ import annotations
 
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.permissions import BasePermission
 
 from apps.staff.models import APPROVER_ROLES
 from apps.staff.services import _is_approver
@@ -38,8 +38,6 @@ class IsStaffReviewer(BasePermission):
     message = "فقط مدیر یا سرپرست مجاز به بررسی این رکورد است."
 
     def has_permission(self, request, view) -> bool:
-        if request.method in SAFE_METHODS:
-            return True
         return _is_approver(request.user)
 
 

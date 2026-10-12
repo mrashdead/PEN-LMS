@@ -79,7 +79,10 @@ class MemberResolutionTest(TestCase):
             age=4, guardian_mobile="09350000000",
         )
         self.assertEqual(s.member.first_name, "زهرا")
-        self.assertIsNone(s.member.person)
+        self.assertIsNotNone(s.member.person)
+        self.assertTrue(s.member.person.is_temporary)
+        self.assertEqual(s.member.temporary_id, s.member.person.temporary_id)
+        self.assertIsNone(s.member.person.national_code)
         self.assertEqual(
             PlayhouseMember.objects.get(pk=s.member.pk).guardian_mobile, "09350000000"
         )
@@ -97,7 +100,7 @@ class MemberResolutionTest(TestCase):
         s = PlayhouseService().create_session(
             operator=self.op, first_name="نیلا", last_name="کریمی",
             age=5, guardian_mobile="09123334444",
-            national_code="0012345672", student_code="PH-1001",
+            national_code="0012345679", student_code="PH-1001",
         )
         self.assertIsNotNone(s.member.person_id)
         person = s.member.person
@@ -126,16 +129,56 @@ class MemberResolutionTest(TestCase):
         response = client.post(
             "/api/playhouse/sessions/",
             {"first_name": member.first_name, "last_name": member.last_name,
-             "member_pk": str(member.pk), "national_code": "0012345672"},
+             "member_pk": str(member.pk), "national_code": "0012345679"},
             format="json",
         )
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(PlayhouseSession.objects.filter(member=member).count(), 2)
 
+    def test_intake_without_national_code_creates_distinct_temporary_id(self):
+        client = APIClient()
+        client.force_authenticate(user=self.op)
+        response = client.post(
+            "/api/playhouse/sessions/",
+            {"first_name": "کودک", "last_name": "موقت", "guardian_mobile": "09120000009"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        member = PlayhouseSession.objects.get(pk=response.data["id"]).member
+        self.assertTrue(member.temporary_id)
+        self.assertNotEqual(str(member.temporary_id), member.person.national_code or "")
+        self.assertTrue(member.person.is_temporary)
+        self.assertEqual(response.data["temporary_id"], str(member.temporary_id))
+        search = client.get(f"/api/playhouse/members/search/?q={member.temporary_id}")
+        self.assertTrue(any(item["temporary_id"] == str(member.temporary_id) for item in search.data["results"]))
+
+    def test_member_can_be_completed_while_timer_runs_without_changing_attendance(self):
+        member_session = _make_session(PlayhouseService(), self.op)
+        member_session = PlayhouseService().start_session(session=member_session, operator=self.op)
+        old_entry = member_session.entry_at
+        old_pause_total = member_session.paused_seconds
+        old_temporary_id = member_session.member.temporary_id
+        client = APIClient()
+        client.force_authenticate(user=self.op)
+        response = client.patch(
+            f"/api/playhouse/members/{member_session.member_id}/",
+            {"first_name": "علی", "last_name": "احمدی", "national_code": "0012345679", "age": 7},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        member_session.refresh_from_db()
+        self.assertEqual(member_session.status, PlayhouseSession.Status.ACTIVE)
+        self.assertEqual(member_session.entry_at, old_entry)
+        self.assertEqual(member_session.paused_seconds, old_pause_total)
+        member_session.member.refresh_from_db()
+        self.assertEqual(member_session.member.person.national_code, "0012345679")
+        self.assertEqual(member_session.member.temporary_id, old_temporary_id)
+        self.assertFalse(member_session.member.person.is_temporary)
+
     def test_pen_student_can_be_selected_and_linked(self):
         person = make_person(
             first_name="دانش‌آموز", last_name="پن", mobile="09123334444",
-            person_type="student", national_code="0012345672",
+            person_type="student", national_code="0012345679",
         )
         client = APIClient()
         client.force_authenticate(user=self.op)
@@ -214,6 +257,27 @@ class TimerTransitionTest(TestCase):
         self.assertGreaterEqual(s.paused_seconds, 599)
         s = self.service.end_session(session=s, operator=self.op)
         self.assertEqual(s.billable_minutes, 15)
+
+
+class PlayhouseDashboardCapacityTest(TestCase):
+    def setUp(self):
+        _seed_roles()
+        self.op = _operator()
+
+    def test_dashboard_renders_twenty_visits_as_separate_rows(self):
+        service = PlayhouseService()
+        for number in range(20):
+            service.create_session(
+                operator=self.op,
+                first_name=f"کودک{number}",
+                last_name="آزمایشی",
+                guardian_mobile=f"09120000{number:03d}",
+            )
+        self.client.force_login(self.op)
+        response = self.client.get("/playhouse/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content.decode().count('data-member-pk="'), 20)
+        self.assertEqual(response.content.decode().count("data-member-edit"), 20)
 
 
 class InvoiceBillingTest(TestCase):
@@ -334,7 +398,7 @@ class ApiTest(TestCase):
         data = {
             "first_name": "علی", "last_name": "احمدی", "age": 6,
             "guardian_mobile": "09121111111",
-            "national_code": "0012345672",
+            "national_code": "0012345679",
         }
         data.update(over)
         return self.client.post("/api/playhouse/sessions/", data, format="json")
@@ -516,7 +580,7 @@ class ConfigSettingsTest(TestCase):
         PlayhouseConfig._singleton_pk = None
         r = self.client.post(
             "/api/playhouse/sessions/",
-            {"first_name": "ب", "last_name": "ت", "age": 5, "guardian_mobile": "09120000099", "national_code": "0012345672"},
+            {"first_name": "ب", "last_name": "ت", "age": 5, "guardian_mobile": "09120000099", "national_code": "0012345679"},
             format="json",
         )
         self.assertEqual(r.status_code, 400)
@@ -528,7 +592,7 @@ class ConfigSettingsTest(TestCase):
         PlayhouseConfig._singleton_pk = None
         r = self.client.post(
             "/api/playhouse/sessions/",
-            {"first_name": "ب", "last_name": "ت", "age": 5, "guardian_mobile": "09120000098", "national_code": "0012345672"},
+            {"first_name": "ب", "last_name": "ت", "age": 5, "guardian_mobile": "09120000098", "national_code": "0012345679"},
             format="json",
         )
         # current time may fall inside the window; assert either accepted or blocked-with-message

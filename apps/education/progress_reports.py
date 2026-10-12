@@ -1,36 +1,57 @@
 """Teacher composition and learner delivery of student progress reports."""
-from datetime import timedelta
+import uuid
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.fields import JalaliDateField
+from apps.core.report_dates import ReportDateError, ReportRange, parse_report_date, parse_report_time
 from apps.core.permissions import IsActiveUser, IsTeacherPortalUser
-from apps.core.utils import to_jalali_date
 from apps.education.models import CourseOffering, StudentProgressReport
 from apps.education.services import _resolve_learner_person, roster_students
 
 
+class ReportCalendarDateField(JalaliDateField):
+    def to_internal_value(self, data):
+        try:
+            return parse_report_date(data)
+        except ReportDateError as exc:
+            raise serializers.ValidationError(str(exc))
+
+
+class ReportClockField(serializers.TimeField):
+    def to_internal_value(self, data):
+        try:
+            return parse_report_time(data)
+        except ReportDateError as exc:
+            raise serializers.ValidationError(str(exc))
+
+
 class ProgressReportSerializer(serializers.ModelSerializer):
-    period_start = JalaliDateField()
-    period_end = JalaliDateField()
+    period_start = ReportCalendarDateField()
+    period_end = ReportCalendarDateField()
+    start_time = ReportClockField(required=False, allow_null=True)
+    end_time = ReportClockField(required=False, allow_null=True)
     period_display = serializers.CharField(source="get_period_display", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     student_name = serializers.CharField(source="student.display_name", read_only=True)
     offering_name = serializers.SerializerMethodField()
     author_name = serializers.SerializerMethodField()
+    is_class_report = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentProgressReport
         fields = (
-            "id", "offering", "offering_name", "student", "student_name", "author_name",
-            "period", "period_display", "period_start", "period_end", "title", "summary",
+            "id", "offering", "offering_name", "student", "student_name", "author_name", "is_class_report",
+            "period", "period_display", "period_start", "period_end", "start_time", "end_time", "title", "summary",
             "strengths", "improvements", "homework", "next_steps", "status", "status_display",
             "sent_at", "read_at", "created_at", "updated_at",
         )
@@ -45,6 +66,9 @@ class ProgressReportSerializer(serializers.ModelSerializer):
     def get_author_name(self, obj):
         person = getattr(obj.author, "person", None)
         return person.display_name if person else obj.author.get_full_name() or obj.author.username
+
+    def get_is_class_report(self, obj):
+        return bool(obj.class_report_id)
 
     def validate(self, attrs):
         instance = self.instance
@@ -71,28 +95,12 @@ class ProgressReportSerializer(serializers.ModelSerializer):
             limit = {"daily": 1, "weekly": 7, "monthly": 31}[period]
             if days > limit:
                 raise ValidationError({"period_end": f"بازهٔ این گزارش حداکثر {limit} روز است."})
-            today = timezone.localdate()
-            current_week_start = today - timedelta(days=(today.weekday() - 5) % 7)
-            jalali_today = to_jalali_date(today)
-            jalali_month_start = jalali_today.replace(day=1)
-            if jalali_today.month == 12:
-                jalali_next_month = jalali_today.replace(year=jalali_today.year + 1, month=1, day=1)
-            else:
-                jalali_next_month = jalali_today.replace(month=jalali_today.month + 1, day=1)
-            current_month_start = jalali_month_start.togregorian()
-            current_month_end = jalali_next_month.togregorian() - timedelta(days=1)
-            is_current_full_week = (
-                period == "weekly"
-                and start == current_week_start
-                and end == current_week_start + timedelta(days=6)
-            )
-            is_current_full_month = (
-                period == "monthly"
-                and start == current_month_start
-                and end == current_month_end
-            )
-            if end > today and not (is_current_full_week or is_current_full_month):
-                raise ValidationError({"period_end": "گزارش عملکرد نمی‌تواند برای آینده باشد."})
+            try:
+                ReportRange(start, end,
+                            attrs.get("start_time", getattr(instance, "start_time", None)),
+                            attrs.get("end_time", getattr(instance, "end_time", None))).validate()
+            except ReportDateError as exc:
+                raise ValidationError({"period_end": str(exc)})
         return attrs
 
 
@@ -138,6 +146,102 @@ class TeacherProgressReportListView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
+
+
+class TeacherClassProgressReportView(APIView):
+    """Read class-report history and publish reports to every active learner."""
+
+    permission_classes = (IsActiveUser, IsTeacherPortalUser)
+
+    def _offering_for_teacher(self, request, offering_value):
+        try:
+            offering_id = serializers.UUIDField().run_validation(offering_value)
+        except serializers.ValidationError:
+            raise ValidationError({"offering": "شناسهٔ کلاس معتبر نیست."})
+        offering = get_object_or_404(CourseOffering.objects.select_related("instructor"), pk=offering_id)
+        teacher = getattr(request.user, "person", None)
+        if teacher is None or offering.instructor_id != teacher.pk:
+            raise PermissionDenied("فقط مدرس این کلاس می‌تواند گزارش‌های کلاسی را ببیند یا ارسال کند.")
+        return offering
+
+    def get(self, request):
+        offering = self._offering_for_teacher(request, request.query_params.get("offering"))
+        reports = report_rows().filter(
+            author=request.user, offering=offering, class_report_id__isnull=False,
+        )
+        period = request.query_params.get("period")
+        if period:
+            if period not in StudentProgressReport.Period.values:
+                raise ValidationError({"period": "نوع گزارش معتبر نیست."})
+            reports = reports.filter(period=period)
+
+        groups = list(reports.order_by().values("class_report_id").annotate(
+            recipient_count=Count("pk"),
+            read_count=Count("pk", filter=Q(read_at__isnull=False)),
+            last_sent_at=Max("sent_at"),
+        ).order_by("-last_sent_at", "class_report_id"))
+        paginator = PageNumberPagination()
+        paginator.page_size = 20
+        page = paginator.paginate_queryset(groups, request, view=self)
+        batch_ids = [group["class_report_id"] for group in page]
+        representatives = {}
+        for report in reports.filter(class_report_id__in=batch_ids).order_by("created_at", "pk"):
+            representatives.setdefault(report.class_report_id, report)
+        results = []
+        for group in page:
+            data = ProgressReportSerializer(representatives[group["class_report_id"]]).data
+            data["recipient_count"] = group["recipient_count"]
+            data["read_count"] = group["read_count"]
+            results.append(data)
+        return paginator.get_paginated_response(results)
+
+    @transaction.atomic
+    def post(self, request):
+        offering = self._offering_for_teacher(request, request.data.get("offering"))
+        if offering.is_deleted or not offering.is_active:
+            raise PermissionDenied("فقط مدرس این کلاس می‌تواند گزارش کلاسی ارسال کند.")
+
+        roster = roster_students(offering=offering)
+        if not roster:
+            raise ValidationError({"offering": "این کلاس هنرجوی فعالی برای دریافت گزارش ندارد."})
+
+        from apps.persons.models import Person
+
+        students = list(Person.objects.filter(
+            pk__in=[row["id"] for row in roster], is_deleted=False,
+        ).select_related("user"))
+        eligible, unavailable = [], []
+        for student in students:
+            try:
+                learner = student.user
+            except ObjectDoesNotExist:
+                learner = None
+            if (learner is None or not learner.is_active or learner.is_deleted
+                    or "student" not in learner.role_codes()):
+                unavailable.append(student.display_name)
+            else:
+                eligible.append(student)
+        if unavailable:
+            raise ValidationError({
+                "students": "برای همهٔ هنرجویان حساب فعال پرتال دانش‌آموزی لازم است: "
+                + "، ".join(unavailable)
+            })
+
+        payload = request.data.copy()
+        payload.pop("student", None)
+        batch_id = uuid.uuid4()
+        sent_at = timezone.now()
+        reports = []
+        for student in eligible:
+            serializer = ProgressReportSerializer(
+                data={**payload, "student": str(student.pk)}, context={"request": request},
+            )
+            serializer.is_valid(raise_exception=True)
+            reports.append(serializer.save(
+                author=request.user, status=StudentProgressReport.Status.SENT,
+                sent_at=sent_at, class_report_id=batch_id,
+            ))
+        return Response({"count": len(reports), "class_report_id": str(batch_id)}, status=201)
 
 
 class TeacherProgressReportDetailView(generics.RetrieveUpdateAPIView):
@@ -194,8 +298,8 @@ class LearnerProgressReportListView(generics.ListAPIView):
             raise ValidationError({"date_range": "تاریخ شروع و پایان را با هم وارد کنید."})
         if start and end:
             try:
-                start_date = JalaliDateField().run_validation(start)
-                end_date = JalaliDateField().run_validation(end)
+                start_date = ReportCalendarDateField().run_validation(start)
+                end_date = ReportCalendarDateField().run_validation(end)
             except serializers.ValidationError as exc:
                 raise ValidationError({"date_range": exc.detail})
             if start_date > end_date:

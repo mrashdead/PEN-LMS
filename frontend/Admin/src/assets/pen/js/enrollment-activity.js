@@ -37,8 +37,8 @@
       var methods = { cash: 'نقدی', pos: 'کارت‌خوان', cheque: 'چک' };
       box.innerHTML = rows.map(function (row) {
         return '<div class="px-3 py-2 border-bottom"><div class="d-flex align-items-center gap-2"><strong class="fs-14">' +
-          escape(row.student_name || '') + '</strong><span class="badge bg-primary-subtle text-primary ms-auto">' + number(row.final_amount) + ' ت</span></div>' +
-          '<div class="fs-13 text-muted">' + escape(row.offering_title || '') + ' · ' + escape(methods[row.payment_method] || row.payment_method || '') +
+          escape(row.student_name || '') + '</strong><span class="badge bg-primary-subtle text-primary ms-auto">' + (row.is_free ? 'ثبت‌نام رایگان' : number(row.final_amount) + ' ت') + '</span></div>' +
+          '<div class="fs-13 text-muted">' + escape(row.offering_title || '') + (row.is_free ? '' : ' · ' + escape(methods[row.payment_method] || row.payment_method || '')) +
           (row.discount_type && row.discount_type !== 'none' ? ' · تخفیف ' + escape(row.discount_value) + (row.discount_type === 'percent' ? '٪' : 'ت') : '') +
           ' · ' + escape(row.enrolled_at || '') + '</div></div>';
       }).join('');

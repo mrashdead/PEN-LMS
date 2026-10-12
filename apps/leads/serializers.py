@@ -24,6 +24,8 @@ class LeadSerializer(serializers.ModelSerializer):
     lesson_title = serializers.CharField(source="lesson.title", read_only=True, allow_null=True)
     enrolled_person_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    assessment_history = serializers.SerializerMethodField()
+    recommendation_history = serializers.SerializerMethodField()
 
     class Meta:
         model = Lead
@@ -31,10 +33,13 @@ class LeadSerializer(serializers.ModelSerializer):
             "id", "code", "student_name", "age", "phone", "neighborhood", "father_job", "mother_job",
             "allergy_notes", "assessment_date", "assessment_time", "assessor", "assessor_name",
             "course", "course_title", "lesson", "lesson_title", "status", "status_label",
-            "assessment_score", "assessment_result", "recommendation", "enrolled_person",
+            "assessment_result", "recommendation", "assessment_history", "recommendation_history", "enrolled_person",
             "enrolled_person_name", "created_by_name", "created_at",
         )
-        read_only_fields = ("id", "code", "status", "created_at", "created_by")
+        read_only_fields = (
+            "id", "code", "status", "created_at", "created_by", "assessor", "course", "lesson",
+            "assessment_result", "recommendation",
+        )
 
     def get_assessor_name(self, obj):
         return obj.assessor.display_name if obj.assessor_id else ""
@@ -49,6 +54,15 @@ class LeadSerializer(serializers.ModelSerializer):
         person = getattr(obj.created_by, "person", None)
         return person.display_name if person else obj.created_by.username
 
+    def get_assessment_history(self, obj):
+        return [{"result": a.result, "assessor": a.assessor.display_name if a.assessor_id else "", "created_at": a.created_at}
+                for a in obj.assessments.select_related("assessor").all()]
+
+    def get_recommendation_history(self, obj):
+        return [{"course": r.course.title if r.course_id else "", "lesson": r.lesson.title if r.lesson_id else "",
+                 "note": r.note, "assessor": r.assessor.display_name if r.assessor_id else "", "created_at": r.created_at}
+                for r in obj.recommendations.select_related("course", "lesson", "assessor").all()]
+
 
 class TeacherLeadSerializer(serializers.ModelSerializer):
     """Assessment-facing fields only; staff creator/report metadata stays private."""
@@ -56,13 +70,24 @@ class TeacherLeadSerializer(serializers.ModelSerializer):
     assessor_name = serializers.SerializerMethodField()
     course_title = serializers.CharField(source="course.title", read_only=True, allow_null=True)
     lesson_title = serializers.CharField(source="lesson.title", read_only=True, allow_null=True)
+    assessment_history = serializers.SerializerMethodField()
+    recommendation_history = serializers.SerializerMethodField()
+
+    def get_assessment_history(self, obj):
+        return [{"result": a.result, "assessor": a.assessor.display_name if a.assessor_id else "", "created_at": a.created_at}
+                for a in obj.assessments.select_related("assessor").all()]
+
+    def get_recommendation_history(self, obj):
+        return [{"course": r.course.title if r.course_id else "", "lesson": r.lesson.title if r.lesson_id else "",
+                 "note": r.note, "assessor": r.assessor.display_name if r.assessor_id else "", "created_at": r.created_at}
+                for r in obj.recommendations.select_related("course", "lesson", "assessor").all()]
 
     class Meta:
         model = Lead
         fields = (
             "id", "code", "student_name", "age", "phone", "neighborhood", "allergy_notes",
             "assessment_date", "assessment_time", "assessor_name", "course_title", "lesson_title",
-            "status", "status_label", "assessment_score", "assessment_result",
+            "status", "status_label", "assessment_result", "recommendation", "assessment_history", "recommendation_history",
         )
         read_only_fields = fields
 
@@ -82,7 +107,7 @@ class LeadCreateSerializer(serializers.ModelSerializer):
         model = Lead
         fields = (
             "student_name", "age", "phone", "neighborhood", "father_job", "mother_job", "allergy_notes",
-            "assessment_date", "assessment_time", "assessor", "course", "lesson",
+            "assessment_date", "assessment_time", "assessor",
         )
 
     def validate_phone(self, value):
@@ -108,7 +133,6 @@ class LeadCreateSerializer(serializers.ModelSerializer):
 
 
 class LeadAssessmentSerializer(serializers.Serializer):
-    score = serializers.IntegerField(min_value=0, max_value=100, required=False, allow_null=True)
     result = serializers.CharField(required=True, allow_blank=False)
 
 

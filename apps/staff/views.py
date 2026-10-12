@@ -32,11 +32,14 @@ from apps.staff.selectors import (
 )
 from apps.staff.serializers import (
     ClockInSerializer,
+    ManualTimesheetSerializer,
     LeaveRequestCreateSerializer,
     LeaveRequestSerializer,
+    LeaveReviewSerializer,
     LeaveTypeSerializer,
     ReviewSerializer,
     TimesheetEntrySerializer,
+    TeacherOptionSerializer,
     WorkReportCreateSerializer,
     WorkReportSerializer,
 )
@@ -137,25 +140,16 @@ class TimesheetListCreateView(generics.ListCreateAPIView):
         return qs.order_by("-work_date", "-check_in", "-pk")
 
     def create(self, request, *args, **kwargs):
-        # Manual entry (manager correction) — check_in/check_out both given.
+        # Manual entry is restricted to reviewers; one open shift is allowed.
         if not IsStaffReviewer().has_permission(request, self):
             return Response(
                 {"error": "ثبت دستی ساعت کاری فقط برای مدیر/سرپرست مجاز است."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        serializer = TimesheetEntrySerializer(data=request.data, context={"request": request})
+        serializer = ManualTimesheetSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         try:
-            entry = TimesheetEntry.objects.create(
-                user=request.user,
-                person=getattr(request.user, "person", None),
-                work_date=serializer.validated_data["work_date"],
-                kind=serializer.validated_data.get("kind", TimesheetEntry.Kind.REGULAR),
-                check_in=serializer.validated_data["check_in"],
-                check_out=serializer.validated_data.get("check_out"),
-                note=serializer.validated_data.get("note", ""),
-                status=ReviewStatus.PENDING,
-            )
+            entry = serializer.save()
         except Exception as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(
@@ -170,6 +164,37 @@ class TimesheetDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         return timesheets_visible_to(self.request.user)
+
+    def get_permissions(self):
+        if self.request.method in SAFE_METHODS:
+            return [permission() for permission in self.permission_classes]
+        return [IsActiveUser(), IsStaffUser(), IsStaffReviewer()]
+
+    def patch(self, request, *args, **kwargs):
+        return self._manual_update(request, partial=True, **kwargs)
+
+    def put(self, request, *args, **kwargs):
+        return self._manual_update(request, partial=False, **kwargs)
+
+    def _manual_update(self, request, *, partial, **kwargs):
+        entry = self.get_object()
+        serializer = ManualTimesheetSerializer(
+            entry, data=request.data, partial=partial, context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        updated = serializer.save()
+        return Response(TimesheetEntrySerializer(updated, context={"request": request}).data)
+
+
+class TeacherOptionsView(generics.ListAPIView):
+    permission_classes = (IsActiveUser, IsStaffUser, IsStaffReviewer)
+    serializer_class = TeacherOptionSerializer
+
+    def get_queryset(self):
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.filter(
+            roles__code="teacher", is_active=True, is_deleted=False,
+        ).distinct().order_by("first_name", "last_name", "username")
 
 
 class TimesheetReviewView(APIView):
@@ -198,7 +223,7 @@ class TimesheetReviewView(APIView):
 class LeaveTypeListView(generics.ListAPIView):
     """GET /api/staff/leave-types/ — کاتالوگ انواع مرخصی (منبع حقیقت)."""
 
-    permission_classes = (IsActiveUser, IsStaffUser)
+    permission_classes = (IsActiveUser, IsStaffUser, IsStaffReviewer)
     serializer_class = LeaveTypeSerializer
     queryset = LeaveType.objects.filter(
         code__in=LeaveType.STAFF_REQUEST_CODES,
@@ -245,7 +270,6 @@ class LeaveRequestListCreateView(generics.ListCreateAPIView):
         try:
             record = create_leave_request(
                 user=request.user,
-                leave_type=serializer.validated_data["leave_type"],
                 start_date=serializer.validated_data["start_date"],
                 end_date=serializer.validated_data["end_date"],
                 unit=serializer.validated_data.get("unit", LeaveRequest.Unit.DAY),
@@ -276,12 +300,13 @@ class LeaveRequestReviewView(APIView):
     permission_classes = (IsActiveUser, IsStaffUser, IsStaffReviewer)
 
     def post(self, request, pk):
-        serializer = ReviewSerializer(data=request.data)
+        serializer = LeaveReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
             record = review_leave_request(
                 request_id=pk, actor=request.user,
                 decision=serializer.validated_data["decision"],
+                leave_type=serializer.validated_data["leave_type"],
                 comment=serializer.validated_data.get("comment", ""),
                 rejection_reason=serializer.validated_data.get("rejection_reason", ""),
             )

@@ -8,6 +8,13 @@ const source = fs.readFileSync(path.join(__dirname, '../src/assets/pen/js/enroll
 vm.runInNewContext(source, context);
 const { rowMarkup, rowsMarkup, statusMarkup } = context.module.exports;
 
+test('free registrations are labeled independently from lifecycle status', () => {
+  const free = statusMarkup({ status: 'confirmed', is_free: true });
+  assert.ok(free.includes('ثبت‌نام رایگان'));
+  assert.ok(free.includes('تأییدشده'));
+  assert.ok(!statusMarkup({ status: 'confirmed', is_free: false }).includes('ثبت‌نام رایگان'));
+});
+
 test('registration rows escape identity text and reject non-workspace links', () => {
   const markup = rowMarkup({
     student: { name: '<img src=x onerror=alert(1)>', url: 'javascript:alert(1)', student_code: 'ST-1' },

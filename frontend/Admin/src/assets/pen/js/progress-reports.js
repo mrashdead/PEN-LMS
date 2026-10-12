@@ -1,10 +1,11 @@
 /* Period progress reports: teacher composition and learner reading. */
 (() => {
   'use strict';
+  const ALL_STUDENTS = '__all_students__';
   const teacher = document.getElementById('progress-teacher');
   const learner = document.getElementById('progress-learner');
   if (!teacher && !learner) return;
-  const fields = ['period', 'period_start', 'period_end', 'title', 'summary', 'strengths', 'improvements', 'homework', 'next_steps'];
+  const fields = ['period', 'period_start', 'period_end', 'start_time', 'end_time', 'title', 'summary', 'strengths', 'improvements', 'homework', 'next_steps'];
   const sections = {summary: 'شرح عملکرد و پیشرفت', strengths: 'نقاط قوت', improvements: 'موارد نیازمند تمرین', homework: 'تکالیف', next_steps: 'برنامهٔ ادامهٔ یادگیری'};
   const api = async (url, options = {}) => {
     const response = await fetch(url, {credentials: 'same-origin', ...options, headers: {
@@ -12,7 +13,7 @@
     }});
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const labels = {period_start: 'از تاریخ', period_end: 'تا تاریخ', summary: 'شرح عملکرد', title: 'عنوان', student: 'دانش‌آموز'};
+      const labels = {period_start: 'از تاریخ', period_end: 'تا تاریخ', start_time: 'ساعت شروع', end_time: 'ساعت پایان', summary: 'شرح عملکرد', title: 'عنوان', student: 'دانش‌آموز'};
       const errors = Object.entries(body).map(([key, value]) => `${labels[key] || ''} ${Array.isArray(value) ? value.join('، ') : value}`.trim());
       throw new Error(body.detail || body.error || errors.join('؛ ') || 'دریافت اطلاعات انجام نشد. دوباره تلاش کنید.');
     }
@@ -34,10 +35,21 @@
     const body = el('div', 'card-body');
     const header = el('div', 'd-flex flex-wrap align-items-center gap-2 mb-2');
     header.append(el(teacher ? 'h4' : 'h3', 'h6 mb-0 flex-grow-1', report.title), el('span', 'badge bg-primary-subtle text-primary', report.period_display));
-    body.append(header, el('p', 'text-muted fs-13 mb-2', `${report.offering_name} · ${report.period_start} تا ${report.period_end}`), el('p', 'text-muted fs-13 mb-3', `مدرس: ${report.author_name}`));
-    const status = el('span', 'badge bg-secondary-subtle text-secondary mb-3', report.status === 'draft' ? 'پیش‌نویس' : report.read_at ? 'مشاهده‌شده توسط دانش‌آموز' : teacher ? 'ارسال‌شده؛ هنوز مشاهده نشده' : 'جدید');
+    if (report.is_class_report) header.append(el('span', 'badge bg-info-subtle text-info', 'گزارش کل کلاس'));
+    let reportDates = `${report.period_start}${report.start_time ? ' ' + report.start_time.slice(0, 5) : ''} تا ${report.period_end}${report.end_time ? ' ' + report.end_time.slice(0, 5) : ''}`;
+    if (report.period === 'daily' && report.period_start === report.period_end) {
+      let label = `روزانه · ${report.period_start}`;
+      if (teacher && window.penReportDates && teacher.dataset.systemDate === window.penReportDates.iso(report.period_start)) label = `امروز · ${report.period_start}`;
+      reportDates = `${label}${report.start_time ? ' · ' + report.start_time.slice(0, 5) : ''}${report.end_time ? ' تا ' + report.end_time.slice(0, 5) : ''}`;
+    }
+    body.append(header, el('p', 'text-muted fs-13 mb-2', `${report.offering_name} · ${reportDates}`), el('p', 'text-muted fs-13 mb-3', `مدرس: ${report.author_name || 'نامشخص'}`));
+    const classAudienceStatus = teacher && report.is_class_report && Number.isFinite(report.recipient_count)
+      ? `ارسال‌شده برای ${report.recipient_count.toLocaleString('fa-IR')} هنرجو · مشاهده‌شده توسط ${Number(report.read_count || 0).toLocaleString('fa-IR')} هنرجو`
+      : null;
+    const status = el('span', 'badge bg-secondary-subtle text-secondary mb-3', classAudienceStatus || (report.status === 'draft' ? 'پیش‌نویس' : report.read_at ? 'مشاهده‌شده توسط دانش‌آموز' : teacher ? 'ارسال‌شده؛ هنوز مشاهده نشده' : 'جدید'));
     body.append(status);
     const details = el('details', 'progress-report-details');
+    if (teacher) details.open = true;
     details.append(el('summary', '', 'مطالعهٔ گزارش کامل'));
     Object.entries(sections).forEach(([field, label]) => {
       if (!report[field]) return;
@@ -123,59 +135,50 @@
   const periodRange = document.getElementById('progress-period-range');
   const periodStart = document.getElementById('progress-start');
   const periodEnd = document.getElementById('progress-end');
+  const classReportHelp = document.getElementById('progress-class-report-help');
+  const saveHint = document.getElementById('progress-save-hint');
   const currentSystemDate = document.getElementById('progress-teacher').dataset.systemDate;
-  const dateFromIso = value => {
-    const parts = value.split('-').map(Number);
-    return parts.length === 3 ? new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])) : null;
+  const dates = window.penReportDates;
+  const todayParts = dates.english(window.penISOToJalali(currentSystemDate)).split('/');
+  let preserveSavedRange = false;
+  const showRange = () => {
+    const isDaily = form.elements.period.value === 'daily' && periodStart.value && periodStart.value === periodEnd.value;
+    let isToday = false;
+    if (isDaily) { try { isToday = dates.iso(periodStart.value) === currentSystemDate; } catch (_) {} }
+    document.getElementById('progress-period-label').textContent = isDaily ? 'تاریخ گزارش' : 'بازه گزارش';
+    periodRange.textContent = isDaily ? `${isToday ? 'امروز' : 'روزانه'} · ${periodStart.value}` : `${periodStart.value} تا ${periodEnd.value}`;
   };
-  const isoFromDate = date => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
   const syncPeriodRange = () => {
-    const today = dateFromIso(currentSystemDate);
-    if (!today || Number.isNaN(today.getTime())) return;
-    let start = new Date(today), end = new Date(today);
-    if (form.elements.period.value === 'weekly') {
-      start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 1) % 7));
-      end = new Date(start); end.setUTCDate(end.getUTCDate() + 6);
-    } else if (form.elements.period.value === 'monthly') {
-      const [jalaliYear, jalaliMonth] = window.penISOToJalali(currentSystemDate).split('/').map(Number);
-      const nextYear = jalaliMonth === 12 ? jalaliYear + 1 : jalaliYear;
-      const nextMonth = jalaliMonth === 12 ? 1 : jalaliMonth + 1;
-      const nextMonthIso = window.penJalaliToISO(`${nextYear}/${String(nextMonth).padStart(2, '0')}/01`);
-      const monthEnd = dateFromIso(nextMonthIso);
-      monthEnd.setUTCDate(monthEnd.getUTCDate() - 1);
-      start = dateFromIso(window.penJalaliToISO(`${jalaliYear}/${String(jalaliMonth).padStart(2, '0')}/01`));
-      end = monthEnd;
+    if (!preserveSavedRange) {
+      try {
+        const range = dates.range(form.elements.period.value, currentSystemDate, todayParts[0], todayParts[1]);
+        periodStart.value = window.penISOToJalali(range.start);
+        periodEnd.value = window.penISOToJalali(range.end);
+        message('');
+      } catch (error) { message(error.message, true); periodStart.value = ''; periodEnd.value = ''; }
     }
-    const startIso = isoFromDate(start), endIso = isoFromDate(end);
-    periodStart.value = startIso;
-    periodEnd.value = endIso;
-    const jalali = value => window.penISOToJalali ? window.penISOToJalali(value) : value;
-    const persian = value => window.persianNumbers ? window.persianNumbers(value) : value;
-    const startLabel = persian(jalali(startIso)), endLabel = persian(jalali(endIso));
-    const datePart = value => {
-      const part = el('span', 'progress-period-date', value);
-      part.dir = 'ltr';
-      return part;
-    };
-    const parts = [datePart(startLabel)];
-    if (startIso !== endIso) {
-      const separator = el('span', 'progress-period-separator', 'تا');
-      separator.dir = 'rtl';
-      parts.push(separator, datePart(endLabel));
-    }
-    periodRange.replaceChildren(...parts);
-    return {start: startIso, end: endIso};
+    showRange();
   };
   let reportId = null, dirty = false, next = null, version = 0, rosterVersion = 0, activeClass = '', activeStudent = '', saving = false;
   const discard = () => !dirty || window.confirm('تغییرات ذخیره نشده‌اند. از آن‌ها صرف‌نظر می‌کنید؟');
   const fresh = () => {
-    form.reset(); reportId = null; dirty = false;
+    form.reset(); reportId = null; dirty = false; preserveSavedRange = false;
     syncPeriodRange();
     document.getElementById('progress-form-title').textContent = 'گزارش جدید';
   };
+  const updateAudienceControls = () => {
+    const classWide = activeStudent === ALL_STUDENTS;
+    save.hidden = classWide;
+    send.textContent = classWide ? 'ارسال به کل کلاس' : 'ارسال به دانش‌آموز';
+    classReportHelp.hidden = !classWide;
+    saveHint.hidden = classWide;
+  };
   const loadHistory = async (append = false) => {
     const current = ++version; if (!activeStudent) return;
-    const url = append ? next : `/api/education/progress-reports/?${new URLSearchParams({offering: activeClass, student: activeStudent, period: filter.value})}`;
+    const classWide = activeStudent === ALL_STUDENTS;
+    const params = new URLSearchParams({offering: activeClass, period: filter.value});
+    if (!classWide) params.set('student', activeStudent);
+    const url = append ? next : `/api/education/progress-reports/${classWide ? 'class/' : ''}?${params}`;
     if (!url) return;
     more.disabled = true;
     if (!append) history.replaceChildren(el('p', 'text-muted', 'در حال دریافت گزارش‌ها…'));
@@ -184,8 +187,8 @@
       if (!append) history.replaceChildren();
       (Array.isArray(body) ? body : body.results || []).forEach(report => history.append(card(report, r => {
         if (saving || !discard()) return;
-        reportId = r.id; fields.forEach(field => { form.elements[field].value = r[field] || ''; }); syncPeriodRange(); dirty = false;
-        document.getElementById('progress-form-title').textContent = 'ویرایش پیش‌نویس'; form.elements.title.focus();
+        reportId = r.id; fields.forEach(field => { form.elements[field].value = r[field] || ''; }); preserveSavedRange = true; showRange(); dirty = false;
+        document.getElementById('progress-form-title').textContent = 'ویرایش پیش‌نویس'; form.scrollIntoView({behavior: 'smooth', block: 'start'}); form.elements.title.focus({preventScroll: true});
       })));
       if (!history.children.length) history.append(el('p', 'pen-empty', 'برای این دانش‌آموز هنوز گزارشی ثبت نکرده‌اید.'));
       next = body.next || null; more.hidden = !next;
@@ -198,10 +201,13 @@
   const selectStudent = () => {
     activeStudent = student.value; version++; next = null; more.hidden = true; page.hidden = !activeStudent; fresh(); message('');
     if (activeStudent) {
-      document.getElementById('progress-student-name').textContent = student.selectedOptions[0].textContent;
-      window.history.replaceState(null, '', `${location.pathname}?${new URLSearchParams({offering: activeClass, student: activeStudent})}`);
+      const classWide = activeStudent === ALL_STUDENTS;
+      document.getElementById('progress-student-name').textContent = classWide ? 'گزارش برای کل کلاس' : student.selectedOptions[0].textContent;
+      document.getElementById('progress-form-title').textContent = classWide ? 'گزارش جدید برای کل کلاس' : 'گزارش جدید';
+      updateAudienceControls();
+      window.history.replaceState(null, '', `${location.pathname}?${new URLSearchParams({offering: activeClass, student: classWide ? 'all' : activeStudent})}`);
       loadHistory();
-    }
+    } else updateAudienceControls();
   };
   const loadRoster = async (initial = '') => {
     const current = ++rosterVersion;
@@ -210,35 +216,53 @@
     if (!activeClass) return;
     try {
       const body = await api(`/api/education/offerings/${activeClass}/roster/`); if (current !== rosterVersion) return;
-      student.replaceChildren(new Option(body.results.length ? 'دانش‌آموز را انتخاب کنید' : 'این کلاس دانش‌آموز فعالی ندارد', ''));
+      student.replaceChildren(new Option(body.results.length ? 'دانش‌آموز یا کل کلاس را انتخاب کنید' : 'این کلاس دانش‌آموز فعالی ندارد', ''));
+      if (body.results.length) student.append(new Option(`همهٔ کلاس (${body.results.length} هنرجو)`, ALL_STUDENTS));
       body.results.forEach(s => student.append(new Option(s.name, s.id))); student.disabled = !body.results.length;
-      if (initial && body.results.some(s => s.id === initial)) { student.value = initial; selectStudent(); }
+      if (initial === 'all' && body.results.length) { student.value = ALL_STUDENTS; selectStudent(); }
+      else if (initial && body.results.some(s => s.id === initial)) { student.value = initial; selectStudent(); }
     } catch (error) { if (current === rosterVersion) message(error.message, true); }
   };
   cls.addEventListener('change', () => { if (!discard()) { cls.value = activeClass; return; } dirty = false; message(''); loadRoster(); });
   student.addEventListener('change', () => { if (!discard()) { student.value = activeStudent; return; } selectStudent(); });
   form.addEventListener('input', () => { dirty = true; }); form.addEventListener('change', () => { dirty = true; });
-  form.elements.period.addEventListener('change', () => { syncPeriodRange(); dirty = true; });
-  newButton.addEventListener('click', () => { if (!saving && discard()) { fresh(); form.elements.title.focus(); } });
+  form.elements.period.addEventListener('change', () => { preserveSavedRange = false; syncPeriodRange(); dirty = true; });
+  if (window.penAttachJalaliPickers) window.penAttachJalaliPickers();
+  newButton.addEventListener('click', () => { if (!saving && discard()) { fresh(); form.scrollIntoView({behavior: 'smooth', block: 'start'}); form.elements.title.focus({preventScroll: true}); } });
   filter.addEventListener('change', () => loadHistory()); more.addEventListener('click', () => loadHistory(true));
   window.addEventListener('beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   form.addEventListener('submit', async event => {
     event.preventDefault(); if (saving || !activeStudent) return;
     const publish = event.submitter === send;
-    const range = syncPeriodRange();
+    const classWide = activeStudent === ALL_STUDENTS;
+    if (classWide && !publish) return;
     const data = Object.fromEntries(fields.map(field => [field, form.elements[field].value]));
-    data.period_start = range.start; data.period_end = range.end;
-    data.offering = activeClass; data.student = activeStudent;
+    try {
+      // Send the visible Jalali strings; validation also accepts Gregorian ISO.
+      const start = dates.iso(data.period_start), end = dates.iso(data.period_end);
+      if (end < start || (start === end && data.start_time && data.end_time && data.end_time <= data.start_time)) throw new Error('تاریخ و ساعت پایان باید بعد از شروع باشد.');
+      if (start > currentSystemDate || end > currentSystemDate) throw new Error('تاریخ گزارش نمی‌تواند در آینده باشد.');
+      data.start_time = data.start_time || null; data.end_time = data.end_time || null;
+      [periodStart, periodEnd].forEach(input => input.removeAttribute('aria-invalid'));
+    } catch (error) { message(error.message, true); [periodStart, periodEnd].forEach(input => input.setAttribute('aria-invalid', 'true')); return; }
+    data.offering = activeClass;
+    if (!classWide) data.student = activeStudent;
     saving = true; form.setAttribute('aria-busy', 'true');
     [...form.elements, newButton, cls, student].forEach(control => { control.disabled = true; });
     try {
-      const report = await api(reportId ? `/api/education/progress-reports/${reportId}/` : '/api/education/progress-reports/', {
-        method: reportId ? 'PATCH' : 'POST', body: JSON.stringify(data),
-      }); reportId = report.id; dirty = false;
-      if (publish) {
+      if (classWide) {
+        const result = await api('/api/education/progress-reports/class/', {method: 'POST', body: JSON.stringify(data)});
+        reportId = null; dirty = false; fresh();
+        message(`گزارش برای ${result.count} هنرجوی فعال کلاس ارسال شد.`);
+      } else {
+        const report = await api(reportId ? `/api/education/progress-reports/${reportId}/` : '/api/education/progress-reports/', {
+          method: reportId ? 'PATCH' : 'POST', body: JSON.stringify(data),
+        }); reportId = report.id; dirty = false;
+        if (publish) {
         await api(`/api/education/progress-reports/${reportId}/send/`, {method: 'POST', body: '{}'});
         fresh(); message('گزارش ارسال شد و در پرتال دانش‌آموز قابل مشاهده است.');
-      } else { document.getElementById('progress-form-title').textContent = 'ویرایش پیش‌نویس'; message('پیش‌نویس ذخیره شد. هنوز برای دانش‌آموز ارسال نشده است.'); }
+        } else { document.getElementById('progress-form-title').textContent = 'ویرایش پیش‌نویس'; message('پیش‌نویس ذخیره شد. هنوز برای دانش‌آموز ارسال نشده است.'); }
+      }
       await loadHistory();
     } catch (error) { message(error.message, true); await loadHistory(); }
     finally {
@@ -247,6 +271,7 @@
     }
   });
   api('/api/education/teacher/classes/').then(async body => {
+    body.results = (body.results || []).filter(item => item.can_write_progress_report !== false);
     cls.replaceChildren(new Option(body.results.length ? 'کلاس را انتخاب کنید' : 'کلاس فعالی به شما اختصاص داده نشده است', ''));
     body.results.forEach(item => cls.append(new Option(item.title || item.course, item.id)));
     const initial = new URLSearchParams(location.search);

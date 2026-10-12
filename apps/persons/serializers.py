@@ -488,6 +488,10 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
 class PersonCreateSerializer(serializers.ModelSerializer):
     """سریالایزر ایجاد شخص جدید."""
 
+    # national_code became nullable for explicit temporary playhouse records;
+    # ordinary Person creation keeps its established required-ID contract.
+    national_code = serializers.CharField(max_length=10, required=True, allow_blank=False)
+
     auto_create_user = serializers.BooleanField(
         default=True,
         write_only=True,

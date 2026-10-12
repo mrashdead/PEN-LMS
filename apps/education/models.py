@@ -55,6 +55,8 @@ class StudentProgressReport(DomainModel):
     period = models.CharField(max_length=8, choices=Period.choices)
     period_start = models.DateField()
     period_end = models.DateField()
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
     title = models.CharField(max_length=200)
     summary = models.TextField()
     strengths = models.TextField(blank=True, default="")
@@ -64,6 +66,9 @@ class StudentProgressReport(DomainModel):
     status = models.CharField(max_length=8, choices=Status.choices, default=Status.DRAFT)
     sent_at = models.DateTimeField(null=True, blank=True)
     read_at = models.DateTimeField(null=True, blank=True)
+    # A whole-class report is delivered as one learner-scoped row per
+    # recipient so portal access and read receipts remain independent.
+    class_report_id = models.UUIDField(null=True, blank=True, db_index=True, editable=False)
 
     class Meta:
         ordering = ("-created_at",)
@@ -82,6 +87,7 @@ class StudentProgressReport(DomainModel):
 
     def __str__(self):
         return self.title
+
 
 #: Business codes (OFFERING-1403-PY01, CLS-PY-01) keep the user's exact
 #: casing — hence CharField+validator instead of SlugField's lowercase.
@@ -793,6 +799,7 @@ class OfferingEnrollment(DomainModel):
     )
     # Snapshot of the offering's tuition at enroll time (course bundle price).
     course_amount = models.PositiveIntegerField(default=0, help_text="مبلغ دوره (تومان)")
+    is_free = models.BooleanField(default=False, help_text="ثبت‌نام رایگان، مستقل از تخفیف")
     discount_type = models.CharField(
         max_length=10, choices=DiscountType.choices, default=DiscountType.NONE
     )
@@ -840,6 +847,13 @@ class OfferingEnrollment(DomainModel):
         verbose_name_plural = "Offering Enrollments (ثبت‌نام‌ها)"
         ordering = ("-created_at",)
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(is_free=False) | models.Q(
+                    final_amount=0, discount_type='none', discount_value=0,
+                    cheque_count=0, cheques=[], reference='',
+                ),
+                name="edu_free_enrollment_no_charge",
+            ),
             models.UniqueConstraint(
                 fields=["offering", "student"], condition=_ALIVE,
                 name="uniq_edu_offering_enrollment_alive",
@@ -858,6 +872,8 @@ class OfferingEnrollment(DomainModel):
 
     def compute_final(self) -> int:
         """Derive final_amount from course_amount + discount (single rule)."""
+        if self.is_free:
+            return 0
         base = self.course_amount or 0
         if self.discount_type == self.DiscountType.PERCENT:
             pct = max(0, min(int(self.discount_value or 0), 100))
@@ -867,6 +883,10 @@ class OfferingEnrollment(DomainModel):
         return base
 
     def clean(self) -> None:
+        if self.is_free and (self.discount_type != self.DiscountType.NONE or self.discount_value
+                             or self.cheque_count or self.cheques or self.reference
+                             or self.payment_method != self.PaymentMethod.CASH):
+            raise ValidationError({"is_free": "ثبت‌نام رایگان نمی‌تواند تخفیف یا مشخصات پرداخت داشته باشد."})
         if self.final_class_enrollment_id:
             membership = self.final_class_enrollment
             if membership.student_id != self.student_id:

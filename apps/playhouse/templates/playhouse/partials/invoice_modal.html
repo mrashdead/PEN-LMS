@@ -54,8 +54,10 @@
         <div class="border-top mt-3 pt-3">
           <label class="form-label">روش پرداخت</label>
           <div class="btn-group w-100" role="group" aria-label="روش پرداخت">
+            <input type="radio" class="btn-check" name="ph-pay-method" id="ph-pay-cash" value="cash">
+            <label class="btn btn-outline-primary" for="ph-pay-cash">نقدی</label>
             <input type="radio" class="btn-check" name="ph-pay-method" id="ph-pay-pos" value="pos">
-            <label class="btn btn-outline-primary" for="ph-pay-pos">دستگاه پوز</label>
+            <label class="btn btn-outline-primary" for="ph-pay-pos">کارت‌خوان</label>
             <input type="radio" class="btn-check" name="ph-pay-method" id="ph-pay-card" value="card_transfer">
             <label class="btn btn-outline-primary" for="ph-pay-card">کارت به کارت</label>
           </div>
@@ -64,6 +66,13 @@
             <input type="text" id="ph-tracking" class="form-control" dir="ltr"
                    placeholder="کد رهگیری پوز یا کارت به کارت" aria-label="کد رهگیری">
           </div>
+        </div>
+
+        <div class="border-top mt-3 pt-3">
+          <label for="ph-invoice-discount" class="form-label">تخفیف (تومان)</label>
+          <input type="text" id="ph-invoice-discount" class="form-control" inputmode="numeric" dir="ltr" value="0">
+          <label for="ph-invoice-discount-note" class="form-label mt-2">دلیل تخفیف</label>
+          <input type="text" id="ph-invoice-discount-note" class="form-control" maxlength="300">
         </div>
 
         <div class="d-flex justify-content-between align-items-center border-top mt-3 pt-3">

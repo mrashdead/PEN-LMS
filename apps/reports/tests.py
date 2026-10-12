@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone as datetime_timezone
+from unittest.mock import patch
 from types import SimpleNamespace
 
 from django.core.exceptions import PermissionDenied
@@ -31,11 +32,10 @@ class ReportFiltersTests(SimpleTestCase):
         self.assertEqual(filters.as_dict()["from_jalali"], "۱۴۰۵/۰۶/۱۰")
 
     def test_quarter_period_uses_current_quarter(self):
-        filters = ReportFilters.from_query({"period": "quarter"})
-
-        self.assertEqual(filters.start.month, 7)
-        self.assertEqual(filters.start.day, 1)
-        self.assertEqual(filters.end, timezone.localdate())
+        with patch("django.utils.timezone.now", return_value=datetime(2026, 10, 11, 8, tzinfo=datetime_timezone.utc)):
+            filters = ReportFilters.from_query({"period": "quarter"})
+        self.assertEqual(filters.start, date(2026, 9, 23))
+        self.assertEqual(filters.end, date(2026, 10, 11))
 
     def test_invalid_range_is_rejected(self):
         with self.assertRaises(ReportFilterError):

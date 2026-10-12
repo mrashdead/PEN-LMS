@@ -9,7 +9,7 @@ from apps.accounts.models import Role
 from apps.forms.permissions import ELEVATED_ROLES
 from apps.leads.permissions import LEAD_OPERATOR_ROLES
 from apps.org.models import SidebarVisibilityRule
-from apps.playhouse.permissions import FINANCE_ROLES, OPERATOR_ROLES
+from apps.playhouse.permissions import FINANCE_ROLES, KITCHEN_ROLES, OPERATOR_ROLES
 from apps.reports.permissions import REPORT_ACCESS_ROLES
 
 
@@ -46,6 +46,7 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     {"key": "workspace-enrollment-capacity", "flag": "workspace_enrollment_capacity", "title": "ثبت‌نام و ظرفیت کلاس‌ها", "section": "گزارش‌ها", "default_roles": REPORT_ACCESS_ROLES},
     {"key": "workspace-reports", "flag": "workspace_reports", "title": "گزارش‌ها و تحلیل‌ها", "section": "گزارش‌ها", "default_roles": REPORT_ACCESS_ROLES},
     {"key": "playhouse-dashboard", "flag": "playhouse_dashboard", "title": "خانه بازی", "section": "خانه بازی", "default_roles": OPERATOR_ROLES},
+    {"key": "playhouse-kitchen", "flag": "playhouse_kitchen", "title": "سفارش‌های کافه", "section": "خانه بازی", "default_roles": KITCHEN_ROLES | FINANCE_ROLES},
     {"key": "playhouse-finance", "flag": "playhouse_finance", "title": "گزارش مالی خانه بازی", "section": "خانه بازی", "default_roles": FINANCE_ROLES},
     {"key": "leads-dashboard", "flag": "leads_dashboard", "title": "مدیریت لیدها", "section": "مدیریت لیدها", "default_roles": LEAD_OPERATOR_ROLES},
     {"key": "workspace-org-chart", "flag": "workspace_org_chart", "title": "نمودار سازمانی", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},

@@ -15,7 +15,7 @@
 
   <div class="collapse mb-4" id="lead-create-collapse">
     <section class="card lead-form-card" aria-labelledby="lead-create-title">
-      <div class="card-header d-flex align-items-center justify-content-between gap-3"><div><h2 class="h6 mb-1 card-title" id="lead-create-title">ثبت لید و نوبت تعیین سطح</h2><p class="lead-muted mb-0">با ثبت فرم، مورد برای استاد انتخاب‌شده فرستاده می‌شود.</p></div><button type="button" class="btn-close" data-bs-toggle="collapse" data-bs-target="#lead-create-collapse" aria-label="بستن فرم"></button></div>
+      <div class="card-header d-flex align-items-center justify-content-between gap-3"><div><h2 class="h6 mb-1 card-title" id="lead-create-title">ثبت لید و نوبت تعیین سطح</h2><p class="lead-muted mb-0">با ثبت فرم، درخواست تعیین سطح برای ارزیاب مجاز انتخاب‌شده ارسال می‌شود.</p></div><button type="button" class="btn-close" data-bs-toggle="collapse" data-bs-target="#lead-create-collapse" aria-label="بستن فرم"></button></div>
       <div class="card-body">
         <form id="lead-form" data-today-iso="{{ today_iso }}" data-today-min-time="{{ today_min_time }}" novalidate>
           {% csrf_token %}<input type="hidden" id="lead-date-min" value="{{ today_jalali }}">
@@ -32,7 +32,7 @@
             <div class="row g-3">
               <div class="col-12 col-md-4"><label class="form-label" for="lead-date">تاریخ جلسه <b>*</b></label><div class="lead-date-control"><input id="lead-date" name="assessment_date" class="form-control" data-jalali data-jdp-min-date="#lead-date-min" dir="ltr" inputmode="numeric" autocomplete="off" placeholder="از تقویم انتخاب کنید" required aria-describedby="lead-date-help"><button type="button" id="lead-calendar-open" class="lead-calendar-open" aria-label="بازکردن تقویم شمسی"><i data-lucide="calendar-days" aria-hidden="true"></i></button></div><div class="lead-date-shortcuts" aria-label="میان‌بر انتخاب تاریخ"><button type="button" data-date-offset="0">امروز</button><button type="button" data-date-offset="1">فردا</button></div><div class="form-text" id="lead-date-help">تاریخ امروز یا آینده را انتخاب کنید.</div></div>
               <div class="col-12 col-md-3"><label class="form-label" for="lead-time">ساعت شروع <b>*</b></label><input id="lead-time" name="assessment_time" type="time" step="900" class="form-control lead-time-input" required></div>
-              <div class="col-12 col-md-5"><label class="form-label" for="lead-assessor">استاد تعیین سطح <b>*</b></label><select id="lead-assessor" name="assessor" class="form-select" required><option value="">— انتخاب استاد —</option>{% for person in lead_assessors %}<option value="{{ person.pk }}">{{ person.display_name }} · استاد</option>{% endfor %}</select></div>
+              <div class="col-12 col-md-5"><label class="form-label" for="lead-assessor">ارزیاب تعیین سطح <b>*</b></label><select id="lead-assessor" name="assessor" class="form-select" required><option value="">— انتخاب استاد —</option>{% for person in lead_assessors %}<option value="{{ person.pk }}">{{ person.display_name }} · استاد</option>{% endfor %}</select></div>
             </div>
           </section>
 
@@ -42,8 +42,6 @@
               <div class="col-6 col-md-3"><label class="form-label" for="lead-father-job">شغل پدر</label><input id="lead-father-job" name="father_job" class="form-control" autocomplete="off"></div>
               <div class="col-6 col-md-3"><label class="form-label" for="lead-mother-job">شغل مادر</label><input id="lead-mother-job" name="mother_job" class="form-control" autocomplete="off"></div>
               <div class="col-12 col-md-6"><label class="form-label" for="lead-allergy">حساسیت یا آلرژی</label><textarea id="lead-allergy" name="allergy_notes" class="form-control" rows="2" placeholder="برای اطلاع استاد"></textarea></div>
-              <div class="col-12 col-md-6"><label class="form-label" for="lead-course">دورهٔ مورد علاقه</label><select id="lead-course" name="course" class="form-select"><option value="">— در صورت اطلاع انتخاب کنید —</option>{% for course in lead_courses %}<option value="{{ course.pk }}">{{ course.title }}</option>{% endfor %}</select></div>
-              <div class="col-12 col-md-6"><label class="form-label" for="lead-lesson">درس مورد علاقه</label><select id="lead-lesson" name="lesson" class="form-select" disabled><option value="">ابتدا دوره را انتخاب کنید</option></select></div>
             </div>
           </details>
           <div id="lead-form-errors" class="pen-error-summary mt-3" role="alert" hidden><ul class="mb-0"></ul></div>

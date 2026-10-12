@@ -17,7 +17,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-import jdatetime
 from django.db.models import (
     Avg,
     Case,
@@ -32,10 +31,11 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.functions import Coalesce, TruncMonth
+from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
-from apps.core.utils import english_numbers, jalali_date_str, persian_numbers, to_jalali_date
+from apps.core.report_dates import ReportDateError, ReportRange, parse_report_date, project_today
+from apps.core.utils import jalali_date_str, persian_numbers, to_jalali_date
 from apps.reports.permissions import can_view_financial_reports
 
 
@@ -57,23 +57,10 @@ def _clean_uuid(value: Any) -> str:
 
 
 def _parse_report_date(value: Any) -> dt.date | None:
-    """Accept a Jalali date from the UI or an ISO Gregorian date."""
-    raw = english_numbers(str(value or "").strip())
-    if not raw:
-        return None
     try:
-        separator = "-" if "-" in raw else "/"
-        pieces = [int(part) for part in raw.replace("-", "/").split("/")]
-        if len(pieces) != 3:
-            raise ValueError
-        year, month, day = pieces
-        # The UI uses slashes for Jalali and ISO hyphens for Gregorian. This
-        # avoids the otherwise ambiguous 1405/2026 range of four-digit years.
-        if separator == "/" and year >= 1300:
-            return jdatetime.date(year, month, day).togregorian()
-        return dt.date(year, month, day)
-    except (TypeError, ValueError, OverflowError):
-        raise ReportFilterError("تاریخ باید به شکل ۱۴۰۵/۰۶/۲۵ یا ۲۰۲۶/۰۹/۱۶ باشد.")
+        return parse_report_date(value) if value else None
+    except ReportDateError as exc:
+        raise ReportFilterError(str(exc))
 
 
 def _jalali_month_label(value: dt.date | None) -> str:
@@ -97,37 +84,28 @@ class ReportFilters:
     course_id: str = ""
     location_id: str = ""
     period: str = "custom"
+    start_time: dt.time | None = None
+    end_time: dt.time | None = None
+
+    @property
+    def range(self):
+        return ReportRange(self.start, self.end, self.start_time, self.end_time)
 
     @classmethod
     def from_query(cls, query) -> "ReportFilters":
-        today = timezone.localdate()
         requested_period = (query.get("period") or "").strip().lower()
-        if requested_period not in {"", "month", "quarter", "year", "custom"}:
+        if requested_period not in {"", "daily", "weekly", "monthly", "day", "week", "month", "month_week", "quarter", "year", "custom"}:
             raise ReportFilterError("بازهٔ زمانی انتخاب‌شده معتبر نیست.")
-        raw_start = query.get("from") or query.get("date_from")
-        raw_end = query.get("to") or query.get("date_to")
-        period = requested_period or ("custom" if raw_start or raw_end else "month")
-        if not raw_start and not raw_end and period in {"month", "quarter", "year"}:
-            if period == "month":
-                start = today.replace(day=1)
-                end = today
-            elif period == "quarter":
-                start_month = ((today.month - 1) // 3) * 3 + 1
-                start = today.replace(month=start_month, day=1)
-                end = today
-            else:
-                start = today.replace(month=1, day=1)
-                end = today
-        else:
-            start = _parse_report_date(raw_start) if raw_start else today.replace(day=1)
-            end = _parse_report_date(raw_end) if raw_end else today
-        if end < start:
-            raise ReportFilterError("تاریخ پایان باید بعد از تاریخ شروع باشد.")
-        if (end - start).days > 366 * 5:
-            raise ReportFilterError("بازهٔ گزارش نمی‌تواند بیشتر از پنج سال باشد.")
+        period = requested_period or ("custom" if query.get("from") or query.get("date_from") else "daily")
+        try:
+            bounds = ReportRange.from_query(query)
+        except ReportDateError as exc:
+            raise ReportFilterError(str(exc))
         return cls(
-            start=start,
-            end=end,
+            start=bounds.start,
+            end=bounds.end,
+            start_time=bounds.start_time,
+            end_time=bounds.end_time,
             department_id=_clean_uuid(query.get("department") or query.get("department_id")),
             course_id=_clean_uuid(query.get("course") or query.get("course_id")),
             location_id=_clean_uuid(query.get("location") or query.get("location_id")),
@@ -144,6 +122,11 @@ class ReportFilters:
             "course": self.course_id,
             "location": self.location_id,
             "period": self.period,
+            "start_time": self.start_time.isoformat() if self.start_time else "",
+            "end_time": self.end_time.isoformat() if self.end_time else "",
+            "start_at": self.range.start_at.isoformat(),
+            "end_before": self.range.end_before.isoformat(),
+            "timezone": str(timezone.get_default_timezone()),
         }
 
 
@@ -206,6 +189,10 @@ def _report_sessions(filters: ReportFilters):
         "teacher",
         "location",
     ).prefetch_related("attendances")
+    if filters.start_time:
+        qs = qs.filter(Q(session_date__gt=filters.start) | Q(session_date=filters.start, start_time__gte=filters.start_time))
+    if filters.end_time:
+        qs = qs.filter(Q(session_date__lt=filters.end) | Q(session_date=filters.end, start_time__lt=filters.end_time))
     if filters.department_id:
         qs = qs.filter(
             Q(offering__department_id=filters.department_id)
@@ -301,9 +288,10 @@ def financial_report(user, filters: ReportFilters) -> dict[str, Any]:
     qs = _report_enrollments(filters)
     totals = qs.aggregate(
         revenue=Coalesce(Sum("final_amount"), Value(0)),
-        average_invoice=Coalesce(Avg("final_amount"), Value(0.0, output_field=FloatField())),
+        average_invoice=Coalesce(Avg("final_amount", filter=Q(is_free=False)), Value(0.0, output_field=FloatField())),
         registrations=Count("id"),
-        paid_count=Count("id", filter=Q(payment_method__in=("cash", "pos"))),
+        paid_count=Count("id", filter=Q(is_free=False, payment_method__in=("cash", "pos"))),
+        free_count=Count("id", filter=Q(is_free=True)),
         pending_count=Count("id", filter=Q(payment_method="cheque")),
     )
 
@@ -357,16 +345,10 @@ def financial_report(user, filters: ReportFilters) -> dict[str, Any]:
         .annotate(enrollments=Count("id"), revenue=Coalesce(Sum("final_amount"), Value(0)))
         .order_by("-revenue")[:10]
     ]
-    revenue_trend = [
-        {
-            "label": _jalali_month_label(row["month"]),
-            "value": _money(row["revenue"]),
-        }
-        for row in qs.annotate(month=TruncMonth("enrolled_at"))
-        .values("month")
-        .annotate(revenue=Coalesce(Sum("final_amount"), Value(0)))
-        .order_by("month")
-    ]
+    trend = defaultdict(int)
+    for row in qs.values("enrolled_at").annotate(revenue=Coalesce(Sum("final_amount"), Value(0))).order_by("enrolled_at"):
+        trend[_jalali_month_label(row["enrolled_at"])] += _money(row["revenue"])
+    revenue_trend = [{"label": label, "value": value} for label, value in trend.items()]
     return {
         "visible": True,
         "totals": {
@@ -374,6 +356,7 @@ def financial_report(user, filters: ReportFilters) -> dict[str, Any]:
             "average_invoice": _money(totals["average_invoice"]),
             "registrations": totals["registrations"],
             "paid_count": totals["paid_count"],
+            "free_count": totals["free_count"],
             "partial_count": partial_count,
             "pending_count": totals["pending_count"],
             "pending_amount": _money(
@@ -462,18 +445,10 @@ def people_report(filters: ReportFilters) -> dict[str, Any]:
         ).distinct().count()
         by_role.append({"key": code, "label": label, "value": total})
 
-    new_students = [
-        {"label": _jalali_month_label(row["month"]), "value": row["total"]}
-        for row in Person.objects.filter(
-            alive,
-            person_type=Person.Type.STUDENT,
-            created_at__date__gte=filters.start,
-            created_at__date__lte=filters.end,
-        ).annotate(month=TruncMonth("created_at"))
-        .values("month")
-        .annotate(total=Count("id"))
-        .order_by("month")
-    ]
+    student_months = defaultdict(int)
+    for row in Person.objects.filter(alive, person_type=Person.Type.STUDENT, created_at__gte=filters.range.start_at, created_at__lt=filters.range.end_before).annotate(day=TruncDate("created_at", tzinfo=timezone.get_default_timezone())).values("day").annotate(total=Count("id")).order_by("day"):
+        student_months[_jalali_month_label(row["day"])] += row["total"]
+    new_students = [{"label": label, "value": count} for label, count in student_months.items()]
 
     sessions = _report_sessions(filters).filter(teacher__isnull=False)
     teacher_rows: dict[str, dict[str, Any]] = defaultdict(
@@ -515,7 +490,7 @@ def class_report(filters: ReportFilters) -> dict[str, Any]:
         status.setdefault(code, 0)
     status["deferred"] = sessions.filter(
         status=ClassSession.Status.SCHEDULED,
-        session_date__lt=timezone.localdate(),
+        session_date__lt=project_today(),
     ).count()
 
     attendance = AttendanceRecord.objects.filter(
@@ -583,8 +558,8 @@ def workflow_report(filters: ReportFilters) -> dict[str, Any]:
 
     instances = Instance.objects.filter(
         is_deleted=False,
-        created_at__date__gte=filters.start,
-        created_at__date__lte=filters.end,
+        created_at__gte=filters.range.start_at,
+        created_at__lt=filters.range.end_before,
     ).select_related("workflow_definition", "current_state", "requester")
     instance_status = {
         row["status"]: row["total"]
@@ -607,8 +582,8 @@ def workflow_report(filters: ReportFilters) -> dict[str, Any]:
 
     submissions = FormSubmission.objects.filter(
         is_deleted=False,
-        created_at__date__gte=filters.start,
-        created_at__date__lte=filters.end,
+        created_at__gte=filters.range.start_at,
+        created_at__lt=filters.range.end_before,
     ).select_related("form_schema", "workflow_instance")
     form_status = {
         row["status"]: row["total"]
@@ -635,8 +610,8 @@ def communications_report(filters: ReportFilters) -> dict[str, Any]:
 
     qs = NotificationOutbox.objects.filter(
         is_deleted=False,
-        created_at__date__gte=filters.start,
-        created_at__date__lte=filters.end,
+        created_at__gte=filters.range.start_at,
+        created_at__lt=filters.range.end_before,
     )
     rows = qs.values("channel", "status").annotate(total=Count("id"))
     channels: dict[str, dict[str, int]] = defaultdict(dict)
@@ -660,13 +635,13 @@ def dashboard_data(user, filters: ReportFilters) -> dict[str, Any]:
     active_students = next((row["value"] for row in people["by_role"] if row["key"] == "student"), 0)
     from apps.persons.models import Person
 
-    thirty_days_ago = timezone.localdate() - dt.timedelta(days=29)
+    thirty_days_ago = project_today() - dt.timedelta(days=29)
     new_students_30d = Person.objects.filter(
         is_deleted=False,
         is_active=True,
         person_type=Person.Type.STUDENT,
-        created_at__date__gte=thirty_days_ago,
-        created_at__date__lte=timezone.localdate(),
+        created_at__gte=ReportRange(thirty_days_ago, project_today()).start_at,
+        created_at__lt=ReportRange(thirty_days_ago, project_today()).end_before,
     ).count()
     return {
         "filters": filters.as_dict(),
@@ -711,6 +686,7 @@ def export_rows(
                     ["میانگین مبلغ ثبت‌نام", section["totals"]["average_invoice"]],
                     ["تعداد ثبت‌نام", section["totals"]["registrations"]],
                     ["پرداخت‌شده", section["totals"]["paid_count"]],
+                    ["ثبت‌نام رایگان", section["totals"].get("free_count", 0)],
                     ["ناقص", section["totals"]["partial_count"]],
                     ["در انتظار پرداخت", section["totals"]["pending_count"]],
                     ["مطالبات در انتظار", section["totals"]["pending_amount"]],

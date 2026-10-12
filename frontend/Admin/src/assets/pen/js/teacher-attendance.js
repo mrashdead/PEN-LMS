@@ -119,7 +119,7 @@
 
   function loadClasses() {
     return get(CLASSES_URL).then(function (d) {
-      classes = d.results || [];
+      classes = (d.results || []).filter(function (c) { return c.can_manage !== false; });
       $cls.innerHTML = '<option value="">— انتخاب کلاس —</option>' + classes.map(function (c) {
         return '<option value="' + esc(c.id) + '">' + esc(c.title || c.course) +
           ' (' + pn(c.roster_size || 0) + ' دانش‌آموز)</option>';

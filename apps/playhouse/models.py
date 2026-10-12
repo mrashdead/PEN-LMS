@@ -123,6 +123,9 @@ class PlayhouseMember(DomainModel):
         db_index=True,
         help_text="کد ملی کودک برای ثبت مراجعه و اتصال به پرونده موجود",
     )
+    # Legacy member row stays in place for compatibility with existing
+    # sessions; the canonical identifier lives on the linked Person.
+    temporary_id = models.UUIDField(null=True, blank=True, unique=True, editable=False)
     age = models.PositiveSmallIntegerField(null=True, blank=True, help_text="سن بچه (سال)")
     guardian_mobile = models.CharField(
         max_length=20,
@@ -267,6 +270,14 @@ class PlayhouseSession(DomainModel):
         m = self.billable_minutes
         return f"{m // 60}:{m % 60:02d}"
 
+    @property
+    def invoice(self):
+        """Latest non-voided invoice; void invoices stay queryable as history."""
+        prefetched = getattr(self, "_prefetched_objects_cache", {}).get("invoices")
+        if prefetched is not None:
+            return next((row for row in reversed(prefetched) if not row.is_voided), None)
+        return self.invoices.filter(is_voided=False).order_by("-created_at").first()
+
 
 class PlayhouseCafePreset(DomainModel):
     """Reusable cafe item name and default price for playhouse invoices."""
@@ -295,6 +306,7 @@ class PlayhouseInvoiceItem(DomainModel):
     )
     name = models.CharField(max_length=200, help_text="نام آیتم کافه")
     price = models.DecimalField(max_digits=12, decimal_places=0, help_text="قیمت آیتم (تومان)")
+    quantity = models.PositiveSmallIntegerField(default=1, help_text="تعداد")
 
     class Meta:
         app_label = "playhouse"
@@ -305,6 +317,94 @@ class PlayhouseInvoiceItem(DomainModel):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.price:,})"
+
+    @property
+    def line_total(self) -> Decimal:
+        return self.price * self.quantity
+
+
+class PlayhouseCafeOrder(DomainModel):
+    """An append-only cafe order attached to one playhouse visit."""
+
+    class Status(models.TextChoices):
+        NEW = "new", "جدید"
+        PREPARING = "preparing", "در حال آماده‌سازی"
+        READY = "ready", "آماده"
+        CANCELLED = "cancelled", "لغو شده"
+
+    session = models.ForeignKey(PlayhouseSession, on_delete=models.PROTECT, related_name="cafe_orders")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="playhouse_cafe_orders")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.NEW, db_index=True)
+    kitchen_note = models.CharField(max_length=500, blank=True, default="")
+    ready_at = models.DateTimeField(null=True, blank=True)
+    ready_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="ready_playhouse_cafe_orders")
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="cancelled_playhouse_cafe_orders")
+    cancellation_note = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        app_label = "playhouse"
+        db_table = "playhouse_cafe_order"
+        ordering = ("created_at",)
+        indexes = [models.Index(fields=("status", "created_at"))]
+
+    @property
+    def total_amount(self) -> Decimal:
+        return sum((item.line_total for item in self.items.all()), _fee_decimal(0))
+
+    @property
+    def paid_amount(self) -> Decimal:
+        return sum((payment.amount for payment in self.payments.filter(reversed_at__isnull=True)), _fee_decimal(0))
+
+    @property
+    def balance_amount(self) -> Decimal:
+        return max(_fee_decimal(0), self.total_amount - self.paid_amount)
+
+
+class PlayhouseCafeOrderItem(DomainModel):
+    order = models.ForeignKey(PlayhouseCafeOrder, on_delete=models.PROTECT, related_name="items")
+    name = models.CharField(max_length=200)
+    quantity = models.PositiveSmallIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=0)
+    note = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        app_label = "playhouse"
+        db_table = "playhouse_cafe_order_item"
+        ordering = ("created_at",)
+
+    @property
+    def line_total(self) -> Decimal:
+        return self.unit_price * self.quantity
+
+
+class PlayhousePayment(DomainModel):
+    """Immutable payment allocation; multiple rows allow split tenders."""
+
+    class Method(models.TextChoices):
+        CASH = "cash", "نقدی"
+        CARD_TRANSFER = "card_transfer", "کارت‌به‌کارت"
+        POS = "pos", "کارت‌خوان"
+
+    session = models.ForeignKey(PlayhouseSession, on_delete=models.PROTECT, related_name="payments")
+    invoice = models.ForeignKey("playhouse.PlayhouseInvoice", null=True, blank=True, on_delete=models.PROTECT, related_name="payments")
+    cafe_order = models.ForeignKey("playhouse.PlayhouseCafeOrder", null=True, blank=True, on_delete=models.PROTECT, related_name="payments")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="playhouse_payments")
+    method = models.CharField(max_length=20, choices=Method.choices)
+    amount = models.DecimalField(max_digits=12, decimal_places=0)
+    tracking_code = models.CharField(max_length=64, blank=True, default="")
+    reversed_at = models.DateTimeField(null=True, blank=True)
+    reversed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="reversed_playhouse_payments")
+    reversal_note = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        app_label = "playhouse"
+        db_table = "playhouse_payment"
+        ordering = ("created_at",)
+
+    @property
+    def is_reversed(self) -> bool:
+        return self.reversed_at is not None
 
 
 class PlayhouseInvoiceSeq(models.Model):
@@ -340,13 +440,14 @@ class PlayhouseInvoice(DomainModel):
     """Financial record for a finished playhouse session."""
 
     class PaymentMethod(models.TextChoices):
+        CASH = "cash", "نقدی"
         POS = "pos", "دستگاه پوز"
         CARD_TRANSFER = "card_transfer", "کارت به کارت"
 
-    session = models.OneToOneField(
+    session = models.ForeignKey(
         PlayhouseSession,
         on_delete=models.PROTECT,
-        related_name="invoice",
+        related_name="invoices",
     )
     member = models.ForeignKey(
         PlayhouseMember,
@@ -381,6 +482,12 @@ class PlayhouseInvoice(DomainModel):
     paid_at = models.DateTimeField(null=True, blank=True)
     is_paid = models.BooleanField(default=False, db_index=True)
     notes = models.TextField(blank=True, default="")
+    discount_amount = models.DecimalField(max_digits=12, decimal_places=0, default=0)
+    discount_note = models.CharField(max_length=300, blank=True, default="")
+    is_voided = models.BooleanField(default=False, db_index=True)
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="voided_playhouse_invoices")
+    void_note = models.CharField(max_length=300, blank=True, default="")
 
     class Meta:
         app_label = "playhouse"
@@ -391,14 +498,33 @@ class PlayhouseInvoice(DomainModel):
         indexes = [
             models.Index(fields=("is_paid", "created_at")),
         ]
+        constraints = [
+            models.UniqueConstraint(fields=("session",), condition=models.Q(is_voided=False), name="uniq_live_playhouse_invoice_session"),
+        ]
 
     def __str__(self) -> str:
         return f"فاکتور {self.invoice_number} — {self.total_amount:,} تومان"
 
     @property
     def cafe_total(self) -> Decimal:
-        return sum((i.price for i in self.items.all()), _fee_decimal(0))
+        return sum((i.line_total for i in self.items.all()), _fee_decimal(0))
 
     @property
     def total_amount(self) -> Decimal:
-        return self.time_amount + self.cafe_total
+        return max(_fee_decimal(0), self.time_amount + self.cafe_total - self.discount_amount)
+
+    @property
+    def paid_amount(self) -> Decimal:
+        rows = self.session.payments.filter(reversed_at__isnull=True)
+        if self.is_voided and self.voided_at:
+            rows = rows.filter(created_at__lte=self.voided_at)
+        if rows.exists():
+            return sum((p.amount for p in rows), _fee_decimal(0))
+        # Historical invoices stored a single all-or-nothing payment directly.
+        return self.total_amount if self.is_paid else _fee_decimal(0)
+
+    @property
+    def balance_amount(self) -> Decimal:
+        if self.is_voided:
+            return _fee_decimal(0)
+        return max(_fee_decimal(0), self.total_amount - self.paid_amount)

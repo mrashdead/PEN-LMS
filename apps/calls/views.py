@@ -8,7 +8,6 @@ calls they received or are responsible for).
 from __future__ import annotations
 
 from rest_framework import generics, status
-from rest_framework.permissions import SAFE_METHODS
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -93,6 +92,8 @@ class CallListCreateView(generics.ListCreateAPIView):
                 | Q(caller_phone__icontains=search)
                 | Q(subject__icontains=search)
                 | Q(description__icontains=search)
+                | Q(person__first_name__icontains=search)
+                | Q(person__last_name__icontains=search)
             )
         return qs.order_by("-called_at", "-pk")
 
@@ -115,6 +116,7 @@ class CallListCreateView(generics.ListCreateAPIView):
                 assignee=serializer.validated_data.get("assignee"),
                 next_follow_up_at=serializer.validated_data.get("next_follow_up_at"),
                 subject_ref=serializer.validated_data.get("subject_ref"),
+                follow_up_status=serializer.validated_data.get("follow_up_status"),
             )
         except CallServiceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -181,3 +183,28 @@ class CallSubjectListView(generics.ListAPIView):
         return CallSubject.objects.filter(
             is_active=True, is_deleted=False,
         ).order_by("name")
+
+
+class CallPersonSearchView(APIView):
+    """Small identity picker for linking a call to an existing caller."""
+    permission_classes = (IsActiveUser, CanAccessCalls)
+
+    def get(self, request):
+        from django.db.models import Q
+        from apps.persons.models import Person
+
+        query = (request.query_params.get("search") or "").strip()
+        if len(query) < 2:
+            return Response({"results": []})
+        people = Person.objects.filter(
+            is_deleted=False, is_active=True,
+            person_type__in=(Person.Type.GUARDIAN, Person.Type.STUDENT),
+        ).filter(
+            Q(first_name__icontains=query) | Q(last_name__icontains=query)
+            | Q(mobile__icontains=query)
+        ).order_by("last_name", "first_name")[:15]
+        return Response({"results": [{
+            "id": person.pk,
+            "label": " ".join(part for part in (person.first_name, person.last_name) if part),
+            "phone": person.mobile or "",
+        } for person in people]})

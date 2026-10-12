@@ -1,0 +1,21 @@
+<div class="modal fade" id="ph-cafe-order-modal" tabindex="-1" aria-labelledby="ph-cafe-order-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><div><h2 class="modal-title fs-5" id="ph-cafe-order-title">ثبت سفارش کافه</h2><div class="small text-muted" id="ph-cafe-order-visitor"></div></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button></div>
+    <div class="modal-body">
+      <input type="hidden" id="ph-cafe-order-session">
+      <label class="form-label" for="ph-cafe-order-preset">افزودن از فهرست کافه</label>
+      <div class="input-group mb-3"><select class="form-select" id="ph-cafe-order-preset"><option value="">انتخاب آیتم</option></select><button class="btn btn-outline-primary" type="button" id="ph-cafe-order-add-preset">افزودن</button></div>
+      <div class="d-flex justify-content-between align-items-center mb-2"><strong>آیتم‌ها</strong><button type="button" class="btn btn-sm btn-outline-secondary" id="ph-cafe-order-add-row">افزودن آیتم دستی</button></div>
+      <div id="ph-cafe-order-items" class="d-grid gap-2"></div>
+      <div class="mt-3"><label class="form-label" for="ph-cafe-order-note">یادداشت آشپزخانه</label><textarea class="form-control" id="ph-cafe-order-note" maxlength="500" rows="2" placeholder="مثلاً بدون شکر"></textarea></div>
+      <div class="border-top mt-3 pt-3"><div class="d-flex justify-content-between"><strong>جمع سفارش</strong><strong id="ph-cafe-order-total">۰ تومان</strong></div></div>
+      <div class="border-top mt-3 pt-3">
+        <div class="d-flex justify-content-between align-items-center"><div><strong>پرداخت همین لحظه</strong><div class="small text-muted">می‌توانید مبلغ را بین چند روش تقسیم کنید.</div></div><button type="button" class="btn btn-sm btn-outline-secondary" id="ph-cafe-payment-add">افزودن روش پرداخت</button></div>
+        <div id="ph-cafe-payments" class="d-grid gap-2 mt-2"></div>
+        <div class="small mt-2" id="ph-cafe-payment-summary" aria-live="polite"></div>
+      </div>
+      <div class="alert alert-danger mt-3 mb-0" id="ph-cafe-order-error" role="alert" hidden></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button><button type="button" class="btn btn-primary" id="ph-cafe-order-submit">ثبت سفارش و پرداخت</button></div>
+  </div></div>
+</div>

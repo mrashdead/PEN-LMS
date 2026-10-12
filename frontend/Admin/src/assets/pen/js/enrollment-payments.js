@@ -36,6 +36,29 @@
   var nextPage = null;
   var timer;
   var labels = { cash: 'نقدی', pos: 'کارت‌خوان', card_transfer: 'کارت‌به‌کارت', cheque: 'چک' };
+  var $freeRows = document.getElementById('free-enrollments-rows');
+  var $freeMore = document.getElementById('free-enrollments-more');
+  var freeNext = null;
+  function loadFree(append) {
+    var url = append ? freeNext : '/api/education/enrollments/?is_free=true&q=' + encodeURIComponent($search.value.trim());
+    $freeRows.setAttribute('aria-busy', 'true');
+    get(url).then(function (data) {
+      if (!append) $freeRows.innerHTML = '';
+      var rows = data.results || [];
+      if (!rows.length && !append) $freeRows.textContent = 'ثبت‌نام رایگانی با این مشخصات ثبت نشده است.';
+      $freeRows.insertAdjacentHTML('beforeend', rows.map(function (row) {
+        return '<div class="d-flex flex-wrap align-items-center gap-2 py-2 border-bottom"><strong>' + esc(row.student_name) + '</strong><span>' + esc(row.offering_title) + '</span>' +
+          '<span class="badge bg-primary-subtle text-primary">ثبت‌نام رایگان</span><span class="text-muted fs-13">قابل‌پرداخت: ۰ تومان · بدهی: ۰ تومان</span>' +
+          '<a class="btn btn-light btn-sm ms-auto" href="/workspace/enrollments/records/offering/' + encodeURIComponent(row.id) + '/">جزئیات</a></div>';
+      }).join(''));
+      freeNext = data.next || null;
+      $freeMore.hidden = !freeNext;
+    }).catch(function (error) {
+      $freeRows.textContent = error.message;
+      $freeMore.hidden = true;
+    }).finally(function () { $freeRows.setAttribute('aria-busy', 'false'); });
+  }
+  $freeMore.addEventListener('click', function () { loadFree(true); });
 
   function load(reset) {
     if (reset) nextPage = null;
@@ -84,7 +107,7 @@
 
   $search.addEventListener('input', function () {
     clearTimeout(timer);
-    timer = setTimeout(function () { load(true); }, 250);
+    timer = setTimeout(function () { load(true); loadFree(false); }, 250);
   });
   $methodFilter.addEventListener('change', function () { load(true); });
   $more.addEventListener('click', function () { load(false); });
@@ -148,6 +171,7 @@
   });
 
   load(true);
+  loadFree(false);
   icons();
   window.penAttachJalaliPickers && window.penAttachJalaliPickers();
 })();

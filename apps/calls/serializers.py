@@ -159,6 +159,7 @@ class CallCreateSerializer(serializers.Serializer):
     person = CallPersonField(required=False, allow_null=True)
     assignee = CallAssigneeField(required=False, allow_null=True)
     next_follow_up_at = serializers.DateTimeField(required=False, allow_null=True)
+    follow_up_status = serializers.ChoiceField(choices=FollowUpStatus.choices, required=False)
 
     def validate_caller_phone(self, value):
         from apps.core.utils import english_numbers

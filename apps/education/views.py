@@ -81,6 +81,7 @@ from apps.education.serializers import (
     EnrollmentWaitlistSerializer,
     SessionMaterialSerializer,
 )
+from apps.education.teaching import learner_courses, teacher_standalone_classes
 from apps.education.services import (
     CapacityExceededError,
     EducationServiceError,
@@ -250,7 +251,9 @@ class CourseListCreateView(generics.ListCreateAPIView):
         # «درس‌ها» از ردیف‌های زندهٔ CourseLesson خوانده می‌شود (lesson_links)،
         # نه از مدیر M2M که لینک‌های soft-deleted را هم برمی‌گرداند.
         return education_courses_visible_to(self.request.user).prefetch_related(
-            "course_lessons__lesson"
+            "course_lessons__lesson",
+            models.Prefetch("offerings", queryset=education_offerings_visible_to(self.request.user),
+                            to_attr="visible_offerings"),
         )
 
 
@@ -260,7 +263,9 @@ class CourseDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         return education_courses_visible_to(self.request.user).prefetch_related(
-            "course_lessons__lesson"
+            "course_lessons__lesson",
+            models.Prefetch("offerings", queryset=education_offerings_visible_to(self.request.user),
+                            to_attr="visible_offerings"),
         )
 
 
@@ -413,7 +418,8 @@ class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = OfferingEnrollment.objects.filter(is_deleted=False).select_related(
-            "offering", "offering__course", "student"
+            "offering", "offering__course", "offering__instructor",
+            "final_class_enrollment__class_group__teacher", "student"
         )
         offering = self.request.query_params.get("offering")
         if offering:
@@ -421,6 +427,12 @@ class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
         student = self.request.query_params.get("student")
         if student:
             qs = qs.filter(student_id=student)
+        if self.request.query_params.get("is_free") == "true":
+            qs = qs.filter(is_free=True)
+        search = self.request.query_params.get("q", "").strip()
+        if search:
+            qs = qs.filter(models.Q(student__first_name__icontains=search)
+                           | models.Q(student__last_name__icontains=search))
         return qs.order_by("-created_at")
 
     @transaction.atomic
@@ -438,6 +450,8 @@ class OfferingEnrollmentListCreateView(generics.ListCreateAPIView):
                 course_amount=serializer.validated_data.get("course_amount"),
                 discount_type=serializer.validated_data.get("discount_type", OfferingEnrollment.DiscountType.NONE),
                 discount_value=serializer.validated_data.get("discount_value", 0),
+                is_free=serializer.validated_data.get("is_free", False),
+                free_reason=serializer.validated_data.get("free_reason", ""),
                 payment_method=serializer.validated_data.get("payment_method", OfferingEnrollment.PaymentMethod.CASH),
                 cheque_count=serializer.validated_data.get("cheque_count", 0),
                 cheques=serializer.validated_data.get("cheques") or [],
@@ -465,7 +479,8 @@ class OfferingEnrollmentDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = OfferingEnrollmentSerializer
     permission_classes = (IsActiveUser, IsManagerOrAdmin, StrictDjangoModelPermissions, ResourceCRUDPermission)
     queryset = OfferingEnrollment.objects.filter(is_deleted=False).select_related(
-        "offering", "offering__course", "student"
+        "offering", "offering__course", "offering__instructor",
+        "final_class_enrollment__class_group__teacher", "student"
     )
 
 
@@ -1359,6 +1374,7 @@ class LearnerPortalView(APIView):
                 request.user, student=person, start=start, end=end
             ),
             "report_cards": learner_report_cards(request.user, student=person),
+            "courses": learner_courses(person),
             "schedule": student_schedule(
                 request.user,
                 start=timezone.localdate(),
@@ -1372,13 +1388,14 @@ class TeacherClassesView(APIView):
     sessions. Powers the teacher dashboard and the class pickers.
 
     Teacher-only read; a manager may also call it (returns their own, which is
-    empty unless they are an instructor) — the scoping is by instructor==person.
+    empty unless they teach) — ownership follows offering, class and session relationships.
     """
 
     permission_classes = (IsActiveUser, IsAcademicManager)
 
     def get(self, request):
-        return Response({"results": teacher_classes(request.user)})
+        return Response({"results": teacher_classes(request.user),
+                         "standalone_classes": teacher_standalone_classes(request.user)})
 
 
 class OfferingCreateSessionView(APIView):
@@ -1443,26 +1460,21 @@ class AttendanceReportView(APIView):
     permission_classes = (IsActiveUser, IsAcademicManager)
 
     def get(self, request):
-        import datetime as dt
-        from apps.core.utils import english_numbers
+        from apps.core.report_dates import ReportDateError, ReportRange, parse_report_date
         from apps.education.reports import ReportError, attendance_report
 
         period = (request.query_params.get("period") or "day").strip().lower()
         raw = (request.query_params.get("date") or "").strip()
-        ref = None
-        if raw:
-            try:
-                ref = dt.date.fromisoformat(english_numbers(raw))
-            except ValueError:
-                return Response(
-                    {"date": "قالب تاریخ باید YYYY-MM-DD (میلادی) باشد."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        try:
+            ref = parse_report_date(raw) if raw else None
+            bounds = ReportRange.from_query(request.query_params) if any(request.query_params.get(key) for key in ("from", "to", "year", "month", "week", "start_time", "end_time")) else None
+        except ReportDateError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         group_month = request.query_params.get("group_by") == "jalali_month"
         try:
             data = attendance_report(
                 user=request.user, period=period, ref=ref,
-                group_by_jalali_month=group_month,
+                group_by_jalali_month=group_month, bounds=bounds,
             )
         except ReportError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)

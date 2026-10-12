@@ -13,6 +13,7 @@ from apps.staff.views import (
     TimesheetDetailView,
     TimesheetListCreateView,
     TimesheetReviewView,
+    TeacherOptionsView,
     WorkReportDetailView,
     WorkReportListCreateView,
     WorkReportReviewView,
@@ -25,6 +26,7 @@ urlpatterns = [
     path("timesheets/", TimesheetListCreateView.as_view(), name="staff-timesheet-list"),
     path("timesheets/<uuid:pk>/", TimesheetDetailView.as_view(), name="staff-timesheet-detail"),
     path("timesheets/<uuid:pk>/review/", TimesheetReviewView.as_view(), name="staff-timesheet-review"),
+    path("teachers/", TeacherOptionsView.as_view(), name="staff-teacher-options"),
     # Leave catalog + requests
     path("leave-types/", LeaveTypeListView.as_view(), name="staff-leave-type-list"),
     path("leave-requests/", LeaveRequestListCreateView.as_view(), name="staff-leave-list"),
