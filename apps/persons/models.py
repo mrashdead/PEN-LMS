@@ -249,10 +249,6 @@ class Person(DomainModel):
             except ValidationError:
                 errors.setdefault("email", []).append("قالب ایمیل معتبر نیست.")
 
-        # اعتبارسنجی person_type
-        if self.person_type == Person.Type.STUDENT and not self.student_code and not (self.is_temporary or self.temporary_id):
-            errors.setdefault("student_code", []).append("برای دانش‌آموز کد دانش‌آموزی الزامی است.")
-
         if self.person_type in (Person.Type.EMPLOYEE, Person.Type.TEACHER):
             if not self.employee_code:
                 errors.setdefault("employee_code", []).append("برای کارمند/معلم کد پرسنلی الزامی است.")

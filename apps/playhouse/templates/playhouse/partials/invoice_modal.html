@@ -28,6 +28,11 @@
 
         {# ── آیتم‌های کافه ──────────────────────────────────────────── #}
         <label class="form-label">آیتم‌های کافه</label>
+        <div id="ph-recorded-cafe-orders" class="border rounded-3 p-2 mb-2" hidden>
+          <div class="small fw-semibold mb-1">سفارش‌های ثبت‌شده هنگام حضور</div>
+          <div id="ph-recorded-cafe-order-list" class="small"></div>
+          <div class="small fw-semibold mt-2">جمع سفارش‌های ثبت‌شده: <span id="ph-recorded-cafe-total">۰</span> تومان</div>
+        </div>
         <div class="input-group mb-2">
           <select id="ph-cafe-preset-select" class="form-select" aria-label="انتخاب آیتم آماده کافه">
             <option value="">انتخاب از فهرست آماده</option>
@@ -36,13 +41,13 @@
         </div>
         <div id="ph-cafe-items">
           <div class="row g-2 ph-cafe-row">
-            <div class="col-6">
+            <div class="col-12 col-sm-6">
               <input type="text" class="form-control" placeholder="نام آیتم" aria-label="نام آیتم">
             </div>
-            <div class="col-5">
+            <div class="col-10 col-sm-4">
               <input type="text" class="form-control" placeholder="قیمت" inputmode="numeric" autocomplete="off" dir="ltr" aria-label="قیمت">
             </div>
-            <div class="col-1 d-flex align-items-center">
+            <div class="col-2 d-flex align-items-center">
               <button type="button" class="btn btn-sm btn-light ph-cafe-add" title="افزودن آیتم">
                 <i data-lucide="plus"></i>
               </button>
@@ -50,33 +55,35 @@
           </div>
         </div>
 
-        {# ── پرداخت ──────────────────────────────────────────────────── #}
-        <div class="border-top mt-3 pt-3">
-          <label class="form-label">روش پرداخت</label>
-          <div class="btn-group w-100" role="group" aria-label="روش پرداخت">
-            <input type="radio" class="btn-check" name="ph-pay-method" id="ph-pay-cash" value="cash">
-            <label class="btn btn-outline-primary" for="ph-pay-cash">نقدی</label>
-            <input type="radio" class="btn-check" name="ph-pay-method" id="ph-pay-pos" value="pos">
-            <label class="btn btn-outline-primary" for="ph-pay-pos">کارت‌خوان</label>
-            <input type="radio" class="btn-check" name="ph-pay-method" id="ph-pay-card" value="card_transfer">
-            <label class="btn btn-outline-primary" for="ph-pay-card">کارت به کارت</label>
+        {# ── پرداخت ترکیبی ──────────────────────────────────────────── #}
+        <section class="border-top mt-3 pt-3" id="ph-invoice-payment-section" aria-labelledby="ph-invoice-payments-title">
+          <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+            <div>
+              <h3 class="form-label mb-0" id="ph-invoice-payments-title">پرداخت</h3>
+              <div class="small text-muted">هر روش پرداخت را در یک ردیف جدا ثبت کنید.</div>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="ph-invoice-payment-add"><i data-lucide="plus" class="size-4 me-1" aria-hidden="true"></i> افزودن پرداخت</button>
           </div>
-          <div class="mt-2">
-            <label for="ph-tracking" class="form-label">کد رهگیری</label>
-            <input type="text" id="ph-tracking" class="form-control" dir="ltr"
-                   placeholder="کد رهگیری پوز یا کارت به کارت" aria-label="کد رهگیری">
-          </div>
-        </div>
+          <div id="ph-invoice-payment-lines" class="vstack gap-2"></div>
+          <div id="ph-invoice-payment-summary" class="small bg-body-tertiary rounded-2 p-2 mt-2" aria-live="polite"></div>
+        </section>
 
-        <div class="border-top mt-3 pt-3">
-          <label for="ph-invoice-discount" class="form-label">تخفیف (تومان)</label>
-          <input type="text" id="ph-invoice-discount" class="form-control" inputmode="numeric" dir="ltr" value="0">
-          <label for="ph-invoice-discount-note" class="form-label mt-2">دلیل تخفیف</label>
-          <input type="text" id="ph-invoice-discount-note" class="form-control" maxlength="300">
-        </div>
+        {% if can_create_free_invoice %}
+        <section class="border-top mt-3 pt-3" id="ph-invoice-free-section">
+          <div class="form-check">
+            <input type="checkbox" id="ph-invoice-is-free" class="form-check-input" aria-describedby="ph-invoice-free-help" aria-controls="ph-invoice-free-reason-fields">
+            <label class="form-check-label fw-semibold" for="ph-invoice-is-free">فاکتور رایگان</label>
+          </div>
+          <p class="form-text mb-0" id="ph-invoice-free-help">بدون مبلغ قابل‌پرداخت؛ مستقل از روش‌های پرداخت.</p>
+          <div id="ph-invoice-free-reason-fields" class="mt-2" hidden>
+            <label class="form-label" for="ph-invoice-free-reason">دلیل رایگان‌بودن (اختیاری)</label>
+            <textarea id="ph-invoice-free-reason" class="form-control" rows="2" maxlength="500"></textarea>
+          </div>
+        </section>
+        {% endif %}
 
         <div class="d-flex justify-content-between align-items-center border-top mt-3 pt-3">
-          <span class="fw-semibold">مبلغ کل</span>
+          <span class="fw-semibold">مبلغ قابل‌پرداخت</span>
           <span class="fw-bold fs-4 text-primary" id="ph-invoice-total">—</span>
         </div>
 
@@ -86,7 +93,7 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">بستن</button>
         <button type="button" class="btn btn-primary" id="ph-invoice-submit">
-          <i data-lucide="check" class="size-4 me-1"></i> صدور فاکتور و ثبت پرداخت
+          <i data-lucide="check" class="size-4 me-1"></i> صدور فاکتور
         </button>
       </div>
     </div>

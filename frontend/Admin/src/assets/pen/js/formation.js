@@ -391,6 +391,7 @@
 
   // ── submit ──────────────────────────────────────────────────────────
   function submit() {
+    if (window.penValidateTimePickers && !window.penValidateTimePickers(el.form)) return;
     var body = previewPayload();
     body.class_code = el.code.value.trim();
     body.regenerate = el.regen.checked;

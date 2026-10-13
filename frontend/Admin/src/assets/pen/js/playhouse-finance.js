@@ -82,6 +82,7 @@
       '<a class="btn btn-sm btn-outline-primary mt-3" target="_blank" rel="noopener" href="/playhouse/invoices/' + encodeURIComponent(invoice.id) + '/print/">چاپ فاکتور</a>';
   }
   function load(from, to) {
+    if (window.penValidateTimePickers && !window.penValidateTimePickers(startTime.closest('.card'))) return;
     var version = ++loadVersion;
     errorBox.hidden = true;
     rows.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">در حال بارگذاری…</td></tr>';

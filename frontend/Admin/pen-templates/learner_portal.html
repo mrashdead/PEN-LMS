@@ -6,6 +6,7 @@
 {% endblock %}
 
 {% block content %}
+<div class="learner-portal-page">
 {# ── ward switcher (only rendered when the account has more than one student) #}
 <div class="row g-4 mb-1" id="lp-switch-row" hidden>
   <div class="col-12">
@@ -31,7 +32,7 @@
           <div class="col-6"><label for="lp-date-end" class="form-label fs-13">تا تاریخ</label><input id="lp-date-end" class="form-control form-control-sm" type="text" data-jalali autocomplete="off" placeholder="۱۴۰۵/۰۷/۱۴" inputmode="numeric"></div>
           <div class="col-12 d-flex justify-content-end"><button id="lp-date-reset" type="button" class="btn btn-sm btn-link text-decoration-none px-0">نمایش همهٔ تاریخ‌ها</button></div>
         </div>
-        <div class="d-flex align-items-center gap-4 mb-3">
+        <div class="d-flex align-items-center gap-4 mb-3 learner-attendance-summary">
           <div class="pen-ring" id="lp-ring" style="--pen-ring:0"><span id="lp-rate">—</span></div>
           <div>
             <p class="fs-14 text-muted mb-1">درصد حضور (حاضر + تأخیر)</p>
@@ -118,6 +119,7 @@
       </div>
     </div>
   </div>
+</div>
 </div>
 {% endblock %}
 

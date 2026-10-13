@@ -177,6 +177,11 @@
     var sidebar = document.getElementById('main-sidebar');
     var backdrop = document.getElementById('sidebar-backdrop');
     var menuList = document.getElementById('navbar-menu-list');
+    var currentViewport = null;
+    var desktopSidebar = docEl.getAttribute('data-sidebar') || 'large';
+    try { desktopSidebar = sessionStorage.getItem('data-sidebar') || desktopSidebar; } catch (e) {}
+
+    if (toggle) toggle.setAttribute('aria-controls', 'main-sidebar');
 
     function persist(key, value) {
       try { sessionStorage.setItem(key, value); } catch (e) { /* private mode */ }
@@ -206,6 +211,8 @@
       if (sidebar) sidebar.classList.remove('show');
       if (backdrop) backdrop.classList.remove('d-block');
       if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      document.body.classList.remove('pen-drawer-open');
+      if (sidebar) sidebar.inert = viewport() !== 'desktop' && document.body.classList.contains('sidebar-hidden');
     }
     function closeMobileDrawer() {
       document.body.classList.add('sidebar-hidden');
@@ -216,6 +223,8 @@
       if (sidebar) sidebar.classList.add('show');
       if (backdrop) backdrop.classList.add('d-block');
       if (toggle) toggle.setAttribute('aria-expanded', 'true');
+      document.body.classList.add('pen-drawer-open');
+      if (sidebar) sidebar.inert = false;
     }
 
     // small-mode flyout: place .nav-menu-sub beside its trigger (RTL: left edge)
@@ -225,6 +234,8 @@
       if (!sub) return;
       var rect = trigger.getBoundingClientRect();
       var menuRect = sub.getBoundingClientRect();
+      sub.style.maxHeight = Math.max(0, window.innerHeight - 20) + 'px';
+      sub.style.overflowY = 'auto';
       var top = rect.top;
       if (top + menuRect.height > window.innerHeight) {
         top = Math.max(10, window.innerHeight - menuRect.height - 10);
@@ -237,20 +248,23 @@
     function toggleSidebar() {
       var mode = viewport();
       if (mode === 'mobile') {
-        setSidebarAttr('large');
+        docEl.setAttribute('data-sidebar', 'large');
         if (sidebar && sidebar.classList.contains('show')) closeMobileDrawer();
         else openMobileDrawer();
         closeFlyouts();
       } else if (mode === 'tablet') {
         document.body.classList.toggle('sidebar-hidden');
-        setSidebarAttr('small');
+        docEl.setAttribute('data-sidebar', 'small');
         hideMobileDrawer();
+        if (toggle) toggle.setAttribute('aria-expanded', String(!document.body.classList.contains('sidebar-hidden')));
         closeFlyouts();
       } else {
         var next = (docEl.getAttribute('data-sidebar') || 'large') === 'large' ? 'small' : 'large';
         setSidebarAttr(next);
+        desktopSidebar = next;
         document.body.classList.remove('sidebar-hidden');
         hideMobileDrawer();
+        if (toggle) toggle.setAttribute('aria-expanded', String(next === 'large'));
         closeFlyouts();
       }
     }
@@ -273,18 +287,29 @@
     //  desktop: restore persisted size, drop mobile classes
     function syncViewport() {
       var mode = viewport();
+      // Mobile keyboards and browser chrome change height without crossing
+      // a breakpoint. Keep the current drawer state in that case.
+      if (mode === currentViewport) {
+        if (mode !== 'mobile' && menuList) {
+          menuList.querySelectorAll('.collapse.show').forEach(function (collapse) {
+            if (docEl.getAttribute('data-sidebar') === 'small') positionFlyout(collapse.previousElementSibling);
+          });
+        }
+        return;
+      }
+      currentViewport = mode;
       if (mode === 'mobile') {
         docEl.setAttribute('data-sidebar', 'large');
         closeMobileDrawer();
       } else if (mode === 'tablet') {
-        setSidebarAttr('small');
+        docEl.setAttribute('data-sidebar', 'small');
+        document.body.classList.add('sidebar-hidden');
         hideMobileDrawer();
       } else {
         document.body.classList.remove('sidebar-hidden');
         hideMobileDrawer();
-        var saved = 'large';
-        try { saved = sessionStorage.getItem('data-sidebar') || docEl.getAttribute('data-sidebar') || 'large'; } catch (e) {}
-        docEl.setAttribute('data-sidebar', saved === 'small' ? 'small' : 'large');
+        docEl.setAttribute('data-sidebar', desktopSidebar === 'small' ? 'small' : 'large');
+        if (toggle) toggle.setAttribute('aria-expanded', String(desktopSidebar !== 'small'));
       }
       closeFlyouts();
     }

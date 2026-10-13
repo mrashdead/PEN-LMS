@@ -7,10 +7,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.models import AuditEvent
-from apps.education.models import CourseLesson
+from apps.education.models import Course, CourseLesson
 from apps.leads.models import Lead, LeadAssessment, LeadRecommendation
-from apps.leads.permissions import IsLeadAssessor, IsLeadOperator, IsLeadTeacher, is_lead_operator
-from apps.leads.selectors import assigned_leads_for_teacher, assessors, leads_for_user
+from apps.leads.permissions import IsAssignedLeadAssessor, IsLeadAssessor, IsLeadOperator, can_assess_lead, is_lead_operator
+from apps.leads.selectors import assigned_leads_for_assessor, assessors, leads_for_user
 from apps.leads.serializers import (
     LeadAssessmentSerializer,
     LeadCreateSerializer,
@@ -18,7 +18,7 @@ from apps.leads.serializers import (
     LeadRecommendationSerializer,
     LeadPersonCreateSerializer,
     LeadSerializer,
-    TeacherLeadSerializer,
+    LeadAssessorSerializer,
 )
 from apps.persons.models import Person
 from apps.persons.services import DuplicateNationalCodeError, PersonService
@@ -60,7 +60,9 @@ class LeadListCreateView(generics.ListCreateAPIView):
         return super().create(request, *args, **kwargs)
 
     def get_serializer_class(self):
-        return LeadCreateSerializer if self.request.method == "POST" else LeadSerializer
+        if self.request.method == "POST":
+            return LeadCreateSerializer
+        return LeadSerializer if is_lead_operator(self.request.user) else LeadAssessorSerializer
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user, status=Lead.Status.SENT)
@@ -72,6 +74,9 @@ class LeadDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         return leads_for_user(self.request.user)
+
+    def get_serializer_class(self):
+        return LeadSerializer if is_lead_operator(self.request.user) else LeadAssessorSerializer
 
     def update(self, request, *args, **kwargs):
         if not is_lead_operator(request.user):
@@ -118,10 +123,9 @@ class LeadActionView(APIView):
             )
             return Response({"detail": "مورد تعیین سطح حذف شد.", "id": str(lead.pk)})
         elif action == "assess":
-            user_person = getattr(request.user, "person", None)
-            if not user_person or not user_person.can_assess_leads or lead.assessor_id != user_person.pk:
+            if not can_assess_lead(request.user, lead):
                 return Response({"detail": "فقط ارزیاب تخصیص‌یافته می‌تواند نتیجه را ثبت کند."}, status=403)
-            if lead.status != Lead.Status.SENT:
+            if lead.status not in (Lead.Status.SENT, "scheduled"):
                 return Response({"detail": "این مورد در انتظار تعیین سطح نیست."}, status=400)
             ser = LeadAssessmentSerializer(data=request.data)
             ser.is_valid(raise_exception=True)
@@ -130,8 +134,7 @@ class LeadActionView(APIView):
             lead.status = Lead.Status.ASSESSED
             lead.save(update_fields=["assessment_result", "status", "updated_at"])
         elif action == "recommend":
-            user_person = getattr(request.user, "person", None)
-            if not user_person or not user_person.can_assess_leads or lead.assessor_id != user_person.pk:
+            if not can_assess_lead(request.user, lead):
                 return Response({"detail": "معرفی دوره فقط برای ارزیاب تخصیص‌یافته مجاز است."}, status=403)
             if lead.status not in (Lead.Status.ASSESSED, Lead.Status.RECOMMENDED):
                 return Response({"detail": "ابتدا باید تعیین سطح ثبت شود."}, status=400)
@@ -145,7 +148,7 @@ class LeadActionView(APIView):
             if lesson and not CourseLesson.objects.filter(course=course, lesson=lesson).exists():
                 return Response({"detail": "درس انتخاب‌شده متعلق به دوره نیست."}, status=400)
             note = ser.validated_data.get("recommendation", "")
-            LeadRecommendation.objects.create(lead=lead, assessment=latest_assessment, assessor=user_person, recorded_by=request.user, course=course, lesson=lesson, note=note)
+            LeadRecommendation.objects.create(lead=lead, assessment=latest_assessment, assessor=lead.assessor, recorded_by=request.user, course=course, lesson=lesson, note=note)
             lead.course = course
             lead.lesson = lesson
             lead.recommendation = note
@@ -166,7 +169,8 @@ class LeadActionView(APIView):
             lead.save(update_fields=["status", "updated_at"])
         else:
             return Response({"detail": "عملیات نامعتبر است."}, status=400)
-        return Response(LeadSerializer(lead).data)
+        serializer_class = LeadSerializer if is_lead_operator(request.user) else LeadAssessorSerializer
+        return Response(serializer_class(lead).data)
 
 
 class LeadPersonCreateView(APIView):
@@ -208,7 +212,6 @@ class LeadPersonCreateView(APIView):
                     mobile=lead.phone,
                     father_name=data.get("father_name", ""),
                     address=lead.neighborhood,
-                    student_code=data["student_code"],
                     registered_by=request.user,
                     auto_create_user=False,
                 )
@@ -228,37 +231,53 @@ class LeadAssessorListView(APIView):
     permission_classes = (IsLeadOperator,)
 
     def get(self, request):
-        return Response({"results": [{"id": str(p.pk), "name": p.display_name, "type": "استاد"} for p in assessors()]})
+        return Response({"results": [{"id": str(p.pk), "name": p.display_name, "type": "ارزیاب"} for p in assessors()]})
 
 
-class TeacherLeadListView(generics.ListAPIView):
-    """A teacher-specific queue that cannot expand to the staff lead list."""
-    serializer_class = TeacherLeadSerializer
-    permission_classes = (IsLeadTeacher,)
+class LeadCourseListView(APIView):
+    """Course choices for placement, without granting access to education administration."""
+    permission_classes = (IsLeadAssessor,)
+
+    def get(self, request):
+        courses = Course.objects.filter(is_active=True, is_deleted=False).prefetch_related("course_lessons__lesson").order_by("title")
+        return Response({"results": [
+            {"id": str(course.pk), "title": course.title, "lesson_titles": [
+                {"id": str(link.lesson_id), "title": link.lesson.title}
+                for link in course.course_lessons.all()
+                if link.lesson.is_active and not link.lesson.is_deleted
+            ]}
+            for course in courses
+        ]})
+
+
+class LeadAssessorQueueView(generics.ListAPIView):
+    """The assessor's own assigned lead queue, independent of teaching roles."""
+    serializer_class = LeadAssessorSerializer
+    permission_classes = (IsAssignedLeadAssessor,)
     pagination_class = None
 
     def get_queryset(self):
-        qs = assigned_leads_for_teacher(self.request.user)
+        qs = assigned_leads_for_assessor(self.request.user)
         status_filter = self.request.query_params.get("status")
         return qs.filter(status=status_filter) if status_filter else qs
 
 
-class TeacherLeadDetailView(generics.RetrieveAPIView):
-    serializer_class = TeacherLeadSerializer
-    permission_classes = (IsLeadTeacher,)
+class LeadAssessorDetailView(generics.RetrieveAPIView):
+    serializer_class = LeadAssessorSerializer
+    permission_classes = (IsAssignedLeadAssessor,)
 
     def get_queryset(self):
-        return assigned_leads_for_teacher(self.request.user)
+        return assigned_leads_for_assessor(self.request.user)
 
 
-class TeacherLeadAssessmentView(APIView):
-    permission_classes = (IsLeadTeacher,)
+class LeadAssessorResultView(APIView):
+    permission_classes = (IsAssignedLeadAssessor,)
 
     def post(self, request, pk):
-        lead = assigned_leads_for_teacher(request.user).filter(pk=pk).first()
+        lead = assigned_leads_for_assessor(request.user).filter(pk=pk).first()
         if not lead:
             return Response({"detail": "این لید به شما تخصیص داده نشده است."}, status=404)
-        if lead.status != Lead.Status.SENT:
+        if lead.status not in (Lead.Status.SENT, "scheduled"):
             return Response({"detail": "این لید در انتظار ثبت تعیین سطح نیست."}, status=400)
         serializer = LeadAssessmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -266,4 +285,4 @@ class TeacherLeadAssessmentView(APIView):
         lead.assessment_result = assessment.result
         lead.status = Lead.Status.ASSESSED
         lead.save(update_fields=("assessment_result", "status", "updated_at"))
-        return Response(TeacherLeadSerializer(lead).data)
+        return Response(LeadAssessorSerializer(lead).data)

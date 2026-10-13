@@ -443,6 +443,7 @@ class PlayhouseInvoice(DomainModel):
         CASH = "cash", "نقدی"
         POS = "pos", "دستگاه پوز"
         CARD_TRANSFER = "card_transfer", "کارت به کارت"
+        SPLIT = "split", "ترکیبی"
 
     session = models.ForeignKey(
         PlayhouseSession,
@@ -484,6 +485,8 @@ class PlayhouseInvoice(DomainModel):
     notes = models.TextField(blank=True, default="")
     discount_amount = models.DecimalField(max_digits=12, decimal_places=0, default=0)
     discount_note = models.CharField(max_length=300, blank=True, default="")
+    is_free = models.BooleanField(default=False, db_index=True)
+    free_reason = models.CharField(max_length=500, blank=True, default="")
     is_voided = models.BooleanField(default=False, db_index=True)
     voided_at = models.DateTimeField(null=True, blank=True)
     voided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="voided_playhouse_invoices")
@@ -511,10 +514,14 @@ class PlayhouseInvoice(DomainModel):
 
     @property
     def total_amount(self) -> Decimal:
+        if self.is_free:
+            return _fee_decimal(0)
         return max(_fee_decimal(0), self.time_amount + self.cafe_total - self.discount_amount)
 
     @property
     def paid_amount(self) -> Decimal:
+        if self.is_free:
+            return _fee_decimal(0)
         rows = self.session.payments.filter(reversed_at__isnull=True)
         if self.is_voided and self.voided_at:
             rows = rows.filter(created_at__lte=self.voided_at)

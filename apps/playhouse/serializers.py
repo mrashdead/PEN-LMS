@@ -107,6 +107,7 @@ class ActiveSessionSerializer(serializers.ModelSerializer):
     has_invoice = serializers.SerializerMethodField()
     invoice_is_paid = serializers.SerializerMethodField()
     invoice_number = serializers.SerializerMethodField()
+    invoice_id = serializers.SerializerMethodField()
     invoice_detail = serializers.SerializerMethodField()
     invoice_history = serializers.SerializerMethodField()
     cafe_orders = serializers.SerializerMethodField()
@@ -127,7 +128,7 @@ class ActiveSessionSerializer(serializers.ModelSerializer):
         fields = [
             "id", "member_pk", "member_first_name", "member_last_name", "temporary_id", "national_code", "member_name", "age", "guardian_mobile", "guardian_name", "member_notes", "created_at", "session_date", "operator_name", "entry_at", "exit_at",
             "paused_at", "paused_seconds", "status", "duration_label", "elapsed_seconds", "elapsed_label", "billable_minutes", "billable_label",
-            "has_invoice", "invoice_is_paid", "invoice_number", "invoice_detail", "invoice_history", "cafe_orders", "paid_amount", "balance_amount",
+            "has_invoice", "invoice_is_paid", "invoice_number", "invoice_id", "invoice_detail", "invoice_history", "cafe_orders", "paid_amount", "balance_amount",
         ]
 
     def _invoice(self, obj):
@@ -146,6 +147,10 @@ class ActiveSessionSerializer(serializers.ModelSerializer):
     def get_invoice_number(self, obj):
         invoice = self._invoice(obj)
         return invoice.invoice_number if invoice else ""
+
+    def get_invoice_id(self, obj):
+        invoice = self._invoice(obj)
+        return str(invoice.pk) if invoice else ""
 
     def get_invoice_detail(self, obj):
         invoice = self._invoice(obj)
@@ -335,7 +340,7 @@ class PlayhouseInvoiceSerializer(serializers.ModelSerializer):
             "id", "invoice_number", "session", "member", "member_name",
             "billed_minutes", "price_per_15_minutes", "time_amount",
             "cafe_total", "discount_amount", "discount_note", "total_amount", "paid_amount", "balance_amount", "items", "payments",
-            "payment_method", "tracking_code", "is_paid", "paid_at", "notes", "is_voided", "voided_at", "voided_by_name", "void_note",
+            "payment_method", "tracking_code", "is_paid", "paid_at", "notes", "is_free", "free_reason", "is_voided", "voided_at", "voided_by_name", "void_note",
         ]
 
     def get_voided_by_name(self, obj):
@@ -351,6 +356,16 @@ class PlayhouseInvoiceSerializer(serializers.ModelSerializer):
 class CreateInvoiceSerializer(serializers.Serializer):
     """Popup payload when billing: cafe items plus optional payment details."""
 
+    class PaymentLineSerializer(serializers.Serializer):
+        method = serializers.ChoiceField(choices=PlayhousePayment.Method.choices)
+        amount = serializers.IntegerField(min_value=1)
+        tracking_code = serializers.CharField(max_length=64, required=False, allow_blank=True, default="")
+
+        def validate(self, attrs):
+            if attrs["method"] == PlayhousePayment.Method.CARD_TRANSFER and not attrs.get("tracking_code"):
+                raise serializers.ValidationError("برای کارت‌به‌کارت کد رهگیری الزامی است.")
+            return attrs
+
     cafe_items = serializers.ListField(
         child=serializers.DictField(),
         required=False,
@@ -358,7 +373,7 @@ class CreateInvoiceSerializer(serializers.Serializer):
         help_text="آیتم‌های کافه: [{name, price}]",
     )
     payment_method = serializers.ChoiceField(
-        choices=PlayhouseInvoice.PaymentMethod.choices,
+        choices=PlayhousePayment.Method.choices,
         required=False,
         allow_blank=True,
         default="",
@@ -366,24 +381,35 @@ class CreateInvoiceSerializer(serializers.Serializer):
     tracking_code = serializers.CharField(
         max_length=64, required=False, allow_blank=True, default=""
     )
+    payments = serializers.ListField(child=PaymentLineSerializer(), required=False, default=list)
+    is_free = serializers.BooleanField(required=False, default=False)
+    free_reason = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
     discount_amount = serializers.IntegerField(min_value=0, required=False, default=0)
     discount_note = serializers.CharField(max_length=300, required=False, allow_blank=True, default="")
 
     def validate(self, attrs):
         method = attrs.get("payment_method", "")
         tracking = attrs.get("tracking_code", "")
-        if bool(method) and method != PlayhouseInvoice.PaymentMethod.CASH and not tracking:
+        payments = attrs.get("payments", [])
+        if payments and (method or tracking):
+            raise serializers.ValidationError("پرداخت ترکیبی و روش پرداخت تکی را هم‌زمان ارسال نکنید.")
+        if bool(method) and method != PlayhousePayment.Method.CASH and not tracking:
             raise serializers.ValidationError(
                 "برای پرداخت غیرنقدی، کد رهگیری الزامی است."
             )
         if not method and tracking:
             raise serializers.ValidationError("برای ثبت کد رهگیری، روش پرداخت را انتخاب کنید.")
+        if attrs.get("is_free") and (
+            payments or method or tracking or attrs.get("discount_amount", 0)
+            or attrs.get("discount_note", "")
+        ):
+            raise serializers.ValidationError("فاکتور رایگان نمی‌تواند تخفیف یا پرداخت داشته باشد.")
         return attrs
 
 
 class MarkPaymentSerializer(serializers.Serializer):
     payment_method = serializers.ChoiceField(
-        choices=PlayhouseInvoice.PaymentMethod.choices,
+        choices=PlayhousePayment.Method.choices,
         required=True,
     )
     tracking_code = serializers.CharField(max_length=64, required=False, allow_blank=True, default="")

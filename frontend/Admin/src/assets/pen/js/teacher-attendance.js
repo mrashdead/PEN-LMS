@@ -272,6 +272,7 @@
 
   $save.addEventListener('click', function () {
     if (!sheet || sheet.locked) return;
+    if (window.penValidateTimePickers && !window.penValidateTimePickers($start.closest('.card'))) return;
     var date = toLatin($date.value).trim().replace(/\./g, '/');
     var start = toLatin($start.value).trim();
     var end = toLatin($end.value).trim();

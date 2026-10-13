@@ -354,7 +354,7 @@
     // 5) jalali → gregorian: the UI shows the Persian picker (data-jalali),
     //    but the dynamic-form validator expects ISO gregorian — convert
     //    date (YYYY/MM/DD→YYYY-MM-DD) and datetime (+HH:MM) at the boundary.
-    form.querySelectorAll('[data-jalali]').forEach(function (el) {
+    form.querySelectorAll('[data-jalali][name]').forEach(function (el) {
       var key = el.name;
       var raw = (el.value || '').trim();
       if (!raw || !window.penJalaliToISO) return;

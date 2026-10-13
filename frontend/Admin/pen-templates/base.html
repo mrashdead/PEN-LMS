@@ -46,7 +46,8 @@ Blocks:
     <link href="{% static 'assets/css/jalalidatepicker.min.css' %}" rel="stylesheet" type="text/css">
     <link href="{% asset_v_url 'assets/pen/dist/pen.bundle.css' %}" rel="stylesheet" type="text/css">
     <link href="{% asset_v_url 'assets/pen/css/pen.css' %}" rel="stylesheet" type="text/css">
-    <link href="{% static 'assets/pen/css/pen-palette.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% asset_v_url 'assets/pen/css/pen-palette.css' %}" rel="stylesheet" type="text/css">
+    <link href="{% asset_v_url 'assets/pen/css/pen-time.css' %}" rel="stylesheet" type="text/css">
   {% endblock %}
 
   {% block extra_head %}{% endblock %}
@@ -97,6 +98,7 @@ Blocks:
   <script src="{% asset_v_url 'assets/pen/js/pen-jalali.js' %}"></script>
   {# Layout helpers (sidebar toggle, dark mode, toast, CSRF). #}
   <script src="{% asset_v_url 'assets/pen/js/pen-core.js' %}"></script>
+  <script src="{% asset_v_url 'assets/pen/js/pen-time.js' %}"></script>
   <script src="{% static 'assets/pen/js/pen-palette.js' %}"></script>
 
   {% block page_js %}{% endblock %}

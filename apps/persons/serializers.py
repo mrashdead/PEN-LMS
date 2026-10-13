@@ -220,6 +220,7 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
     person_type_codes = serializers.SerializerMethodField()
     user_role_codes = serializers.SerializerMethodField()
     can_manage_supervisor_role = serializers.SerializerMethodField()
+    can_manage_lead_assessor = serializers.SerializerMethodField()
     employee_kind = serializers.ChoiceField(
         choices=(("ordinary", "عادی"), ("supervisor", "سرپرست")),
         required=False,
@@ -253,6 +254,7 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             "employee_code",
             "department",
             "job_title",
+            "can_assess_leads",
             "hire_date",
             "photo",
             "is_active",
@@ -264,7 +266,7 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             "student_profile_summary", "staff_profile_summary", "guardian_profile_summary",
             "account_creation_missing_fields",
             "student_profile", "staff_profile", "person_type_codes", "user_role_codes",
-            "can_manage_supervisor_role", "employee_kind",
+            "can_manage_supervisor_role", "can_manage_lead_assessor", "employee_kind",
         )
         read_only_fields = (
             "created_at",
@@ -277,6 +279,7 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
             "person_type_codes",
             "user_role_codes",
             "can_manage_supervisor_role",
+            "can_manage_lead_assessor",
         )
 
     def get_person_type_codes(self, obj):
@@ -293,6 +296,11 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
         return hierarchy.can_grant_role(
             actor_roles, "supervisor", is_superuser=bool(getattr(actor, "is_superuser", False))
         )
+
+    def get_can_manage_lead_assessor(self, obj):
+        actor = _request_user(self)
+        roles = set(actor.role_codes()) if actor and hasattr(actor, "role_codes") else set()
+        return bool(actor and (actor.is_superuser or roles & {"manager", "hr", "workflow_admin"}))
 
     def validate_mobile(self, value: str) -> str:
         from apps.core.utils import english_numbers
@@ -348,6 +356,16 @@ class PersonDetailSerializer(CRUDActionsMixin, PersonPIIMaskingMixin, serializer
         student_data = validated_data.pop("student_profile", None)
         staff_data = validated_data.pop("staff_profile", None)
         employee_kind = validated_data.pop("employee_kind", None)
+        assessor_permission = validated_data.pop("can_assess_leads", None)
+        if assessor_permission is not None:
+            actor = _request_user(self)
+            actor_roles = set(actor.role_codes()) if actor and hasattr(actor, "role_codes") else set()
+            if not actor or not (actor.is_superuser or actor_roles & {"manager", "hr", "workflow_admin"}):
+                raise serializers.ValidationError({"can_assess_leads": "شما مجاز به تعیین ارزیاب نیستید."})
+            if not (instance.has_type(Person.Type.EMPLOYEE) or instance.has_type(Person.Type.TEACHER)):
+                raise serializers.ValidationError({"can_assess_leads": "این دسترسی فقط برای کارمند یا مدرس قابل تنظیم است."})
+            instance.can_assess_leads = assessor_permission
+            instance.save(update_fields=["can_assess_leads", "updated_at"])
 
         instance = super().update(instance, validated_data)
 

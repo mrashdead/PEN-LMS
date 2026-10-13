@@ -129,7 +129,8 @@
     $table.querySelectorAll('tr[data-id][data-status="active"], tr[data-id][data-status="paused"]').forEach(function (tr) {
       var seconds = timerMinutesForRow(tr, now);
       var cell = tr.querySelector('[data-role="timer"]');
-      if (cell) cell.textContent = fmtDuration(seconds);
+      var label = fmtDuration(seconds);
+      if (cell && cell.textContent !== label) cell.textContent = label;
     });
   }
   function startClock() { if (!tickTimer) { tickAll(); tickTimer = setInterval(tickAll, 1000); } }
@@ -160,7 +161,7 @@
       '<td class="small" data-role="times"></td>' +
       '<td><div class="ph-child-name">' + esc(s.member_name) + '</div><div class="ph-child-age">' + (s.age != null ? esc(s.age) + ' ساله' : 'سن ثبت نشده') + '</div><small class="ph-child-identity text-muted">' + esc(s.national_code ? ('کد ملی: ' + s.national_code) : ('موقت: ' + (s.temporary_id || 'شناسه ثبت نشده'))) + '</small></td>' +
       '<td><div>' + esc(s.guardian_name || '—') + '</div><div dir="ltr" class="ph-phone-cell">' + esc(s.guardian_mobile || '—') + '</div><small class="text-muted">' + esc(s.member_notes || '') + '</small></td>' +
-      '<td class="fw-bold" data-role="timer">' + sessionTimerLabel(s) + '</td>' +
+      '<td class="ph-timer-cell fw-bold" data-role="timer">' + (s.status === 'active' || s.status === 'paused' ? fmtDuration(timerMinutesForRow(tr, Date.now())) : sessionTimerLabel(s)) + '</td>' +
       '<td data-role="status">' + statusMarkup(s) + '</td>' +
       '<td class="text-end"><div class="ph-row-actions" data-role="actions">' + actionsMarkup(s) + '</div></td>';
     tbody.prepend(tr);
@@ -179,7 +180,10 @@
     return visit + (readyCount ? '<span class="ph-status ph-status-ready"><span></span>' + fmt(readyCount) + ' سفارش آماده</span>' : '');
   }
   function actionsMarkup(s) {
-    var actions = s.has_invoice ? '' : actionButtons(s.status);
+    var invoiceId = s.invoice_id || (s.invoice_detail && s.invoice_detail.id);
+    var actions = s.has_invoice
+      ? (invoiceId ? '<a class="btn ph-row-btn ph-row-invoice" target="_blank" rel="noopener" href="/playhouse/invoices/' + encodeURIComponent(invoiceId) + '/print/" title="چاپ فاکتور" aria-label="چاپ فاکتور"><i data-lucide="printer" aria-hidden="true"></i></a>' : '')
+      : actionButtons(s.status);
     return actions + '<button type="button" class="btn ph-row-btn ph-row-edit" data-member-edit title="ویرایش اطلاعات کودک" aria-label="ویرایش اطلاعات کودک"><i data-lucide="pencil" aria-hidden="true"></i></button>';
   }
   function actionButtons(st) {
@@ -363,9 +367,11 @@
       var apiAct = act === 'correct-start' ? 'start' : (act === 'correct-end' ? 'end' : act);
       var payload = {};
       if (act === 'correct-start') {
+        if (window.penValidateTimePickers && !window.penValidateTimePickers(btn.closest('details'))) return;
         payload.entry_at = localTimestamp(tr.querySelector('[data-entry-date]').value, tr.querySelector('[data-entry-time]').value);
         if (!payload.entry_at) { toast('تاریخ شمسی و ساعت واقعی ورود را وارد کنید.', 'danger'); return; }
       } else if (act === 'correct-end') {
+        if (window.penValidateTimePickers && !window.penValidateTimePickers(btn.closest('details'))) return;
         payload.exit_at = localTimestamp(tr.querySelector('[data-exit-date]').value, tr.querySelector('[data-exit-time]').value);
         if (!payload.exit_at) { toast('تاریخ شمسی و ساعت واقعی خروج را وارد کنید.', 'danger'); return; }
       }
@@ -445,7 +451,10 @@
     var actions = tr.querySelector('[data-role="actions"]');
     if (actions) actions.innerHTML = actionsMarkup(s);
     var timer = tr.querySelector('[data-role="timer"]');
-    if (timer) timer.textContent = sessionTimerLabel(s);
+    // Use the same clock as the one-second tick. A delayed API response must
+    // not briefly rewind an active timer to its older server-rendered label.
+    var timerLabel = st === 'active' || st === 'paused' ? fmtDuration(timerMinutesForRow(tr, Date.now())) : sessionTimerLabel(s);
+    if (timer && timer.textContent !== timerLabel) timer.textContent = timerLabel;
     renderTimes(tr);
     icons();
     updateCounters();
@@ -465,6 +474,13 @@
   // ── invoice modal ───────────────────────────────────────────────────
   var $invModal = document.getElementById('ph-invoice-modal');
   var cafeRows = function () { return Array.prototype.slice.call(document.querySelectorAll('#ph-cafe-items .ph-cafe-row')); };
+  var recordedCafeTotal = 0;
+  var existingPaidAmount = 0;
+  var currentInvoiceSubtotal = 0;
+  var $invoicePaymentLines = document.getElementById('ph-invoice-payment-lines');
+  var $invoicePaymentSummary = document.getElementById('ph-invoice-payment-summary');
+  var $invoiceFree = document.getElementById('ph-invoice-is-free');
+  var $invoiceFreeReasonFields = document.getElementById('ph-invoice-free-reason-fields');
   function amountDigits(value) {
     return String(value || '').replace(/[۰-۹]/g, function (digit) { return String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)); })
       .replace(/[٠-٩]/g, function (digit) { return String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)); }).replace(/\D/g, '');
@@ -488,14 +504,77 @@
     var timeAmountEl = document.getElementById('ph-invoice-time-amount');
     var totalEl = document.getElementById('ph-invoice-total');
     var timeAmount = Number(timeAmountEl && timeAmountEl.dataset.amount) || 0;
-    var discountInput = document.getElementById('ph-invoice-discount');
-    var discount = parseAmount(discountInput && discountInput.value);
-    var cafe = cafeRows().reduce(function (sum, row) {
+    var cafe = recordedCafeTotal + cafeRows().reduce(function (sum, row) {
       var price = parseAmount(row.querySelector('input[aria-label="قیمت"]').value);
       return sum + price;
     }, 0);
-    if (totalEl) totalEl.textContent = fmt(Math.max(0, timeAmount + cafe - discount));
+    currentInvoiceSubtotal = Math.max(0, timeAmount + cafe);
+    if (totalEl) totalEl.textContent = fmt($invoiceFree && $invoiceFree.checked ? 0 : currentInvoiceSubtotal);
+    updateInvoicePaymentSummary();
   }
+  function invoicePaymentRows() {
+    return $invoicePaymentLines ? Array.prototype.slice.call($invoicePaymentLines.children) : [];
+  }
+  function updateInvoicePaymentSummary() {
+    if (!$invoicePaymentSummary) return;
+    if ($invoiceFree && $invoiceFree.checked) {
+      $invoicePaymentSummary.textContent = 'فاکتور رایگان است؛ مبلغ قابل پرداخت: ' + fmt(0) + ' تومان.';
+      return;
+    }
+    var entered = invoicePaymentRows().reduce(function (sum, row) {
+      return sum + parseAmount(row.querySelector('[data-invoice-pay-amount]').value);
+    }, 0);
+    var remaining = Math.max(0, currentInvoiceSubtotal - existingPaidAmount - entered);
+    $invoicePaymentSummary.textContent = 'جمع فاکتور: ' + fmt(currentInvoiceSubtotal) + ' تومان · قبلاً پرداخت‌شده: ' + fmt(existingPaidAmount) + ' تومان · پرداخت جدید: ' + fmt(entered) + ' تومان · مانده: ' + fmt(remaining) + ' تومان';
+  }
+  function addInvoicePaymentLine(prefill) {
+    if (!$invoicePaymentLines) return null;
+    var row = document.createElement('div');
+    row.className = 'border rounded-2 bg-white p-2';
+    row.innerHTML = '<div class="row g-2 align-items-end">' +
+      '<div class="col-12 col-md-4"><label class="form-label small mb-1">روش پرداخت</label><select class="form-select form-select-sm" data-invoice-pay-method><option value="cash">نقدی</option><option value="pos">کارت‌خوان</option><option value="card_transfer">کارت‌به‌کارت</option></select></div>' +
+      '<div class="col-12 col-md-3"><label class="form-label small mb-1">مبلغ (تومان)</label><input class="form-control form-control-sm" data-invoice-pay-amount inputmode="numeric" dir="ltr" placeholder="مبلغ"></div>' +
+      '<div class="col-8 col-md-4"><label class="form-label small mb-1">کد رهگیری</label><input class="form-control form-control-sm" data-invoice-pay-tracking dir="ltr" placeholder="برای کارت‌به‌کارت الزامی"></div>' +
+      '<div class="col-4 col-md-1"><button type="button" class="btn btn-sm btn-light w-100" data-invoice-pay-remove aria-label="حذف ردیف پرداخت"><i data-lucide="x" aria-hidden="true"></i></button></div>' +
+      '</div>';
+    $invoicePaymentLines.appendChild(row);
+    var method = row.querySelector('[data-invoice-pay-method]');
+    var amount = row.querySelector('[data-invoice-pay-amount]');
+    var tracking = row.querySelector('[data-invoice-pay-tracking]');
+    method.addEventListener('change', function () {
+      tracking.required = method.value === 'card_transfer';
+      updateInvoicePaymentSummary();
+    });
+    amount.value = prefill ? fmt(prefill) : '';
+    amount.addEventListener('input', function () {
+      formatAmountInput(amount);
+      updateInvoicePaymentSummary();
+    });
+    tracking.addEventListener('input', updateInvoicePaymentSummary);
+    row.querySelector('[data-invoice-pay-remove]').addEventListener('click', function () {
+      if ($invoicePaymentLines.children.length > 1) row.remove();
+      else { amount.value = ''; tracking.value = ''; method.value = 'cash'; tracking.required = false; }
+      updateInvoicePaymentSummary();
+    });
+    icons();
+    return row;
+  }
+  function updateFreeInvoiceMode() {
+    var paymentSection = document.getElementById('ph-invoice-payment-section');
+    var reason = document.getElementById('ph-invoice-free-reason');
+    var free = Boolean($invoiceFree && $invoiceFree.checked);
+    if (paymentSection) {
+      paymentSection.hidden = free;
+      paymentSection.querySelectorAll('input, select, button').forEach(function (control) { control.disabled = free; });
+    }
+    if ($invoiceFreeReasonFields) $invoiceFreeReasonFields.hidden = !free;
+    if (reason) reason.disabled = !free;
+    computeTotal();
+  }
+  if (document.getElementById('ph-invoice-payment-add')) {
+    document.getElementById('ph-invoice-payment-add').addEventListener('click', function () { addInvoicePaymentLine(); });
+  }
+  if ($invoiceFree) $invoiceFree.addEventListener('change', updateFreeInvoiceMode);
   var currentPrice = 0;
   function showInvoicePreview(tr) {
     var billable = Number(tr.getAttribute('data-billable')) || 0;
@@ -514,7 +593,32 @@
   function openInvoice(tr) {
     if (!$invModal) return;
     var id = tr.getAttribute('data-id');
+    var submitButton = document.getElementById('ph-invoice-submit');
+    var errorEl = document.getElementById('ph-invoice-error');
     document.getElementById('ph-invoice-session').value = id;
+    recordedCafeTotal = 0;
+    existingPaidAmount = 0;
+    if ($invoiceFree) {
+      $invoiceFree.checked = false;
+      $invoiceFree.disabled = false;
+    }
+    var freeHelp = document.getElementById('ph-invoice-free-help');
+    if (freeHelp) freeHelp.textContent = 'بدون مبلغ قابل‌پرداخت؛ مستقل از روش‌های پرداخت.';
+    var freeReason = document.getElementById('ph-invoice-free-reason');
+    if (freeReason) freeReason.value = '';
+    if ($invoicePaymentLines) {
+      $invoicePaymentLines.replaceChildren();
+      addInvoicePaymentLine();
+    }
+    updateFreeInvoiceMode();
+    if (submitButton) submitButton.disabled = true;
+    var orderPanel = document.getElementById('ph-recorded-cafe-orders');
+    var orderList = document.getElementById('ph-recorded-cafe-order-list');
+    var orderTotal = document.getElementById('ph-recorded-cafe-total');
+    if (orderList) orderList.replaceChildren();
+    if (orderPanel) orderPanel.hidden = true;
+    if (orderTotal) orderTotal.textContent = fmt(0);
+    if (errorEl) errorEl.hidden = true;
     if (currentPrice <= 0) {
       get(API + 'config/').then(function (d) {
         currentPrice = Number(d.price_per_15_minutes) || 0;
@@ -523,16 +627,6 @@
     } else {
       showInvoicePreview(tr);
     }
-    document.getElementById('ph-invoice-error').hidden = true;
-    // reset payment selection + tracking code
-    var checked = document.querySelector('input[name="ph-pay-method"]:checked');
-    if (checked) checked.checked = false;
-    var trackingInp = document.getElementById('ph-tracking');
-    if (trackingInp) trackingInp.value = '';
-    var discountInput = document.getElementById('ph-invoice-discount');
-    var discountNote = document.getElementById('ph-invoice-discount-note');
-    if (discountInput) discountInput.value = '0';
-    if (discountNote) discountNote.value = '';
     // ensure at least one empty cafe row
     if (!cafeRows().length) addCafeRow();
     // reset existing rows to blank (keep the first)
@@ -544,15 +638,66 @@
     computeTotal();
     const modal = window.bootstrap ? bootstrap.Modal.getOrCreateInstance($invModal) : null;
     if (modal) modal.show();
+
+    var sessionDate = tr.getAttribute('data-session-date') || window.__PLAYHOUSE_SELECTED_DAY__;
+    get(API + 'attendance/?date=' + encodeURIComponent(sessionDate || ''))
+      .then(function (sessions) {
+        var session = sessions.find(function (item) { return String(item.id) === String(id); });
+        if (!session) throw new Error('اطلاعات این مراجعه در فهرست روز پیدا نشد.');
+        existingPaidAmount = Number(session.paid_amount) || 0;
+        var orders = (session && session.cafe_orders || []).filter(function (order) {
+          return ['new', 'preparing', 'ready'].indexOf(order.status) !== -1;
+        });
+        var list = document.getElementById('ph-recorded-cafe-order-list');
+        var panel = document.getElementById('ph-recorded-cafe-orders');
+        var totalEl = document.getElementById('ph-recorded-cafe-total');
+        if (list && panel) {
+          orders.forEach(function (order, index) {
+            var heading = document.createElement('div');
+            heading.className = index ? 'border-top pt-2 mt-2 fw-semibold' : 'fw-semibold';
+            heading.textContent = 'سفارش ' + fmt(index + 1);
+            list.appendChild(heading);
+            (order.items || []).forEach(function (item) {
+              var lineTotal = Number(item.line_total) || 0;
+              recordedCafeTotal += lineTotal;
+              var line = document.createElement('div');
+              line.className = 'd-flex justify-content-between gap-2';
+              line.textContent = (item.name || 'آیتم') + ' × ' + fmt(item.quantity) + ' — ' + fmt(lineTotal) + ' تومان';
+              list.appendChild(line);
+            });
+          });
+          panel.hidden = orders.length === 0;
+        }
+        if (totalEl) totalEl.textContent = fmt(recordedCafeTotal);
+        computeTotal();
+        if ($invoiceFree) {
+          $invoiceFree.disabled = existingPaidAmount > 0;
+          var freeHelp = document.getElementById('ph-invoice-free-help');
+          if (freeHelp && existingPaidAmount > 0) freeHelp.textContent = 'این مراجعه پرداخت ثبت‌شده دارد و نمی‌توان آن را رایگان کرد.';
+        }
+        var firstPaymentAmount = $invoicePaymentLines && $invoicePaymentLines.querySelector('[data-invoice-pay-amount]');
+        if (firstPaymentAmount && !firstPaymentAmount.value) {
+          var suggested = Math.max(0, currentInvoiceSubtotal - existingPaidAmount);
+          firstPaymentAmount.value = suggested ? fmt(suggested) : '';
+        }
+        updateFreeInvoiceMode();
+        if (submitButton) submitButton.disabled = false;
+      })
+      .catch(function (err) {
+        if (errorEl) {
+          errorEl.textContent = 'سفارش‌های قبلی کافه بارگذاری نشدند؛ برای جلوگیری از صدور فاکتور با جمع ناقص، دوباره فاکتور را باز کنید. ' + err.message;
+          errorEl.hidden = false;
+        }
+      });
   }
   function addCafeRow() {
     var wrap = document.getElementById('ph-cafe-items');
     var row = document.createElement('div');
     row.className = 'row g-2 ph-cafe-row mt-0';
     row.innerHTML =
-      '<div class="col-6"><input type="text" class="form-control" placeholder="نام آیتم" aria-label="نام آیتم"></div>' +
-      '<div class="col-5"><input type="text" class="form-control" placeholder="قیمت" inputmode="numeric" autocomplete="off" dir="ltr" aria-label="قیمت"></div>' +
-      '<div class="col-1 d-flex align-items-center"><button type="button" class="btn btn-sm btn-light ph-cafe-remove" title="حذف"><i data-lucide="x"></i></button></div>';
+      '<div class="col-12 col-sm-6"><input type="text" class="form-control" placeholder="نام آیتم" aria-label="نام آیتم"></div>' +
+      '<div class="col-10 col-sm-4"><input type="text" class="form-control" placeholder="قیمت" inputmode="numeric" autocomplete="off" dir="ltr" aria-label="قیمت"></div>' +
+      '<div class="col-2 d-flex align-items-center"><button type="button" class="btn btn-sm btn-light ph-cafe-remove" title="حذف"><i data-lucide="x"></i></button></div>';
     wrap.appendChild(row);
     icons();
     bindCafeRow(row);
@@ -577,9 +722,6 @@
       if (rm) { cafeRows().forEach(function (r) { if (rm.closest('.ph-cafe-row') === r) { r.remove(); computeTotal(); icons(); } }); if (!cafeRows().length) addCafeRow(); }
     });
   }
-  var discountInput = document.getElementById('ph-invoice-discount');
-  if (discountInput) discountInput.addEventListener('input', function () { formatAmountInput(this); computeTotal(); });
-
   var cafePresets = [];
   var $cafePresetSelect = document.getElementById('ph-cafe-preset-select');
   var $cafePresetList = document.getElementById('ph-cafe-preset-list');
@@ -603,7 +745,7 @@
           item.className = 'row g-1 align-items-center border-top py-1 ph-cafe-preset-row';
           item.setAttribute('data-id', preset.id);
           var name = document.createElement('div');
-          name.className = 'col-5';
+          name.className = 'col-12 col-sm-5';
           var nameInput = document.createElement('input');
           nameInput.type = 'text';
           nameInput.maxLength = 200;
@@ -612,7 +754,7 @@
           nameInput.value = preset.name;
           name.appendChild(nameInput);
           var price = document.createElement('div');
-          price.className = 'col-4';
+          price.className = 'col-7 col-sm-4';
           var priceInput = document.createElement('input');
           priceInput.type = 'text';
           priceInput.inputMode = 'numeric';
@@ -624,7 +766,7 @@
           priceInput.addEventListener('input', function () { formatAmountInput(priceInput); });
           price.appendChild(priceInput);
           var actions = document.createElement('div');
-          actions.className = 'col-3 d-flex gap-1';
+          actions.className = 'col-5 col-sm-3 d-flex gap-1';
           var save = document.createElement('button');
           save.type = 'button';
           save.className = 'btn btn-sm btn-light ph-cafe-preset-save';
@@ -730,22 +872,47 @@
         if (!name && !price) return null;
         return { name: name, price: parseAmount(price) };
       }).filter(Boolean);
-      var methodEl = document.querySelector('input[name="ph-pay-method"]:checked');
-      var method = methodEl ? methodEl.value : '';
-      var tracking = document.getElementById('ph-tracking').value.trim();
-      var discount = parseAmount((document.getElementById('ph-invoice-discount') || {}).value);
-      var discountNote = (document.getElementById('ph-invoice-discount-note') || {}).value || '';
+      var isFree = Boolean($invoiceFree && $invoiceFree.checked);
+      var paymentLines = invoicePaymentRows().map(function (row) {
+        var amountInput = row.querySelector('[data-invoice-pay-amount]');
+        var amountText = amountInput.value.trim();
+        var amount = parseAmount(amountText);
+        var method = row.querySelector('[data-invoice-pay-method]').value;
+        var trackingCode = row.querySelector('[data-invoice-pay-tracking]').value.trim();
+        return { method: method, amount: amount, amount_text: amountText, tracking_code: trackingCode };
+      });
+      if (!isFree && paymentLines.some(function (line) {
+        return (line.amount_text && line.amount <= 0) || (line.amount > 0 && line.method === 'card_transfer' && !line.tracking_code);
+      })) {
+        errorEl.textContent = 'مبلغ هر پرداخت باید بیشتر از صفر باشد و برای کارت‌به‌کارت کد رهگیری وارد کنید.';
+        errorEl.hidden = false;
+        return;
+      }
+      var payments = isFree ? [] : paymentLines.filter(function (line) { return line.amount > 0; }).map(function (line) {
+        return { method: line.method, amount: line.amount, tracking_code: line.tracking_code };
+      });
+      var availableAmount = Math.max(0, currentInvoiceSubtotal - existingPaidAmount);
+      var newPaymentTotal = payments.reduce(function (sum, line) { return sum + line.amount; }, 0);
+      if (!isFree && newPaymentTotal > availableAmount) {
+        errorEl.textContent = 'جمع پرداخت‌های جدید از مانده فاکتور بیشتر است.';
+        errorEl.hidden = false;
+        return;
+      }
+      if (isFree && existingPaidAmount > 0) {
+        errorEl.textContent = 'این مراجعه پرداخت ثبت‌شده دارد و امکان صدور فاکتور رایگان نیست.';
+        errorEl.hidden = false;
+        return;
+      }
       $submit.disabled = true;
       post(API + 'sessions/' + sessionId + '/invoice/', {
         cafe_items: cafe,
-        payment_method: method,
-        tracking_code: tracking,
-        discount_amount: discount,
-        discount_note: discountNote,
+        payments: payments,
+        is_free: isFree,
+        free_reason: isFree ? ((document.getElementById('ph-invoice-free-reason') || {}).value || '').trim() : '',
       })
         .then(function (inv) {
           errorEl.hidden = true;
-          toast(inv.is_paid ? 'فاکتور صادر و پرداخت ثبت شد: ' + fmt(inv.total_amount) + ' تومان' : 'فاکتور صادر شد: ' + fmt(inv.total_amount) + ' تومان', 'success');
+          toast(inv.is_free ? 'فاکتور رایگان صادر شد.' : (inv.is_paid ? 'فاکتور صادر و پرداخت ثبت شد: ' + fmt(inv.total_amount) + ' تومان' : 'فاکتور صادر شد: ' + fmt(inv.total_amount) + ' تومان'), 'success');
           if (window.bootstrap) bootstrap.Modal.getInstance($invModal) && bootstrap.Modal.getInstance($invModal).hide();
           var row = $table && $table.querySelector('tr[data-id="' + sessionId + '"]');
           if (row) {
@@ -753,7 +920,7 @@
             var statusCell = row.querySelector('[data-role="status"]');
             if (statusCell) statusCell.innerHTML = '<span class="' + statusBadge(row.getAttribute("data-status")) + '"><span></span>' + esc(statusLabel(row.getAttribute("data-status"))) + '</span>';
             var actions = row.querySelector('[data-role="actions"]');
-            if (actions) actions.innerHTML = actionsMarkup({ has_invoice: true });
+            if (actions) actions.innerHTML = actionsMarkup({ has_invoice: true, invoice_id: inv.id });
             icons();
           }
         })

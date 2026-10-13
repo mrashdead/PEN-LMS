@@ -7,7 +7,7 @@ from django.db import DatabaseError, transaction
 
 from apps.accounts.models import Role
 from apps.forms.permissions import ELEVATED_ROLES
-from apps.leads.permissions import LEAD_OPERATOR_ROLES
+from apps.leads.permissions import LEAD_OPERATOR_ROLES, is_lead_operator
 from apps.org.models import SidebarVisibilityRule
 from apps.playhouse.permissions import FINANCE_ROLES, KITCHEN_ROLES, OPERATOR_ROLES
 from apps.reports.permissions import REPORT_ACCESS_ROLES
@@ -25,7 +25,9 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     {"key": "workspace-teacher-attendance", "flag": "workspace_teacher_attendance", "title": "حضور و غیاب", "section": "پنل مدرس", "default_roles": {"teacher"}},
     {"key": "workspace-teacher-report-cards", "flag": "workspace_teacher_report_cards", "title": "کارنامه توصیفی", "section": "پنل مدرس", "default_roles": {"teacher"}},
     {"key": "workspace-teacher-progress-reports", "flag": "workspace_teacher_progress_reports", "title": "گزارش پیشرفت دانش‌آموزان", "section": "پنل مدرس", "default_roles": {"teacher"}},
-    {"key": "leads-teacher-assessments", "flag": "leads_teacher_assessments", "title": "تعیین‌سطح‌های من", "section": "پنل مدرس", "default_roles": {"teacher"}},
+    # Keep the storage key stable so existing per-user visibility grants remain
+    # valid; the page itself is now for explicitly authorized lead assessors.
+    {"key": "leads-teacher-assessments", "flag": "leads_teacher_assessments", "title": "صف ارزیابی لیدها", "section": "فرآیند پذیرش", "default_roles": set()},
     {"key": "workspace-learner-portal", "flag": "workspace_learner_portal", "title": "حضور، کارنامه و گزارش‌های من", "section": "پورتال دانش‌آموز", "default_roles": {"student", "guardian"}},
     {"key": "workspace-requests", "flag": "workspace_requests", "title": "درخواست‌ها", "section": "درخواست‌ها", "default_roles": STAFF_MENU_ROLES | {"student", "guardian"}},
     {"key": "workspace-work", "flag": "workspace_work", "title": "کارهای من", "section": "کارتابل", "default_roles": STAFF_MENU_ROLES},
@@ -100,20 +102,24 @@ def visibility_flags_for(user, roles: set[str] | None = None) -> dict[str, bool]
 
     flags: dict[str, bool] = {}
     is_superuser = bool(getattr(user, "is_superuser", False))
+    lead_operator = is_lead_operator(user)
     for item in SIDEBAR_ITEMS:
+        is_lead_dashboard = item["key"] == "leads-dashboard"
         if is_superuser:
             visible = True
         elif roles:
             visible = any(
-                role_overrides.get((role, item["key"]), default_visible(item["key"], role))
+                role_overrides.get((role, item["key"]), lead_operator if is_lead_dashboard else default_visible(item["key"], role))
                 for role in roles
             )
         else:
-            visible = item["default_roles"] is None
+            visible = lead_operator if is_lead_dashboard else item["default_roles"] is None
         flags[item["flag"]] = (
             True if is_superuser and item["key"] == "workspace-perm-manage"
             else user_overrides.get(item["key"], visible)
         )
+        if is_lead_dashboard and not lead_operator:
+            flags[item["flag"]] = False
     return flags
 
 
@@ -121,7 +127,7 @@ def visible_sidebar_sections(flags: dict[str, bool], roles: set[str]) -> dict[st
     """Template booleans for section headings and collapsible groups."""
     teacher = any(flags.get(k, False) for k in (
         "workspace_teacher", "workspace_teacher_attendance",
-        "workspace_teacher_report_cards", "workspace_teacher_progress_reports", "leads_teacher_assessments",
+        "workspace_teacher_report_cards", "workspace_teacher_progress_reports",
     )) or ("teacher" in roles and flags.get("workspace_timetable", False))
     education_timetable = bool(
         flags.get("workspace_timetable", False) and "teacher" not in roles

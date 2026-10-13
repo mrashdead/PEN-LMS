@@ -376,6 +376,10 @@ class InvoiceCreateView(GenericAPIView):
     def post(self, request, session_pk):
         ser = self.get_serializer(data=request.data)
         ser.is_valid(raise_exception=True)
+        if ser.validated_data.get("is_free"):
+            roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
+            if not roles & FINANCE_ROLES:
+                return Response({"detail": "صدور فاکتور رایگان به دسترسی مالی نیاز دارد."}, status=403)
         if ser.validated_data.get("discount_amount", 0):
             roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
             if not roles & FINANCE_ROLES:
@@ -387,6 +391,9 @@ class InvoiceCreateView(GenericAPIView):
             session=session,
             operator=request.user,
             cafe_items=ser.validated_data.get("cafe_items", []),
+            payments=ser.validated_data.get("payments", []),
+            is_free=ser.validated_data.get("is_free", False),
+            free_reason=ser.validated_data.get("free_reason", ""),
             payment_method=ser.validated_data.get("payment_method", ""),
             tracking_code=ser.validated_data.get("tracking_code", ""),
             discount_amount=ser.validated_data.get("discount_amount", 0),

@@ -171,6 +171,18 @@ class ManualTimesheetSerializer(serializers.Serializer):
         )
 
 
+class SelfManualTimesheetSerializer(ManualTimesheetSerializer):
+    """A completed manual shift submitted by an employee for their own account."""
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    check_out_time = serializers.TimeField(required=True)
+
+    def validate_user(self, value):
+        roles = set(value.role_codes())
+        if "employee" not in roles or "teacher" in roles:
+            raise serializers.ValidationError("ثبت دستی ساعت فقط برای حساب کارمند مجاز است.")
+        return value
+
+
 class LeaveRequestSerializer(CRUDActionsMixin, serializers.ModelSerializer):
     actions = serializers.SerializerMethodField()
     start_date = JalaliDateField()

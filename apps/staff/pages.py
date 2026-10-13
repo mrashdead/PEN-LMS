@@ -18,6 +18,9 @@ class StaffDashboardPage(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        roles = set(self.request.user.role_codes())
+        context["staff_is_teacher"] = "teacher" in roles
+        context["staff_is_employee"] = "employee" in roles and "teacher" not in roles
         context["staff_is_reviewer"] = bool(
             self.request.user.is_superuser
             or set(self.request.user.role_codes()) & {"manager", "workflow_admin", "hr", "supervisor"}

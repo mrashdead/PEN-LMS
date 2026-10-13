@@ -205,6 +205,14 @@
   }
 }
 
+@media (max-width: 575.98px) {
+  .teacher-attendance-page #att-new,
+  .teacher-attendance-page #att-save,
+  .teacher-attendance-page .pen-status {
+    min-height: 2.75rem;
+  }
+}
+
 @media (max-width: 420px) {
   .teacher-attendance-page .att-footer-actions {
     align-items: stretch !important;

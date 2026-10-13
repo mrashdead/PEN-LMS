@@ -12,7 +12,13 @@
       <p>ثبت ورود، زمان حضور و هزینه‌ها در یک نگاه</p>
     </div>
     <div class="ph-hero-tools">
-      {% if is_playhouse_kitchen %}<a class="btn ph-outline-action" href="{% url 'playhouse-kitchen' %}"><i data-lucide="chef-hat" aria-hidden="true"></i> پنل آشپزخانه</a>{% endif %}
+      {% if is_playhouse_kitchen %}
+      <a class="btn ph-header-action" href="{% url 'playhouse-kitchen' %}">
+        <i data-lucide="chef-hat" aria-hidden="true"></i>
+        <span class="ph-header-action-copy"><strong>پنل آشپزخانه</strong><small>پیگیری سفارش‌ها</small></span>
+        <i data-lucide="chevron-left" aria-hidden="true"></i>
+      </a>
+      {% endif %}
       <div class="ph-rate-card" aria-label="نرخ فعلی خانه بازی">
         <div class="ph-rate-details">
           <span class="ph-rate-label">نرخ هر ۱۵ دقیقه</span>
@@ -20,9 +26,9 @@
         </div>
         {% if can_edit_playhouse_price %}<button type="button" class="btn btn-sm ph-rate-edit" data-bs-toggle="modal" data-bs-target="#ph-price-modal"><i data-lucide="pencil" aria-hidden="true"></i> تغییر نرخ</button>{% endif %}
       </div>
-      <button type="button" class="btn ph-cafe-manage-card" data-bs-toggle="modal" data-bs-target="#ph-cafe-presets-modal">
+      <button type="button" class="btn ph-header-action ph-cafe-manage-card" data-bs-toggle="modal" data-bs-target="#ph-cafe-presets-modal">
         <i data-lucide="cup-soda" aria-hidden="true"></i>
-        <span><strong>آیتم‌های کافه</strong><small>مدیریت فهرست آماده</small></span>
+        <span class="ph-header-action-copy"><strong>آیتم‌های کافه</strong><small>مدیریت فهرست آماده</small></span>
         <i data-lucide="chevron-left" aria-hidden="true"></i>
       </button>
     </div>
@@ -100,6 +106,7 @@
                   <details class="text-start mt-1"><summary class="small">ثبت خروج واقعی</summary><input class="form-control form-control-sm mt-1" type="text" data-exit-date data-jalali dir="ltr" placeholder="تاریخ شمسی خروج"><input class="form-control form-control-sm mt-1" type="time" data-exit-time aria-label="ساعت واقعی خروج"><button class="btn btn-sm btn-outline-danger mt-1" data-act="correct-end"><i data-lucide="clock-3" aria-hidden="true"></i>ثبت زمان خروج</button></details>
                 {% elif s.status == 'paused' %}<button class="btn ph-row-btn btn-outline-success" data-act="cafe-order" title="ثبت سفارش کافه" aria-label="ثبت سفارش کافه"><i data-lucide="coffee" aria-hidden="true"></i></button><button class="btn ph-row-btn ph-row-start" data-act="start" title="ادامه تایمر" aria-label="ادامه تایمر"><i data-lucide="play" aria-hidden="true"></i></button><button class="btn ph-row-btn ph-row-end" data-act="end" title="پایان حضور" aria-label="پایان حضور"><i data-lucide="square" aria-hidden="true"></i></button>
                 {% elif s.status == 'finished' and not s.invoice %}<button class="btn ph-row-btn ph-row-invoice" data-act="invoice" title="صدور فاکتور" aria-label="صدور فاکتور"><i data-lucide="receipt" aria-hidden="true"></i></button>
+                {% elif s.status == 'finished' and s.invoice %}<a class="btn ph-row-btn ph-row-invoice" target="_blank" rel="noopener" href="{% url 'playhouse-invoice-print' s.invoice.id %}" title="چاپ فاکتور" aria-label="چاپ فاکتور"><i data-lucide="printer" aria-hidden="true"></i></a>
                 {% endif %}
                 <button type="button" class="btn ph-row-btn ph-row-edit" data-member-edit title="ویرایش اطلاعات کودک" aria-label="ویرایش اطلاعات {{ s.member.display_name }}"><i data-lucide="pencil" aria-hidden="true"></i></button>
               </div></td>

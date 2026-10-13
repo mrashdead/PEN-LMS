@@ -56,8 +56,8 @@ _PAGE_RESOURCES: list[Resource] = [
     Resource(key="workspace-teacher-report-cards", title="کارنامه معلم",    category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-learner-portal",  title="پنل دانش‌آموز/والدین",category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-messages",     title="پیام‌ها",                category="page", verbs=PAGE_VERBS),
-    Resource(key="leads-dashboard",        title="مدیریت لیدها",           category="page", verbs=PAGE_VERBS, description="ثبت و پیگیری لیدهای ورودی برای کارکنان"),
-    Resource(key="leads-teacher-assessments", title="تعیین‌سطح‌های من",    category="page", verbs=PAGE_VERBS, description="صف اختصاصی استاد برای ارزیابی لیدهای تخصیص‌یافته"),
+    Resource(key="leads-dashboard",        title="مدیریت لیدها",           category="page", verbs=PAGE_VERBS, description="دسترسی کامل به ثبت، ارجاع، تعیین سطح، معرفی دوره و ثبت‌نام لیدها"),
+    Resource(key="leads-teacher-assessments", title="صف ارزیابی لیدها", category="page", verbs=PAGE_VERBS, description="صف اختصاصی ارزیابان مجاز برای بررسی درخواست‌های تعیین سطح ارجاع‌شده"),
 ]
 
 # ── Model resources ────────────────────────────────────────────────────────────

@@ -33,6 +33,7 @@ from apps.staff.selectors import (
 from apps.staff.serializers import (
     ClockInSerializer,
     ManualTimesheetSerializer,
+    SelfManualTimesheetSerializer,
     LeaveRequestCreateSerializer,
     LeaveRequestSerializer,
     LeaveReviewSerializer,
@@ -140,13 +141,18 @@ class TimesheetListCreateView(generics.ListCreateAPIView):
         return qs.order_by("-work_date", "-check_in", "-pk")
 
     def create(self, request, *args, **kwargs):
-        # Manual entry is restricted to reviewers; one open shift is allowed.
-        if not IsStaffReviewer().has_permission(request, self):
+        reviewer = IsStaffReviewer().has_permission(request, self)
+        roles = set(request.user.role_codes())
+        if reviewer and "user" in request.data:
+            serializer_class = ManualTimesheetSerializer
+        elif "employee" in roles and "teacher" not in roles and "user" not in request.data:
+            serializer_class = SelfManualTimesheetSerializer
+        else:
             return Response(
-                {"error": "ثبت دستی ساعت کاری فقط برای مدیر/سرپرست مجاز است."},
+                {"error": "ثبت دستی ساعت فقط برای کارمند و برای حساب خودش مجاز است."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        serializer = ManualTimesheetSerializer(data=request.data, context={"request": request})
+        serializer = serializer_class(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         try:
             entry = serializer.save()

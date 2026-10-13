@@ -78,7 +78,7 @@
           return '' +
             '<div class="col-12 col-lg-6">' +
             '  <div class="pen-class-card p-3 h-100">' +
-            '    <div class="d-flex align-items-start gap-2">' +
+            '    <div class="d-flex flex-wrap align-items-start gap-2 teacher-class-heading">' +
             '      <div class="flex-grow-1 overflow-hidden">' +
             '        <h6 class="mb-1 text-truncate">' + esc(c.title || c.course) + '</h6>' +
             '        <p class="mb-2 fs-13 text-muted text-truncate">' + esc(c.course) +

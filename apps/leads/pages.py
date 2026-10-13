@@ -6,10 +6,10 @@ from django.utils import timezone
 from django.views.generic import TemplateView
 
 from apps.core.utils import jalali_date_str
-from apps.leads.permissions import LEAD_OPERATOR_ROLES
+from apps.leads.permissions import is_lead_assessor, is_lead_operator
 from apps.leads.models import Lead
 from apps.education.models import Course
-from apps.leads.selectors import assigned_leads_for_teacher, assessors
+from apps.leads.selectors import assigned_leads_for_assessor, assessors
 
 class LeadsPage(LoginRequiredMixin, TemplateView):
     template_name = "leads/dashboard.html"
@@ -17,14 +17,12 @@ class LeadsPage(LoginRequiredMixin, TemplateView):
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return super().dispatch(request, *args, **kwargs)
-        roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
-        if not roles & LEAD_OPERATOR_ROLES:
+        if not is_lead_operator(request.user):
             raise Http404
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        roles = set(self.request.user.role_codes()) if hasattr(self.request.user, "role_codes") else set()
         now = timezone.localtime()
         next_quarter = ((now.hour * 60 + now.minute) // 15 + 1) * 15
         if next_quarter >= 24 * 60:
@@ -42,21 +40,19 @@ class LeadsPage(LoginRequiredMixin, TemplateView):
         return context
 
 
-class LeadTeacherAssessmentsPage(LoginRequiredMixin, TemplateView):
-    template_name = "leads/teacher_assessments.html"
+class LeadAssessmentsPage(LoginRequiredMixin, TemplateView):
+    template_name = "leads/assessments.html"
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return super().dispatch(request, *args, **kwargs)
-        roles = set(request.user.role_codes()) if hasattr(request.user, "role_codes") else set()
-        person = getattr(request.user, "person", None)
-        if "teacher" not in roles or not person or not person.can_assess_leads:
+        if not is_lead_assessor(request.user):
             raise Http404
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        leads = assigned_leads_for_teacher(self.request.user)
+        leads = assigned_leads_for_assessor(self.request.user)
         visible_leads = list(leads[:50])
         for lead in visible_leads:
             lead.assessment_date_jalali = jalali_date_str(lead.assessment_date) if lead.assessment_date else ""

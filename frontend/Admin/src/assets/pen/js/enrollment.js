@@ -10,10 +10,10 @@
   'use strict';
 
   var PERSONS = '/api/persons/?person_type=student';
-  var OFFERINGS = '/api/education/offerings/';
-  var ENROLL = '/api/education/enrollments/';
+  var OFFERINGS = window.__LEAD_ENROLLMENT_API__ ? window.__LEAD_ENROLLMENT_API__ + 'offerings/' : '/api/education/offerings/';
+  var ENROLL = window.__LEAD_ENROLLMENT_API__ ? window.__LEAD_ENROLLMENT_API__ + 'enrollments/' : '/api/education/enrollments/';
   var WAITLIST = '/api/education/waitlist/';
-  var LEAD_ID = new URLSearchParams(window.location.search).get('lead');
+  var LEAD_ID = window.__LEAD_ID__ || new URLSearchParams(window.location.search).get('lead');
   var LEAD_API = LEAD_ID ? '/api/leads/' + encodeURIComponent(LEAD_ID) + '/' : '';
   var CSRF = window.getCookie ? window.getCookie('csrftoken') : '';
 
@@ -46,6 +46,7 @@
   var $sHidden = document.getElementById('enr-student');
   var $sPicked = document.getElementById('enr-student-picked');
   var sTimer = null;
+  if (window.__LEAD_ENROLLMENT_API__) $sSearch.readOnly = true;
 
   function setStudent(id, name) {
     $sHidden.value = id || '';
@@ -74,13 +75,13 @@
 
   document.getElementById('enr-create-person').addEventListener('click', function () {
     if (!LEAD_ID) return;
-    var nationalCode = document.getElementById('enr-lead-national-code').value.trim();
-    var studentCode = document.getElementById('enr-lead-student-code').value.trim();
+    var nationalCode = document.getElementById('enr-lead-national-code').value.trim().replace(/[۰-۹٠-٩]/g, function (digit) {
+      return String('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩'.indexOf(digit) % 10);
+    });
     if (!/^\d{10}$/.test(nationalCode) || !window.penNationalCodeChecksumValid(nationalCode)) return toast('کد ملی معتبر نیست.', 'danger');
-    if (!studentCode) return toast('کد دانش‌آموزی را وارد کنید.', 'danger');
     var button = document.getElementById('enr-create-person');
     button.disabled = true;
-    fetch('/api/leads/' + encodeURIComponent(LEAD_ID) + '/create-person/', { method: 'POST', credentials: 'same-origin', headers: headers(), body: JSON.stringify({ national_code: nationalCode, student_code: studentCode, father_name: document.getElementById('enr-lead-father-name').value.trim() }) })
+    fetch('/api/leads/' + encodeURIComponent(LEAD_ID) + '/create-person/', { method: 'POST', credentials: 'same-origin', headers: headers(), body: JSON.stringify({ national_code: nationalCode, father_name: document.getElementById('enr-lead-father-name').value.trim() }) })
       .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(Object.keys(b).map(function (k) { return Array.isArray(b[k]) ? b[k].join('، ') : b[k]; }).join(' — ') || 'افزودن دانش‌آموز انجام نشد.'); return b; }); })
       .then(function (person) { setStudent(person.person_id, person.person_name); toast('پرونده دانش‌آموز ساخته شد.', 'success'); })
       .catch(function (e) { toast(e.message, 'danger'); })
@@ -290,6 +291,10 @@
         $sPicked.textContent = ''; state.courseAmount = 0; renderAmount();
         $paymentLines.innerHTML = ''; state.paymentSuggestion = undefined; addPaymentLine();
         updateFreeMode();
+        if (window.__LEAD_ENROLLMENT_API__ && !res.b.waitlisted) {
+          window.location.href = '/leads/';
+          return;
+        }
         loadRecent();
         loadWaitlist();
       })
@@ -332,8 +337,7 @@
   }
 
   // ── boot ────────────────────────────────────────────────────────────
-  loadOfferings();
-  loadLeadContext().catch(function (e) { toast('اطلاعات ثبت‌شده دریافت نشد: ' + e.message, 'danger'); });
+  loadLeadContext().then(loadOfferings).catch(function (e) { toast('اطلاعات ثبت‌شده دریافت نشد: ' + e.message, 'danger'); });
   loadRecent();
   loadWaitlist();
   renderAmount();

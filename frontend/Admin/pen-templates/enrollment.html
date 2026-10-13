@@ -13,7 +13,7 @@
       <div class="card-header d-flex align-items-center justify-content-between gap-3">
         <div class="d-flex align-items-center gap-3"><span class="pen-card-heading-icon bg-primary-subtle text-primary" aria-hidden="true"><i data-lucide="user-round-plus" class="size-5"></i></span>
         <div><h2 class="h6 mb-1 card-title" id="enrollment-form-title">ثبت‌نام دانش‌آموز</h2><p class="text-muted fs-14 mb-0">اطلاعات دانش‌آموز، دوره و روش پرداخت را وارد کنید.</p></div></div>
-        <div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary btn-sm" href="{% url 'workspace-enrollment-payments' %}"><i data-lucide="wallet-cards" class="size-4 me-1" aria-hidden="true"></i> دفتر پرداخت</a><a class="btn btn-outline-secondary btn-sm" href="{% url 'workspace-enrollment-directory' %}"><i data-lucide="list" class="size-4 me-1" aria-hidden="true"></i> پیگیری ثبت‌نام‌ها</a></div>
+        <div class="d-flex flex-wrap gap-2">{% if lead_enrollment %}<a class="btn btn-outline-secondary btn-sm" href="{% url 'leads-dashboard' %}">بازگشت به لیدها</a>{% else %}<a class="btn btn-outline-primary btn-sm" href="{% url 'workspace-enrollment-payments' %}"><i data-lucide="wallet-cards" class="size-4 me-1" aria-hidden="true"></i> دفتر پرداخت</a><a class="btn btn-outline-secondary btn-sm" href="{% url 'workspace-enrollment-directory' %}"><i data-lucide="list" class="size-4 me-1" aria-hidden="true"></i> پیگیری ثبت‌نام‌ها</a>{% endif %}</div>
       </div>
       <div class="card-body">
         <form id="enr-form" aria-labelledby="enrollment-form-title" novalidate>
@@ -35,11 +35,10 @@
             <div class="col-12 d-none" id="enr-person-create-wrap">
               <div class="border rounded p-3 bg-body-tertiary">
                 <h3 class="h6 mb-2">ساخت پرونده دانش‌آموز</h3>
-                <p class="text-muted fs-13 mb-3">نام، شماره تماس و محله وارد شده‌اند. کد ملی و کد دانش‌آموزی را برای ساخت پرونده وارد کنید.</p>
+                <p class="text-muted fs-13 mb-3">نام، شماره تماس و محله وارد شده‌اند. برای ساخت یا اتصال پرونده، کد ملی دانش‌آموز را وارد کنید.</p>
                 <div class="row g-3">
                   <div class="col-12 col-md-6"><label class="form-label" for="enr-lead-national-code">کد ملی دانش‌آموز <span class="text-danger">*</span></label><input id="enr-lead-national-code" class="form-control" dir="ltr" inputmode="numeric" maxlength="10" aria-describedby="enr-lead-national-help"><div id="enr-lead-national-help" class="form-text">۱۰ رقم</div></div>
-                  <div class="col-12 col-md-6"><label class="form-label" for="enr-lead-student-code">کد دانش‌آموزی <span class="text-danger">*</span></label><input id="enr-lead-student-code" class="form-control" dir="ltr" maxlength="32"></div>
-                  <div class="col-12"><label class="form-label" for="enr-lead-father-name">نام پدر</label><input id="enr-lead-father-name" class="form-control"></div>
+                  <div class="col-12 col-md-6"><label class="form-label" for="enr-lead-father-name">نام پدر</label><input id="enr-lead-father-name" class="form-control"></div>
                 </div>
                 <button type="button" id="enr-create-person" class="btn btn-outline-primary mt-3"><i data-lucide="user-round-plus" class="size-4 me-1" aria-hidden="true"></i> ساخت پرونده دانش‌آموز</button>
               </div>
@@ -124,7 +123,7 @@
             <button type="submit" class="btn btn-primary">
               <i data-lucide="check" class="size-4 me-1"></i> ثبت‌نام
             </button>
-            <a href="{% url 'workspace-offerings' %}" class="btn btn-light">انصراف</a>
+            <a href="{% if lead_enrollment %}{% url 'leads-dashboard' %}{% else %}{% url 'workspace-offerings' %}{% endif %}" class="btn btn-light">انصراف</a>
           </div>
         </form>
       </div>
@@ -137,5 +136,6 @@
 {% endblock %}
 
 {% block page_js %}
+{% if lead_enrollment %}<script>window.__LEAD_ID__ = "{{ lead_enrollment.pk }}"; window.__LEAD_ENROLLMENT_API__ = "/api/leads/{{ lead_enrollment.pk }}/";</script>{% endif %}
 <script src="{% asset_v_url 'assets/pen/js/enrollment.js' %}"></script>
 {% endblock %}

@@ -3,7 +3,7 @@
 
   var API = window.__LEADS_API__ || '/api/leads/';
   var appRoot = document.querySelector('[data-lead-app]');
-  var teacherMode = Boolean(appRoot && appRoot.dataset.leadMode === 'teacher');
+  var assessorMode = Boolean(appRoot && appRoot.dataset.leadMode === 'assessor');
   var state = { rows: [], filter: 'all', assessors: [], page: 1, pageSize: 20, count: 0, request: 0, query: '', status: '' };
   var searchTimer = null;
   var modal = null;
@@ -27,14 +27,14 @@
   function card(row) {
     var date = row.assessment_date ? 'جلسه ' + fmtDate(row.assessment_date) + (row.assessment_time ? '، ' + fmtTime(row.assessment_time) : '') : 'جلسه تعیین نشده';
     return '<article class="lead-card" data-id="' + esc(row.id) + '" data-status="' + esc(row.status) + '">' +
-      '<div class="lead-card-main"><div class="lead-avatar">' + esc((row.student_name || '؟').slice(0, 1)) + '</div><div class="min-w-0"><div class="d-flex align-items-center gap-2 flex-wrap"><strong class="lead-card-name">' + esc(row.student_name) + '</strong><span class="' + statusClass(row.status) + '">' + esc(row.status_label) + '</span></div><p class="lead-card-meta mb-0"><span dir="ltr">' + esc(row.phone) + '</span>' + (row.neighborhood ? ' · ' + esc(row.neighborhood) : '') + '</p><p class="lead-card-meta mb-0">' + esc(date) + '</p>' + (teacherMode ? '' : '<p class="lead-card-meta mb-0">ثبت‌کننده: ' + esc(row.created_by_name || '—') + '</p>') + '</div></div>' +
+      '<div class="lead-card-main"><div class="lead-avatar">' + esc((row.student_name || '؟').slice(0, 1)) + '</div><div class="min-w-0"><div class="d-flex align-items-center gap-2 flex-wrap"><strong class="lead-card-name">' + esc(row.student_name) + '</strong><span class="' + statusClass(row.status) + '">' + esc(row.status_label) + '</span></div><p class="lead-card-meta mb-0"><span dir="ltr">' + esc(row.phone) + '</span>' + (row.neighborhood ? ' · ' + esc(row.neighborhood) : '') + '</p><p class="lead-card-meta mb-0">' + esc(date) + '</p>' + (assessorMode ? '' : '<p class="lead-card-meta mb-0">ثبت‌کننده: ' + esc(row.created_by_name || '—') + '</p>') + '</div></div>' +
       '<div class="lead-card-side"><span class="lead-code">' + esc(row.code) + '</span><button type="button" class="btn btn-sm btn-outline-primary lead-open" data-id="' + esc(row.id) + '">مشاهده</button></div></article>';
   }
 
   function renderRows() {
     var list = document.getElementById('lead-list');
     if (!list) return;
-    if (!teacherMode) {
+    if (!assessorMode) {
       var rows = state.rows;
       list.innerHTML = rows.length ? rows.map(function (row) {
         var date = row.assessment_date ? fmtDate(row.assessment_date) + (row.assessment_time ? ' · ' + fmtTime(row.assessment_time) : '') : '—';
@@ -70,7 +70,7 @@
     if (!list) return Promise.resolve();
     list.setAttribute('aria-busy', 'true');
     var request = ++state.request;
-    if (teacherMode) return get(API).then(function (data) { state.rows = data.results || data || []; renderRows(); }).finally(function () { list.setAttribute('aria-busy', 'false'); });
+    if (assessorMode) return get(API).then(function (data) { state.rows = data.results || data || []; renderRows(); }).finally(function () { list.setAttribute('aria-busy', 'false'); });
     var params = new URLSearchParams({ page: String(state.page), page_size: String(state.pageSize) });
     if (state.query) params.set('q', state.query);
     if (state.status) params.set('status', state.status);
@@ -97,7 +97,7 @@
       document.getElementById('lead-detail-title').textContent = lead.student_name || 'جزئیات لید';
       document.getElementById('lead-detail-code').textContent = lead.code || '';
       body.innerHTML =
-        '<div class="lead-detail-grid"><div><span>وضعیت</span><strong><span class="' + statusClass(lead.status) + '">' + esc(lead.status_label) + '</span></strong></div><div><span>شماره تماس</span><strong dir="ltr">' + esc(lead.phone) + '</strong></div><div><span>سن</span><strong>' + esc(lead.age || '—') + '</strong></div><div><span>محله</span><strong>' + esc(lead.neighborhood || '—') + '</strong></div><div><span>جلسه</span><strong>' + esc(fmtDate(lead.assessment_date) + (lead.assessment_time ? ' · ' + fmtTime(lead.assessment_time) : '')) + '</strong></div><div><span>استاد / مسئول</span><strong>' + esc(lead.assessor_name || 'تعیین نشده') + '</strong></div>' + (teacherMode ? '' : '<div><span>ثبت‌کننده</span><strong>' + esc(lead.created_by_name || '—') + '</strong></div>') + '</div>' +
+        '<div class="lead-detail-grid"><div><span>وضعیت</span><strong><span class="' + statusClass(lead.status) + '">' + esc(lead.status_label) + '</span></strong></div><div><span>شماره تماس</span><strong dir="ltr">' + esc(lead.phone) + '</strong></div><div><span>سن</span><strong>' + esc(lead.age || '—') + '</strong></div><div><span>محله</span><strong>' + esc(lead.neighborhood || '—') + '</strong></div><div><span>جلسه</span><strong>' + esc(fmtDate(lead.assessment_date) + (lead.assessment_time ? ' · ' + fmtTime(lead.assessment_time) : '')) + '</strong></div><div><span>ارزیاب</span><strong>' + esc(lead.assessor_name || 'تعیین نشده') + '</strong></div>' + (assessorMode ? '' : '<div><span>ثبت‌کننده</span><strong>' + esc(lead.created_by_name || '—') + '</strong></div>') + '</div>' +
         '<div class="lead-detail-note"><span>حساسیت یا آلرژی</span><p>' + esc(lead.allergy_notes || 'موردی ثبت نشده') + '</p></div>' +
         historyMarkup(lead) +
         '<div class="lead-detail-actions" data-lead-id="' + esc(lead.id) + '">' + actionMarkup(lead) + '</div>';
@@ -115,8 +115,8 @@
   }
 
   function actionMarkup(lead) {
-    if (teacherMode) return lead.status === 'sent' || lead.status === 'scheduled' ? actionButton('ثبت نتیجه تعیین سطح', 'assess', 'btn-primary') : (lead.status === 'assessed' ? actionButton('معرفی دوره', 'recommend', 'btn-primary') : '');
-    if (lead.status === 'new' || lead.status === 'scheduled') return actionButton('ارسال برای استاد', 'send', 'btn-primary') + actionButton('حذف تعیین سطح', 'delete', 'btn-outline-danger') + actionButton('بایگانی', 'archive', 'btn-light');
+    if (assessorMode) return lead.status === 'sent' || lead.status === 'scheduled' ? actionButton('ثبت نتیجه تعیین سطح', 'assess', 'btn-primary') : (lead.status === 'assessed' ? actionButton('معرفی دوره', 'recommend', 'btn-primary') : '');
+    if (lead.status === 'new' || lead.status === 'scheduled') return actionButton('ارجاع به ارزیاب', 'send', 'btn-primary') + actionButton('حذف تعیین سطح', 'delete', 'btn-outline-danger') + actionButton('بایگانی', 'archive', 'btn-light');
     if (lead.status === 'sent') return actionButton('ثبت نتیجه تعیین سطح', 'assess', 'btn-primary') + actionButton('حذف تعیین سطح', 'delete', 'btn-outline-danger') + actionButton('بایگانی', 'archive', 'btn-light');
     if (lead.status === 'lost') return actionButton('حذف تعیین سطح', 'delete', 'btn-outline-danger');
     if (lead.status === 'assessed') return actionButton('معرفی دوره', 'recommend', 'btn-primary');
@@ -128,7 +128,7 @@
     var body = document.getElementById('lead-detail-body');
     if (action === 'send') {
       var options = state.assessors.map(function (a) { return '<option value="' + esc(a.id) + '"' + (String(a.id) === String(lead.assessor) ? ' selected' : '') + '>' + esc(a.name) + ' · ' + esc(a.type) + '</option>'; }).join('');
-      body.querySelector('.lead-detail-actions').innerHTML = '<div class="lead-inline-form"><label class="form-label">انتخاب استاد یا مسئول</label><select id="lead-action-assessor" class="form-select"><option value="">— انتخاب کنید —</option>' + options + '</select><button type="button" class="btn btn-primary" id="lead-action-save">ارسال</button></div>';
+      body.querySelector('.lead-detail-actions').innerHTML = '<div class="lead-inline-form"><label class="form-label">انتخاب ارزیاب تعیین سطح</label><select id="lead-action-assessor" class="form-select"><option value="">— انتخاب کنید —</option>' + options + '</select><button type="button" class="btn btn-primary" id="lead-action-save">ارجاع</button></div>';
       document.getElementById('lead-action-save').addEventListener('click', function () { post(API + lead.id + '/send/', { assessor: document.getElementById('lead-action-assessor').value }).then(done).catch(fail); });
     } else if (action === 'assess') {
       body.querySelector('.lead-detail-actions').innerHTML = '<div class="lead-inline-form"><div class="row g-2"><div class="col-12"><label class="form-label" for="lead-action-result">نتیجه تعیین سطح</label><textarea id="lead-action-result" class="form-control" rows="3" required aria-describedby="lead-action-result-help" placeholder="مثلاً سطح A2؛ نیاز به تمرین مکالمه دارد"></textarea><div id="lead-action-result-help" class="form-text">سطح، توانایی فعلی و نکتهٔ مهم برای ادامهٔ پیگیری را بنویسید.</div></div></div><button type="button" class="btn btn-primary" id="lead-action-save">ثبت نتیجه</button></div>';
@@ -142,7 +142,7 @@
           return;
         }
         resultInput.removeAttribute('aria-invalid');
-        post(API + lead.id + '/assess/', { result: result }).then(done).catch(fail);
+        post((assessorMode ? API : '/api/leads/') + lead.id + '/assess/', { result: result }).then(done).catch(fail);
       });
     } else if (action === 'recommend') {
       body.querySelector('.lead-detail-actions').innerHTML = '<div class="lead-inline-form"><div class="row g-2"><div class="col-6"><label class="form-label" for="lead-action-course">دوره پیشنهادی</label><select id="lead-action-course" class="form-select" required aria-describedby="lead-action-course-help"><option value="">— انتخاب دوره —</option></select><div id="lead-action-course-help" class="form-text" role="status" aria-live="polite">در حال دریافت دوره‌ها…</div></div><div class="col-6"><label class="form-label" for="lead-action-lesson">درس پیشنهادی</label><select id="lead-action-lesson" class="form-select" disabled aria-describedby="lead-action-lesson-help"><option value="">ابتدا دوره را انتخاب کنید</option></select><div id="lead-action-lesson-help" class="form-text" aria-live="polite">درس‌های همان دوره پس از انتخاب نمایش داده می‌شوند.</div></div><div class="col-12"><label class="form-label" for="lead-action-recommendation">توضیح معرفی</label><textarea id="lead-action-recommendation" class="form-control" rows="2"></textarea></div></div><button type="button" class="btn btn-primary" id="lead-action-save">ثبت معرفی دوره</button></div>';
@@ -170,7 +170,7 @@
           ? (lessons.length ? 'فقط درس‌های دورهٔ انتخاب‌شده نمایش داده می‌شوند.' : 'برای این دوره درسی ثبت نشده است.')
           : 'درس‌های همان دوره پس از انتخاب نمایش داده می‌شوند.';
       });
-      get('/api/education/courses/?page_size=100').then(function (data) {
+      get('/api/leads/courses/').then(function (data) {
         courses = data.results || [];
         courseSelect.innerHTML += courses.map(function (course) { return '<option value="' + esc(course.id) + '">' + esc(course.title) + '</option>'; }).join('');
         courseSelect.disabled = !courses.length;
@@ -196,7 +196,7 @@
         onSuccess: function () { if (modal) modal.hide(); window.location.reload(); }
       });
     } else if (action === 'enroll') {
-      window.location.href = '/workspace/enrollments/?lead=' + encodeURIComponent(lead.id);
+      window.location.href = '/leads/' + encodeURIComponent(lead.id) + '/enrollment/';
     } else if (action === 'archive') post(API + lead.id + '/archive/', {}).then(done).catch(fail);
   }
 
@@ -268,7 +268,7 @@
     var submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
     post(API, { student_name: document.getElementById('lead-student-name').value.trim(), age: Number(document.getElementById('lead-age').value), phone: toAsciiDigits(phoneInput.value), neighborhood: document.getElementById('lead-neighborhood').value.trim(), father_job: document.getElementById('lead-father-job').value.trim(), mother_job: document.getElementById('lead-mother-job').value.trim(), allergy_notes: document.getElementById('lead-allergy').value.trim(), assessment_date: iso, assessment_time: timeInput.value, assessor: document.getElementById('lead-assessor').value })
-      .then(function () { toast('لید ثبت و برای استاد ارسال شد.', 'success'); window.location.reload(); })
+      .then(function () { toast('درخواست تعیین سطح ثبت و برای ارزیاب ارسال شد.', 'success'); window.location.reload(); })
       .catch(function (e) { errors.querySelector('ul').innerHTML = '<li>' + esc(e.message) + '</li>'; errors.hidden = false; })
       .finally(function () { submit.disabled = false; });
     });

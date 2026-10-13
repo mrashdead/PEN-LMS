@@ -94,16 +94,13 @@
   var jalaliArmed = false;
   window.penAttachJalaliPickers = function () {
     if (!window.jalaliDatepicker) return;
-    document.querySelectorAll('input[data-jalali], input[data-jalali-time]').forEach(function (input) {
+    document.querySelectorAll('input[data-jalali]:not([data-jalali-time]):not([data-jalali-dt])').forEach(function (input) {
       if (input.dataset.jdpArmed) return;
       input.dataset.jdpArmed = '1';
       input.setAttribute('data-jdp', '');
       input.setAttribute('autocomplete', 'off');
       input.setAttribute('dir', 'ltr');
-      if (input.hasAttribute('data-jalali-time')) {
-        input.setAttribute('data-jdp-only-time', '');
-        if (!input.value) input.placeholder = '۱۴:۳۰';
-      } else if (!input.value && !input.placeholder) {
+      if (!input.value && !input.placeholder) {
         input.placeholder = 'سال/ماه/روز';
       }
     });

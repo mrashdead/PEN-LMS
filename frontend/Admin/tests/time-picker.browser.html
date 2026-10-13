@@ -1,0 +1,80 @@
+<!doctype html><html lang="fa" dir="rtl" data-bs-theme="light"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Time picker regression checks</title>
+<link rel="stylesheet" href="../src/assets/css/bootstrap.rtl.css"><link rel="stylesheet" href="../src/assets/css/font-face.css"><link rel="stylesheet" href="../src/assets/pen/css/pen.css"><link rel="stylesheet" href="../src/assets/pen/css/pen-palette.css"><link rel="stylesheet" href="../src/assets/pen/css/pen-time.css">
+<style>body{padding:24px;background:var(--dx-body-bg);color:var(--dx-body-color)}form{max-width:560px;margin:20px auto;padding:20px;border:1px solid var(--dx-border-color);border-radius:12px;background:var(--dx-card-bg)}label{display:block;margin-top:16px}#results{white-space:pre-wrap;direction:ltr}button{min-height:44px}dialog{background:var(--dx-card-bg);color:var(--dx-body-color);border:1px solid var(--dx-border-color);border-radius:12px;max-width:calc(100vw - 24px)}</style>
+<button id="run" type="button">Run regression checks</button><button id="theme" type="button">تغییر ظاهر آزمایش</button><button id="open-dialog" type="button">باز کردن نمونه در دیالوگ</button>
+<pre id="results" role="status">Ready</pre>
+<form id="sample" novalidate><label for="native">ساعت ورود</label><input id="native" name="entry" type="time" step="60" class="form-control" required value="09:12"><label for="optional">ساعت خروج اختیاری</label><input id="optional" name="exit" type="time" class="form-control"><label for="text">برنامه کلاس</label><input id="text" name="schedule" data-jalali-time class="form-control" value="16:37"><label for="disabled">زمان غیرفعال</label><input id="disabled" type="time" class="form-control" disabled><label for="bounded">ساعت محدود</label><input id="bounded" type="time" class="form-control" min="09:00" max="18:00" step="900"><button type="reset">پاک‌کردن نمونه</button><button type="submit">آزمون اعتبارسنجی نمونه</button></form>
+<dialog id="dialog"><label for="dialog-time">ساعت در دیالوگ</label><input id="dialog-time" type="time" class="form-control"><button id="close-dialog" type="button">بستن نمونه</button></dialog>
+<script>
+const datetimeField=document.createElement('input');datetimeField.id='datetime';datetimeField.name='datetime';datetimeField.className='form-control';datetimeField.value='1405/07/20 18:37';datetimeField.defaultValue=datetimeField.value;datetimeField.setAttribute('data-jalali','');datetimeField.setAttribute('data-jalali-dt','');datetimeField.setAttribute('aria-label','زمان جلسه');document.querySelector('#sample').appendChild(datetimeField);
+</script>
+<script src="../src/assets/js/jalalidatepicker.min.js"></script><script src="../src/assets/pen/js/pen-jalali.js"></script><script src="../src/assets/pen/js/pen-time.js"></script>
+<script>
+// Open this file with a local HTTP server rooted in frontend/Admin. No data is submitted.
+document.querySelector('#sample').addEventListener('submit', e=>e.preventDefault());
+document.querySelector('#theme').onclick=()=>document.documentElement.dataset.bsTheme=document.documentElement.dataset.bsTheme==='dark'?'light':'dark';
+document.querySelector('#open-dialog').onclick=()=>document.querySelector('#dialog').showModal();
+document.querySelector('#close-dialog').onclick=()=>document.querySelector('#dialog').close();
+document.querySelector('#run').onclick=async()=>{
+ const results=document.querySelector('#results');let passed=0;const lines=[];
+ const check=(condition,label)=>{if(!condition)throw new Error(label);passed++;lines.push('PASS '+label)};
+ const source=id=>document.querySelector('#'+id);const control=id=>source(id).closest('.pen-time-control');
+ const parts=id=>Array.from(control(id).querySelectorAll('.pen-time-segment'));
+ const type=(input,value)=>{input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));};
+ const settle=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+ try{
+ check(document.querySelectorAll('.pen-time-control').length===7,'all native/text/static/datetime fields attach once');
+ window.penAttachTimePickers();check(document.querySelectorAll('.pen-time-control').length===7,'reattaching is idempotent');
+ check(parts('native')[0].value==='09'&&parts('native')[1].value==='12','initial native value renders');
+ check(parts('text')[1].value==='37','text time renders arbitrary minute');
+ check(source('optional').value===''&&parts('optional').every(e=>e.value===''),'optional checkout starts empty');
+ source('native').value='23:59';check(parts('native')[0].value==='23'&&parts('native')[1].value==='59','programmatic edits synchronize');
+ type(parts('native')[0],'۱۴');type(parts('native')[1],'۳۷');check(source('native').value==='14:37','Persian typing preserves minute');
+ check(new FormData(source('sample')).get('entry')==='14:37','FormData retains canonical source name/value');
+ check(new FormData(source('sample')).getAll('entry').length===1,'display segments do not duplicate payload');
+ type(parts('native')[0],'٢٣');type(parts('native')[1],'٥٩');check(source('native').value==='23:59','Arabic typing works');
+ parts('native')[1].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));check(source('native').value==='23:00','minute keyboard increment wraps');
+ parts('native')[0].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));check(source('native').value==='00:00','hour keyboard increment wraps');
+ source('native').step='any';source('native').value='09:12:37';type(parts('native')[1],'13');check(source('native').value==='09:13:37','editing retains existing seconds');
+ let changes=0;source('native').addEventListener('change',()=>changes++);type(parts('native')[1],'14');check(changes===1,'one canonical change event per edit');
+ source('native').value='09:14';source('native').step='60';
+ type(parts('optional')[0],'25');check(!source('optional').validity.valid,'out-of-range optional time is invalid');
+ check(!window.penValidateTimePickers(source('sample')),'novalidate validation catches partial optional time');
+ check(document.activeElement===parts('optional')[0],'validation focuses visible segment');
+ let submissions=0;source('sample').addEventListener('submit',()=>submissions++);source('sample').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));check(submissions===0,'invalid optional time blocks AJAX submit handlers');
+ source('optional').value='';check(source('optional').validity.valid,'clearing optional value is valid');
+ control('optional').querySelector('.pen-time-trigger').click();Array.from(control('optional').querySelectorAll('button')).find(e=>e.textContent==='اکنون').click();check(/^\d{2}:\d{2}$/.test(source('optional').value),'Now explicitly fills a valid 24-hour time');
+ control('optional').querySelector('.pen-time-trigger').click();Array.from(control('optional').querySelectorAll('button')).find(e=>e.textContent==='پاک‌کردن').click();check(source('optional').value===''&&parts('optional').every(e=>e.value===''),'Clear explicitly empties both visible segments and payload');
+ source('native').value='';check(!source('native').validity.valid,'required source remains required');
+ source('native').value='09:00';source('bounded').value='08:45';check(!source('bounded').validity.valid,'minimum is retained');
+ source('bounded').value='18:15';check(!source('bounded').validity.valid,'maximum is retained');
+ source('bounded').value='10:07';check(source('bounded').validity.stepMismatch,'existing minute step is retained');
+ source('bounded').value='10:15';check(source('bounded').validity.valid,'valid step is accepted');
+ source('disabled').disabled=false;await settle();check(parts('disabled').every(e=>!e.disabled),'dynamic enabled state synchronizes');
+ source('disabled').readOnly=true;await settle();check(parts('disabled').every(e=>e.readOnly)&&control('disabled').querySelector('.pen-time-trigger').disabled,'readonly disables editing and panel');
+ source('disabled').setCustomValidity('ignored readonly validation');check(window.penValidateTimePickers(source('sample')),'readonly fields retain native exemption from validation');source('disabled').setCustomValidity('');
+ source('disabled').readOnly=false;source('disabled').disabled=true;await settle();
+ source('native').focus();check(document.activeElement===parts('native')[0],'existing input.focus focuses visible UI');
+ document.querySelector('label[for=native]').click();check(document.activeElement===parts('native')[0],'original label focuses visible UI');
+ control('native').querySelector('.pen-time-trigger').click();check(!control('native').querySelector('.pen-time-panel').hidden,'opening panel works');
+ control('native').querySelector('[data-minute="30"]').click();check(source('native').value==='09:30','minute shortcut updates canonical value');
+ document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));check(control('native').querySelector('.pen-time-panel').hidden&&document.activeElement===control('native').querySelector('.pen-time-trigger'),'Escape closes and restores focus');
+ source('sample').reset();await settle();check(source('native').value==='09:12'&&parts('native')[0].value==='09'&&parts('native')[1].value==='12','form reset restores defaults');
+ check(source('optional').value===''&&parts('optional').every(e=>e.value===''),'form reset clears optional time');
+ const datetimeGroup=source('datetime').closest('.pen-datetime-control');const datePart=datetimeGroup.querySelector('input[data-jalali]:not([data-jalali-dt])');const timePart=datetimeGroup.querySelector('input[type=time]');
+ check(datePart.value==='1405/07/20'&&timePart.value==='18:37','datetime initial date and time split correctly');
+ source('datetime').value='1405/07/21 14:32';check(datePart.value==='1405/07/21'&&timePart.value==='14:32','programmatic datetime editing synchronizes both parts');
+ type(timePart.closest('.pen-time-control').querySelectorAll('.pen-time-segment')[1],'37');check(source('datetime').value==='1405/07/21 14:37','datetime retains original combined payload');
+ datePart.value='1405/07/22';datePart.dispatchEvent(new Event('change',{bubbles:true}));check(source('datetime').value==='1405/07/22 14:37','date selection preserves exact time');
+ check(new FormData(source('sample')).getAll('datetime').length===1,'datetime UI does not duplicate submitted fields');
+ check(datePart.hasAttribute('data-jdp')&&!source('datetime').hasAttribute('data-jdp'),'calendar only attaches to the visible date field');
+ source('sample').reset();await settle();check(datePart.value==='1405/07/20'&&timePart.value==='18:37','datetime reset restores original date and time');
+ source('text').value='۱۴:۳۷';check(source('text').value==='14:37','existing Persian text value normalizes to canonical time');
+ source('text').value='25:30';check(!source('text').validity.valid&&parts('text')[0].value==='25','malformed loaded text remains visible and invalid');source('text').value='16:37';
+ const dynamic=document.createElement('input');dynamic.type='text';dynamic.setAttribute('data-jalali-time','');dynamic.value='18:37';source('sample').appendChild(dynamic);await settle();check(dynamic.closest('.pen-time-control')&&dynamic.closest('.pen-time-control').querySelectorAll('.pen-time-segment')[1].value==='37','dynamic resource/form fields attach');
+ dynamic.closest('.pen-time-control').querySelector('.pen-time-trigger').click();dynamic.closest('.pen-time-control').remove();await settle();check(!document.querySelector('.pen-time-panel:popover-open'),'removing dynamic row closes popover');
+ check(document.querySelectorAll('[data-jalali-time][data-jdp]').length===0,'time-only controls do not reopen the old calendar');
+ results.textContent=passed+' checks passed\n'+lines.join('\n');
+ }catch(error){results.textContent=passed+' passed; FAIL '+error.message+'\n'+lines.join('\n');}
+};
+</script></html>

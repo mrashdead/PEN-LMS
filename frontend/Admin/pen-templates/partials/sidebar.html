@@ -95,16 +95,6 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
         </li>
         {% endif %}
-        {% if sidebar_visibility.leads_teacher_assessments %}
-        <li class="nav-item">
-          <a href="{% url 'leads-teacher-assessments' %}" title="تعیین‌سطح‌های من"
-             class="nav-link{% if urlname == 'leads-teacher-assessments' %} active{% endif %}"
-             {% if urlname == 'leads-teacher-assessments' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="user-round-search"></i></span>
-            <span class="content">تعیین‌سطح‌های من</span>
-          </a>
-        </li>
-        {% endif %}
         {% endif %}
 
         {# ══ LEARNER PORTAL (student/parent) ══════════════════════════ #}
@@ -299,13 +289,13 @@ Add a page: one nav-item; add a section: copy a collapse block.
           </a>
         </li>
         {% endif %}
-        {% if sidebar_visibility.leads_teacher_assessments and not sidebar_sections.teacher %}
+        {% if sidebar_visibility.leads_teacher_assessments %}
         <li class="nav-item">
-          <a href="{% url 'leads-teacher-assessments' %}" title="تعیین‌سطح‌های من"
-             class="nav-link{% if urlname == 'leads-teacher-assessments' %} active{% endif %}"
-             {% if urlname == 'leads-teacher-assessments' %}aria-current="page"{% endif %}>
+          <a href="{% url 'leads-assessments' %}" title="صف ارزیابی لیدها"
+             class="nav-link{% if urlname == 'leads-assessments' %} active{% endif %}"
+             {% if urlname == 'leads-assessments' %}aria-current="page"{% endif %}>
             <span class="icons"><i data-lucide="user-round-search"></i></span>
-            <span class="content">تعیین‌سطح‌های من</span>
+            <span class="content">صف ارزیابی لیدها</span>
           </a>
         </li>
         {% endif %}

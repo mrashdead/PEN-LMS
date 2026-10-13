@@ -28,11 +28,11 @@
           </div>
 
           <section class="lead-appointment mt-4" aria-labelledby="lead-appointment-title">
-            <div class="lead-appointment-heading"><span class="lead-appointment-icon"><i data-lucide="calendar-clock" aria-hidden="true"></i></span><div><h3 id="lead-appointment-title">نوبت تعیین سطح</h3><p>زمان جلسه و استاد مسئول را مشخص کنید.</p></div></div>
+            <div class="lead-appointment-heading"><span class="lead-appointment-icon"><i data-lucide="calendar-clock" aria-hidden="true"></i></span><div><h3 id="lead-appointment-title">نوبت تعیین سطح</h3><p>زمان جلسه و ارزیاب مجاز را مشخص کنید.</p></div></div>
             <div class="row g-3">
               <div class="col-12 col-md-4"><label class="form-label" for="lead-date">تاریخ جلسه <b>*</b></label><div class="lead-date-control"><input id="lead-date" name="assessment_date" class="form-control" data-jalali data-jdp-min-date="#lead-date-min" dir="ltr" inputmode="numeric" autocomplete="off" placeholder="از تقویم انتخاب کنید" required aria-describedby="lead-date-help"><button type="button" id="lead-calendar-open" class="lead-calendar-open" aria-label="بازکردن تقویم شمسی"><i data-lucide="calendar-days" aria-hidden="true"></i></button></div><div class="lead-date-shortcuts" aria-label="میان‌بر انتخاب تاریخ"><button type="button" data-date-offset="0">امروز</button><button type="button" data-date-offset="1">فردا</button></div><div class="form-text" id="lead-date-help">تاریخ امروز یا آینده را انتخاب کنید.</div></div>
               <div class="col-12 col-md-3"><label class="form-label" for="lead-time">ساعت شروع <b>*</b></label><input id="lead-time" name="assessment_time" type="time" step="900" class="form-control lead-time-input" required></div>
-              <div class="col-12 col-md-5"><label class="form-label" for="lead-assessor">ارزیاب تعیین سطح <b>*</b></label><select id="lead-assessor" name="assessor" class="form-select" required><option value="">— انتخاب استاد —</option>{% for person in lead_assessors %}<option value="{{ person.pk }}">{{ person.display_name }} · استاد</option>{% endfor %}</select></div>
+              <div class="col-12 col-md-5"><label class="form-label" for="lead-assessor">ارزیاب تعیین سطح <b>*</b></label><select id="lead-assessor" name="assessor" class="form-select" required><option value="">— انتخاب ارزیاب —</option>{% for person in lead_assessors %}<option value="{{ person.pk }}">{{ person.display_name }} · ارزیاب</option>{% endfor %}</select></div>
             </div>
           </section>
 
@@ -41,11 +41,11 @@
             <div class="row g-3 pt-3">
               <div class="col-6 col-md-3"><label class="form-label" for="lead-father-job">شغل پدر</label><input id="lead-father-job" name="father_job" class="form-control" autocomplete="off"></div>
               <div class="col-6 col-md-3"><label class="form-label" for="lead-mother-job">شغل مادر</label><input id="lead-mother-job" name="mother_job" class="form-control" autocomplete="off"></div>
-              <div class="col-12 col-md-6"><label class="form-label" for="lead-allergy">حساسیت یا آلرژی</label><textarea id="lead-allergy" name="allergy_notes" class="form-control" rows="2" placeholder="برای اطلاع استاد"></textarea></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="lead-allergy">حساسیت یا آلرژی</label><textarea id="lead-allergy" name="allergy_notes" class="form-control" rows="2" placeholder="برای اطلاع ارزیاب"></textarea></div>
             </div>
           </details>
           <div id="lead-form-errors" class="pen-error-summary mt-3" role="alert" hidden><ul class="mb-0"></ul></div>
-          <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary"><i data-lucide="send" class="size-4 me-1" aria-hidden="true"></i>ثبت و ارسال برای استاد</button><button type="reset" class="btn btn-light">پاک‌کردن فرم</button></div>
+          <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary"><i data-lucide="send" class="size-4 me-1" aria-hidden="true"></i>ثبت و ارجاع به ارزیاب</button><button type="reset" class="btn btn-light">پاک‌کردن فرم</button></div>
         </form>
       </div>
     </section>
@@ -59,7 +59,7 @@
       <label class="lead-page-size"><span>نمایش</span><select id="lead-page-size" class="form-select" aria-label="تعداد ردیف در هر صفحه"><option value="20" selected>۲۰</option><option value="50">۵۰</option><option value="100">۱۰۰</option></select></label>
     </div>
     <div class="table-responsive lead-table-wrap" aria-busy="true">
-      <table class="table align-middle lead-table mb-0"><caption class="visually-hidden">فهرست لیدها و اطلاعات پیگیری آن‌ها</caption><thead><tr><th scope="col">دانش‌آموز</th><th scope="col">نوبت</th><th scope="col">استاد</th><th scope="col">وضعیت</th><th scope="col">ثبت‌کننده</th><th scope="col"><span class="visually-hidden">جزئیات</span></th></tr></thead><tbody id="lead-list"><tr><td colspan="6" class="lead-table-message">در حال دریافت فهرست…</td></tr></tbody></table>
+      <table class="table align-middle lead-table mb-0"><caption class="visually-hidden">فهرست لیدها و اطلاعات پیگیری آن‌ها</caption><thead><tr><th scope="col">دانش‌آموز</th><th scope="col">نوبت</th><th scope="col">ارزیاب</th><th scope="col">وضعیت</th><th scope="col">ثبت‌کننده</th><th scope="col"><span class="visually-hidden">جزئیات</span></th></tr></thead><tbody id="lead-list"><tr><td colspan="6" class="lead-table-message">در حال دریافت فهرست…</td></tr></tbody></table>
     </div>
     <footer class="lead-pagination"><span id="lead-page-summary">—</span><div class="lead-page-controls"><button type="button" id="lead-prev" class="btn btn-light btn-sm" disabled><i data-lucide="chevron-right" aria-hidden="true"></i>قبلی</button><span id="lead-page-indicator">صفحهٔ ۱</span><button type="button" id="lead-next" class="btn btn-light btn-sm" disabled>بعدی<i data-lucide="chevron-left" aria-hidden="true"></i></button></div></footer>
   </section>

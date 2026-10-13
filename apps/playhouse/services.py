@@ -224,7 +224,10 @@ class PlayhouseService:
     @transaction.atomic
     def update_member(self, *, member, data) -> PlayhouseMember:
         """Edit identity/profile fields while leaving every session untouched."""
-        locked = PlayhouseMember.objects.select_for_update().select_related("person").get(pk=member.pk)
+        # Lock only the member row. ``person`` is nullable, so joining it into
+        # a PostgreSQL SELECT ... FOR UPDATE would try to lock the nullable
+        # side of an outer join and fail while editing unlinked visitors.
+        locked = PlayhouseMember.objects.select_for_update().get(pk=member.pk)
         person = locked.person
         if person is None:
             # Compatibility for legacy rows that predate canonical Person links.
@@ -436,6 +439,8 @@ class PlayhouseService:
         if not payments:
             raise PlayhouseServiceError("حداقل یک مبلغ پرداخت وارد کنید.")
         invoice = locked.invoice
+        if invoice and invoice.is_free:
+            raise PlayhouseServiceError("برای فاکتور رایگان پرداخت ثبت نمی‌شود.")
         if locked.status == PlayhouseSession.Status.FINISHED and not invoice:
             raise PlayhouseServiceError("ابتدا فاکتور مراجعه را صادر یا اصلاح کنید.")
         if invoice:
@@ -559,6 +564,9 @@ class PlayhouseService:
         session,
         operator,
         cafe_items: list[dict] | None = None,
+        payments: list[dict] | None = None,
+        is_free: bool = False,
+        free_reason: str = "",
         payment_method: str = "",
         tracking_code: str = "",
         notes: str = "",
@@ -580,6 +588,18 @@ class PlayhouseService:
         if locked.invoices.filter(is_voided=False).exists():
             raise PlayhouseServiceError("برای این نوبت قبلاً فاکتور صادر شده است.")
 
+        payment_lines = payments or []
+        if payment_lines and (payment_method or tracking_code):
+            raise PlayhouseServiceError("پرداخت ترکیبی و روش پرداخت تکی را هم‌زمان ثبت نکنید.")
+        if is_free:
+            roles = set(operator.role_codes()) if hasattr(operator, "role_codes") else set()
+            if not roles & {"manager", "hr", "workflow_admin"}:
+                raise PlayhouseServiceError("صدور فاکتور رایگان به دسترسی مالی نیاز دارد.")
+            if payment_lines or payment_method or tracking_code or discount_amount or discount_note:
+                raise PlayhouseServiceError("فاکتور رایگان نمی‌تواند تخفیف یا پرداخت داشته باشد.")
+            if PlayhousePayment.objects.filter(session=locked, reversed_at__isnull=True).exists():
+                raise PlayhouseServiceError("برای مراجعه‌ای که پرداخت ثبت‌شده دارد، فاکتور رایگان صادر نمی‌شود.")
+
         config = PlayhouseConfig.get_solo()
         time_amount = (Decimal(locked.billable_minutes) / Decimal(15)).quantize(Decimal("1")) * config.price_per_15_minutes
 
@@ -589,6 +609,10 @@ class PlayhouseService:
             price=config.price_per_15_minutes,
             time_amount=time_amount,
         )
+        if is_free:
+            invoice.is_free = True
+            invoice.free_reason = (free_reason or "").strip()
+            invoice.save(update_fields=["is_free", "free_reason", "updated_at"])
 
         try:
             orders = PlayhouseCafeOrder.objects.filter(
@@ -635,7 +659,14 @@ class PlayhouseService:
         invoice.paid_at = timezone.now() if invoice.is_paid and invoice.total_amount > 0 else None
         invoice.save(update_fields=["is_paid", "paid_at", "updated_at"])
 
-        if payment_method or tracking_code:
+        if payment_lines:
+            new_payment_total = sum((Decimal(str(row["amount"])) for row in payment_lines), Decimal("0"))
+            if already_paid + new_payment_total > invoice.total_amount:
+                raise PlayhouseServiceError("جمع پرداخت‌ها از مانده فاکتور بیشتر است.")
+            self._create_payments(
+                session=locked, operator=operator, payments=payment_lines
+            )
+        elif payment_method or tracking_code:
             # record_payment re-fetches a locked instance and saves it; its
             # return value is the fresh, saved one — must use it, else the
             # caller sees a stale (unpaid) instance.
@@ -646,6 +677,22 @@ class PlayhouseService:
                 tracking_code=tracking_code,
                 paid=bool(payment_method and (tracking_code or payment_method == PlayhouseInvoice.PaymentMethod.CASH)),
             )
+        if not is_free:
+            active_payments = list(locked.payments.filter(reversed_at__isnull=True))
+            methods = {row.method for row in active_payments}
+            invoice.payment_method = (
+                next(iter(methods)) if len(methods) == 1
+                else PlayhouseInvoice.PaymentMethod.SPLIT if methods
+                else ""
+            )
+            invoice.tracking_code = (
+                active_payments[0].tracking_code if len(active_payments) == 1 else ""
+            )
+            invoice.is_paid = invoice.total_amount > 0 and invoice.paid_amount >= invoice.total_amount
+            invoice.paid_at = timezone.now() if invoice.is_paid else None
+            invoice.save(update_fields=[
+                "payment_method", "tracking_code", "is_paid", "paid_at", "updated_at",
+            ])
         return invoice
 
     @transaction.atomic
@@ -713,9 +760,11 @@ class PlayhouseService:
         locked = PlayhouseInvoice.objects.select_for_update().get(pk=invoice.pk)
         if locked.is_voided:
             raise PlayhouseServiceError("برای فاکتور باطل‌شده نمی‌توان پرداخت ثبت کرد.")
+        if locked.is_free:
+            raise PlayhouseServiceError("برای فاکتور رایگان پرداخت ثبت نمی‌شود.")
         if locked.is_paid and not locked.session.payments.filter(reversed_at__isnull=True).exists():
             raise PlayhouseServiceError("این فاکتور قبلاً پرداخت شده است.")
-        if payment_method not in PlayhouseInvoice.PaymentMethod.values:
+        if payment_method not in PlayhousePayment.Method.values:
             raise PlayhouseServiceError("روش پرداخت نامعتبر است.")
         if paid:
             if payment_method != PlayhouseInvoice.PaymentMethod.CASH and not tracking_code:

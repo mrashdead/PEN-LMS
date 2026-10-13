@@ -275,6 +275,14 @@
       employeeKind.value = initialEmployeeKind;
       employeeKind.disabled = !person.can_manage_supervisor_role || !person.has_user;
     }
+    var assessorWrap = document.getElementById('person-edit-assessor-access-wrap');
+    var assessorToggle = document.getElementById('person-edit-can-assess-leads');
+    if (assessorWrap && assessorToggle) {
+      var eligibleStaff = typeCodes.indexOf('employee') !== -1 || typeCodes.indexOf('teacher') !== -1;
+      assessorWrap.hidden = !eligibleStaff || !person.can_manage_lead_assessor;
+      assessorToggle.checked = !!person.can_assess_leads;
+      assessorToggle.disabled = !eligibleStaff || !person.can_manage_lead_assessor;
+    }
     if (window.penRenderIcons) window.penRenderIcons();
   }
 
@@ -772,6 +780,11 @@
       addIfChanged(payload, 'gender', 'person-edit-gender', editingPerson.gender || 'unspecified');
       addIfChanged(payload, 'birth_date', 'person-edit-birth-date', editingPerson.birth_date);
       addIfChanged(payload, 'job_title', 'person-edit-job-title', editingPerson.job_title);
+      var assessorToggle = document.getElementById('person-edit-can-assess-leads');
+      if (assessorToggle && editingPerson.can_manage_lead_assessor &&
+          assessorToggle.checked !== !!editingPerson.can_assess_leads) {
+        payload.can_assess_leads = assessorToggle.checked;
+      }
       var active = document.getElementById('person-edit-active').checked;
       if (active !== (editingPerson.is_active !== false)) payload.is_active = active;
       var selectedEmployeeKind = document.getElementById('person-edit-employee-kind').value;

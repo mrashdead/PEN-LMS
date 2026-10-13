@@ -9,7 +9,7 @@ from __future__ import annotations
 from apps.forms.permissions import ELEVATED_ROLES
 from apps.forms.templatetags.forms_extras import FORMS_URL_NAMES
 from apps.playhouse.permissions import FINANCE_ROLES, KITCHEN_ROLES, OPERATOR_ROLES
-from apps.leads.permissions import LEAD_OPERATOR_ROLES
+from apps.leads.permissions import is_lead_assessor, is_lead_operator
 from apps.reports.permissions import REPORT_ACCESS_ROLES, can_access_capacity_report
 from apps.core.sidebar import SIDEBAR_ITEMS, visibility_flags_for, visible_sidebar_sections
 
@@ -41,7 +41,6 @@ def user_flags(request):
             "is_playhouse_kitchen": False,
             "is_leads_user": False,
             "is_lead_operator": False,
-            "is_lead_teacher": False,
             "can_change_own_password": False,
             "sidebar_urlname": "", "sidebar_is_forms": False,
             "sidebar_is_edu": False, "sidebar_is_req": False,
@@ -59,6 +58,10 @@ def user_flags(request):
     # teacher portal only (dashboard/timetable, attendance, report cards).
     is_teacher_only = is_teacher and not (roles & (ELEVATED_ROLES | {"employee", "supervisor"}))
     sidebar_visibility = visibility_flags_for(user, roles=roles)
+    lead_operator = is_lead_operator(user)
+    lead_assessor = is_lead_assessor(user)
+    if lead_assessor:
+        sidebar_visibility["leads_teacher_assessments"] = True
     return {
         "is_schema_admin": bool(roles & ELEVATED_ROLES),
         "is_staff_user": bool(roles & STAFF_ROLES),
@@ -70,9 +73,8 @@ def user_flags(request):
         "is_playhouse_user": bool(roles & OPERATOR_ROLES),
         "is_playhouse_finance": bool(roles & FINANCE_ROLES),
         "is_playhouse_kitchen": bool(roles & (KITCHEN_ROLES | FINANCE_ROLES)),
-        "is_leads_user": bool(roles & (LEAD_OPERATOR_ROLES | {"teacher"})),
-        "is_lead_operator": bool(roles & LEAD_OPERATOR_ROLES),
-        "is_lead_teacher": "teacher" in roles,
+        "is_leads_user": lead_operator or lead_assessor,
+        "is_lead_operator": lead_operator,
         "can_change_own_password": bool(roles & {"manager", "workflow_admin", "supervisor", "employee"}),
         "is_teacher": is_teacher,
         "is_teacher_only": is_teacher_only,

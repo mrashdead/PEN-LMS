@@ -55,6 +55,9 @@ class PlayhouseDashboardPage(PlayhousePageMixin, TemplateView):
         context["can_edit_playhouse_price"] = bool(
             set(self.request.user.role_codes()) & (FINANCE_ROLES | {"supervisor"})
         ) if hasattr(self.request.user, "role_codes") else False
+        context["can_create_free_invoice"] = bool(
+            set(self.request.user.role_codes()) & FINANCE_ROLES
+        ) if hasattr(self.request.user, "role_codes") else False
         return context
 
 

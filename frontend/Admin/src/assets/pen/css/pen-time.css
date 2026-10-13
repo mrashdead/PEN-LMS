@@ -1,0 +1,95 @@
+/* Shared time fields use the same surfaces and focus colors as the admin theme. */
+.pen-datetime-control { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; }
+.pen-datetime-control > div { min-width: 0; }
+.pen-datetime-control .form-label { font-size: .75rem; color: var(--dx-secondary-color); }
+@media (max-width: 575.98px) { .pen-datetime-control { grid-template-columns: minmax(0, 1fr); } }
+.pen-time-control.form-control {
+  display: flex;
+  align-items: center;
+  gap: .15rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 .375rem 0 .625rem;
+  border: 1px solid var(--dx-border-color);
+  border-radius: .375rem;
+  background: var(--dx-body-bg);
+  color: var(--dx-body-color);
+}
+.pen-time-control:focus-within {
+  border-color: var(--dx-primary);
+  box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--dx-primary) 20%, transparent);
+}
+.pen-time-control .pen-time-segment {
+  flex: 0 1 2.5rem;
+  width: 2.5rem;
+  min-width: 0;
+  min-height: 42px;
+  padding: .4rem .125rem;
+  border: 0;
+  border-radius: .25rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  direction: ltr;
+}
+.pen-time-segment::placeholder { color: var(--dx-secondary-color); opacity: 1; }
+.pen-time-segment:focus { outline: 0; background: color-mix(in srgb, var(--dx-primary) 10%, transparent); }
+.pen-time-colon { color: var(--dx-secondary-color); }
+.pen-time-control .pen-time-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 42px;
+  min-height: 42px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: .25rem;
+  background: transparent;
+  color: var(--dx-secondary-color);
+}
+.pen-time-trigger:hover { color: var(--dx-primary); background: color-mix(in srgb, var(--dx-primary) 10%, transparent); }
+.pen-time-button:focus-visible { outline: 2px solid var(--dx-primary); outline-offset: 2px; }
+.pen-time-control.pen-time-invalid { border-color: var(--dx-danger); }
+.pen-time-control.pen-time-invalid:focus-within { box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--dx-danger) 15%, transparent); }
+.pen-time-error { margin-top: .375rem; font-size: .75rem; line-height: 1.8; color: var(--dx-danger); }
+.pen-time-disabled, .pen-time-readonly { opacity: .65; }
+.pen-time-disabled .pen-time-segment, .pen-time-trigger:disabled { cursor: not-allowed; }
+.pen-time-panel {
+  position: fixed;
+  z-index: 2100;
+  inset: auto;
+  margin: 0;
+  padding: 1rem;
+  max-width: calc(100vw - 1rem);
+  max-height: calc(100dvh - 1rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--dx-border-color);
+  border-radius: .75rem;
+  background: var(--dx-card-bg, var(--dx-secondary-bg));
+  color: var(--dx-body-color);
+  box-shadow: 0 .5rem 1.5rem rgb(0 0 0 / .12);
+  font-family: inherit;
+  font-size: .8125rem;
+  line-height: 1.6;
+}
+.pen-time-panel[hidden], .pen-time-error[hidden] { display: none !important; }
+.pen-time-heading { display: flex; justify-content: space-between; align-items: center; gap: .75rem; margin-bottom: .875rem; }
+.pen-time-heading strong { font-size: .875rem; }
+.pen-time-preview { color: var(--dx-primary); font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pen-time-steps { display: grid; grid-template-columns: 1fr 1fr; direction: ltr; gap: .75rem; }
+.pen-time-stepper > span { display: block; margin-bottom: .35rem; text-align: center; color: var(--dx-secondary-color); }
+.pen-time-step-actions { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--dx-border-color); border-radius: .375rem; background: var(--dx-body-bg); }
+.pen-time-step-actions output { font-weight: 700; font-variant-numeric: tabular-nums; }
+.pen-time-panel .pen-time-button { min-width: 36px; min-height: 44px; padding: .35rem .5rem; border: 0; border-radius: .3rem; background: transparent; color: inherit; font: inherit; font-variant-numeric: tabular-nums; }
+.pen-time-panel .pen-time-button:hover { background: color-mix(in srgb, var(--dx-primary) 10%, transparent); color: var(--dx-primary); }
+.pen-time-caption { margin: .875rem 0 .375rem; color: var(--dx-secondary-color); font-size: .75rem; }
+.pen-time-shortcuts { display: grid; grid-template-columns: repeat(4, 1fr); gap: .375rem; }
+.pen-time-shortcuts .pen-time-button { border: 1px solid var(--dx-border-color); background: var(--dx-body-bg); }
+.pen-time-shortcuts .pen-time-button[aria-pressed="true"] { background: color-mix(in srgb, var(--dx-primary) 12%, var(--dx-card-bg, var(--dx-secondary-bg))); color: var(--dx-primary); border-color: var(--dx-primary); }
+.pen-time-footer { display: flex; align-items: center; justify-content: space-between; gap: .25rem; margin-top: .875rem; padding-top: .75rem; border-top: 1px solid var(--dx-border-color); }
+.pen-time-footer .pen-time-done { color: var(--dx-primary); font-weight: 700; }

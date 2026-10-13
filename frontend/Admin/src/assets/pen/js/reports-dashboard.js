@@ -211,6 +211,7 @@
     if (window.penRenderIcons) window.penRenderIcons();
   }
   function load(query) {
+    if (window.penValidateTimePickers && !window.penValidateTimePickers(document.getElementById('report-filter-form'))) return;
     var version = ++loadVersion;
     hideError(); setLoading(true);
     state.query = query || currentQuery();
@@ -220,6 +221,7 @@
     }).catch(function (error) { if (version === loadVersion) showError(error.message); }).finally(function () { if (version === loadVersion) setLoading(false); });
   }
   function exportReport(kind) {
+    if (window.penValidateTimePickers && !window.penValidateTimePickers(document.getElementById('report-filter-form'))) return;
     var query = currentQuery();
     query.set('report', kind);
     window.location.href = endpoints.export + '?' + query.toString();

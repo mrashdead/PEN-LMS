@@ -64,7 +64,7 @@ class LeadSerializer(serializers.ModelSerializer):
                 for r in obj.recommendations.select_related("course", "lesson", "assessor").all()]
 
 
-class TeacherLeadSerializer(serializers.ModelSerializer):
+class LeadAssessorSerializer(serializers.ModelSerializer):
     """Assessment-facing fields only; staff creator/report metadata stays private."""
     status_label = serializers.CharField(read_only=True)
     assessor_name = serializers.SerializerMethodField()
@@ -139,7 +139,6 @@ class LeadAssessmentSerializer(serializers.Serializer):
 class LeadPersonCreateSerializer(serializers.Serializer):
     """Minimum identity fields needed to turn a qualified lead into a student."""
     national_code = serializers.CharField(max_length=10, min_length=10)
-    student_code = serializers.CharField(max_length=32, required=True, allow_blank=False)
     father_name = serializers.CharField(max_length=128, required=False, allow_blank=True)
 
     def validate_national_code(self, value):
