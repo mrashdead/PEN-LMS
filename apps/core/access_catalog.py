@@ -34,6 +34,11 @@ class Resource:
 _PAGE_RESOURCES: list[Resource] = [
     Resource(key="workspace-profile",        title="پروفایل کاربری",       category="page", verbs=PAGE_VERBS,              description="مشاهده و ویرایش پروفایل شخصی"),
     Resource(key="workspace-password-management", title="مدیریت رمز عبور", category="page", verbs=PAGE_VERBS),
+    Resource(key="workspace-backup-download", title="دریافت نسخهٔ پشتیبان", category="page", verbs=PAGE_VERBS),
+    Resource(key="workspace-enrollment-payments", title="پرداخت‌های ثبت‌نام", category="page", verbs=PAGE_VERBS),
+    Resource(key="workspace-enrollment-directory", title="پیگیری ثبت‌نام‌ها", category="page", verbs=PAGE_VERBS),
+    Resource(key="workspace-enrollment-record", title="جزئیات ثبت‌نام", category="page", verbs=PAGE_VERBS),
+    Resource(key="workspace-enrollment-entity", title="جزئیات پروندهٔ ثبت‌نام", category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-work",          title="کارتابل کاری",          category="page", verbs=PAGE_VERBS,              description="وظایف و درخواست‌های منتظر اقدام"),
     Resource(key="workspace-requests",      title="درخواست‌ها",             category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-enrollments",  title="ثبت‌نام‌ها",             category="page", verbs=PAGE_VERBS),
@@ -41,6 +46,7 @@ _PAGE_RESOURCES: list[Resource] = [
     Resource(key="workspace-perm-manage",  title="مدیریت دسترسی کاربران", category="page", verbs=PAGE_VERBS, description="ACL دستی — فقط برای مدیران"),
     Resource(key="workspace-persons",       title="اشخاص",                 category="page", verbs={"view", "add"},          description="لیست و جستجوی اشخاص"),
     Resource(key="workspace-person-create",title="ایجاد شخص",             category="page", verbs={"add"}),
+    Resource(key="workspace-staff-create", title="ایجاد کارمند", category="page", verbs={"add"}),
     Resource(key="workspace-departments",  title="دپارتمان‌ها",           category="page", verbs={"view", "add"}),
     Resource(key="workspace-terms",        title="ترم‌های تحصیلی",         category="page", verbs={"view", "add"}),
     Resource(key="workspace-lessons",      title="درس‌ها",                category="page", verbs={"view", "add"}),
@@ -51,10 +57,11 @@ _PAGE_RESOURCES: list[Resource] = [
     Resource(key="workspace-timetable",    title="زمان‌بندی",              category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-enrollment-capacity", title="گزارش ثبت‌نام و ظرفیت کلاس‌ها", category="page", verbs=PAGE_VERBS, description="آمار تجمیعی ثبت‌نام و ظرفیت؛ پیش‌فرض مدیریت و سرپرست. دسترسی مدرس محدود به کلاس‌های خودش است؛ بدون اطلاعات هویتی یا مالی."),
     Resource(key="workspace-reports",      title="گزارش‌ها",              category="page", verbs=PAGE_VERBS),
+    Resource(key="workspace-report-section", title="بخش گزارش‌ها", category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-teacher",      title="پنل معلم",               category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-teacher-attendance", title="حضور معلم",        category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-teacher-report-cards", title="کارنامه معلم",    category="page", verbs=PAGE_VERBS),
-    Resource(key="workspace-learner-portal",  title="پنل دانش‌آموز/والدین",category="page", verbs=PAGE_VERBS),
+    Resource(key="workspace-learner-portal",  title="پنل دانش‌آموز",category="page", verbs=PAGE_VERBS),
     Resource(key="workspace-messages",     title="پیام‌ها",                category="page", verbs=PAGE_VERBS),
     Resource(key="leads-dashboard",        title="مدیریت لیدها",           category="page", verbs=PAGE_VERBS, description="دسترسی کامل به ثبت، ارجاع، تعیین سطح، معرفی دوره و ثبت‌نام لیدها"),
     Resource(key="leads-teacher-assessments", title="صف ارزیابی لیدها", category="page", verbs=PAGE_VERBS, description="صف اختصاصی ارزیابان مجاز برای بررسی درخواست‌های تعیین سطح ارجاع‌شده"),
@@ -132,7 +139,42 @@ def all_resources() -> list[Resource]:
 
 def get_resource(resource_type: str, key: str) -> Resource | None:
     """Look up by type:key. Returns None if not found."""
-    return _all_resources.get(f"{resource_type}:{key}")
+    resource = _all_resources.get(f"{resource_type}:{key}")
+    if resource is not None:
+        return resource
+    if resource_type == "page" and key not in {"workspace-requests", "submission-picker"}:
+        from apps.core.sidebar import SIDEBAR_ITEMS
+        item = next((item for item in SIDEBAR_ITEMS if item["key"] == key), None)
+        if item is not None:
+            return Resource(
+                key=key,
+                title=item["title"],
+                category="page",
+                verbs=PAGE_VERBS,
+                description="کنترل مشاهدهٔ صفحه از مدیریت دسترسی کاربران",
+            )
+    if resource_type == "model":
+        return _dynamic_model_resource(key)
+    return None
+
+
+def _dynamic_model_resource(key: str) -> Resource | None:
+    """Resolve first-party models omitted from the hand-curated ACL list."""
+    try:
+        app_label, model_name = key.split(".", 1)
+        model = apps.get_model(app_label, model_name)
+        app_config = apps.get_app_config(app_label)
+    except (ValueError, LookupError, RuntimeError):
+        return None
+    if not app_config.name.startswith("apps.") or model._meta.proxy or model._meta.auto_created:
+        return None
+    return Resource(
+        key=f"{model._meta.app_label}.{model._meta.model_name}",
+        title=str(model._meta.verbose_name_plural),
+        category="model",
+        verbs=MODEL_VERBS,
+        description="ماژول ثبت‌شده در برنامه؛ مجوزهای مشاهده، ایجاد، ویرایش و حذف.",
+    )
 
 
 def form_resources() -> list[dict]:
@@ -162,7 +204,31 @@ def catalog_for_type(resource_type: str) -> list[Resource] | list[dict]:
     """Return catalog entries filtered by type."""
     if resource_type == "form":
         return form_resources()
-    return [r for r in _all_resources.values() if r.category == resource_type]
+    resources = [r for r in _all_resources.values() if r.category == resource_type]
+    if resource_type == "page":
+        from apps.core.sidebar import SIDEBAR_ITEMS
+        known = {resource.key for resource in resources}
+        resources.extend(
+            Resource(
+                key=item["key"],
+                title=item["title"],
+                category="page",
+                verbs=PAGE_VERBS,
+                description="کنترل مشاهدهٔ صفحه از مدیریت دسترسی کاربران",
+            )
+            for item in SIDEBAR_ITEMS
+            if item["key"] not in known and item["key"] not in {"workspace-requests", "submission-picker"}
+        )
+    elif resource_type == "model":
+        known = {resource.key for resource in resources}
+        for model in apps.get_models():
+            key = f"{model._meta.app_label}.{model._meta.model_name}"
+            if key in known:
+                continue
+            resource = _dynamic_model_resource(key)
+            if resource is not None:
+                resources.append(resource)
+    return resources
 
 
 def valid_verbs(resource_type: str, resource_key: str) -> set[str]:

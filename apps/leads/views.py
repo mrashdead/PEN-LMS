@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from django.db.models import Q
 from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
@@ -153,7 +155,21 @@ class LeadActionView(APIView):
             lead.lesson = lesson
             lead.recommendation = note
             lead.status = Lead.Status.RECOMMENDED
-            lead.save(update_fields=["course", "lesson", "recommendation", "status", "updated_at"])
+            # Make the qualified learner available in the student directory and
+            # enrollment picker immediately. Official identity details can be
+            # completed later; Person supports temporary student identities.
+            if not lead.enrolled_person_id:
+                words = " ".join((lead.student_name or "").split()).split(" ", 1)
+                lead.enrolled_person = Person.objects.create(
+                    first_name=words[0] if words else "دانش‌آموز",
+                    last_name=words[1] if len(words) > 1 else "",
+                    person_type=Person.Type.STUDENT,
+                    mobile=lead.phone,
+                    address=lead.neighborhood,
+                    is_temporary=True,
+                    temporary_id=uuid.uuid4(),
+                )
+            lead.save(update_fields=["course", "lesson", "recommendation", "status", "enrolled_person", "updated_at"])
         elif action == "enroll":
             if not is_lead_operator(request.user):
                 return Response({"detail": "تکمیل ثبت‌نام فقط برای کارکنان مجاز است."}, status=403)

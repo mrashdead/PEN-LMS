@@ -487,6 +487,8 @@ jdp-overlay   { z-index: 1075 !important; }
 .ph-sessions-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: .15rem .15rem 1.1rem; }
 .ph-sessions-heading h2 { font-size: 1.3rem; margin: 0 0 .3rem; font-weight: 800; }
 .ph-list-actions { display: flex; align-items: center; gap: .5rem; }
+.ph-history-controls .ph-history-date { margin-bottom: 0; }
+.ph-history-controls > .btn { min-height: 2.45rem; white-space: nowrap; }
 .ph-outline-action { padding-inline: .8rem; }
 .ph-icon-action { display: grid; place-items: center; width: 2.7rem; padding: 0; }
 .ph-live-strip { display: flex; align-items: center; gap: 1.25rem; padding: .72rem .9rem; margin-bottom: .9rem; border: 1px solid #e5eee9; border-radius: .72rem; background: #f5fbf9; color: #55716a; font-size: .75rem; }

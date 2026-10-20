@@ -98,7 +98,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
         {% endif %}
 
         {# ══ LEARNER PORTAL (student/parent) ══════════════════════════ #}
-        {% if sidebar_sections.learner or sidebar_sections.learner_requests %}
+        {% if sidebar_sections.learner %}
         {% if sidebar_visibility.workspace_learner_portal %}
         <li class="nav-item">
           <a href="{% url 'workspace-learner-portal' %}" title="پورتال من"
@@ -108,22 +108,14 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">حضور و کارنامه</span>
           </a>
         </li>
+        {% endif %}
+        {% if sidebar_visibility.workspace_learner_progress_reports %}
         <li class="nav-item">
           <a href="{% url 'workspace-learner-progress-reports' %}" title="گزارش‌های مدرس"
              class="nav-link{% if urlname == 'workspace-learner-progress-reports' %} active{% endif %}"
              {% if urlname == 'workspace-learner-progress-reports' %}aria-current="page"{% endif %}>
             <span class="icons"><i data-lucide="file-text"></i></span>
             <span class="content">گزارش‌های مدرس</span>
-          </a>
-        </li>
-        {% endif %}
-        {% if sidebar_sections.learner_requests %}
-        <li class="nav-item">
-          <a href="{% url 'workspace-requests' %}" title="درخواست‌های من"
-             class="nav-link{% if urlname == 'workspace-requests' %} active{% endif %}"
-             {% if urlname == 'workspace-requests' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="file-stack"></i></span>
-            <span class="content">درخواست‌های من</span>
           </a>
         </li>
         {% endif %}
@@ -146,27 +138,6 @@ Add a page: one nav-item; add a section: copy a collapse block.
         {% endif %}
         {% if sidebar_visibility.calls_dashboard %}
         <li class="nav-item"><a href="{% url 'calls-dashboard' %}" title="ثبت تماس‌ها" class="nav-link{% if urlname == 'calls-dashboard' %} active{% endif %}"><span class="icons"><i data-lucide="phone"></i></span><span class="content">ثبت تماس‌ها</span></a></li>
-        {% endif %}
-
-        {# ── درخواست‌ها (collapsible) ─────────────────────────────── #}
-        {% if sidebar_sections.requests %}
-        <li class="nav-item">
-          <a href="#collapseRequests" title="درخواست‌ها"
-             class="nav-link{% if sidebar_is_req %} active{% else %} collapsed{% endif %}"
-             data-bs-toggle="collapse" data-position="right-top" role="button"
-             aria-expanded="{% if sidebar_is_req %}true{% else %}false{% endif %}" aria-controls="collapseRequests">
-            <span class="icons"><i data-lucide="file-stack"></i></span>
-            <span class="content">درخواست‌ها</span>
-            <span class="ms-auto menu-arrow"><i data-lucide="chevron-down" class="size-4"></i></span>
-          </a>
-          <div class="collapse{% if sidebar_is_req %} show{% endif %}" id="collapseRequests">
-            <ul class="nav-menu-sub">
-              {% if sidebar_visibility.workspace_requests or sidebar_visibility.submission_picker %}
-              <li><a href="{% url 'workspace-requests' %}" class="nav-link{% if urlname == 'workspace-requests' or urlname == 'schema-picker' or urlname == 'submission-create' %} active{% endif %}"{% if urlname == 'workspace-requests' %} aria-current="page"{% endif %}><span>مرکز درخواست‌ها</span></a></li>
-              {% endif %}
-            </ul>
-          </div>
-        </li>
         {% endif %}
 
         {# ── آموزشگاه (collapsible) ───────────────────────────────── #}
@@ -239,7 +210,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
         </li>
         {% endif %}
 
-        {% if sidebar_visibility.workspace_enrollment_capacity and can_capacity_report %}
+        {% if sidebar_visibility.workspace_enrollment_capacity %}
         <li class="nav-item">
           <a href="{% url 'workspace-enrollment-capacity' %}" class="nav-link{% if urlname == 'workspace-enrollment-capacity' %} active{% endif %}" {% if urlname == 'workspace-enrollment-capacity' %}aria-current="page"{% endif %}>
             <span class="icons"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span>
@@ -248,7 +219,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
         </li>
         {% endif %}
 
-        {% if sidebar_visibility.workspace_reports and is_staff_user %}
+        {% if sidebar_visibility.workspace_reports %}
         <li class="nav-item">
           <a href="{% url 'workspace-reports' %}" title="گزارش‌ها و تحلیل‌ها"
              class="nav-link{% if urlname == 'workspace-reports' or urlname == 'workspace-report-section' %} active{% endif %}"
@@ -310,16 +281,6 @@ Add a page: one nav-item; add a section: copy a collapse block.
         </li>
         {% endif %}
 
-        {% if sidebar_visibility.workspace_reports and not is_staff_user %}
-        <li class="nav-item">
-          <a href="{% url 'workspace-reports' %}" title="گزارش‌ها و تحلیل‌ها"
-             class="nav-link{% if urlname == 'workspace-reports' or urlname == 'workspace-report-section' %} active{% endif %}"
-             {% if urlname == 'workspace-reports' or urlname == 'workspace-report-section' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="bar-chart-3"></i></span>
-            <span class="content">گزارش‌ها و تحلیل‌ها</span>
-          </a>
-        </li>
-        {% endif %}
 
         {% if sidebar_sections.organization %}
         <li class="nav-menu-title">مدیریت سازمان</li>
@@ -346,7 +307,7 @@ Add a page: one nav-item; add a section: copy a collapse block.
         </li>
         {% endif %}
 
-        {% if is_sys_admin %}
+        {% if sidebar_visibility.workspace_audit_events %}
         <li class="nav-item">
           <a href="{% url 'workspace-audit-events' %}" title="رخدادهای امنیتی"
              class="nav-link{% if urlname == 'workspace-audit-events' %} active{% endif %}"
@@ -355,6 +316,8 @@ Add a page: one nav-item; add a section: copy a collapse block.
             <span class="content">رخدادهای امنیتی</span>
           </a>
         </li>
+        {% endif %}
+        {% if sidebar_visibility.workspace_backups %}
         <li class="nav-item">
           <a href="{% url 'workspace-backups' %}" title="پشتیبان‌گیری"
              class="nav-link{% if urlname == 'workspace-backups' %} active{% endif %}"

@@ -44,6 +44,12 @@
   function toast(m, k) { window.penToast && window.penToast(m, k); }
   function icons() { if (window.penRenderIcons) window.penRenderIcons(); }
   function entryKey(type, key) { return type + '|' + key; }
+  function isHiddenRole(role) {
+    var code = String(role.code || '').toLowerCase();
+    var name = String(role.name || '').trim().toLowerCase();
+    return ['guardian', 'parent', 'hr'].indexOf(code) !== -1 ||
+      /(ولی|والد|سرپرست والدین|منابع انسانی)/.test(name);
+  }
 
   var VERB_LABEL = {
     view: 'مشاهده', add: 'ایجاد', change: 'ویرایش', delete: 'حذف',
@@ -54,7 +60,10 @@
 
   // ── Load catalog ───────────────────────────────────────────────────
   get(ACL_BASE + 'catalog/').then(function (d) {
-    catalog = d;
+    catalog = Object.assign({}, d, {
+      pages: (d.pages || []).filter(function (r) { return r.key !== 'workspace-requests'; }),
+      models: (d.models || []).filter(function (r) { return r.key !== 'workflow.instance'; }),
+    });
     if (current) renderAclGrid();
   }).catch(function (e) { toast('خطا در بارگذاری کاتالوگ: ' + e.message, 'danger'); });
 
@@ -119,7 +128,7 @@
       document.getElementById('pm-name').textContent = data.name;
       document.getElementById('pm-sub').textContent = '@' + data.username + (data.department ? ' · ' + data.department : '');
       document.getElementById('pm-superuser').hidden = !data.is_superuser;
-      document.getElementById('pm-superuser-note').hidden = !data.is_superuser;
+      document.getElementById('pm-superuser-note').hidden = true;
       document.getElementById('pm-acl-details').open = false;
       renderRoles();
       renderGroups();
@@ -140,9 +149,10 @@
     var opts = window._permOptions || { roles: [] };
     var have = {};
     (current.roles || []).forEach(function (r) { have[r] = true; });
-    box.innerHTML = (opts.roles || []).map(function (r) {
-      return '<label class="pm-option"><input class="form-check-input" type="checkbox" data-role="' + esc(r.code) + '"' + (have[r.code] ? ' checked' : '') + (current.is_superuser ? ' disabled' : '') + '>' +
-        '<span>' + esc(r.name) + '</span></label>';
+    box.innerHTML = (opts.roles || []).filter(function (r) { return !isHiddenRole(r); }).map(function (r) {
+      var name = r.code === 'workflow_admin' ? 'مدیر سیستم' : r.name;
+      return '<label class="pm-option"><input class="form-check-input" type="checkbox" data-role="' + esc(r.code) + '"' + (have[r.code] ? ' checked' : '') + '>' +
+        '<span>' + esc(name) + '</span></label>';
     }).join('') || '<span class="text-muted fs-14">در حال بارگذاری نقش‌ها…</span>';
   }
 
@@ -153,7 +163,7 @@
     var have = {};
     (current.groups || []).forEach(function (g) { have[g] = true; });
     box.innerHTML = (opts.groups || []).map(function (g) {
-      return '<label class="pm-option"><input class="form-check-input" type="checkbox" data-group="' + esc(g.name) + '"' + (have[g.name] ? ' checked' : '') + (current.is_superuser ? ' disabled' : '') + '>' +
+      return '<label class="pm-option"><input class="form-check-input" type="checkbox" data-group="' + esc(g.name) + '"' + (have[g.name] ? ' checked' : '') + '>' +
         '<span>' + esc(g.name) + '</span></label>';
     }).join('') || '<span class="text-muted fs-14">' + (window._permOptions ? 'گروهی تعریف نشده است.' : 'در حال بارگذاری گروه‌ها…') + '</span>';
   }
@@ -162,14 +172,21 @@
   function checkedValues(selector, key) {
     return Array.prototype.slice.call(document.querySelectorAll(selector + ' input:checked')).map(function (c) { return c.dataset[key]; }).sort();
   }
+  function checkedRoleValues() {
+    var visible = checkedValues('#pm-roles', 'role');
+    var hidden = (current.roles || []).filter(function (code) {
+      return ['guardian', 'parent', 'hr'].indexOf(String(code).toLowerCase()) !== -1;
+    });
+    return visible.concat(hidden).sort();
+  }
   function sameValues(a, b) { return JSON.stringify((a || []).slice().sort()) === JSON.stringify((b || []).slice().sort()); }
-  function rolesChanged() { return current && window._permOptions && !sameValues(checkedValues('#pm-roles', 'role'), current.roles); }
+  function rolesChanged() { return current && window._permOptions && !sameValues(checkedRoleValues(), current.roles); }
   function groupsChanged() { return current && window._permOptions && !sameValues(checkedValues('#pm-groups', 'group'), current.groups); }
   function hasPendingChanges() { return !!(rolesChanged() || groupsChanged() || Object.keys(dirtyEntries).length); }
   function updateSaveStatus(message) {
     var count = (rolesChanged() ? 1 : 0) + (groupsChanged() ? 1 : 0) + Object.keys(dirtyEntries).length;
     document.getElementById('pm-save-status').textContent = message || (count ? count + ' تغییر در انتظار ذخیره' : 'بدون تغییر');
-    document.getElementById('pm-save').disabled = saving || !count || !!(current && current.is_superuser);
+    document.getElementById('pm-save').disabled = saving || !count;
   }
   document.getElementById('pm-roles').addEventListener('change', function () { updateSaveStatus(); });
   document.getElementById('pm-groups').addEventListener('change', function () { updateSaveStatus(); });
@@ -181,7 +198,7 @@
     var id = current.id;
     if (rolesChanged()) {
       try {
-        var roles = checkedValues('#pm-roles', 'role');
+        var roles = checkedRoleValues();
         var roleRes = await post(PERM_BASE + 'user/' + id + '/roles/', { roles: roles });
         if (!roleRes.ok) throw new Error(roleRes.b.error || roleRes.b.detail || 'ذخیره نشد');
         current.roles = roleRes.b.roles || roles;
@@ -295,7 +312,11 @@
       cb.addEventListener('change', onVerbChange);
     });
 
-    document.getElementById('pm-acl-count').textContent = current.entries.length ? current.entries.length + ' مورد تنظیم‌شده' : 'برای موارد استثنا';
+    var visibleEntries = current.entries.filter(function (entry) {
+      return !(entry.resource_type === 'page' && entry.resource_key === 'workspace-requests') &&
+        !(entry.resource_type === 'model' && entry.resource_key === 'workflow.instance');
+    });
+    document.getElementById('pm-acl-count').textContent = visibleEntries.length ? visibleEntries.length + ' مورد تنظیم‌شده' : 'برای موارد استثنا';
     updateSaveStatus();
   }
 
@@ -343,7 +364,7 @@
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // Sidebar visibility (site-superuser controls only)
+  // Sidebar visibility (role, group, and per-user controls)
   // ══════════════════════════════════════════════════════════════════
 
   var $sidebarRoleAdmin = document.getElementById('sidebar-role-admin');
@@ -357,11 +378,19 @@
   var $sidebarUserStatus = document.getElementById('sidebar-user-status');
   var $sidebarUserSave = document.getElementById('sidebar-user-save');
   var $sidebarUserReset = document.getElementById('sidebar-user-reset');
+  var $sidebarGroupAdmin = document.getElementById('sidebar-group-admin');
+  var $sidebarGroupSelect = document.getElementById('sidebar-group-select');
+  var $sidebarGroupGrid = document.getElementById('sidebar-group-grid');
+  var $sidebarGroupStatus = document.getElementById('sidebar-group-status');
+  var $sidebarGroupSave = document.getElementById('sidebar-group-save');
+  var $sidebarGroupReset = document.getElementById('sidebar-group-reset');
   var loadedRoleCode = '';
 
   function groupSidebarItems(items) {
     var groups = [];
-    (items || []).forEach(function (item) {
+    (items || []).filter(function (item) {
+      return item.key !== 'workspace-requests' && item.key !== 'submission-picker';
+    }).forEach(function (item) {
       var group = groups.filter(function (g) { return g.name === item.section; })[0];
       if (!group) {
         group = { name: item.section, items: [] };
@@ -443,6 +472,50 @@
     if ($sidebarUserStatus) $sidebarUserStatus.textContent = 'تنظیم‌های این فرد؛ «پیروی از نقش‌ها» مقدار جداگانه را حذف می‌کند.';
   }
 
+  function renderGroupSidebarItems(data) {
+    if (!$sidebarGroupGrid) return;
+    $sidebarGroupGrid.innerHTML = groupSidebarItems(data.items || []).map(function (group) {
+      return '<section class="pm-menu-group"><h3>' + esc(group.name) + '</h3><div class="pm-menu-items">' + group.items.map(function (item) {
+        var value = item.override === null ? 'inherit' : (item.override ? 'show' : 'hide');
+        return '<label class="pm-menu-item"><span class="flex-grow-1">' + esc(item.title) + '</span>' +
+          '<select class="form-select form-select-sm sidebar-group-item" data-key="' + esc(item.key) + '" style="width:auto;min-width:10rem">' +
+          '<option value="inherit"' + (value === 'inherit' ? ' selected' : '') + '>بدون قانون گروه</option>' +
+          '<option value="show"' + (value === 'show' ? ' selected' : '') + '>نمایش</option>' +
+          '<option value="hide"' + (value === 'hide' ? ' selected' : '') + '>پنهان</option></select></label>';
+      }).join('') + '</div></section>';
+    }).join('');
+    $sidebarGroupSave.disabled = true;
+    $sidebarGroupReset.disabled = false;
+    $sidebarGroupStatus.textContent = 'قانون گروه؛ در چند گروه، پنهان‌سازی اولویت دارد.';
+  }
+
+  function loadGroupSidebarSettings(groupId) {
+    if (!groupId || !$sidebarGroupGrid) return;
+    $sidebarGroupGrid.innerHTML = '<div class="pen-loading">در حال بارگذاری تنظیمات گروه…</div>';
+    get(SIDEBAR_BASE + 'group/' + encodeURIComponent(groupId) + '/').then(renderGroupSidebarItems).catch(function (e) {
+      $sidebarGroupGrid.innerHTML = '<div class="text-danger fs-14">' + esc(e.message) + '</div>';
+    });
+  }
+
+  function saveGroupSidebarSettings(reset) {
+    if (!$sidebarGroupSelect || !$sidebarGroupSelect.value) return;
+    var rules = {};
+    $sidebarGroupGrid.querySelectorAll('.sidebar-group-item').forEach(function (select) {
+      rules[select.dataset.key] = reset || select.value === 'inherit' ? null : select.value === 'show';
+    });
+    $sidebarGroupSave.disabled = true;
+    $sidebarGroupReset.disabled = true;
+    put(SIDEBAR_BASE + 'group/' + encodeURIComponent($sidebarGroupSelect.value) + '/', { rules: rules }).then(function (res) {
+      if (!res.ok) throw new Error(res.b.error || res.b.detail || 'ذخیرهٔ تنظیمات گروه انجام نشد.');
+      toast('نمایش سایدبار برای گروه ذخیره شد.', 'success');
+      renderGroupSidebarItems(res.b);
+    }).catch(function (e) {
+      toast(e.message, 'danger');
+      $sidebarGroupSave.disabled = false;
+      $sidebarGroupReset.disabled = false;
+    });
+  }
+
   function loadSidebarUserSettings(userId) {
     if (!$sidebarUserAdmin || !userId) return;
     document.getElementById('sidebar-user-prompt').textContent = 'نمایش منو برای «' + current.name + '»؛ هر بخش می‌تواند از نقش‌ها پیروی کند یا جداگانه تنظیم شود.';
@@ -478,13 +551,14 @@
   function initSidebarVisibility() {
     if ($sidebarRoleAdmin && $sidebarRoleSelect) {
       get(SIDEBAR_BASE + 'catalog/').then(function (data) {
-        var roles = data.roles || [];
+        var roles = (data.roles || []).filter(function (role) { return !isHiddenRole(role); });
         if (!roles.length) {
           $sidebarRoleGrid.innerHTML = '<div class="pen-empty py-3">نقش فعالی برای تنظیم وجود ندارد.</div>';
           return;
         }
         $sidebarRoleSelect.innerHTML = roles.map(function (role) {
-          return '<option value="' + esc(role.code) + '">' + esc(role.name) + ' (' + esc(role.code) + ')</option>';
+          var name = role.code === 'workflow_admin' ? 'مدیر سیستم' : role.name;
+          return '<option value="' + esc(role.code) + '">' + esc(name) + ' (' + esc(role.code) + ')</option>';
         }).join('');
         $sidebarRoleSelect.disabled = false;
         loadRoleSidebarSettings($sidebarRoleSelect.value);
@@ -506,6 +580,21 @@
       });
       $sidebarRoleSave.addEventListener('click', function () { saveRoleSidebarSettings(false); });
       $sidebarRoleReset.addEventListener('click', function () { saveRoleSidebarSettings(true); });
+    }
+    if ($sidebarGroupAdmin && $sidebarGroupSelect) {
+      get(SIDEBAR_BASE + 'catalog/').then(function (data) {
+        var groups = data.groups || [];
+        if (!groups.length) { $sidebarGroupGrid.innerHTML = '<div class="pen-empty py-3">گروهی تعریف نشده است.</div>'; return; }
+        $sidebarGroupSelect.innerHTML = groups.map(function (group) { return '<option value="' + esc(group.id) + '">' + esc(group.name) + '</option>'; }).join('');
+        $sidebarGroupSelect.disabled = false;
+        loadGroupSidebarSettings($sidebarGroupSelect.value);
+      }).catch(function (e) { $sidebarGroupGrid.innerHTML = '<div class="text-danger fs-14">' + esc(e.message) + '</div>'; });
+      $sidebarGroupSelect.addEventListener('change', function () { loadGroupSidebarSettings($sidebarGroupSelect.value); });
+      $sidebarGroupGrid.addEventListener('change', function (e) {
+        if (e.target.matches('.sidebar-group-item')) { $sidebarGroupSave.disabled = false; $sidebarGroupStatus.textContent = 'تغییر در انتظار ذخیره'; }
+      });
+      $sidebarGroupSave.addEventListener('click', function () { saveGroupSidebarSettings(false); });
+      $sidebarGroupReset.addEventListener('click', function () { saveGroupSidebarSettings(true); });
     }
     if ($sidebarUserAdmin) {
       $sidebarUserGrid.addEventListener('change', function (e) {
@@ -544,8 +633,21 @@
   if (document.getElementById('pm-menu-tab')) {
     switchTabs(document.getElementById('pm-access-tab'), document.getElementById('pm-menu-tab'),
       document.getElementById('pm-access-view'), document.getElementById('pm-menu-view'));
-    switchTabs(document.getElementById('pm-menu-role-tab'), document.getElementById('pm-menu-user-tab'),
-      document.getElementById('sidebar-role-admin'), document.getElementById('sidebar-user-admin'));
+    var menuTabs = [
+      [document.getElementById('pm-menu-role-tab'), document.getElementById('sidebar-role-admin')],
+      [document.getElementById('pm-menu-group-tab'), document.getElementById('sidebar-group-admin')],
+      [document.getElementById('pm-menu-user-tab'), document.getElementById('sidebar-user-admin')],
+    ];
+    menuTabs.forEach(function (pair) {
+      pair[0].addEventListener('click', function () {
+        menuTabs.forEach(function (other) {
+          var active = other === pair;
+          other[0].classList.toggle('is-active', active);
+          other[0].setAttribute('aria-selected', String(active));
+          other[1].hidden = !active;
+        });
+      });
+    });
   }
   initSidebarVisibility();
   loadUsers('');

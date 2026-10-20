@@ -40,7 +40,7 @@ from apps.core.utils import jalali_datetime_str, persian_date, persian_numbers
 _STAFF_ROLES = {"teacher", "manager", "workflow_admin", "hr", "employee", "supervisor"}
 _WRITE_ROLES = {"manager", "workflow_admin", "supervisor"}
 # Org-intelligence screens still exposed in the UI (chart + per-user ACL editor).
-_ORG_ROLES = {"manager", "workflow_admin", "hr"}
+_ORG_ROLES = {"manager", "workflow_admin"}
 # System-admin-only resources (full PII, e.g. persons). Narrower than _ORG_ROLES.
 _SYS_ADMIN_ROLES = {"manager", "workflow_admin"}
 # If a teacher ALSO holds any of these, they are not "teacher-only" and keep
@@ -470,8 +470,6 @@ class ProfilePage(LoginRequiredMixin, TemplateView):
         "employee": "کارمند",
         "teacher": "مدرس",
         "student": "دانش‌آموز",
-        "guardian": "ولی / سرپرست",
-        "hr": "منابع انسانی",
     }
 
     @staticmethod
@@ -486,7 +484,7 @@ class ProfilePage(LoginRequiredMixin, TemplateView):
         user = self.request.user
         roles = set(user.role_codes()) if hasattr(user, "role_codes") else set()
         person = self._related(user, "person")
-        role_labels = [self._ROLE_LABELS.get(role, role) for role in sorted(roles)]
+        role_labels = [self._ROLE_LABELS[role] for role in sorted(roles) if role in self._ROLE_LABELS]
 
         identity = [
             {"label": "نام کاربری", "value": user.username, "dir": "ltr"},

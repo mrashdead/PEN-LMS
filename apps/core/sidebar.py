@@ -6,6 +6,7 @@ from typing import Any
 from django.db import DatabaseError, transaction
 
 from apps.accounts.models import Role
+from apps.core.ui_group_filters import is_parent_portal_group, visible_group_queryset
 from apps.forms.permissions import ELEVATED_ROLES
 from apps.leads.permissions import LEAD_OPERATOR_ROLES, is_lead_operator
 from apps.org.models import SidebarVisibilityRule
@@ -13,8 +14,8 @@ from apps.playhouse.permissions import FINANCE_ROLES, KITCHEN_ROLES, OPERATOR_RO
 from apps.reports.permissions import REPORT_ACCESS_ROLES
 
 
-STAFF_MENU_ROLES = {"manager", "workflow_admin", "hr", "employee"}
-ORG_MENU_ROLES = {"manager", "workflow_admin", "hr"}
+STAFF_MENU_ROLES = {"manager", "workflow_admin", "employee"}
+ORG_MENU_ROLES = {"manager", "workflow_admin"}
 
 # `key` is stable storage/API identity. `flag` is the safe dictionary key used
 # from Django templates. Defaults mirror the current sidebar's role groups.
@@ -28,7 +29,8 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     # Keep the storage key stable so existing per-user visibility grants remain
     # valid; the page itself is now for explicitly authorized lead assessors.
     {"key": "leads-teacher-assessments", "flag": "leads_teacher_assessments", "title": "صف ارزیابی لیدها", "section": "فرآیند پذیرش", "default_roles": set()},
-    {"key": "workspace-learner-portal", "flag": "workspace_learner_portal", "title": "حضور، کارنامه و گزارش‌های من", "section": "پورتال دانش‌آموز", "default_roles": {"student", "guardian"}},
+    {"key": "workspace-learner-portal", "flag": "workspace_learner_portal", "title": "حضور، کارنامه و گزارش‌های من", "section": "پورتال دانش‌آموز", "default_roles": {"student", "guardian", "parent"}},
+    {"key": "workspace-learner-progress-reports", "flag": "workspace_learner_progress_reports", "title": "گزارش‌های مدرس", "section": "پورتال دانش‌آموز", "default_roles": {"student", "guardian", "parent"}},
     {"key": "workspace-requests", "flag": "workspace_requests", "title": "درخواست‌ها", "section": "درخواست‌ها", "default_roles": STAFF_MENU_ROLES | {"student", "guardian"}},
     {"key": "workspace-work", "flag": "workspace_work", "title": "کارهای من", "section": "کارتابل", "default_roles": STAFF_MENU_ROLES},
     {"key": "staff-dashboard", "flag": "staff_dashboard", "title": "کارکرد و مرخصی", "section": "کارکنان", "default_roles": STAFF_MENU_ROLES | {"supervisor", "teacher"}},
@@ -53,6 +55,8 @@ SIDEBAR_ITEMS: tuple[dict[str, Any], ...] = (
     {"key": "leads-dashboard", "flag": "leads_dashboard", "title": "مدیریت لیدها", "section": "مدیریت لیدها", "default_roles": LEAD_OPERATOR_ROLES},
     {"key": "workspace-org-chart", "flag": "workspace_org_chart", "title": "نمودار سازمانی", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
     {"key": "workspace-perm-manage", "flag": "workspace_perm_manage", "title": "مدیریت مجوز کاربران", "section": "مدیریت سازمان", "default_roles": ORG_MENU_ROLES},
+    {"key": "workspace-audit-events", "flag": "workspace_audit_events", "title": "رخدادهای امنیتی", "section": "مدیریت سازمان", "default_roles": {"workflow_admin"}},
+    {"key": "workspace-backups", "flag": "workspace_backups", "title": "پشتیبان‌گیری", "section": "مدیریت سازمان", "default_roles": {"workflow_admin"}},
 )
 
 _ITEM_BY_KEY = {item["key"]: item for item in SIDEBAR_ITEMS}
@@ -60,6 +64,8 @@ _ITEMS_BY_FLAG = {item["flag"]: item for item in SIDEBAR_ITEMS}
 
 
 def default_visible(item_key: str, role_code: str) -> bool:
+    if role_code == "workflow_admin":
+        return True
     item = _ITEM_BY_KEY.get(item_key)
     if item is None:
         return False
@@ -69,9 +75,17 @@ def default_visible(item_key: str, role_code: str) -> bool:
 
 def _active_rules(*, roles: set[str] | None = None, user=None) -> list[SidebarVisibilityRule]:
     query = SidebarVisibilityRule.objects.filter(is_deleted=False)
-    if roles and user is not None:
+    if user is not None:
         from django.db.models import Q
-        query = query.filter(Q(user__isnull=True, role_code__in=roles) | Q(user=user))
+        groups = getattr(user, "groups", None)
+        group_ids = (
+            list(visible_group_queryset(groups.all()).values_list("id", flat=True))
+            if groups is not None else []
+        )
+        conditions = Q(user=user) | Q(group_id__in=group_ids)
+        if roles:
+            conditions |= Q(user__isnull=True, group__isnull=True, role_code__in=roles)
+        query = query.filter(conditions)
     elif roles:
         query = query.filter(user__isnull=True, role_code__in=roles)
     elif user is not None:
@@ -82,7 +96,7 @@ def _active_rules(*, roles: set[str] | None = None, user=None) -> list[SidebarVi
 
 
 def visibility_flags_for(user, roles: set[str] | None = None) -> dict[str, bool]:
-    """Resolve role defaults, role overrides, then the user's own overrides."""
+    """Resolve defaults, role overrides, group overrides, then user overrides."""
     if roles is None:
         roles = set(user.role_codes()) if hasattr(user, "role_codes") else set()
     try:
@@ -92,34 +106,44 @@ def visibility_flags_for(user, roles: set[str] | None = None) -> dict[str, bool]
         # has not been applied yet or the database is temporarily unavailable.
         rules = []
 
-    role_overrides: dict[tuple[str, str], bool] = {}
+    role_overrides: dict[str, list[bool]] = {}
+    group_overrides: dict[str, list[bool]] = {}
     user_overrides: dict[str, bool] = {}
     for rule in rules:
         if rule.user_id:
             user_overrides[rule.item_key] = rule.is_visible
+        elif rule.group_id:
+            group_overrides.setdefault(rule.item_key, []).append(rule.is_visible)
         else:
-            role_overrides[(rule.role_code, rule.item_key)] = rule.is_visible
+            role_overrides.setdefault(rule.item_key, []).append(rule.is_visible)
 
     flags: dict[str, bool] = {}
     is_superuser = bool(getattr(user, "is_superuser", False))
     lead_operator = is_lead_operator(user)
     for item in SIDEBAR_ITEMS:
         is_lead_dashboard = item["key"] == "leads-dashboard"
-        if is_superuser:
-            visible = True
-        elif roles:
-            visible = any(
-                role_overrides.get((role, item["key"]), lead_operator if is_lead_dashboard else default_visible(item["key"], role))
-                for role in roles
-            )
+        if roles:
+            explicit_role_rules = role_overrides.get(item["key"], [])
+            if False in explicit_role_rules:
+                visible = False
+            elif True in explicit_role_rules:
+                visible = True
+            else:
+                visible = any(
+                    lead_operator if is_lead_dashboard and role != "workflow_admin"
+                    else default_visible(item["key"], role)
+                    for role in roles
+                )
         else:
-            visible = lead_operator if is_lead_dashboard else item["default_roles"] is None
-        flags[item["flag"]] = (
-            True if is_superuser and item["key"] == "workspace-perm-manage"
-            else user_overrides.get(item["key"], visible)
-        )
-        if is_lead_dashboard and not lead_operator:
-            flags[item["flag"]] = False
+            visible = True if is_superuser else (
+                lead_operator if is_lead_dashboard else item["default_roles"] is None
+            )
+        # An explicit deny in any assigned group wins over role defaults; a
+        # per-user setting is the final and most specific choice.
+        group_rules = group_overrides.get(item["key"], [])
+        if group_rules:
+            visible = False if False in group_rules else True
+        flags[item["flag"]] = user_overrides.get(item["key"], visible)
     return flags
 
 
@@ -139,28 +163,16 @@ def visible_sidebar_sections(flags: dict[str, bool], roles: set[str]) -> dict[st
     )) or education_timetable
     staff = flags.get("workspace_staff", False)
     organization = any(flags.get(k, False) for k in (
-        "workspace_org_chart", "workspace_perm_manage",
+        "workspace_org_chart", "workspace_perm_manage", "workspace_audit_events",
+        "workspace_backups",
     ))
-    learner = flags.get("workspace_learner_portal", False)
-    is_learner = bool(roles & {"student", "guardian"})
-    is_staff = bool(roles & STAFF_MENU_ROLES)
-    requests = bool(
-        flags.get("submission_picker", False)
-        or (flags.get("workspace_requests", False) and (is_staff or not is_learner))
-    )
+    learner = flags.get("workspace_learner_portal", False) or flags.get("workspace_learner_progress_reports", False)
     return {
         "teacher": teacher,
         "education": education,
         "staff": staff,
         "organization": organization,
         "learner": learner,
-        "requests": requests,
-        "learner_requests": bool(
-            flags.get("workspace_requests", False)
-            and roles & {"student", "guardian"}
-            and not roles & STAFF_MENU_ROLES
-            and not flags.get("submission_picker", False)
-        ),
         "education_timetable": education_timetable,
     }
 
@@ -174,7 +186,7 @@ def admin_role_payload(role_code: str) -> dict[str, Any]:
     stored = {
         row.item_key: row.is_visible
         for row in SidebarVisibilityRule.objects.filter(
-            role_code=role.code, user__isnull=True, is_deleted=False,
+            role_code=role.code, user__isnull=True, group__isnull=True, is_deleted=False,
         )
     }
     return {
@@ -244,7 +256,7 @@ def save_role_rules(role_code: str, rules: Any) -> dict[str, Any]:
     existing = {
         row.item_key: row
         for row in SidebarVisibilityRule.objects.filter(
-            role_code=role.code, user__isnull=True, is_deleted=False,
+            role_code=role.code, user__isnull=True, group__isnull=True, is_deleted=False,
         )
     }
     for key, visible in cleaned.items():
@@ -286,10 +298,60 @@ def save_user_rules(user, rules: Any) -> dict[str, Any]:
     return admin_user_payload(user)
 
 
+def admin_group_payload(group) -> dict[str, Any]:
+    if is_parent_portal_group(group.name):
+        raise ValueError("این گروه در پنل دانش‌آموزی نمایش داده نمی‌شود.")
+    stored = {
+        row.item_key: row.is_visible
+        for row in SidebarVisibilityRule.objects.filter(group=group, is_deleted=False)
+    }
+    return {
+        "group": {"id": group.pk, "name": group.name},
+        "items": [
+            {
+                "key": item["key"],
+                "title": item["title"],
+                "section": item["section"],
+                "override": stored.get(item["key"]),
+                "effective_visible": stored.get(item["key"], False),
+            }
+            for item in SIDEBAR_ITEMS
+        ],
+    }
+
+
+@transaction.atomic
+def save_group_rules(group, rules: Any) -> dict[str, Any]:
+    if is_parent_portal_group(group.name):
+        raise ValueError("این گروه در پنل دانش‌آموزی نمایش داده نمی‌شود.")
+    cleaned = _validate_rules(rules)
+    existing = {
+        row.item_key: row
+        for row in SidebarVisibilityRule.objects.filter(group=group, is_deleted=False)
+    }
+    for key, visible in cleaned.items():
+        row = existing.get(key)
+        if visible is None:
+            if row:
+                row.soft_delete()
+        elif row:
+            if row.is_visible != visible:
+                row.is_visible = visible
+                row.save(update_fields=["is_visible", "updated_at"])
+        else:
+            SidebarVisibilityRule.objects.create(group=group, item_key=key, is_visible=visible)
+    return admin_group_payload(group)
+
+
 def admin_catalog_payload() -> dict[str, Any]:
+    from django.contrib.auth.models import Group
     roles = Role.all_objects.filter(is_active=True, is_deleted=False).order_by("priority", "code")
     return {
         "roles": [{"code": role.code, "name": role.name} for role in roles],
+        "groups": [
+            {"id": group.pk, "name": group.name}
+            for group in visible_group_queryset(Group.objects.order_by("name"))
+        ],
         "items": [
             {"key": item["key"], "title": item["title"], "section": item["section"]}
             for item in SIDEBAR_ITEMS

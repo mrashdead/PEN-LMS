@@ -18,17 +18,21 @@ structure, not PII). Delegation writes + the simulator are elevated-role only
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.permissions import IsActiveUser
+from apps.core.ui_group_filters import is_parent_portal_group
 from apps.core.sidebar import (
     admin_catalog_payload,
+    admin_group_payload,
     admin_role_payload,
     admin_user_payload,
     save_role_rules,
+    save_group_rules,
     save_user_rules,
 )
 from apps.org import acl_services, services
@@ -51,36 +55,30 @@ class _StaffGate:
         return None
 
 
-class _SiteAdminGate:
-    @staticmethod
-    def _deny_site_admin(request):
-        if getattr(request.user, "is_superuser", False):
-            return None
-        return Response(
-            {"detail": "مدیریت نمایش سایدبار فقط برای ادمین کل سایت مجاز است."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
+class _SidebarManagerGate(_StaffGate):
+    def _deny_sidebar_manager(self, request):
+        return self._deny(request, elevated_only=True)
 
 
-class SidebarVisibilityCatalogView(_SiteAdminGate, APIView):
+class SidebarVisibilityCatalogView(_SidebarManagerGate, APIView):
     """GET /api/org/sidebar-visibility/catalog/ → role and item catalog."""
 
     permission_classes = (IsActiveUser,)
 
     def get(self, request):
-        denied = self._deny_site_admin(request)
+        denied = self._deny_sidebar_manager(request)
         if denied:
             return denied
         return Response(admin_catalog_payload())
 
 
-class SidebarVisibilityRoleView(_SiteAdminGate, APIView):
+class SidebarVisibilityRoleView(_SidebarManagerGate, APIView):
     """GET/PUT role-wide sidebar visibility rules."""
 
     permission_classes = (IsActiveUser,)
 
     def get(self, request, role_code):
-        denied = self._deny_site_admin(request)
+        denied = self._deny_sidebar_manager(request)
         if denied:
             return denied
         try:
@@ -89,7 +87,7 @@ class SidebarVisibilityRoleView(_SiteAdminGate, APIView):
             return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
 
     def put(self, request, role_code):
-        denied = self._deny_site_admin(request)
+        denied = self._deny_sidebar_manager(request)
         if denied:
             return denied
         try:
@@ -98,13 +96,13 @@ class SidebarVisibilityRoleView(_SiteAdminGate, APIView):
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class SidebarVisibilityUserView(_SiteAdminGate, APIView):
+class SidebarVisibilityUserView(_SidebarManagerGate, APIView):
     """GET/PUT per-user sidebar visibility overrides; null inherits role rules."""
 
     permission_classes = (IsActiveUser,)
 
     def get(self, request, pk):
-        denied = self._deny_site_admin(request)
+        denied = self._deny_sidebar_manager(request)
         if denied:
             return denied
         user = User.objects.filter(pk=pk, is_deleted=False).first()
@@ -113,7 +111,7 @@ class SidebarVisibilityUserView(_SiteAdminGate, APIView):
         return Response(admin_user_payload(user))
 
     def put(self, request, pk):
-        denied = self._deny_site_admin(request)
+        denied = self._deny_sidebar_manager(request)
         if denied:
             return denied
         user = User.objects.filter(pk=pk, is_deleted=False).first()
@@ -121,6 +119,36 @@ class SidebarVisibilityUserView(_SiteAdminGate, APIView):
             return Response({"detail": "کاربر یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
         try:
             return Response(save_user_rules(user, (request.data or {}).get("rules", {})))
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SidebarVisibilityGroupView(_SidebarManagerGate, APIView):
+    """GET/PUT sidebar rules for a Django group."""
+
+    permission_classes = (IsActiveUser,)
+
+    def _get_group(self, pk):
+        return Group.objects.filter(pk=pk).first()
+
+    def get(self, request, pk):
+        denied = self._deny_sidebar_manager(request)
+        if denied:
+            return denied
+        group = self._get_group(pk)
+        if group is None or is_parent_portal_group(group.name):
+            return Response({"detail": "گروه یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(admin_group_payload(group))
+
+    def put(self, request, pk):
+        denied = self._deny_sidebar_manager(request)
+        if denied:
+            return denied
+        group = self._get_group(pk)
+        if group is None or is_parent_portal_group(group.name):
+            return Response({"detail": "گروه یافت نشد."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            return Response(save_group_rules(group, (request.data or {}).get("rules", {})))
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

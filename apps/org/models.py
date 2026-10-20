@@ -186,11 +186,18 @@ class PersonACLEntry(DomainModel):
 
 
 class SidebarVisibilityRule(DomainModel):
-    """A stored sidebar visibility override for one role or one user."""
+    """A stored sidebar visibility override for one role, group, or user."""
 
     role_code = models.CharField(max_length=64, blank=True, default="", db_index=True)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="sidebar_visibility_rules",
+    )
+    group = models.ForeignKey(
+        "auth.Group",
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -208,7 +215,7 @@ class SidebarVisibilityRule(DomainModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["role_code", "item_key"],
-                condition=models.Q(user__isnull=True, is_deleted=False),
+                condition=models.Q(user__isnull=True, group__isnull=True, is_deleted=False),
                 name="uniq_org_sidebar_role_item_live",
             ),
             models.UniqueConstraint(
@@ -216,15 +223,21 @@ class SidebarVisibilityRule(DomainModel):
                 condition=models.Q(user__isnull=False, is_deleted=False),
                 name="uniq_org_sidebar_user_item_live",
             ),
+            models.UniqueConstraint(
+                fields=["group", "item_key"],
+                condition=models.Q(group__isnull=False, is_deleted=False),
+                name="uniq_org_sidebar_group_item_live",
+            ),
             models.CheckConstraint(
                 condition=(
-                    (models.Q(user__isnull=True) & ~models.Q(role_code=""))
-                    | (models.Q(user__isnull=False, role_code=""))
+                    (models.Q(user__isnull=True, group__isnull=True) & ~models.Q(role_code=""))
+                    | (models.Q(user__isnull=False, group__isnull=True, role_code=""))
+                    | (models.Q(user__isnull=True, group__isnull=False, role_code=""))
                 ),
                 name="org_sidebar_visibility_scope_valid",
             ),
         ]
 
     def __str__(self) -> str:
-        subject = self.role_code or str(self.user_id)
+        subject = self.role_code or (self.group.name if self.group_id else str(self.user_id))
         return f"{subject} → {self.item_key} ({'show' if self.is_visible else 'hide'})"

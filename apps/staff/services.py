@@ -66,6 +66,15 @@ def _is_approver(user) -> bool:
     return bool(set(user.role_codes()) & set(APPROVER_ROLES))
 
 
+def _is_self_approving_manager(user) -> bool:
+    """System administrators and managers do not need a second approver."""
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False):
+        return True
+    return bool(set(user.role_codes()) & {"manager", "workflow_admin"})
+
+
 def _person_of(user):
     return getattr(user, "person", None)
 
@@ -130,7 +139,23 @@ def clock_out(*, user, work_date: Optional[dt.date] = None,
     if entry.check_out is not None:
         return entry
     entry.check_out = timezone.now()
-    entry.save(update_fields=["check_out", "updated_at"])
+    update_fields = ["check_out", "updated_at"]
+    if _is_self_approving_manager(user) and entry.status == ReviewStatus.PENDING:
+        previous = entry.status
+        entry.status = ReviewStatus.APPROVED
+        entry.reviewed_by = user
+        entry.reviewed_at = timezone.now()
+        update_fields.extend(["status", "reviewed_by", "reviewed_at"])
+        entry.save(update_fields=update_fields)
+        _log_transition(
+            record_type=ReviewHistory.RecordType.TIMESHEET,
+            record_id=entry.pk, from_status=previous,
+            to_status=ReviewStatus.APPROVED, actor=user,
+            comment="ثبت خودکار ساعت کاری مدیر پس از ثبت خروج.",
+            metadata={"work_date": entry.work_date.isoformat(), "automatic": True},
+        )
+        return entry
+    entry.save(update_fields=update_fields)
     return entry
 
 
@@ -203,6 +228,8 @@ def review_timesheet(*, entry_id, actor, decision: str, comment: str = "",
     )
     if entry is None:
         raise StaffServiceError("رکورد ساعت کاری یافت نشد.")
+    if entry.user_id == actor.pk and _is_self_approving_manager(actor):
+        raise InvalidReviewError("ساعت کاری مدیر پس از ثبت خروج به‌صورت خودکار نهایی می‌شود.")
     if entry.status != ReviewStatus.PENDING:
         raise InvalidReviewError(
             f"این رکورد قبلاً بررسی شده است ({entry.get_status_display()})."

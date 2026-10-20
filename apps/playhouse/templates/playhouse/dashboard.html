@@ -79,8 +79,8 @@
         <div class="ph-list-actions">{% if is_playhouse_finance %}<a class="btn ph-outline-action" href="{% url 'playhouse-finance' %}"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i> گزارش مالی</a>{% endif %}<button type="button" class="btn ph-icon-action" id="ph-refresh" title="بروزرسانی لیست"><i data-lucide="refresh-cw" aria-hidden="true"></i><span class="visually-hidden">بروزرسانی</span></button></div>
       </div>
 
-      <div class="d-flex flex-wrap align-items-end gap-2 my-3" role="search">
-        <div class="ph-field"><label for="ph-log-date">نمایش سوابق روز</label><input type="text" id="ph-log-date" class="form-control ph-date-input" value="{{ selected_day_jalali }}" data-jalali autocomplete="off" dir="ltr" inputmode="numeric" aria-label="انتخاب تاریخ شمسی برای نمایش سابقه"></div>
+      <div class="ph-history-controls d-flex flex-wrap align-items-end gap-2 my-3" role="search">
+        <div class="ph-field ph-history-date"><label for="ph-log-date">نمایش سوابق روز</label><input type="text" id="ph-log-date" class="form-control ph-date-input" value="{{ selected_day_jalali }}" data-jalali autocomplete="off" dir="ltr" inputmode="numeric" aria-label="انتخاب تاریخ شمسی برای نمایش سابقه"></div>
         <button type="button" class="btn ph-outline-action" id="ph-log-date-submit">نمایش روز</button>
         <button type="button" class="btn btn-light" id="ph-log-today">امروز</button>
       </div>

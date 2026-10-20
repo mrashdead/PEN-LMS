@@ -11,10 +11,10 @@ DEFAULT_ROLES: list[dict[str, object]] = [
     {"code": "employee", "name": "کارمند", "priority": 100},
     {"code": "supervisor", "name": "سرپرست", "priority": 70},
     {"code": "manager", "name": "مدیر مستقیم", "priority": 50},
-    # Legacy compatibility: keep the row discoverable for existing workflow
-    # history and UserRole records, but do not expose it for new assignment.
+    # Legacy compatibility: keep the row for existing records, but do not
+    # expose it in the product UI or offer it for new assignment.
     {"code": "hr", "name": "منابع انسانی", "priority": 40},
-    {"code": "workflow_admin", "name": "مدیر فرآیند", "priority": 10},
+    {"code": "workflow_admin", "name": "مدیر سیستم", "priority": 10},
     {"code": "student", "name": "دانش‌آموز", "priority": 90},
     {"code": "teacher", "name": "معلم / مدرس", "priority": 40},
     # Guardian/parent accounts. Deliberately the lowest rank (highest number):

@@ -7,14 +7,12 @@
 
 {% block content %}
 <div class="pm-page">
-  {% if user.is_superuser %}
   <div class="pm-view-switch" role="tablist" aria-label="بخش مدیریت">
     <button id="pm-access-tab" class="pm-view-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="pm-access-view">دسترسی کاربران</button>
     <button id="pm-menu-tab" class="pm-view-tab" type="button" role="tab" aria-selected="false" aria-controls="pm-menu-view">نمایش منو</button>
   </div>
-  {% endif %}
 
-  <section id="pm-access-view" role="tabpanel" {% if user.is_superuser %}aria-labelledby="pm-access-tab"{% endif %}>
+  <section id="pm-access-view" role="tabpanel" aria-labelledby="pm-access-tab">
     <div class="row g-4">
       <div class="col-12 col-lg-4 col-xl-3">
         <div class="pm-directory">
@@ -87,7 +85,6 @@
     </div>
   </section>
 
-  {% if user.is_superuser %}
   <section id="pm-menu-view" role="tabpanel" aria-labelledby="pm-menu-tab" hidden>
     <div class="pm-menu-intro">
       <h2>نمایش منو</h2>
@@ -95,7 +92,23 @@
     </div>
     <div class="pm-sub-switch" role="tablist" aria-label="نوع تنظیم نمایش منو">
       <button id="pm-menu-role-tab" class="pm-view-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="sidebar-role-admin">برای نقش</button>
+      <button id="pm-menu-group-tab" class="pm-view-tab" type="button" role="tab" aria-selected="false" aria-controls="sidebar-group-admin">برای گروه</button>
       <button id="pm-menu-user-tab" class="pm-view-tab" type="button" role="tab" aria-selected="false" aria-controls="sidebar-user-admin">برای فرد</button>
+    </div>
+
+    <div id="sidebar-group-admin" class="pm-menu-surface" role="tabpanel" aria-labelledby="pm-menu-group-tab" hidden>
+      <div class="pm-menu-toolbar">
+        <label for="sidebar-group-select">گروه</label>
+        <select id="sidebar-group-select" class="form-select" disabled></select>
+      </div>
+      <div id="sidebar-group-grid" class="pm-menu-grid" aria-live="polite"><div class="pen-loading">در حال بارگذاری گروه‌ها…</div></div>
+      <div class="pm-save-bar">
+        <span id="sidebar-group-status" class="pm-save-status" role="status" aria-live="polite"></span>
+        <div class="d-flex flex-wrap gap-2">
+          <button id="sidebar-group-reset" class="btn btn-outline-secondary" type="button" disabled>بازگردانی وراثت</button>
+          <button id="sidebar-group-save" class="btn btn-primary" type="button" disabled>ذخیرهٔ نمایش منو</button>
+        </div>
+      </div>
     </div>
 
     <div id="sidebar-role-admin" class="pm-menu-surface" role="tabpanel" aria-labelledby="pm-menu-role-tab">
@@ -125,7 +138,6 @@
       </div>
     </div>
   </section>
-  {% endif %}
 </div>
 {% endblock %}
 

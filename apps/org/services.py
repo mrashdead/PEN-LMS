@@ -17,11 +17,12 @@ from collections import defaultdict
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.utils import timezone
 
 from apps.accounts.models import Role
 from apps.accounts.role_policy import LEGACY_ROLE_CODES
+from apps.core.ui_group_filters import is_parent_portal_group, visible_group_queryset
 from apps.org.models import Delegation
 from apps.tasks.models import WorkflowTask
 from apps.workflow.models import Transition, WorkflowDefinition
@@ -247,7 +248,10 @@ def person_profile(user_id) -> dict | None:
     u = (
         User.objects.filter(pk=user_id, is_deleted=False)
         .select_related("manager")
-        .prefetch_related("user_roles__role", "groups")
+        .prefetch_related(
+            "user_roles__role",
+            Prefetch("groups", queryset=visible_group_queryset(Group.objects.all())),
+        )
         .first()
     )
     if u is None:
@@ -307,7 +311,11 @@ def permission_matrix() -> dict:
     Group × resource × verb matrix, straight from seeded Django permissions.
     Two sources are distinguished: direct group grant vs. inherited role.
     """
-    groups = list(Group.objects.prefetch_related("permissions").order_by("name"))
+    groups = list(
+        visible_group_queryset(Group.objects.all())
+        .prefetch_related("permissions")
+        .order_by("name")
+    )
     # map "app.model" → set of "verb" granted to each group
     matrix = []
     for g in groups:
@@ -337,9 +345,7 @@ def simulate_access(user_id, resource_key: str, verb: str) -> dict:
     (2) the role trio the sensitive views add. Returns a verdict + reasons;
     it does NOT grant anything.
     """
-    u = User.objects.filter(pk=user_id, is_deleted=False).prefetch_related(
-        "groups__permissions"
-    ).first()
+    u = User.objects.filter(pk=user_id, is_deleted=False).first()
     if u is None:
         return {"allowed": False, "reasons": ["کاربر یافت نشد."]}
 
@@ -362,7 +368,7 @@ def simulate_access(user_id, resource_key: str, verb: str) -> dict:
     if has_model_perm:
         # find which group(s) grant it, to explain inheritance
         granting = [
-            g.name for g in u.groups.all()
+            g.name for g in visible_group_queryset(u.groups.all())
             if g.permissions.filter(codename=codename).exists()
         ]
         reasons.append("مجوز مدل از گروه(ها): " + ("، ".join(granting) if granting else "مستقیم"))
@@ -545,7 +551,12 @@ def user_permissions(user_id) -> dict | None:
     they can see and act on.
     """
     u = User.objects.filter(pk=user_id, is_deleted=False).prefetch_related(
-        "user_roles__role", "groups__permissions", "user_permissions"
+        "user_roles__role",
+        Prefetch(
+            "groups",
+            queryset=visible_group_queryset(Group.objects.all()).prefetch_related("permissions"),
+        ),
+        "user_permissions",
     ).first()
     if u is None:
         return None
@@ -604,7 +615,7 @@ def all_roles() -> list[dict]:
 
 
 def all_groups() -> list[dict]:
-    return [{"name": g.name} for g in Group.objects.order_by("name")]
+    return [{"name": g.name} for g in visible_group_queryset(Group.objects.all()).order_by("name")]
 
 
 def set_user_roles(*, user_id, role_codes: list[str], actor) -> dict:
@@ -653,6 +664,9 @@ def set_user_groups(*, user_id, group_names: list[str], actor) -> dict:
     u = User.objects.filter(pk=user_id, is_deleted=False).first()
     if u is None:
         raise ValueError("کاربر یافت نشد.")
-    wanted = Group.objects.filter(name__in=[g for g in group_names if g])
-    u.groups.set(wanted)
-    return {"groups": sorted(g.name for g in u.groups.all())}
+    existing_hidden_ids = [
+        group.pk for group in u.groups.all() if is_parent_portal_group(group.name)
+    ]
+    wanted = visible_group_queryset(Group.objects.filter(name__in=[g for g in group_names if g]))
+    u.groups.set(list(wanted) + list(Group.objects.filter(pk__in=existing_hidden_ids)))
+    return {"groups": sorted(g.name for g in visible_group_queryset(u.groups.all()))}

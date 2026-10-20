@@ -120,6 +120,17 @@ def catalog(user=None) -> dict[str, Any]:
         }
         for r in catalog_for_type("page")
     ]
+    # Keep the access editor aligned with the actual navigation catalog so a
+    # newly added sidebar destination is manageable without a second registry.
+    from apps.core.sidebar import SIDEBAR_ITEMS
+    known_pages = {row["key"] for row in pages}
+    for item in SIDEBAR_ITEMS:
+        if item["key"] in known_pages or item["key"] in {"workspace-requests", "submission-picker"}:
+            continue
+        pages.append({
+            "key": item["key"], "title": item["title"], "category": "page",
+            "verbs": ["view"], "description": "کنترل مشاهدهٔ صفحه از مدیریت دسترسی کاربران",
+        })
     models = [
         {
             "key": r.key,

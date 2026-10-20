@@ -22,9 +22,6 @@ EDU_URLS = {
     "workspace-enrollments", "workspace-enrollment-directory", "workspace-departments",
     "workspace-persons",
 }
-REQ_URLS = FORMS_URL_NAMES | {"workspace-requests", "schema-picker", "submission-create"}
-
-
 def user_flags(request):
     user = getattr(request, "user", None)
     if user is None or not getattr(user, "is_authenticated", False):
@@ -43,7 +40,7 @@ def user_flags(request):
             "is_lead_operator": False,
             "can_change_own_password": False,
             "sidebar_urlname": "", "sidebar_is_forms": False,
-            "sidebar_is_edu": False, "sidebar_is_req": False,
+            "sidebar_is_edu": False,
             "is_site_admin": False,
             "sidebar_visibility": sidebar_visibility,
             "sidebar_sections": {"teacher": False, "education": False, "organization": False, "learner": False, "requests": False, "learner_requests": False, "education_timetable": False},
@@ -80,11 +77,10 @@ def user_flags(request):
         "is_teacher_only": is_teacher_only,
         # A learner-portal account: a student (own data) or a guardian
         # (their wards' data). Both open /workspace/portal/.
-        "is_learner": bool(roles & {"student", "guardian"}),
+        "is_learner": bool(roles & {"student", "guardian", "parent"}),
         "sidebar_urlname": urlname,
         "sidebar_is_forms": urlname in FORMS_URL_NAMES,
         "sidebar_is_edu": urlname in EDU_URLS,
-        "sidebar_is_req": urlname in REQ_URLS,
         "is_site_admin": bool(getattr(user, "is_superuser", False)),
         "sidebar_visibility": sidebar_visibility,
         "sidebar_sections": visible_sidebar_sections(sidebar_visibility, roles),
