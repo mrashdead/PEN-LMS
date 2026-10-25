@@ -46,16 +46,6 @@
     </div>{% endif %}
   </section>
 
-  {% if is_reports_user %}<section class="row g-4 mb-4" aria-label="گزارش عملکرد کلی">
-    <div class="col-12 col-xl-7"><article class="card pen-dashboard-card h-100" aria-labelledby="dashboard-performance-title">
-      <div class="card-header d-flex align-items-center gap-2"><div class="flex-grow-1 min-w-0"><h2 id="dashboard-performance-title" class="h6 mb-1 card-title">عملکرد آموزشگاه</h2><p class="mb-0 text-muted fs-13">جزئیات شاخص‌های عملیاتی در بازهٔ جاری</p></div>{% if sidebar_visibility.workspace_reports %}<a href="{% url 'workspace-reports' %}" class="btn btn-sm btn-outline-primary">گزارش کامل</a>{% endif %}</div>
-      <div class="card-body"><div id="dashboard-performance-metrics" class="pen-dashboard-metrics"><div class="pen-loading">در حال محاسبهٔ شاخص‌ها…</div></div></div>
-    </article></div>
-    <div class="col-12 col-xl-5"><article class="card pen-dashboard-card h-100" aria-labelledby="dashboard-trend-title">
-      <div class="card-header"><div><h2 id="dashboard-trend-title" class="h6 mb-1 card-title">روند ثبت‌نام و آموزش</h2><p class="mb-0 text-muted fs-13">تغییرات ثبت‌شده در ماه‌های اخیر</p></div></div>
-      <div class="card-body"><div id="dashboard-trend" class="pen-dashboard-trend"><div class="pen-loading">در حال بارگذاری…</div></div></div>
-    </article></div>
-  </section>{% endif %}
 </main>
 {% endblock %}
 
@@ -70,20 +60,9 @@ document.addEventListener('DOMContentLoaded', function () {
   var esc = function (value) { return window.htmlEscape ? window.htmlEscape(value == null ? '' : String(value)) : String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[ch]; }); };
   var set = function (key, value) { var node = root.querySelector('[data-stat="' + key + '"]'); if (node) node.textContent = value; };
   var api = function (url) { return fetch(url, { credentials: 'same-origin', headers: window.penCsrfHeader ? window.penCsrfHeader() : {} }).then(function (response) { return response.ok ? response.json() : response.json().then(function (body) { throw new Error(body.detail || body.error || 'خطا در دریافت اطلاعات'); }); }); };
-  function renderPerformance(data) {
+  function renderStats(data) {
     var kpis = data.kpis || {};
     set('active_students', faNumber(kpis.active_students)); set('active_courses', faNumber(kpis.active_courses)); set('class_utilization', faPct(kpis.class_utilization_pct)); set('new_students', faNumber(kpis.new_students_30d));
-    var classes = data.classes || {}; var attendance = classes.attendance || {}; var sessions = classes.sessions || {}; var enrollments = data.enrollments || {}; var capacity = enrollments.capacity || {}; var workflow = data.workflow || {}; var communications = data.communications || {};
-    var attendanceRate = attendance.total ? Math.max(0, 100 - Number(attendance.absence_pct || 0)) : 0;
-    var rows = [['اشغال ظرفیت کلاس', faPct(capacity.occupancy_pct), Number(capacity.occupancy_pct || 0), 'ثبت‌نام‌شده از ظرفیت کل'], ['بهره‌وری محل‌های آموزش', faPct(kpis.room_utilization_pct), Number(kpis.room_utilization_pct || 0), 'استفاده از زمان در دسترس'], ['جلسه‌های برگزارشده', faNumber(sessions.held), Math.min(Number(sessions.held || 0) * 10, 100), 'از برنامهٔ بازهٔ جاری'], ['میانگین حضور در هر جلسه', faNumber(attendance.average_per_session), Math.min(Number(attendance.average_per_session || 0) * 10, 100), 'تعداد دانش‌آموز حاضر'], ['نرخ حضور', faPct(attendanceRate), attendanceRate, 'بر اساس رکوردهای حضور'], ['فرآیندهای پاسخ‌داده‌شده', faNumber(workflow.responded_requests), Math.min(Number(workflow.responded_requests || 0) * 10, 100), 'در بازهٔ گزارش'], ['پیام‌ها و اعلان‌های ثبت‌شده', faNumber(communications.total), Math.min(Number(communications.total || 0) * 5, 100), 'ارتباطات ثبت‌شده در بازهٔ جاری']];
-    var box = document.getElementById('dashboard-performance-metrics');
-    if (box) box.innerHTML = rows.map(function (row) { var width = Math.max(0, Math.min(row[2], 100)); return '<div class="pen-dashboard-metric"><div class="pen-dashboard-metric-head"><strong>' + esc(row[0]) + '</strong><span>' + esc(row[1]) + '</span></div><div class="progress pen-dashboard-progress" role="progressbar" aria-valuenow="' + width + '" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:' + width + '%"></div></div><small>' + esc(row[3]) + '</small></div>'; }).join('');
-  }
-  function renderTrend(data) {
-    var rows = data && data.people && data.people.new_students ? data.people.new_students.slice(-6) : []; var box = document.getElementById('dashboard-trend'); if (!box) return;
-    if (!rows.length) { box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0">برای این بازه داده‌ای ثبت نشده است.</p></div>'; return; }
-    var max = Math.max.apply(null, rows.map(function (row) { return Number(row.value || 0); }).concat([1]));
-    box.innerHTML = rows.map(function (row) { var value = Number(row.value || 0); return '<div class="pen-dashboard-trend-row"><div class="pen-dashboard-trend-label"><span>' + esc(row.label) + '</span><strong>' + faNumber(value) + '</strong></div><div class="progress pen-dashboard-progress"><div class="progress-bar" style="width:' + Math.max(3, value * 100 / max) + '%"></div></div></div>'; }).join('');
   }
   function loadMessages() {
     var box = document.getElementById('dash-messages'); if (!box) return;
@@ -95,8 +74,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function () { box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0">پیام‌ها در دسترس نیستند.</p></div>'; });
   }
   if (isReportsUser) {
-    api('/api/reports/dashboard/?period=month').then(renderPerformance).catch(function () { var box = document.getElementById('dashboard-performance-metrics'); if (box) box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0">گزارش عملکرد در دسترس نیست.</p></div>'; });
-    api('/api/reports/dashboard/?period=year').then(renderTrend).catch(function () { var box = document.getElementById('dashboard-trend'); if (box) box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0">روند ثبت‌نام در دسترس نیست.</p></div>'; });
+    api('/api/reports/dashboard/?period=month').then(renderStats).catch(function () {
+      ['active_students', 'active_courses', 'class_utilization', 'new_students'].forEach(function (key) { set(key, '—'); });
+    });
   } else {
     api('/api/persons/?limit=1').then(function (data) { set('persons', faNumber(data.count)); }).catch(function () { set('persons', '—'); });
     api('/api/academics/terms/?limit=1').then(function (data) { set('terms', faNumber(data.count)); }).catch(function () { set('terms', '—'); });
