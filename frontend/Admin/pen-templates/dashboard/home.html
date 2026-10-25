@@ -1,177 +1,108 @@
 {% extends "base.html" %}
 {% block title %}داشبورد{% endblock %}
 {% block page_heading %}
-  {% include "partials/page-heading.html" with title="داشبورد" section="نمای کلی" icon="layout-dashboard" subtitle="دسترسی به شاخص‌ها، پیام‌ها و کارهای جاری" %}
+  {% include "partials/page-heading.html" with title="داشبورد" section="نمای کلی" icon="layout-dashboard" subtitle="وضعیت امروز آموزشگاه، ثبت‌نام‌ها و پیام‌های مهم" %}
 {% endblock %}
 
 {% block content %}
-{% if is_staff_user %}
-<div class="row g-4 mb-4">
-  <div class="col-12">
-    <div class="card">
-      <div class="card-header d-flex align-items-center gap-2">
-        <h6 class="mb-0 card-title flex-grow-1">
-          <i data-lucide="mail" class="size-4 me-1"></i> پیام‌های اخیر
-          <span class="msg-badge ms-1 msg-unread-badge" hidden></span>
-        </h6>
-        <a href="{% url 'workspace-messages' %}" class="btn btn-sm btn-outline-primary">
-          مشاهده همه <i data-lucide="arrow-left" class="size-4 me-1"></i>
-        </a>
-      </div>
-      <div class="card-body p-0">
-        <div id="dash-messages" style="max-height:300px;overflow-y:auto">
-          <div class="pen-loading">در حال بارگذاری…</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
+<main class="pen-dashboard" id="pen-dashboard" aria-label="داشبورد اصلی">
+  {% if is_reports_user %}
+  <section class="row g-3 mb-4" id="pen-stats" aria-label="شاخص‌های کلیدی">
+    <div class="col-12 col-sm-6 col-xl-3">{% include "partials/stat-card.html" with icon="users" tone="primary" label="دانش‌آموز فعال" data_stat="active_students" hint="در کل آموزشگاه" %}</div>
+    <div class="col-12 col-sm-6 col-xl-3">{% include "partials/stat-card.html" with icon="book-open" tone="secondary" label="دوره‌های فعال" data_stat="active_courses" hint="برگزاری جاری" %}</div>
+    <div class="col-12 col-sm-6 col-xl-3">{% include "partials/stat-card.html" with icon="gauge" tone="success" label="اشغال ظرفیت کلاس" data_stat="class_utilization" hint="ظرفیت اسمی" %}</div>
+    <div class="col-12 col-sm-6 col-xl-3">{% include "partials/stat-card.html" with icon="user-plus" tone="warning" label="دانش‌آموز جدید" data_stat="new_students" hint="۳۰ روز اخیر" %}</div>
+  </section>
+  {% else %}
+  <section class="row g-3 mb-4" id="pen-stats" aria-label="خلاصهٔ دسترسی شما">
+    <div class="col-12 col-sm-6 col-xl-3">{% include "partials/stat-card.html" with icon="users" tone="primary" label="جامعه آموزشی" data_stat="persons" hint="افراد قابل مشاهده" %}</div>
+    <div class="col-12 col-sm-6 col-xl-3">{% include "partials/stat-card.html" with icon="calendar-days" tone="secondary" label="ترم‌های تحصیلی" data_stat="terms" hint="ثبت‌شده" %}</div>
+    <div class="col-12 col-sm-6 col-xl-3">{% include "partials/stat-card.html" with icon="mail" tone="success" label="پیام‌های خوانده‌نشده" data_stat="unread_messages" hint="نیازمند توجه" %}</div>
+    <div class="col-12 col-sm-6 col-xl-3">{% include "partials/stat-card.html" with icon="calendar-check" tone="warning" label="برنامه و کلاس‌ها" data_stat="schedule_label" hint="دسترسی سریع" %}</div>
+  </section>
+  {% endif %}
 
-<div class="row g-4 mb-4" id="pen-stats" aria-label="خلاصهٔ وضعیت سامانه">
-  <div class="col-12 col-sm-6 col-xl-3">
-    {% if is_manager %}
-      {% include "partials/stat-card.html" with icon="building-2" tone="primary" label="ظرفیت تکمیل‌شده" data_stat="persons" hint="زنده" %}
-    {% else %}
-      {% include "partials/stat-card.html" with icon="users" tone="primary" label="جامعه آموزشی" data_stat="persons" hint="زنده" %}
-    {% endif %}
-  </div>
-  <div class="col-12 col-sm-6 col-xl-3">
-    {% if is_manager %}
-      {% include "partials/stat-card.html" with icon="inbox" tone="secondary" label="درخواست‌های منتظر اقدام" data_stat="instances" %}
-    {% else %}
-      {% include "partials/stat-card.html" with icon="workflow" tone="secondary" label="فرآیندها" data_stat="instances" %}
-    {% endif %}
-  </div>
-  <div class="col-12 col-sm-6 col-xl-3">
-    {% if is_manager %}
-      {% include "partials/stat-card.html" with icon="user-plus" tone="success" label="ثبت‌نام جدید" data_stat="tasks" %}
-    {% else %}
-      {% include "partials/stat-card.html" with icon="list-checks" tone="success" label="وظایف در دست من" data_stat="tasks" %}
-    {% endif %}
-  </div>
-  <div class="col-12 col-sm-6 col-xl-3">
-    {% if is_manager %}
-      {% include "partials/stat-card.html" with icon="trending-up" tone="warning" label="روند ثبت‌نام ۳۰ روزه" data_stat="terms" %}
-    {% else %}
-      {% include "partials/stat-card.html" with icon="calendar-days" tone="warning" label="ترم‌های تحصیلی" data_stat="terms" %}
-    {% endif %}
-  </div>
-</div>
+  <section class="row g-4 mb-4">
+    <div class="col-12 col-xl-7">
+      <article class="card pen-dashboard-card h-100" aria-labelledby="dashboard-quick-title">
+        <div class="card-header"><div class="flex-grow-1 min-w-0"><h2 id="dashboard-quick-title" class="h6 mb-1 card-title">دسترسی سریع</h2><p class="mb-0 text-muted fs-13">بخش‌هایی که بیشتر استفاده می‌کنید.</p></div></div>
+        <div class="card-body"><div class="pen-dashboard-quick-grid">
+          {% if sidebar_visibility.workspace_enrollments %}<a href="{% url 'workspace-enrollments' %}" class="pen-dashboard-quick-link is-primary"><span class="pen-dashboard-quick-icon"><i data-lucide="user-plus" class="size-5"></i></span><span><strong>ثبت‌نام جدید</strong><small>شروع ثبت‌نام و انتخاب دوره</small></span><i data-lucide="arrow-left" class="size-4 pen-dashboard-quick-arrow"></i></a>{% endif %}
+          {% if sidebar_visibility.workspace_enrollments %}<a href="{% url 'workspace-enrollment-directory' %}" class="pen-dashboard-quick-link"><span class="pen-dashboard-quick-icon"><i data-lucide="clipboard-list" class="size-5"></i></span><span><strong>پیگیری ثبت‌نام‌ها</strong><small>مشاهده وضعیت و سوابق ثبت‌نام</small></span><i data-lucide="arrow-left" class="size-4 pen-dashboard-quick-arrow"></i></a>{% endif %}
+          {% if sidebar_visibility.workspace_persons %}<a href="{% url 'workspace-persons' %}" class="pen-dashboard-quick-link"><span class="pen-dashboard-quick-icon"><i data-lucide="users" class="size-5"></i></span><span><strong>جامعه آموزشی</strong><small>افراد، نقش‌ها و حساب‌های کاربری</small></span><i data-lucide="arrow-left" class="size-4 pen-dashboard-quick-arrow"></i></a>{% endif %}
+          {% if sidebar_visibility.workspace_timetable %}<a href="{% url 'workspace-timetable' %}" class="pen-dashboard-quick-link"><span class="pen-dashboard-quick-icon"><i data-lucide="calendar-days" class="size-5"></i></span><span><strong>تقویم و برنامه</strong><small>جلسه‌ها و برنامهٔ آموزشی</small></span><i data-lucide="arrow-left" class="size-4 pen-dashboard-quick-arrow"></i></a>{% endif %}
+          {% if sidebar_visibility.workspace_reports %}<a href="{% url 'workspace-reports' %}" class="pen-dashboard-quick-link"><span class="pen-dashboard-quick-icon"><i data-lucide="bar-chart-3" class="size-5"></i></span><span><strong>گزارش‌ها و تحلیل‌ها</strong><small>گزارش‌های دقیق‌تر و خروجی</small></span><i data-lucide="arrow-left" class="size-4 pen-dashboard-quick-arrow"></i></a>{% endif %}
+          {% if sidebar_visibility.workspace_messages %}<a href="{% url 'workspace-messages' %}" class="pen-dashboard-quick-link"><span class="pen-dashboard-quick-icon"><i data-lucide="messages-square" class="size-5"></i></span><span><strong>پیام‌ها</strong><small>ارتباط با همکاران و پیگیری گفتگوها</small></span><i data-lucide="arrow-left" class="size-4 pen-dashboard-quick-arrow"></i></a>{% endif %}
+          {% if sidebar_visibility.workspace_staff %}<a href="{% url 'workspace-staff' %}" class="pen-dashboard-quick-link"><span class="pen-dashboard-quick-icon"><i data-lucide="users-round" class="size-5"></i></span><span><strong>اعضای مجموعه</strong><small>مدیریت کارکنان و نقش‌های کاری</small></span><i data-lucide="arrow-left" class="size-4 pen-dashboard-quick-arrow"></i></a>{% endif %}
+          {% if sidebar_visibility.calls_dashboard %}<a href="{% url 'calls-dashboard' %}" class="pen-dashboard-quick-link"><span class="pen-dashboard-quick-icon"><i data-lucide="phone-call" class="size-5"></i></span><span><strong>ثبت تماس</strong><small>پیگیری ارتباط با مراجعان</small></span><i data-lucide="arrow-left" class="size-4 pen-dashboard-quick-arrow"></i></a>{% endif %}
+        </div></div>
+      </article>
+    </div>
+    {% if sidebar_visibility.workspace_messages %}<div class="col-12 col-xl-5">
+      <article class="card pen-dashboard-card h-100" aria-labelledby="dashboard-messages-title">
+        <div class="card-header d-flex align-items-center gap-2"><div class="flex-grow-1 min-w-0"><h2 id="dashboard-messages-title" class="h6 mb-1 card-title">پیام‌های اخیر</h2><p class="mb-0 text-muted fs-13">آخرین گفتگوهای شما</p></div><span class="msg-badge msg-unread-badge" hidden></span><a href="{% url 'workspace-messages' %}" class="btn btn-sm btn-outline-primary">همه</a></div>
+        <div class="card-body p-0"><div id="dash-messages" class="pen-dashboard-messages"><div class="pen-loading">در حال بارگذاری…</div></div></div>
+      </article>
+    </div>{% endif %}
+  </section>
 
-<div class="row g-4">
-  <div class="col-12 col-lg-7">
-    <div class="card card-h-100">
-      <div class="card-header">
-        <h6 class="mb-0 card-title">دسترسی سریع</h6>
-      </div>
-      <div class="card-body">
-        <div class="d-flex flex-wrap gap-2">
-          <a href="{% url 'submission-picker' %}" class="btn btn-primary">
-            <i data-lucide="file-plus-2" class="size-4 me-2"></i> ثبت فرم جدید
-          </a>
-          <a href="{% url 'workspace-work' %}" class="btn btn-outline-primary">
-            <i data-lucide="list-checks" class="size-4 me-2"></i> کارهای در دست من
-          </a>
-          <a href="{% url 'workspace-messages' %}" class="btn btn-outline-primary">
-            <i data-lucide="send" class="size-4 me-2"></i> پیام به همکار
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-12 col-lg-5">
-    <div class="card card-h-100">
-      <div class="card-header">
-        <h6 class="mb-0 card-title">{% if is_manager %}سه سؤال مهم امروز{% else %}راهنمای وضعیت‌های فرم{% endif %}</h6>
-      </div>
-      <div class="card-body d-flex flex-column gap-2">
-        {% if is_manager %}
-        <p class="mb-0 text-muted fs-14">این داشبورد به‌جای فهرست عددها، ظرفیت، صف تأیید و روند ثبت‌نام را جلو می‌آورد.</p>
-        <a href="{% url 'workspace-reports' %}" class="btn btn-sm btn-outline-primary align-self-start">جزئیات گزارش‌ها</a>
-        {% else %}
-        <div><span class="pen-badge pen-badge-draft">پیش‌نویس</span> <span class="text-muted fs-14">در حال تکمیل؛ قابل ویرایش است.</span></div>
-        <div><span class="pen-badge pen-badge-submitted">ارسال‌شده</span> <span class="text-muted fs-14">در صف بررسی.</span></div>
-        <div><span class="pen-badge pen-badge-processing">در حال بررسی</span> <span class="text-muted fs-14">در جریان گردش کار.</span></div>
-        <div><span class="pen-badge pen-badge-approved">تأییدشده</span> <span class="text-muted fs-14">فرآیند با موفقیت پایان یافت.</span></div>
-        <div><span class="pen-badge pen-badge-rejected">ردشده</span> <span class="text-muted fs-14">وضعیت نهایی؛ برای اصلاح تماس بگیرید.</span></div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-</div>
+  {% if is_reports_user %}<section class="row g-4 mb-4" aria-label="گزارش عملکرد کلی">
+    <div class="col-12 col-xl-7"><article class="card pen-dashboard-card h-100" aria-labelledby="dashboard-performance-title">
+      <div class="card-header d-flex align-items-center gap-2"><div class="flex-grow-1 min-w-0"><h2 id="dashboard-performance-title" class="h6 mb-1 card-title">عملکرد آموزشگاه</h2><p class="mb-0 text-muted fs-13">جزئیات شاخص‌های عملیاتی در بازهٔ جاری</p></div>{% if sidebar_visibility.workspace_reports %}<a href="{% url 'workspace-reports' %}" class="btn btn-sm btn-outline-primary">گزارش کامل</a>{% endif %}</div>
+      <div class="card-body"><div id="dashboard-performance-metrics" class="pen-dashboard-metrics"><div class="pen-loading">در حال محاسبهٔ شاخص‌ها…</div></div></div>
+    </article></div>
+    <div class="col-12 col-xl-5"><article class="card pen-dashboard-card h-100" aria-labelledby="dashboard-trend-title">
+      <div class="card-header"><div><h2 id="dashboard-trend-title" class="h6 mb-1 card-title">روند ثبت‌نام و آموزش</h2><p class="mb-0 text-muted fs-13">تغییرات ثبت‌شده در ماه‌های اخیر</p></div></div>
+      <div class="card-body"><div id="dashboard-trend" class="pen-dashboard-trend"><div class="pen-loading">در حال بارگذاری…</div></div></div>
+    </article></div>
+  </section>{% endif %}
+</main>
 {% endblock %}
 
 {% block page_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  var endpoints = {% if is_manager %}{
-    persons: '/api/reports/dashboard/?period=month',
-    instances: '/api/reports/dashboard/?period=month',
-    tasks: '/api/reports/dashboard/?period=month',
-    terms: '/api/reports/dashboard/?period=month'
-  }{% else %}{
-    persons: '/api/persons/?limit=1',
-    instances: '/api/forms/requests/?limit=1',
-    tasks: '/api/forms/my-work/',
-    terms: '/api/academics/terms/?limit=1'
-  }{% endif %};
-  Object.keys(endpoints).forEach(function (key) {
-    fetch(endpoints[key], {
-      credentials: 'same-origin',
-      headers: { 'X-CSRFToken': window.getCookie('csrftoken') }
-    })
-      .then(function (r) { return r.ok ? r.json() : { count: null }; })
-      .then(function (d) {
-        {% if is_manager %}
-        var kpis = d.kpis || {};
-        var values = { persons: kpis.class_utilization_pct, instances: kpis.pending_requests, tasks: kpis.new_students_30d, terms: kpis.new_students_30d };
-        var managerValue = values[key];
-        var managerEl = document.querySelector('[data-stat="' + key + '"]');
-        if (managerEl && managerValue != null) managerEl.textContent = key === 'persons' ? window.persianNumbers(Number(managerValue).toFixed(1)) + '٪' : window.persianNumbers(managerValue);
-        {% else %}
-        var el = document.querySelector('[data-stat="' + key + '"]');
-        var count = key === 'tasks'
-          ? ((d && d.tasks) ? d.tasks.length : null)
-          : (d && d.count != null ? d.count : null);
-        if (el) el.textContent = count != null ? window.persianNumbers(count) : '—';
-        {% endif %}
-      })
-      .catch(function () {
-        var el = document.querySelector('[data-stat="' + key + '"]');
-        if (el) el.textContent = '—';
-      });
-  });
-
-  // recent messages card (staff only — element exists then)
-  var box = document.getElementById('dash-messages');
-  if (box) {
-    fetch('/api/messaging/', {
-      credentials: 'same-origin',
-      headers: { 'X-CSRFToken': window.getCookie('csrftoken') }
-    })
-      .then(function (r) { return r.ok ? r.json() : { results: [] }; })
-      .then(function (data) {
-        var rows = (data.results || data || []).slice(0, 5);
-        if (!rows.length) {
-          box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0 fs-14">پیامی ندارید. از «پیام به همکار» شروع کنید.</p></div>';
-          return;
-        }
-        box.innerHTML = rows.map(function (t) {
-          return '<a href="/workspace/messages/?thread=' + encodeURIComponent(t.thread_id) + '" class="d-flex align-items-center gap-2 px-3 py-2 border-bottom text-decoration-none">' +
-            '<div class="flex-grow-1 overflow-hidden">' +
-            '<div class="d-flex align-items-center gap-2">' +
-            '<strong class="fs-14 text-truncate">' + window.htmlEscape(t.subject) + '</strong>' +
-            (t.unread_count ? '<span class="msg-badge">' + window.persianNumbers(t.unread_count) + '</span>' : '') +
-            '</div>' +
-            '<div class="fs-13 text-muted text-truncate">' + window.htmlEscape(t.created_by_name || '') + ' — ' + window.htmlEscape(t.updated_at || '') + '</div>' +
-            '</div></a>';
-        }).join('');
-      })
-      .catch(function () {
-        box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0 fs-14">خطا در دریافت پیام‌ها.</p></div>';
-      });
+  var root = document.getElementById('pen-dashboard');
+  if (!root) return;
+  var isReportsUser = {{ is_reports_user|yesno:'true,false' }};
+  var faNumber = function (value) { var raw = Number(value || 0).toLocaleString('en-US'); return window.persianNumbers ? window.persianNumbers(raw) : raw; };
+  var faPct = function (value) { var raw = Number(value || 0).toFixed(1); return (window.persianNumbers ? window.persianNumbers(raw) : raw) + '٪'; };
+  var esc = function (value) { return window.htmlEscape ? window.htmlEscape(value == null ? '' : String(value)) : String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[ch]; }); };
+  var set = function (key, value) { var node = root.querySelector('[data-stat="' + key + '"]'); if (node) node.textContent = value; };
+  var api = function (url) { return fetch(url, { credentials: 'same-origin', headers: window.penCsrfHeader ? window.penCsrfHeader() : {} }).then(function (response) { return response.ok ? response.json() : response.json().then(function (body) { throw new Error(body.detail || body.error || 'خطا در دریافت اطلاعات'); }); }); };
+  function renderPerformance(data) {
+    var kpis = data.kpis || {};
+    set('active_students', faNumber(kpis.active_students)); set('active_courses', faNumber(kpis.active_courses)); set('class_utilization', faPct(kpis.class_utilization_pct)); set('new_students', faNumber(kpis.new_students_30d));
+    var classes = data.classes || {}; var attendance = classes.attendance || {}; var sessions = classes.sessions || {}; var enrollments = data.enrollments || {}; var capacity = enrollments.capacity || {}; var workflow = data.workflow || {}; var communications = data.communications || {};
+    var attendanceRate = attendance.total ? Math.max(0, 100 - Number(attendance.absence_pct || 0)) : 0;
+    var rows = [['اشغال ظرفیت کلاس', faPct(capacity.occupancy_pct), Number(capacity.occupancy_pct || 0), 'ثبت‌نام‌شده از ظرفیت کل'], ['بهره‌وری محل‌های آموزش', faPct(kpis.room_utilization_pct), Number(kpis.room_utilization_pct || 0), 'استفاده از زمان در دسترس'], ['جلسه‌های برگزارشده', faNumber(sessions.held), Math.min(Number(sessions.held || 0) * 10, 100), 'از برنامهٔ بازهٔ جاری'], ['میانگین حضور در هر جلسه', faNumber(attendance.average_per_session), Math.min(Number(attendance.average_per_session || 0) * 10, 100), 'تعداد دانش‌آموز حاضر'], ['نرخ حضور', faPct(attendanceRate), attendanceRate, 'بر اساس رکوردهای حضور'], ['فرآیندهای پاسخ‌داده‌شده', faNumber(workflow.responded_requests), Math.min(Number(workflow.responded_requests || 0) * 10, 100), 'در بازهٔ گزارش'], ['پیام‌ها و اعلان‌های ثبت‌شده', faNumber(communications.total), Math.min(Number(communications.total || 0) * 5, 100), 'ارتباطات ثبت‌شده در بازهٔ جاری']];
+    var box = document.getElementById('dashboard-performance-metrics');
+    if (box) box.innerHTML = rows.map(function (row) { var width = Math.max(0, Math.min(row[2], 100)); return '<div class="pen-dashboard-metric"><div class="pen-dashboard-metric-head"><strong>' + esc(row[0]) + '</strong><span>' + esc(row[1]) + '</span></div><div class="progress pen-dashboard-progress" role="progressbar" aria-valuenow="' + width + '" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:' + width + '%"></div></div><small>' + esc(row[3]) + '</small></div>'; }).join('');
   }
+  function renderTrend(data) {
+    var rows = data && data.people && data.people.new_students ? data.people.new_students.slice(-6) : []; var box = document.getElementById('dashboard-trend'); if (!box) return;
+    if (!rows.length) { box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0">برای این بازه داده‌ای ثبت نشده است.</p></div>'; return; }
+    var max = Math.max.apply(null, rows.map(function (row) { return Number(row.value || 0); }).concat([1]));
+    box.innerHTML = rows.map(function (row) { var value = Number(row.value || 0); return '<div class="pen-dashboard-trend-row"><div class="pen-dashboard-trend-label"><span>' + esc(row.label) + '</span><strong>' + faNumber(value) + '</strong></div><div class="progress pen-dashboard-progress"><div class="progress-bar" style="width:' + Math.max(3, value * 100 / max) + '%"></div></div></div>'; }).join('');
+  }
+  function loadMessages() {
+    var box = document.getElementById('dash-messages'); if (!box) return;
+    api('/api/messaging/').then(function (data) {
+      var rows = (data.results || data || []).slice(0, 5); var unread = rows.reduce(function (total, item) { return total + Number(item.unread_count || 0); }, 0); set('unread_messages', faNumber(unread));
+      root.querySelectorAll('.msg-unread-badge').forEach(function (badge) { if (unread) { badge.hidden = false; badge.textContent = faNumber(unread); } });
+      if (!rows.length) { box.innerHTML = '<div class="pen-empty py-4"><i data-lucide="messages-square" class="pen-empty-icon"></i><p class="mb-0">پیام جدیدی ندارید.</p></div>'; if (window.penRenderIcons) window.penRenderIcons(); return; }
+      box.innerHTML = rows.map(function (item) { return '<a href="/workspace/messages/?thread=' + encodeURIComponent(item.thread_id) + '" class="pen-dashboard-message"><span class="pen-dashboard-message-icon"><i data-lucide="message-circle" class="size-4"></i></span><span class="min-w-0 flex-grow-1"><strong class="text-truncate">' + esc(item.subject || 'گفت‌وگوی بدون عنوان') + '</strong><small class="text-truncate">' + esc(item.created_by_name || 'سامانه') + ' · ' + esc(item.updated_at || '') + '</small></span>' + (item.unread_count ? '<b>' + faNumber(item.unread_count) + '</b>' : '') + '</a>'; }).join(''); if (window.penRenderIcons) window.penRenderIcons();
+    }).catch(function () { box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0">پیام‌ها در دسترس نیستند.</p></div>'; });
+  }
+  if (isReportsUser) {
+    api('/api/reports/dashboard/?period=month').then(renderPerformance).catch(function () { var box = document.getElementById('dashboard-performance-metrics'); if (box) box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0">گزارش عملکرد در دسترس نیست.</p></div>'; });
+    api('/api/reports/dashboard/?period=year').then(renderTrend).catch(function () { var box = document.getElementById('dashboard-trend'); if (box) box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0">روند ثبت‌نام در دسترس نیست.</p></div>'; });
+  } else {
+    api('/api/persons/?limit=1').then(function (data) { set('persons', faNumber(data.count)); }).catch(function () { set('persons', '—'); });
+    api('/api/academics/terms/?limit=1').then(function (data) { set('terms', faNumber(data.count)); }).catch(function () { set('terms', '—'); });
+    set('schedule_label', 'باز کردن');
+  }
+  loadMessages();
 });
 </script>
 {% endblock %}

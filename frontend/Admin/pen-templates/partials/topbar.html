@@ -28,12 +28,12 @@ were sample content and are intentionally omitted.
         <i data-lucide="bell" class="size-4"></i>
         <span class="msg-badge msg-unread-badge position-absolute top-0 start-100 translate-middle" hidden></span>
       </button>
-      <div class="dropdown-menu dropdown-menu-end p-0" style="min-width:320px">
+      <div class="dropdown-menu dropdown-menu-end p-0 pen-notification-menu">
         <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
           <h6 class="mb-0 fs-14 fw-semibold flex-grow-1">پیام‌های اخیر</h6>
           <a href="{% url 'workspace-messages' %}" class="fs-13 link-primary">همه</a>
         </div>
-        <div id="notif-list" style="max-height:320px;overflow-y:auto" aria-live="polite">
+        <div id="notif-list" class="pen-notification-list" aria-live="polite">
           <div class="pen-loading">…</div>
         </div>
       </div>

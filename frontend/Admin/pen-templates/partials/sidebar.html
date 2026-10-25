@@ -1,6 +1,6 @@
 {% load static %}
 {% comment %}
-Pen LMS sidebar — task-oriented, role-filtered (v3, UX vision).
+Pen LMS sidebar — role-filtered (v3, UX vision).
 
 Visibility decisions come precomputed from apps.core.context_processors
 .user_flags (sidebar_visibility and sidebar_sections). This keeps the template free of
@@ -122,17 +122,6 @@ Add a page: one nav-item; add a section: copy a collapse block.
         {% endif %}
 
         {# ══ WORKSPACE MENU ═══════════════════════════════════════════ #}
-        {% if sidebar_visibility.workspace_work %}
-        <li class="nav-item">
-          <a href="{% url 'workspace-work' %}" title="کارهای من"
-             class="nav-link{% if urlname == 'workspace-work' %} active{% endif %}"
-             {% if urlname == 'workspace-work' %}aria-current="page"{% endif %}>
-            <span class="icons"><i data-lucide="list-checks"></i></span>
-            <span class="content">کارهای من</span>
-          </a>
-        </li>
-        {% endif %}
-
         {% if sidebar_visibility.staff_dashboard %}
         <li class="nav-item"><a href="{% url 'staff-dashboard' %}" title="کارکرد و مرخصی" class="nav-link{% if urlname == 'staff-dashboard' %} active{% endif %}"><span class="icons"><i data-lucide="calendar-check"></i></span><span class="content">کارکرد و مرخصی</span></a></li>
         {% endif %}

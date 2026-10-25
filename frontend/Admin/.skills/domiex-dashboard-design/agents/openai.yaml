@@ -1,0 +1,4 @@
+interface:
+  display_name: "Domiex Dashboard Design"
+  short_description: "Unify and refine the Domiex Bootstrap dashboard UI"
+  default_prompt: "Use $domiex-dashboard-design to improve this Domiex dashboard page while preserving its existing Bootstrap, SCSS, RTL, typography, icon system, and behavior."

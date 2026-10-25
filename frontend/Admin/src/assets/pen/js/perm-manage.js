@@ -61,7 +61,7 @@
   // ── Load catalog ───────────────────────────────────────────────────
   get(ACL_BASE + 'catalog/').then(function (d) {
     catalog = Object.assign({}, d, {
-      pages: (d.pages || []).filter(function (r) { return r.key !== 'workspace-requests'; }),
+      pages: (d.pages || []).filter(function (r) { return r.key !== 'workspace-requests' && r.key !== 'workspace-work' && r.key !== 'submission-picker'; }),
       models: (d.models || []).filter(function (r) { return r.key !== 'workflow.instance'; }),
     });
     if (current) renderAclGrid();
@@ -314,6 +314,8 @@
 
     var visibleEntries = current.entries.filter(function (entry) {
       return !(entry.resource_type === 'page' && entry.resource_key === 'workspace-requests') &&
+        !(entry.resource_type === 'page' && entry.resource_key === 'workspace-work') &&
+        !(entry.resource_type === 'page' && entry.resource_key === 'submission-picker') &&
         !(entry.resource_type === 'model' && entry.resource_key === 'workflow.instance');
     });
     document.getElementById('pm-acl-count').textContent = visibleEntries.length ? visibleEntries.length + ' مورد تنظیم‌شده' : 'برای موارد استثنا';
@@ -389,7 +391,7 @@
   function groupSidebarItems(items) {
     var groups = [];
     (items || []).filter(function (item) {
-      return item.key !== 'workspace-requests' && item.key !== 'submission-picker';
+      return item.key !== 'workspace-requests' && item.key !== 'workspace-work' && item.key !== 'submission-picker';
     }).forEach(function (item) {
       var group = groups.filter(function (g) { return g.name === item.section; })[0];
       if (!group) {

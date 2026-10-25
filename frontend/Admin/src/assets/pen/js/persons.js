@@ -99,21 +99,29 @@
         : 'بدون حساب';
       var actions = row.actions || {view: true, edit: false, delete: false};
       var label = (row.first_name || '') + ' ' + (row.last_name || '');
-      var menu = '<div class="dropdown pen-actions-dropdown text-end">' +
-        '<button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="عملیات ' + esc(label) + '"><i data-lucide="more-horizontal" class="size-4"></i></button>' +
-        '<ul class="dropdown-menu dropdown-menu-end">' +
-        (actions.view ? '<li><button type="button" class="dropdown-item" data-person-view><i data-lucide="eye" class="size-4"></i> مشاهده</button></li>' : '') +
-        (actions.view && personHasType(row, 'teacher') ? '<li><a class="dropdown-item" href="/workspace/enrollments/teacher/' + encodeURIComponent(row.id) + '/"><i data-lucide="graduation-cap" class="size-4" aria-hidden="true"></i> دوره‌ها و کلاس‌های مدرس</a></li>' : '') +
-        (actions.edit ? '<li><button type="button" class="dropdown-item" data-person-edit><i data-lucide="pencil" class="size-4"></i> ویرایش</button></li>' : '') +
-        (ctx.directory === 'education' && ctx.can_create_user && row.person_type === 'student' && !row.has_user ? '<li><button type="button" class="dropdown-item" data-person-create-user><i data-lucide="user-plus" class="size-4"></i> ساخت حساب کاربری</button></li>' : '') +
-        (actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-delete-action data-delete-url="' + esc(personResourceUrl(row.id, 'delete')) + '" data-delete-name="' + esc(label.trim()) + '" data-delete-code="' + esc(row.national_code || row.id) + '"><i data-lucide="trash-2" class="size-4"></i> حذف</button></li>' : '') +
-        '</ul></div>';
+      var viewDirect = actions.view ? '<button type="button" class="btn btn-sm btn-outline-primary persons-direct-action" data-person-view><i data-lucide="eye" class="size-4" aria-hidden="true"></i><span>مشاهده</span></button>' : '';
+      var viewMenu = actions.view ? '<li><button type="button" class="dropdown-item" data-person-view><i data-lucide="eye" class="size-4" aria-hidden="true"></i> مشاهده</button></li>' : '';
+      var teacherDirect = actions.view && personHasType(row, 'teacher') ? '<a class="btn btn-sm btn-outline-secondary persons-direct-action" href="/workspace/enrollments/teacher/' + encodeURIComponent(row.id) + '/"><i data-lucide="graduation-cap" class="size-4" aria-hidden="true"></i><span>دوره‌های مدرس</span></a>' : '';
+      var teacherMenu = actions.view && personHasType(row, 'teacher') ? '<li><a class="dropdown-item" href="/workspace/enrollments/teacher/' + encodeURIComponent(row.id) + '/"><i data-lucide="graduation-cap" class="size-4" aria-hidden="true"></i> دوره‌ها و کلاس‌های مدرس</a></li>' : '';
+      var editDirect = actions.edit ? '<button type="button" class="btn btn-sm btn-outline-secondary persons-direct-action" data-person-edit><i data-lucide="pencil" class="size-4" aria-hidden="true"></i><span>ویرایش</span></button>' : '';
+      var editMenu = actions.edit ? '<li><button type="button" class="dropdown-item" data-person-edit><i data-lucide="pencil" class="size-4" aria-hidden="true"></i> ویرایش</button></li>' : '';
+      var createUserAvailable = ctx.directory === 'education' && ctx.can_create_user && row.person_type === 'student' && !row.has_user;
+      var createUserDirect = createUserAvailable ? '<button type="button" class="btn btn-sm btn-outline-secondary persons-direct-action" data-person-create-user><i data-lucide="user-plus" class="size-4" aria-hidden="true"></i><span>ساخت حساب</span></button>' : '';
+      var createUserMenu = createUserAvailable ? '<li><button type="button" class="dropdown-item" data-person-create-user><i data-lucide="user-plus" class="size-4" aria-hidden="true"></i> ساخت حساب کاربری</button></li>' : '';
+      var deleteAttrs = ' data-delete-action data-delete-url="' + esc(personResourceUrl(row.id, 'delete')) + '" data-delete-name="' + esc(label.trim()) + '" data-delete-code="' + esc(row.national_code || row.id) + '"';
+      var deleteDirect = actions.delete ? '<button type="button" class="btn btn-sm btn-outline-danger persons-direct-action"' + deleteAttrs + '><i data-lucide="trash-2" class="size-4" aria-hidden="true"></i><span>حذف</span></button>' : '';
+      var deleteMenu = actions.delete ? '<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger"' + deleteAttrs + '><i data-lucide="trash-2" class="size-4" aria-hidden="true"></i> حذف</button></li>' : '';
+      var directActions = '<div class="persons-actions-direct">' + viewDirect + teacherDirect + editDirect + createUserDirect + deleteDirect + '</div>';
+      var moreActions = '<div class="dropdown pen-actions-dropdown persons-actions-dropdown">' +
+        '<button class="btn btn-sm btn-light persons-actions-trigger" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="گزینه‌های بیشتر برای ' + esc(label) + '"><i data-lucide="more-horizontal" class="size-4" aria-hidden="true"></i></button>' +
+        '<ul class="dropdown-menu dropdown-menu-end">' + viewMenu + teacherMenu + editMenu + createUserMenu + deleteMenu + '</ul></div>';
+      var menu = '<div class="persons-actions-wrap">' + directActions + moreActions + '</div>';
       return '<tr>' +
         '<td><strong class="persons-name">' + esc(label.trim() || '—') + '</strong><small class="persons-secondary" dir="ltr">' + esc(row.national_code || '—') + '</small></td>' +
         '<td>' + esc(row.role_display || row.person_type_display || roleLabel(row.person_type)) + '</td>' +
         '<td><span dir="ltr">' + esc(row.mobile || '—') + '</span><small class="persons-secondary"><span class="badge rounded-pill ' + (row.has_user ? (row.user_is_active ? 'text-bg-success' : 'text-bg-secondary') : 'text-bg-light text-secondary') + '">' + esc(login) + '</span></small></td>' +
         '<td class="text-nowrap">' + esc(String(row.created_at || '—').split(' — ')[0]) + '</td>' +
-        '<td class="text-nowrap text-end">' + menu + '</td>' +
+        '<td class="text-nowrap persons-actions-cell">' + menu + '</td>' +
         '</tr>';
     }).join('');
     $tbody.querySelectorAll('tr').forEach(function (tr, index) {
@@ -121,7 +129,7 @@
       tr.dataset.personRow = '';
       tr.dataset.personId = row.id;
       tr.tabIndex = 0;
-      tr.setAttribute('aria-label', 'مشاهدهٔ جزئیات ' + labelForPerson(row) + '؛ برای ویرایش از منوی عملیات استفاده کنید');
+      tr.setAttribute('aria-label', 'مشاهدهٔ جزئیات ' + labelForPerson(row) + '؛ برای ویرایش از دکمه‌های عملیات استفاده کنید');
       tr.addEventListener('click', function (event) {
         if (event.target.closest('button, a, [data-bs-toggle]')) return;
         openPersonDetail(row);
@@ -132,12 +140,9 @@
         event.preventDefault();
         openPersonDetail(row);
       });
-      var view = tr.querySelector('[data-person-view]');
-      var edit = tr.querySelector('[data-person-edit]');
-      var createUser = tr.querySelector('[data-person-create-user]');
-      if (view) view.addEventListener('click', function () { openPersonDetail(row); });
-      if (edit) edit.addEventListener('click', function () { personRequest(row.id).then(openPersonEdit).catch(function (e) { toast(uiErrorMessage(e), 'danger'); }); });
-      if (createUser) createUser.addEventListener('click', function () { createUserForPerson(row); });
+      tr.querySelectorAll('[data-person-view]').forEach(function (view) { view.addEventListener('click', function () { openPersonDetail(row); }); });
+      tr.querySelectorAll('[data-person-edit]').forEach(function (edit) { edit.addEventListener('click', function () { personRequest(row.id).then(openPersonEdit).catch(function (e) { toast(uiErrorMessage(e), 'danger'); }); }); });
+      tr.querySelectorAll('[data-person-create-user]').forEach(function (createUser) { createUser.addEventListener('click', function () { createUserForPerson(row); }); });
     });
     if (window.penRenderIcons) window.penRenderIcons();
   }

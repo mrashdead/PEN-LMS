@@ -435,11 +435,30 @@
       const summary = item.title || `${item.user_display || ''} ${item.work_date || item.start_date || ''}`;
       details.setAttribute('aria-label', `مشاهده جزئیات ${detailTitles[reviewType]} ${summary}`);
       details.addEventListener('click', () => showDetails(item, reviewType, details));
-      actionGroup.append(details);
+      const primaryAction = document.createElement('div');
+      primaryAction.className = 'staff-primary-action';
+      primaryAction.append(details);
+      actionGroup.append(primaryAction);
+      let moreMenu = null;
+      const ensureMoreMenu = () => {
+        if (moreMenu) return moreMenu;
+        const more = document.createElement('details');
+        more.className = 'staff-row-more';
+        const trigger = document.createElement('summary');
+        trigger.className = 'staff-more-trigger btn btn-sm btn-light';
+        trigger.setAttribute('aria-label', 'گزینه‌های بیشتر');
+        trigger.innerHTML = '<span aria-hidden="true">⋯</span><span class="staff-more-label">بیشتر</span>';
+        moreMenu = document.createElement('div');
+        moreMenu.className = 'staff-more-menu';
+        more.append(trigger, moreMenu);
+        actionGroup.append(more);
+        return moreMenu;
+      };
       if (reviewer && item.status === 'pending' && item.user !== currentUserId) {
+        const extraActions = ensureMoreMenu();
         if (reviewType === 'timesheets') {
           const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'btn btn-sm btn-outline-primary'; edit.textContent = 'ویرایش ساعت';
-          edit.addEventListener('click', () => editManualTimesheet(item)); actionGroup.append(edit);
+          edit.addEventListener('click', () => editManualTimesheet(item)); extraActions.append(edit);
         }
         for (const [decision, label] of [['approved', 'تأیید'], ['rejected', 'رد']]) {
           const button = document.createElement('button'); button.type = 'button'; button.className = `btn btn-sm ${decision === 'approved' ? 'btn-outline-primary' : 'btn-link'}`; button.textContent = label;
@@ -452,7 +471,7 @@
             const reason = decision === 'rejected' ? await requestRejectionReason(button) : '';
             if (decision === 'rejected' && reason === null) return;
             try { await api(`${reviewType}/${item.id}/review/`, {method: 'POST', body: JSON.stringify({decision, rejection_reason: reason || '', ...(selectedType ? {leave_type: selectedType} : {})})}); await refresh(); } catch (error) { show(error.message, true); }
-          }); actionGroup.append(button);
+          }); extraActions.append(button);
         }
       }
       tr.append(actions);
