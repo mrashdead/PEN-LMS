@@ -52,7 +52,7 @@
       '<div class="form-text" id="pf-offering-meta"></div></div>' +
       // 2) class code
       '<div class="col-12 col-md-6"><label class="form-label" for="pf-code">کد کلاس <span class="text-danger">*</span></label>' +
-      '<input class="form-control" id="pf-code" dir="ltr" placeholder="CLS-PY-01" required>' +
+      '<input class="form-control" id="pf-code" dir="ltr" placeholder="CLS-ENG-01" required>' +
       '<div class="form-text">پیشنهاد خودکار پر می‌شود؛ قابل تغییر.</div></div>' +
       // 3) lesson (filtered to the offering's curriculum)
       '<div class="col-12 col-md-6"><label class="form-label" for="pf-lesson">درس <span class="text-danger">*</span></label>' +

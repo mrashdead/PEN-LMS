@@ -1,0 +1,100 @@
+/* Login surface: isolated from the dashboard shell and password-reset pages. */
+.pen-login-page {
+  --pen-login-muted: var(--dx-secondary-color);
+  --pen-login-brand: var(--dx-sidebar-brand-bg, #1b408d);
+  background: var(--dx-body-bg);
+}
+[data-bs-theme="dark"] .pen-login-page {
+  --pen-login-muted: color-mix(in srgb, var(--dx-body-color) 70%, var(--dx-secondary-bg));
+}
+.pen-login-layout {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(1rem, 4vw, 3rem);
+}
+.pen-login-shell {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  width: 100%;
+  max-width: 64rem;
+  margin-inline: auto;
+  border: 1px solid var(--dx-border-color);
+  border-radius: 1rem;
+  background: var(--dx-secondary-bg);
+  overflow: hidden;
+}
+.pen-login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: clamp(1.75rem, 3.6vw, 3rem);
+  color: var(--dx-white, #fff);
+  background: var(--pen-login-brand);
+}
+.pen-login-brand-copy { width: 100%; }
+.pen-login-brand-topline { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.5rem; }
+.pen-login-logo { display: inline-flex; flex: 0 0 auto; }
+.pen-login-logo img { display: block; width: 6rem; height: 6rem; object-fit: contain; }
+.pen-login-eyebrow { display: inline-block; font-size: .78rem; font-weight: 600; opacity: .8; }
+.pen-login-brand h2 { margin: 0 0 1rem; color: inherit; font-size: clamp(1.5rem, 2.2vw, 1.9rem); font-weight: 700; line-height: 1.7; text-wrap: balance; }
+.pen-login-brand-copy p { max-width: 22rem; margin: 0; font-size: .81rem; line-height: 1.95; opacity: .8; }
+.pen-login-features { display: grid; gap: .9rem; padding: 0; margin: 2.25rem 0; list-style: none; }
+.pen-login-features li { display: flex; align-items: center; gap: .65rem; font-size: .76rem; }
+.pen-login-brand :is(svg.lucide, i[data-lucide]) { width: 1.1rem; height: 1.1rem; }
+.pen-login-brand-footer { display: flex; align-items: center; gap: .55rem; width: 100%; margin-top: auto; padding-top: 1.35rem; border-top: 1px solid rgb(255 255 255 / .2); font-size: .68rem; opacity: .75; }
+.pen-login-form-panel { min-width: 0; padding: clamp(1.5rem, 4.5vw, 3.75rem); align-self: center; }
+.pen-login-heading { margin-bottom: 1.75rem; }
+.pen-login-heading-icon { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; margin-bottom: 1.25rem; border-radius: .75rem; color: var(--dx-primary); background: var(--dx-primary-bg-subtle); }
+.pen-login-heading-icon :is(svg.lucide, i[data-lucide]) { width: 1.25rem; height: 1.25rem; }
+.pen-login-heading h1 { margin: 0 0 .5rem; color: var(--dx-body-color); font-size: clamp(1.2rem, 1.7vw, 1.55rem); font-weight: 700; line-height: 1.5; }
+.pen-login-heading p { margin: 0; color: var(--pen-login-muted); font-size: .8rem; line-height: 1.85; }
+.pen-login-page .alert { padding: .75rem .85rem; margin-bottom: 1.25rem; font-size: .77rem; line-height: 1.8; }
+.pen-login-page .alert ul { padding-inline-start: 1.1rem; margin-bottom: 0; }
+.pen-login-form .form-label { margin-bottom: .5rem; font-size: .77rem; }
+.pen-login-field { position: relative; }
+.pen-login-field-icon { position: absolute; inset-inline-start: .9rem; top: 50%; z-index: 1; display: flex; color: var(--pen-login-muted); transform: translateY(-50%); pointer-events: none; }
+.pen-login-page .pen-login-field .form-control { min-height: 2.9rem; padding-inline: 2.65rem .9rem; border-radius: .5rem; background-color: var(--dx-body-bg); font-size: .84rem; text-align: start; }
+.pen-login-page .pen-login-field .form-control::placeholder { color: var(--pen-login-muted); font-size: .76rem; text-align: start; opacity: 1; }
+.pen-login-page .pen-login-password .form-control { padding-inline-end: 3rem; }
+.pen-login-page .pen-login-field .form-control.is-invalid { background-image: none; border-color: var(--dx-danger); }
+.pen-login-field:focus-within .pen-login-field-icon { color: var(--dx-primary); }
+.pen-login-page .pen-login-field .password-toggle { position: absolute; inset-inline-end: .25rem; top: 50%; display: grid; place-items: center; width: 2.4rem; min-width: 0; min-height: 2.35rem; padding: 0; border: 0; color: var(--pen-login-muted); background: transparent; transform: translateY(-50%); }
+.pen-login-page .pen-login-field .password-toggle:hover { color: var(--dx-primary); background: var(--dx-primary-bg-subtle); }
+.pen-login-recovery { display: flex; justify-content: flex-end; font-size: .74rem; }
+.pen-login-recovery a { color: var(--dx-primary); text-decoration: none; }
+.pen-login-recovery a:hover { text-decoration: underline; text-underline-offset: .25rem; }
+.pen-login-page .pen-login-submit { display: flex; align-items: center; justify-content: center; gap: .65rem; width: 100%; min-height: 2.9rem; font-size: .84rem; }
+.pen-login-support { display: flex; align-items: flex-start; gap: .6rem; padding-top: 1.5rem; margin-top: 1.75rem; border-top: 1px solid var(--dx-border-color); color: var(--pen-login-muted); }
+.pen-login-support :is(svg.lucide, i[data-lucide]) { width: 1rem; height: 1rem; margin-top: .2rem; }
+.pen-login-support p { margin: 0; font-size: .72rem; line-height: 1.9; }
+.pen-login-footer { display: flex; justify-content: center; flex-wrap: wrap; gap: .3rem; margin-top: 1.5rem; color: var(--pen-login-muted); font-size: .67rem; text-align: center; }
+.pen-login-footer-divider { margin-inline: .35rem; }
+.pen-login-page :is(a, button):focus-visible { outline: 2px solid var(--dx-primary); outline-offset: 3px; }
+.pen-login-brand a:focus-visible { outline-color: currentColor; }
+@media (max-width: 767.98px) {
+  .pen-login-layout { padding: 1.25rem; }
+  .pen-login-shell { grid-template-columns: minmax(0, 1fr); max-width: 29rem; }
+  .pen-login-brand { padding: 1.25rem 1.5rem; }
+  .pen-login-brand-topline { gap: .7rem; margin-bottom: .8rem; }
+  .pen-login-logo img { width: 3.25rem; height: 3.25rem; }
+  .pen-login-eyebrow { font-size: .64rem; }
+  .pen-login-brand h2 { max-width: none; margin: 0; font-size: 1.12rem; line-height: 1.65; }
+  .pen-login-brand-copy p, .pen-login-features, .pen-login-brand-footer { display: none; }
+  .pen-login-form-panel { padding: 1.75rem 1.5rem; }
+  .pen-login-heading-icon { display: none; }
+}
+@media (max-width: 359.98px) {
+  .pen-login-layout { padding: .75rem; }
+  .pen-login-brand { padding: 1rem; }
+  .pen-login-brand-topline { gap: .55rem; }
+  .pen-login-logo img { width: 2.85rem; height: 2.85rem; }
+  .pen-login-eyebrow { font-size: .6rem; }
+  .pen-login-brand h2 { font-size: 1.02rem; }
+  .pen-login-form-panel { padding: 1.5rem 1rem; }
+}
+@media (forced-colors: active) {
+  .pen-login-field-icon { color: CanvasText; }
+}

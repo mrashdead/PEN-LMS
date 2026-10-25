@@ -1355,6 +1355,28 @@ def teacher_report_cards(offering: CourseOffering) -> list[dict]:
     ]
 
 
+def report_card_session_progress(offering: CourseOffering) -> dict:
+    """Return whether every non-cancelled session has saved attendance."""
+    sessions = ClassSession.objects.filter(
+        offering=offering, is_deleted=False,
+    ).exclude(status=ClassSession.Status.CANCELLED)
+    counts = sessions.aggregate(
+        total=models.Count("pk", distinct=True),
+        completed=models.Count(
+            "pk", filter=Q(attendances__is_deleted=False), distinct=True,
+        ),
+    )
+    total = counts["total"]
+    completed = counts["completed"]
+    remaining = total - completed
+    return {
+        "total": total,
+        "completed": completed,
+        "remaining": remaining,
+        "ready": total > 0 and remaining == 0,
+    }
+
+
 @transaction.atomic
 def save_report_cards(
     *,
@@ -1367,7 +1389,7 @@ def save_report_cards(
     Bulk upsert descriptive report cards for one offering (final evaluation).
 
     rows: [{"student": pk, "result": passed|failed, "teacher_note": str}]
-    Enforces the model rule (failed ⇒ note required) and the live-unique
+    Enforces the model rule (every result requires a note) and the live-unique
     (student, offering | session null) constraint via update_or_create, so a
     re-post corrects instead of duplicating. Returns {created, updated}.
     """
@@ -1375,6 +1397,17 @@ def save_report_cards(
 
     if offering is None:
         raise EducationServiceError("برگزاری مشخص نیست.")
+    # Session creation/regeneration locks the same offering row, so its plan
+    # cannot change between this completion check and saving report cards.
+    offering = CourseOffering.objects.select_for_update().get(pk=offering.pk)
+    progress = report_card_session_progress(offering)
+    if not progress["total"]:
+        raise EducationServiceError("برای ثبت کارنامه، ابتدا جلسات این دوره را تعریف کنید.")
+    if progress["remaining"]:
+        raise EducationServiceError(
+            "ثبت کارنامه پس از ثبت حضور و غیاب همهٔ جلسات دوره امکان‌پذیر است؛ "
+            f"برای {persian_numbers(progress['remaining'])} جلسه هنوز حضور و غیاب ثبت نشده است."
+        )
     created = updated = 0
     seen = set()
     for row in rows:
@@ -1383,8 +1416,8 @@ def save_report_cards(
         note = (row.get("teacher_note") or "").strip()
         if not student_id or result not in dict(GradeRecord.Result.choices):
             raise EducationServiceError("هر ردیف باید دانش‌آموز و نتیجهٔ معتبر داشته باشد.")
-        if result == GradeRecord.Result.FAILED and not note:
-            raise EducationServiceError("برای نتیجهٔ مردود، یادداشت توصیفی الزامی است.")
+        if not note:
+            raise EducationServiceError("برای هر نتیجه، بازخورد توصیفی الزامی است.")
         if not Person.objects.filter(pk=student_id, is_deleted=False).exists():
             raise EducationServiceError(f"دانش‌آموز نامعتبر: {student_id}")
         if str(student_id) in seen:

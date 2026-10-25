@@ -33,6 +33,7 @@
             </button>
           </div>
         </div>
+        <div id="rc-session-status" class="alert d-none mt-3 mb-0 py-2 fs-13" role="status" aria-live="polite"></div>
       </div>
     </div>
   </div>
@@ -45,7 +46,6 @@
           نتیجه و بازخورد توصیفی
           <span class="fs-13 text-muted fw-normal" id="rc-count"></span>
         </h6>
-        <span class="fs-13 text-muted">برای نتیجه «مردود»، نوشتن چرایی الزامی است.</span>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
@@ -55,7 +55,13 @@
                 <th scope="col" style="width:3rem">#</th>
                 <th scope="col">دانش‌آموز</th>
                 <th scope="col" style="width:13rem">وضعیت نهایی</th>
-                <th scope="col">چرایی / بازخورد توصیفی (عملکرد، نقاط قوت و ضعف)</th>
+                <th scope="col">
+                  بازخورد توصیفی
+                  <span class="text-danger" role="img" aria-label="برای هر نتیجه، نوشتن بازخورد الزامی است" title="برای هر نتیجه، نوشتن بازخورد الزامی است">
+                    <i data-lucide="asterisk" class="size-3" aria-hidden="true"></i>
+                  </span>
+                  <span id="rc-note-required" class="visually-hidden">برای هر نتیجه، نوشتن بازخورد الزامی است.</span>
+                </th>
               </tr>
             </thead>
             <tbody id="rc-rows">

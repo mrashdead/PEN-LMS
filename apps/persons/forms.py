@@ -116,7 +116,7 @@ class PersonDefinitionForm(forms.Form):
         widget=forms.TextInput(
             attrs={
                 "class": "form-control",
-                "placeholder": "مثال: ریاضی، فیزیک، پایتون",
+                "placeholder": "مثلاً: آموزش زبان کودک، مکالمه و تلفظ انگلیسی",
             }
         ),
     )

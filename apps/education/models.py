@@ -722,7 +722,7 @@ class GradeRecord(DomainModel):
         max_length=16, choices=Result.choices, default=Result.PASSED, db_index=True
     )
     teacher_note = models.CharField(
-        max_length=1000, help_text="یادداشت توصیفی مدرس — برای مردود اجباری است."
+        max_length=1000, help_text="بازخورد توصیفی مدرس — برای هر نتیجه اجباری است."
     )
     evaluated_by = models.ForeignKey(
         "accounts.User", null=True, blank=True, on_delete=models.SET_NULL,
@@ -754,10 +754,9 @@ class GradeRecord(DomainModel):
         return f"{self.student} [{self.result}]"
 
     def clean(self) -> None:
-        # §5: «علت قبول‌نشدن باید اجباری و قابل audit باشد».
-        if self.result == self.Result.FAILED and not (self.teacher_note or "").strip():
+        if not (self.teacher_note or "").strip():
             raise ValidationError(
-                {"teacher_note": "برای نتیجه‌ی مردود، یادداشت مدرس الزامی است."}
+                {"teacher_note": "برای هر نتیجه، بازخورد توصیفی الزامی است."}
             )
 
 

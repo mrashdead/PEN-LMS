@@ -103,6 +103,7 @@ from apps.education.services import (
     withdraw_student,
     record_session_attendance,
     roster_students,
+    report_card_session_progress,
     save_report_cards,
     teacher_classes,
     teacher_report_cards,
@@ -1285,7 +1286,7 @@ class OfferingReportCardsView(APIView):
 
     GET  → the offering's roster merged with any saved cards (pre-fill).
     POST → {"rows": [{student, result: passed|failed, teacher_note}]}
-           Atomic + idempotent (update_or_create); failed ⇒ note required.
+           Atomic + idempotent (update_or_create); each result requires a note.
     """
 
     permission_classes = (IsActiveUser, IsTeacherPortalUser)
@@ -1313,6 +1314,7 @@ class OfferingReportCardsView(APIView):
         return Response({
             "roster": roster_students(offering=offering),
             "cards": teacher_report_cards(offering),
+            "session_progress": report_card_session_progress(offering),
         })
 
     def post(self, request, pk):

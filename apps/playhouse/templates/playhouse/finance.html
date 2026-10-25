@@ -24,12 +24,9 @@
     <div class="row g-2 align-items-end">
       <div class="col-6 col-md-3"><label class="form-label small mb-1" for="ph-fin-from">از تاریخ</label><input id="ph-fin-from" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" inputmode="numeric" value="{{ today_jalali }}" placeholder="۱۴۰۵/۰۷/۰۱" aria-label="شروع بازه شمسی"></div>
       <div class="col-6 col-md-3"><label class="form-label small mb-1" for="ph-fin-to">تا تاریخ</label><input id="ph-fin-to" class="form-control" type="text" data-jalali dir="ltr" autocomplete="off" inputmode="numeric" value="{{ today_jalali }}" placeholder="۱۴۰۵/۰۷/۳۰" aria-label="پایان بازه شمسی"></div>
-      <div class="col-6 col-md-3"><label class="form-label small mb-1" for="ph-fin-start-time">ساعت شروع (اختیاری)</label><input id="ph-fin-start-time" type="time" class="form-control" aria-describedby="ph-fin-error"></div>
-      <div class="col-6 col-md-3"><label class="form-label small mb-1" for="ph-fin-end-time">ساعت پایان (اختیاری)</label><input id="ph-fin-end-time" type="time" class="form-control" aria-describedby="ph-fin-error"></div>
       <div class="col-6 col-md-3"><label class="form-label small mb-1" for="ph-fin-year">سال شمسی</label><input id="ph-fin-year" type="number" class="form-control" min="1300" max="1600"></div>
       <div class="col-6 col-md-3"><label class="form-label small mb-1" for="ph-fin-month">ماه شمسی</label><select id="ph-fin-month" class="form-select"></select></div>
       <div class="col-12 col-md-auto"><button type="button" class="btn btn-outline-primary" id="ph-fin-select-month">انتخاب ماه</button></div>
-      <p class="text-muted small mb-0">منطقه زمانی: {{ report_timezone }}. ساعت پایان مرز پایان بازه است؛ ساعت خالی یعنی تمام روز.</p>
       <div class="col-12 col-md-auto"><button type="button" class="btn btn-primary w-100" id="ph-fin-apply"><i data-lucide="filter" class="size-4 me-1"></i> اعمال بازه</button></div>
       <div class="col text-muted small text-md-end" id="ph-fin-period" aria-live="polite">—</div>
     </div>

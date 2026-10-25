@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ورود | Pen LMS</title>
+  <title>ورود به پن | آموزشگاه زبان پویش نو</title>
   <script src="{% static 'assets/js/layout.js' %}"></script>
   <link href="{% static 'assets/css/bootstrap.rtl.css' %}" rel="stylesheet" type="text/css">
   <link href="{% static 'assets/css/icons.rtl.css' %}" rel="stylesheet" type="text/css">
@@ -12,25 +12,36 @@
   <link href="{% static 'assets/css/custom.css' %}" rel="stylesheet" type="text/css">
   <link href="{% asset_v_url 'assets/pen/dist/pen.bundle.css' %}" rel="stylesheet" type="text/css">
   <link href="{% asset_v_url 'assets/pen/css/pen.css' %}" rel="stylesheet" type="text/css">
+  <link href="{% asset_v_url 'assets/pen/css/pen-login.css' %}" rel="stylesheet" type="text/css">
 </head>
-<body class="pen-app-shell">
-<div class="auth-wrapper">
-  <div class="container min-vh-100 py-10 d-flex align-items-center">
-    <div class="w-100">
-      <div class="row justify-content-center">
-        <div class="col-12 col-md-10 col-lg-7 col-xl-6 col-xxl-5">
-          <div class="card pen-auth-card mb-0">
-            <div class="p-sm-8 p-md-10 card-body">
-              <div class="text-center mb-4">
-                <a href="{% url 'dashboard-login' %}" class="logos">
-                  <img src="{% static 'assets/images/pen-logo-black.png' %}" loading="lazy" alt="Pen LMS" class="h-44 logo-dark">
-                  <img src="{% static 'assets/images/pen-logo-white.png' %}" loading="lazy" alt="Pen LMS" class="h-44 logo-light">
-                </a>
-              </div>
+<body class="pen-app-shell pen-login-page">
+<div class="pen-login-layout">
+  <main class="pen-login-shell" aria-labelledby="login-title">
+    <aside class="pen-login-brand" aria-labelledby="login-brand-title">
+      <div class="pen-login-brand-copy">
+        <div class="pen-login-brand-topline">
+          <a href="{% url 'dashboard-login' %}" class="pen-login-logo" aria-label="صفحهٔ ورود PEN">
+            <img src="{% static 'assets/images/pen-logo-white.png' %}" alt="PEN" width="88" height="88">
+          </a>
+          <span class="pen-login-eyebrow">آموزشگاه زبان پویش نو (پن)</span>
+        </div>
+        <h2 id="login-brand-title">یادگیری زبان با بازی و شادی</h2>
+        <p>در پن، کودکان و نوجوانان با بازی، قصه و تجربه‌های تعاملی، زبان را با شوق و اعتمادبه‌نفس یاد می‌گیرند.</p>
+      </div>
+      <ul class="pen-login-features">
+        <li><i data-lucide="graduation-cap" aria-hidden="true"></i><span>آموزش زبان متناسب با سن و سطح</span></li>
+        <li><i data-lucide="book-open" aria-hidden="true"></i><span>یادگیری با بازی، شعر و داستان</span></li>
+        <li><i data-lucide="messages-square" aria-hidden="true"></i><span>همراهی در مسیر رشد مهارت‌های زبانی</span></li>
+      </ul>
+      <div class="pen-login-brand-footer"><i data-lucide="book-open" aria-hidden="true"></i><span>کشف زبان در دنیای کودکان و نوجوانان</span></div>
+    </aside>
 
-              <div class="pen-auth-mark" aria-hidden="true"><i data-lucide="shield-check" class="size-5"></i></div>
-              <h4 class="mb-2 text-gradient fw-bold text-center">ورود به پنل Pen LMS</h4>
-              <p class="mb-4 text-center text-muted">برای ادامه، اطلاعات حساب کاربری خود را وارد کنید.</p>
+    <section class="pen-login-form-panel" aria-labelledby="login-title">
+      <header class="pen-login-heading">
+        <span class="pen-login-heading-icon" aria-hidden="true"><i data-lucide="log-in"></i></span>
+        <h1 id="login-title">ورود به حساب کاربری</h1>
+        <p>به پن خوش آمدید. برای دسترسی به فضای آموزشی خود وارد شوید.</p>
+      </header>
 
               {% if messages %}
                 {% for message in messages %}
@@ -46,53 +57,46 @@
                 </div>
               {% endif %}
 
-              <form method="post" action="{% url 'dashboard-login' %}" novalidate>
+              <form method="post" action="{% url 'dashboard-login' %}" class="pen-login-form" novalidate>
                 {% csrf_token %}
                 {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
                 <div class="mb-3">
                   <label for="id_username" class="form-label">نام کاربری</label>
-                  <div class="input-group">
-                    <span class="input-group-text bg-transparent" aria-hidden="true"><i data-lucide="user" class="size-4"></i></span>
+                  <div class="pen-login-field{% if form.username.errors %} has-error{% endif %}">
+                    <span class="pen-login-field-icon" aria-hidden="true"><i data-lucide="user" class="size-4"></i></span>
                     <input type="text" name="username" id="id_username" class="form-control{% if form.username.errors %} is-invalid{% endif %}" required autofocus
-                           autocomplete="username" placeholder="نام کاربری خود را وارد کنید" value="{{ form.username.value|default:'' }}" aria-describedby="login-username-error">
+                           autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="نام کاربری" value="{{ form.username.value|default:'' }}"{% if form.username.errors %} aria-invalid="true" aria-describedby="login-username-error"{% endif %}>
                   </div>
-                  {% for error in form.username.errors %}<div id="login-username-error" class="invalid-feedback d-block" role="alert">{{ error }}</div>{% endfor %}
+                  {% if form.username.errors %}<div id="login-username-error" class="invalid-feedback d-block" role="alert">{% for error in form.username.errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
                 </div>
 
                 <div class="mb-3">
                   <label for="id_password" class="form-label">رمز عبور</label>
-                  <div class="input-group">
-                    <span class="input-group-text bg-transparent" aria-hidden="true"><i data-lucide="lock" class="size-4"></i></span>
+                  <div class="pen-login-field pen-login-password{% if form.password.errors %} has-error{% endif %}">
+                    <span class="pen-login-field-icon" aria-hidden="true"><i data-lucide="lock" class="size-4"></i></span>
                     <input type="password" name="password" id="id_password" class="form-control{% if form.password.errors %} is-invalid{% endif %}" required
-                           autocomplete="current-password" placeholder="رمز عبور خود را وارد کنید" aria-describedby="login-password-error">
-                    <button type="button" class="btn btn-outline-secondary password-toggle" data-password-toggle="id_password" aria-label="نمایش رمز عبور" aria-pressed="false">
+                           autocomplete="current-password" placeholder="رمز عبور"{% if form.password.errors %} aria-invalid="true" aria-describedby="login-password-error"{% endif %}>
+                    <button type="button" class="btn password-toggle" data-password-toggle="id_password" aria-label="نمایش رمز عبور" aria-controls="id_password" aria-pressed="false">
                       <i data-lucide="eye" class="size-4" aria-hidden="true"></i>
                     </button>
                   </div>
-                  {% for error in form.password.errors %}<div id="login-password-error" class="invalid-feedback d-block" role="alert">{{ error }}</div>{% endfor %}
+                  {% if form.password.errors %}<div id="login-password-error" class="invalid-feedback d-block" role="alert">{% for error in form.password.errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
                 </div>
 
+                <div class="pen-login-recovery"><a href="{% url 'password-reset' %}">رمز عبور را فراموش کرده‌اید؟</a></div>
+
                 <div class="d-grid mt-4">
-                  <button type="submit" class="btn btn-primary">
-                    <i data-lucide="log-in" class="size-4 me-2" aria-hidden="true"></i> ورود به پنل
+                  <button type="submit" class="btn btn-primary pen-login-submit">
+                    ورود به پنل <i data-lucide="arrow-left" class="size-4" aria-hidden="true"></i>
                   </button>
                 </div>
               </form>
 
-              <p class="login-help text-center text-muted mt-4 mb-0 fs-14">
-                <a href="{% url 'password-reset' %}" class="link-primary text-decoration-none">رمز عبور را فراموش کرده‌اید؟</a>
-                <span class="d-block mt-2">اگر ایمیل حساب ثبت نشده است، با مدیر سامانه تماس بگیرید.</span>
-              </p>
-            </div>
-          </div>
-          <div class="text-center mt-4 text-muted fs-13">
-            &copy; <span id="currentYearFooter"></span> Pen LMS — فضای کاری امن آموزشگاه
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+      <div class="pen-login-support"><i data-lucide="circle-help" aria-hidden="true"></i><p>برای دریافت حساب یا ثبت ایمیل بازیابی،<br>با مدیر سامانه تماس بگیرید.</p></div>
+    </section>
+  </main>
+  <footer class="pen-login-footer">&copy; <span id="currentYearFooter"></span> <span lang="en" dir="ltr">Pen LMS</span><span class="pen-login-footer-divider" aria-hidden="true">·</span>سامانهٔ آموزش زبان پن</footer>
 </div>
 
 <script src="{% asset_v_url 'assets/pen/dist/pen.bundle.js' %}"></script>

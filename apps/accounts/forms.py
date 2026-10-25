@@ -15,6 +15,10 @@ class UserSelect(forms.Select):
         user = getattr(value, "instance", None)
         if user is not None:
             option["attrs"]["data-username"] = user.username
+            person = getattr(user, "person", None)
+            national_code = getattr(person, "national_code", "") if person else ""
+            option["attrs"]["data-national-code"] = national_code or ""
+            option["attrs"]["data-search"] = " ".join((str(label or ""), national_code or "", user.username))
         return option
 
 

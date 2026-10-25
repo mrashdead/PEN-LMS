@@ -10,7 +10,6 @@
   var detailBody = document.getElementById('ph-fin-invoice-detail');
   var invoiceModal = document.getElementById('ph-fin-invoice-modal');
   var currentInvoices = [], loadVersion = 0;
-  var startTime = document.getElementById('ph-fin-start-time'), endTime = document.getElementById('ph-fin-end-time');
   var reportZone = window.__PLAYHOUSE_FINANCE_TIMEZONE__ || 'Asia/Tehran';
 
   function esc(s) { return window.htmlEscape ? window.htmlEscape(s) : String(s == null ? '' : s); }
@@ -82,18 +81,15 @@
       '<a class="btn btn-sm btn-outline-primary mt-3" target="_blank" rel="noopener" href="/playhouse/invoices/' + encodeURIComponent(invoice.id) + '/print/">چاپ فاکتور</a>';
   }
   function load(from, to) {
-    if (window.penValidateTimePickers && !window.penValidateTimePickers(startTime.closest('.card'))) return;
     var version = ++loadVersion;
     errorBox.hidden = true;
     rows.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">در حال بارگذاری…</td></tr>';
     cafeRows.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">در حال بارگذاری…</td></tr>';
     displayRange(from, to);
     var query = new URLSearchParams({from: from, to: to});
-    if (startTime.value) query.set('start_time', startTime.value);
-    if (endTime.value) query.set('end_time', endTime.value);
     get(API + '?' + query).then(function (data) {
       if (version !== loadVersion) return;
-      document.getElementById('ph-fin-period').textContent = 'از ' + toJalali(data.period.from) + (startTime.value ? ' ' + startTime.value : '') + ' تا ' + toJalali(data.period.to) + (endTime.value ? ' ' + endTime.value : '') + ' · ' + data.period.timezone;
+      document.getElementById('ph-fin-period').textContent = 'از ' + toJalali(data.period.from) + ' تا ' + toJalali(data.period.to);
       var summary = data.summary || {};
       document.getElementById('ph-fin-invoices').textContent = fmt(summary.invoices);
       document.getElementById('ph-fin-time').textContent = fmt(summary.time_total);
@@ -132,7 +128,6 @@
     load(from, to);
   }
   function presetRange(preset) {
-    startTime.value = ''; endTime.value = '';
     var from = TODAY, to = TODAY;
     if (preset === 'week') from = shiftISO(TODAY, -6);
     if (preset === 'month') from = jalaliMonthStart(TODAY);
@@ -155,7 +150,7 @@
   window.penReportDates.months.forEach(function (name, i) { monthInput.append(new Option(name, String(i + 1))); });
   var jalaliParts = toJalali(TODAY).split('/').map(Number); yearInput.value = jalaliParts[0]; monthInput.value = String(jalaliParts[1]);
   document.getElementById('ph-fin-select-month').addEventListener('click', function () {
-    try { var range = window.penReportDates.range('monthly', TODAY, yearInput.value, monthInput.value); startTime.value = ''; endTime.value = ''; fromInput.value = toJalali(range.start); toInput.value = toJalali(range.end); applyRange(); }
+    try { var range = window.penReportDates.range('monthly', TODAY, yearInput.value, monthInput.value); fromInput.value = toJalali(range.start); toInput.value = toJalali(range.end); applyRange(); }
     catch (error) { errorBox.textContent = error.message; errorBox.hidden = false; }
   });
   document.getElementById('ph-fin-apply').addEventListener('click', applyRange);

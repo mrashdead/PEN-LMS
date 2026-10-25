@@ -551,7 +551,7 @@ class OfferingEnrollmentSerializer(CRUDActionsMixin, serializers.ModelSerializer
         allow_null=True,
         write_only=True,
     )
-    student_name = serializers.CharField(source="student.get_full_name", read_only=True)
+    student_name = serializers.CharField(source="student.display_name", read_only=True)
     offering_title = serializers.CharField(source="offering.title", read_only=True)
     enrolled_at = JalaliDateField(required=False)
     final_class_enrollment_id = serializers.UUIDField(read_only=True, allow_null=True)

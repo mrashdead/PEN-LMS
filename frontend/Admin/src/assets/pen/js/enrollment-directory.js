@@ -49,12 +49,10 @@
     var group = row.class_group || {};
     var courseText = link(course.title || 'بدون دوره', course.url, 'fw-semibold');
     var offeringText = offering.title ? '<div class="fs-13 text-muted">' + link(offering.title + (offering.code ? ' · ' + offering.code : ''), offering.url) + '</div>' : '';
-    var teacherText = '<div class="fs-13 text-muted">مدرس دوره: ' + escapeHtml(row.instructor ? row.instructor.name : 'مدرس تعیین نشده') + '</div>' +
-      (group.title ? '<div class="fs-13 text-muted">مدرس کلاس: ' + escapeHtml(row.class_teacher ? row.class_teacher.name : 'مدرس تعیین نشده') + '</div>' : '');
     var groupText = group.title ? link(group.title + (group.code ? ' · ' + group.code : ''), group.url) : '<span class="text-muted">تخصیص کلاس نشده</span>';
     return '<tr>' +
       '<td><div class="fw-semibold">' + link(person.name || 'شخص', person.url) + '</div><div class="text-muted fs-13">' + escapeHtml(person.student_code || '') + '</div></td>' +
-      '<td>' + courseText + offeringText + teacherText + '</td>' +
+      '<td>' + courseText + offeringText + '</td>' +
       '<td>' + groupText + (group.term ? '<div class="text-muted fs-13">' + escapeHtml(group.term) + '</div>' : '') + '</td>' +
       '<td>' + statusMarkup(row) + '</td>' +
       '<td><time datetime="' + escapeHtml(row.date || '') + '">' + escapeHtml(row.date_label || row.date || '—') + '</time></td>' +
@@ -109,6 +107,10 @@
       if (form.elements[name].tagName !== 'SELECT') form.elements[name].value = value;
       if (value) initialFilters.set(name, value);
     });
+    if (['course', 'offering', 'class_group', 'student', 'status', 'from', 'to'].some(function (name) { return initialFilters.has(name); })) {
+      var advancedFilters = root.querySelector('.registration-advanced');
+      if (advancedFilters) advancedFilters.open = true;
+    }
 
     function updateSummary(summary) {
       summary = summary || {};

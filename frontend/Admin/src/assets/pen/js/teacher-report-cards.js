@@ -2,13 +2,13 @@
  * Pen LMS — teacher descriptive report cards (پنل مدرس › کارنامه توصیفی).
  *
  * Flow (task spec §3): pick one of MY active classes → every student loads as
- * a row → per student: قبول/مردود + full descriptive feedback → bulk save.
+ * a row → per student: قبول/مردود + required descriptive feedback → bulk save.
  *
  * API: GET  /api/education/offerings/{id}/report-cards/ → {roster, cards}
  *      POST the same URL with {rows:[{student,result,teacher_note}]}.
  * Idempotent server-side (update_or_create): re-saving corrects, never
- * duplicates. failed ⇒ note required is enforced in the model + service; the
- * client mirrors it for UX (inline error, disabled submit).
+ * duplicates. Each selected result requires descriptive feedback, enforced in
+ * the model + service and mirrored by the client before submit.
  */
 (function () {
   'use strict';
@@ -44,6 +44,7 @@
 
   var $cls = document.getElementById('rc-class');
   var $info = document.getElementById('rc-info');
+  var $sessionStatus = document.getElementById('rc-session-status');
   var $rows = document.getElementById('rc-rows');
   var $count = document.getElementById('rc-count');
   var $summary = document.getElementById('rc-summary');
@@ -51,12 +52,26 @@
 
   var classes = [];
   var rows = [];   // [{id,name,student_code,result,teacher_note}]
+  var canSubmit = false;
+
+  function showSessionProgress(progress) {
+    var total = Number(progress.total || 0);
+    var remaining = Number(progress.remaining || 0);
+    canSubmit = progress.ready === true;
+    $sessionStatus.className = 'alert mt-3 mb-0 py-2 fs-13 ' +
+      (canSubmit ? 'alert-success' : 'alert-warning');
+    $sessionStatus.textContent = !total
+      ? 'برای ثبت کارنامه، ابتدا جلسات این دوره را تعریف کنید.'
+      : canSubmit
+        ? 'برای همهٔ ' + pn(total) + ' جلسه حضور و غیاب ثبت شده؛ ثبت کارنامه فعال است.'
+        : 'ثبت کارنامه پس از ثبت حضور و غیاب همهٔ جلسات فعال می‌شود؛ ' + pn(remaining) + ' جلسه بدون ثبت حضور و غیاب است.';
+  }
 
   function resultSeg(row) {
     return '<div class="pen-seg" role="group" aria-label="وضعیت ' + esc(row.name) + '">' +
-      '<button type="button" class="btn btn-sm ' + (row.result === 'passed' ? 'btn-success' : 'btn-outline-success') + '" data-result="passed">' +
+      '<button type="button" class="btn btn-sm ' + (row.result === 'passed' ? 'btn-success' : 'btn-outline-success') + '" data-result="passed"' + (!canSubmit ? ' disabled' : '') + '>' +
       '<i data-lucide="check" class="size-4 me-1"></i>قبول</button>' +
-      '<button type="button" class="btn btn-sm ' + (row.result === 'failed' ? 'btn-danger' : 'btn-outline-danger') + '" data-result="failed">' +
+      '<button type="button" class="btn btn-sm ' + (row.result === 'failed' ? 'btn-danger' : 'btn-outline-danger') + '" data-result="failed"' + (!canSubmit ? ' disabled' : '') + '>' +
       '<i data-lucide="x" class="size-4 me-1"></i>مردود</button>' +
       '</div>';
   }
@@ -70,17 +85,16 @@
       return;
     }
     $count.textContent = '— ' + pn(rows.length) + ' دانش‌آموز';
-    $save.disabled = false;
+    $save.disabled = !canSubmit;
     $rows.innerHTML = rows.map(function (r, i) {
       return '<tr data-id="' + esc(r.id) + '">' +
         '<td class="text-muted">' + pn(i + 1) + '</td>' +
         '<td><div class="fw-semibold">' + esc(r.name) + '</div>' +
         '<div class="fs-13 text-muted" dir="ltr">' + esc(r.student_code || '') + '</div></td>' +
         '<td>' + resultSeg(r) + '</td>' +
-        '<td><textarea class="form-control form-control-sm rc-note" rows="2" maxlength="1000" ' +
-          'placeholder="توضیح عملکرد، نقاط قوت و ضعف، دلایل تصمیم…" ' +
-          'aria-label="بازخورد ' + esc(r.name) + '">' + esc(r.teacher_note || '') + '</textarea>' +
-        '<div class="invalid-feedback d-block fs-13 rc-err" hidden>برای مردود، متن چرایی الزامی است.</div></td>' +
+        '<td><textarea class="form-control form-control-sm rc-note" rows="2" maxlength="1000" aria-required="true" aria-describedby="rc-note-required"' + (!canSubmit ? ' disabled' : '') + ' ' +
+          'placeholder="پیشرفت در مکالمه، درک شنیداری و واژگان، نیاز به تمرین و دلیل ارزیابی را بنویسید…" ' +
+          'aria-label="بازخورد ' + esc(r.name) + '">' + esc(r.teacher_note || '') + '</textarea></td>' +
         '</tr>';
     }).join('');
 
@@ -120,10 +134,11 @@
   }
 
   function validateRow($tr, r) {
-    var bad = r.result === 'failed' && !(r.teacher_note || '').trim();
-    var $err = $tr.querySelector('.rc-err');
-    if ($err) $err.hidden = !bad;
-    $tr.querySelector('.rc-note').classList.toggle('is-invalid', bad);
+    var bad = !!r.result && !(r.teacher_note || '').trim();
+    var $note = $tr.querySelector('.rc-note');
+    $note.classList.toggle('is-invalid', bad);
+    if (bad) $note.setAttribute('aria-invalid', 'true');
+    else $note.removeAttribute('aria-invalid');
     return !bad;
   }
 
@@ -144,6 +159,7 @@
          ' · جلسات برگزارشده: ' + pn((c.stats && c.stats.held) || 0))
       : '';
     return get(CARDS(oid)).then(function (d) {
+      showSessionProgress(d.session_progress || {});
       var byStudent = {};
       (d.cards || []).forEach(function (card) { byStudent[card.student] = card; });
       rows = (d.roster || []).map(function (r) {
@@ -157,18 +173,26 @@
 
   $cls.addEventListener('change', function () {
     rows = [];
+    canSubmit = false;
+    $save.disabled = true;
+    $sessionStatus.className = 'alert d-none mt-3 mb-0 py-2 fs-13';
+    $sessionStatus.textContent = '';
     if (!$cls.value) { renderRows(); return; }
-    openClass($cls.value).catch(function (e) { toast(e.message, 'danger'); });
+    openClass($cls.value).catch(function (e) {
+      $sessionStatus.className = 'alert alert-danger mt-3 mb-0 py-2 fs-13';
+      $sessionStatus.textContent = 'وضعیت جلسات بررسی نشد؛ دوباره تلاش کنید.';
+      toast(e.message, 'danger');
+    });
   });
 
   $save.addEventListener('click', function () {
-    if (!$cls.value || !rows.length) return;
+    if (!$cls.value || !rows.length || !canSubmit) return;
     var ok = true;
     $rows.querySelectorAll('tr').forEach(function ($tr) {
       var r = rows.filter(function (x) { return x.id === $tr.dataset.id; })[0];
       if (r && !validateRow($tr, r)) ok = false;
     });
-    if (!ok) { toast('متن چرایی برای دانش‌آموزان مردود الزامی است.', 'warning'); return; }
+    if (!ok) { toast('برای هر دانش‌آموزی که نتیجه دارد، نوشتن بازخورد توصیفی الزامی است.', 'warning'); return; }
     var unset = rows.filter(function (r) { return !r.result; });
     if (unset.length && !window.confirm(pn(unset.length) + ' دانش‌آموز هنوز نتیجه‌ای ندارند. فقط ' + pn(rows.length - unset.length) + ' ردیف ذخیره شود؟')) return;
     var payload = {

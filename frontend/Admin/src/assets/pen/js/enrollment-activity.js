@@ -12,6 +12,12 @@
     return window.persianNumbers ? window.persianNumbers(formatted) : formatted;
   }
 
+  function dateTime(value) {
+    if (!value) return '';
+    var date = new Date(value);
+    return isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('fa-IR', {dateStyle: 'short', timeStyle: 'short'}).format(date);
+  }
+
   function fetchList(url) {
     return fetch(url, {
       credentials: 'same-origin',
@@ -34,13 +40,15 @@
         box.innerHTML = '<div class="pen-empty py-4"><p class="mb-0 fs-14">هنوز ثبت‌نامی نیست.</p></div>';
         return;
       }
-      var methods = { cash: 'نقدی', pos: 'کارت‌خوان', cheque: 'چک' };
+      var methods = { cash: 'نقدی', pos: 'کارت‌خوان', cheque: 'چک', card_transfer: 'کارت‌به‌کارت', split: 'ترکیبی', mixed: 'ترکیبی' };
       box.innerHTML = rows.map(function (row) {
-        return '<div class="px-3 py-2 border-bottom"><div class="d-flex align-items-center gap-2"><strong class="fs-14">' +
-          escape(row.student_name || '') + '</strong><span class="badge bg-primary-subtle text-primary ms-auto">' + (row.is_free ? 'ثبت‌نام رایگان' : number(row.final_amount) + ' ت') + '</span></div>' +
-          '<div class="fs-13 text-muted">' + escape(row.offering_title || '') + (row.is_free ? '' : ' · ' + escape(methods[row.payment_method] || row.payment_method || '')) +
-          (row.discount_type && row.discount_type !== 'none' ? ' · تخفیف ' + escape(row.discount_value) + (row.discount_type === 'percent' ? '٪' : 'ت') : '') +
-          ' · ' + escape(row.enrolled_at || '') + '</div></div>';
+        var payment = row.is_free ? 'رایگان' : number(row.final_amount) + ' تومان';
+        var method = row.is_free ? '' : ' · ' + (methods[row.payment_method] || row.payment_method || '');
+        return '<article class="registration-activity-item"><div class="d-flex flex-wrap align-items-center gap-2">' +
+          '<strong class="fs-14">' + escape(row.student_name || 'دانش‌آموز') + '</strong>' +
+          '<span class="badge bg-primary-subtle text-primary">' + payment + '</span></div>' +
+          '<div class="fs-13 text-muted mt-1">' + escape(row.offering_title || 'برگزاری مشخص نشده') + method +
+          (row.enrolled_at ? ' · ' + escape(row.enrolled_at) : '') + '</div></article>';
       }).join('');
     }).catch(function (error) {
       box.innerHTML = '<div class="pen-empty py-4">' + escape(error.message) + '</div>';
@@ -61,9 +69,11 @@
         return;
       }
       box.innerHTML = rows.map(function (row) {
-        return '<div class="px-3 py-2 border-bottom"><div class="d-flex align-items-center gap-2"><strong class="fs-14">' +
-          escape(row.student_name || '') + '</strong><span class="badge bg-warning-subtle text-warning ms-auto">نفر ' + number(row.position) + '</span></div>' +
-          '<div class="fs-13 text-muted">' + escape(row.offering_title || '') + ' · درخواست ' + escape(row.requested_at || '') + '</div></div>';
+        return '<article class="registration-activity-item"><div class="d-flex flex-wrap align-items-center gap-2">' +
+          '<strong class="fs-14">' + escape(row.student_name || 'دانش‌آموز') + '</strong>' +
+          '<span class="badge bg-warning-subtle text-warning">جایگاه ' + number(row.position) + '</span></div>' +
+          '<div class="fs-13 text-muted mt-1">' + escape(row.offering_title || 'برگزاری مشخص نشده') +
+          (row.requested_at ? ' · درخواست ' + escape(dateTime(row.requested_at)) : '') + '</div></article>';
       }).join('');
     }).catch(function (error) {
       box.innerHTML = '<div class="pen-empty py-4">' + escape(error.message) + '</div>';
@@ -72,6 +82,32 @@
     });
   }
 
+  function setupActivityTabs() {
+    var tabs = Array.from(document.querySelectorAll('[data-activity-tab]'));
+    tabs.forEach(function (tab, index) {
+      tab.addEventListener('click', function () { activate(tab); });
+      tab.addEventListener('keydown', function (event) {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        var next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 :
+          (index + (event.key === 'ArrowLeft' ? 1 : -1) + tabs.length) % tabs.length;
+        tabs[next].focus();
+        activate(tabs[next]);
+      });
+    });
+    function activate(tab) {
+      tabs.forEach(function (item) {
+        var selected = item === tab;
+        item.classList.toggle('active', selected);
+        item.setAttribute('aria-selected', selected ? 'true' : 'false');
+        item.tabIndex = selected ? 0 : -1;
+        var panel = document.getElementById(item.getAttribute('aria-controls'));
+        if (panel) panel.hidden = !selected;
+      });
+    }
+  }
+
+  setupActivityTabs();
   renderRecent();
   renderWaitlist();
 }());

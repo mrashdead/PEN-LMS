@@ -77,7 +77,6 @@
   var $count = document.getElementById('att-count');
   var $summary = document.getElementById('att-summary');
   var $lockedHint = document.getElementById('att-locked-hint');
-  var $replace = document.getElementById('att-replace');
   var $save = document.getElementById('att-save');
   var $allPresent = document.getElementById('att-all-present');
   var $clear = document.getElementById('att-clear');
@@ -88,7 +87,7 @@
   // ── enable/disable ──────────────────────────────────────────────────
   function setEnabled(on, locked) {
     var editable = !!on && !locked;
-    [$date, $num, $start, $end, $title, $save, $allPresent, $clear, $replace].forEach(function (el) {
+    [$date, $num, $start, $end, $title, $save, $allPresent, $clear].forEach(function (el) {
       el.disabled = !editable;
     });
     $new.disabled = !on;
@@ -293,7 +292,7 @@
       session_number: parseInt(toLatin($num.value), 10) || null,
       title: $title.value.trim(),
       session_id: sheet.session_id || undefined,
-      replace: $replace.checked,
+      replace: false,
       rows: sheet.rows.map(function (r) {
         return { student: r.id, status: r.status || 'present', note: r.note || '' };
       }),
