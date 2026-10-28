@@ -16,7 +16,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1
 WORKDIR /build
 RUN python -m venv /opt/venv
 COPY requirements.txt requirements-docker.txt ./
-RUN /opt/venv/bin/pip install -r requirements-docker.txt && /opt/venv/bin/pip check
+RUN /opt/venv/bin/pip install --timeout 120 --retries 5 -r requirements-docker.txt && /opt/venv/bin/pip check
 
 FROM ${PYTHON_IMAGE} AS runtime
 ENV PATH="/opt/venv/bin:$PATH" \

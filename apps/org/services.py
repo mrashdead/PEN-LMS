@@ -547,7 +547,7 @@ def user_directory(search: str = "") -> list[dict]:
 def user_permissions(user_id) -> dict | None:
     """
     Full permission view for one user: roles, groups, and the effective
-    model-permissions (group grants) grouped by app/model — what pages/forms
+    model-permissions (explicit and management-role grants) grouped by app/model — what pages/forms
     they can see and act on.
     """
     u = User.objects.filter(pk=user_id, is_deleted=False).prefetch_related(
@@ -565,20 +565,17 @@ def user_permissions(user_id) -> dict | None:
     groups = sorted(g.name for g in u.groups.all())
 
     # Effective model perms grouped by "<app>.<model>" → {verb: bool}
-    codenames = set()
-    for g in u.groups.all():
-        codenames |= {p.codename for p in g.permissions.all()}
-    codenames |= {p.codename for p in u.user_permissions.all()}
-    if u.is_superuser:
-        # superuser → everything; mark all known perms true
-        from django.contrib.auth.models import Permission
-        codenames = {p.codename for p in Permission.objects.all()}
+    effective_permissions = u.get_all_permissions()
 
-    # Resolve codename → (app_label, model, verb) via content type.
+    # Resolve qualified permissions via content type, preserving app boundaries.
     from django.contrib.auth.models import Permission
-    perms = Permission.objects.filter(codename__in=codenames).select_related("content_type")
+    perms = Permission.objects.filter(
+        codename__in={perm.split(".", 1)[1] for perm in effective_permissions},
+    ).select_related("content_type")
     by_model: dict[str, dict] = {}
     for p in perms:
+        if f"{p.content_type.app_label}.{p.codename}" not in effective_permissions:
+            continue
         model = p.content_type.model
         app = p.content_type.app_label
         verb = p.codename.split("_", 1)[0]

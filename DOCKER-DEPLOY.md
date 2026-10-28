@@ -150,6 +150,64 @@ bash scripts/docker-deploy.sh
 
 `docker compose down` داده‌های named volume را نگه می‌دارد. `down -v` و prune کردن volumeها می‌تواند اطلاعات را غیرقابل بازیابی حذف کند؛ از آن برای توقف معمول استفاده نکنید. beat را scale نکنید و jobهایش را هم‌زمان در cron اجرا نکنید.
 
+### انتشار اصلاح مجوزهای پیش‌فرض مدیریت
+
+نقش‌های فعال `manager` و `workflow_admin` مجوزهای پیش‌فرض مدیریتی را از
+`apps/accounts/permission_policy.py` می‌گیرند. همین سیاست در `seed_groups`
+استفاده می‌شود. حساب‌های فعلی و جدید با انتشار ایمیج اصلاح می‌شوند و نیاز
+به migration، اجرای seed یا اعطای دستی مجوز به تک‌تک کاربران نیست.
+نقش لغوشده، منقضی، غیرفعال یا حذف‌شده مجوز مشتق‌شده نمی‌دهد. مجوزهای دستی
+و عضویت‌های مستقل در گروه‌ها باقی می‌مانند؛ هنگام کاهش دسترسی یک حساب،
+مجوزهایی را که قبلاً دستی داده‌اید نیز جداگانه بررسی کنید.
+این اصلاح فقط مجوزهای مدل را هماهنگ می‌کند؛ بررسی نقش، محدودهٔ رکوردها و
+مجوز عملیات اختصاصی هر صفحه همچنان اجرا می‌شوند.
+
+برای سروری که build فرانت‌اند روی آن دسترسی شبکه ندارد، روی **لوکال**:
+
+```bash
+cd /home/ashdead/Documents/code/pen
+docker buildx build --platform linux/amd64 --load --progress plain \
+  -t pen-app:permissions-20261028 .
+```
+
+فقط پس از موفقیت build، خروجی را بسته‌بندی و ارسال کنید:
+
+```bash
+(set -o pipefail; umask 077; docker image save pen-app:permissions-20261028 | gzip > /tmp/pen-permissions-20261028.tar.gz)
+(cd /tmp && sha256sum pen-permissions-20261028.tar.gz > pen-permissions-20261028.tar.gz.sha256)
+rsync -av --partial --progress \
+  /tmp/pen-permissions-20261028.tar.gz \
+  /tmp/pen-permissions-20261028.tar.gz.sha256 \
+  deploy@45.11.186.236:/tmp/
+```
+
+روی **سرور**، ابتدا checksum را بررسی و ایمیج را بارگذاری کنید:
+
+```bash
+cd /tmp
+sha256sum --check pen-permissions-20261028.tar.gz.sha256
+docker image load -i pen-permissions-20261028.tar.gz
+cd /srv/pen
+bash scripts/docker-backup.sh
+cp -p .env.docker ".env.docker.before-permissions-$(date +%Y%m%d-%H%M%S)"
+nano .env.docker
+```
+
+فقط مقدار `APP_IMAGE` را به `pen-app:permissions-20261028` تغییر دهید؛
+سایر متغیرها و secretها را حفظ کنید. سپس:
+
+```bash
+docker compose --env-file .env.docker config --quiet
+docker compose --env-file .env.docker \
+  up -d --no-build --pull never --no-deps --force-recreate web worker beat
+docker compose --env-file .env.docker ps
+```
+
+این انتشار تغییر دیتابیس یا فایل استاتیک ندارد؛ بازسازی ایمیج backup،
+پروکسی یا دیتابیس لازم نیست. در پایان، با یک مدیر بدون مجوز دستی،
+صفحهٔ جامعهٔ آموزشی را بررسی کنید. تغییر فایل‌های Python روی میزبان
+یا restart ایمیج قبلی به‌تنهایی اصلاح را منتشر نمی‌کند.
+
 ## ۸. بکاپ و بازیابی
 
 در استقرار Compose، سرویس `backup` پس از بالا آمدن برنامه یک نسخهٔ اولیه می‌سازد و سپس هر روز ساعت ۰۲:۰۰ UTC از PostgreSQL و کل `media` یک فایل فشردهٔ checksumدار تهیه می‌کند. نسخه‌های قدیمی‌تر از پنج روز حذف می‌شوند و در هر حال حداکثر پنج نسخهٔ خودکار اخیر در volume جداگانهٔ `backups` می‌ماند. مدیر یا مدیر سیستم می‌تواند آن‌ها را از صفحهٔ «پشتیبان‌گیری» در پنل (`/workspace/backups/`) دریافت کند؛ دانلودها در رخدادهای حسابرسی ثبت می‌شوند. برای بازیابی فایل دانلودشده، آن را در پوشه‌ای خالی استخراج کنید و مسیر پوشه را به اسکریپت بازیابی بدهید:
