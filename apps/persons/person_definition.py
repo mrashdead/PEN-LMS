@@ -69,6 +69,7 @@ class PersonDefinitionService:
             student_code=f"STU-{national_code}" if target == "student" else None,
             employee_code=f"EMP-{national_code}" if target in {"teacher", "employee", "manager"} else None,
             registered_by=actor,
+            approve_national_code_exception=cleaned_data.get("approve_national_code_exception", False),
             auto_create_user=True,
             password=cleaned_data.get("password") or None,
             grant_role=grant_role,

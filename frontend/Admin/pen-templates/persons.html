@@ -163,6 +163,9 @@
                 <label class="form-label" for="id_national_code">کد ملی <span class="text-danger">*</span></label>
                 {{ person_form.national_code }}
                 <div id="help-national_code" class="form-text">۱۰ رقم، یکتا</div>
+                {% if can_approve_national_code_exception %}
+                <div class="form-check mt-2">{{ person_form.approve_national_code_exception }}<label class="form-check-label" for="id_approve_national_code_exception">مغایرت رقم کنترل را بررسی و ثبت این کد را تأیید می‌کنم.</label></div>
+                {% endif %}
               </div>
               <div class="col-12 col-md-6">
                 <label class="form-label" for="id_phone_number">شماره موبایل <span class="text-danger">*</span></label>

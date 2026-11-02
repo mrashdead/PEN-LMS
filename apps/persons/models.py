@@ -31,6 +31,17 @@ class Person(DomainModel):
         db_index=True,
         help_text="کد ملی — شناسه یکتای شخص (یکتا در میان اشخاص زنده)",
     )
+    national_code_exception_value = models.CharField(max_length=10, blank=True, default="", editable=False)
+    national_code_exception_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, editable=False,
+        on_delete=models.PROTECT, related_name="approved_national_code_exceptions",
+    )
+
+    @property
+    def national_code_exception_approved(self):
+        return bool(self.national_code_exception_approved_by_id and self.national_code
+                    and self.national_code_exception_value == self.national_code)
+
     # Permanent opaque identity for people first recorded without official IDs.
     # It is never stored in national_code/student_code and remains stable when
     # the person's official information is completed later.
@@ -232,7 +243,7 @@ class Person(DomainModel):
                 errors.setdefault("national_code", []).append("کد ملی الزامی است.")
         else:
             national_error = national_code_error(normalize_national_code(self.national_code))
-            if national_error:
+            if national_error and not self.national_code_exception_approved:
                 errors.setdefault("national_code", []).append(national_error)
 
         # موبایل حساب اصلی: دقیقاً ۱۱ رقم و با 09 شروع می‌شود.

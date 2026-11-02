@@ -50,6 +50,13 @@
     var remainder = total % 11;
     return Number(code[9]) === (remainder < 2 ? remainder : 11 - remainder);
   };
+  function nationalCodeInputValid(input) {
+    if (window.penNationalCodeChecksumValid(input.value)) return true;
+    var checkbox = input.form && input.form.querySelector('[data-national-code-exception]');
+    var code = window.penNormalizeDigits(input.value);
+    return !!(checkbox && checkbox.checked && /^\d{10}$/.test(code) &&
+      !/^(\d)\1{9}$/.test(code) && code.slice(0, 3) !== '000');
+  }
   window.penBindStrictIdentityInputs = function (root) {
     root = root || document;
     var identitySelector = 'input[name="national_code"], input[name$="national_code"], input[id*="national-code"], input[name="mobile"], input[name$="phone_number"], input[name$="_phone"], input[id*="phone"], input[id*="mobile"]';
@@ -63,17 +70,24 @@
       });
       input.addEventListener('blur', function () {
         if (!input.value) return;
-        if (isNational) input.setCustomValidity(window.penNationalCodeChecksumValid(input.value) ? '' : 'کد ملی معتبر نیست.');
+        if (isNational) input.setCustomValidity(nationalCodeInputValid(input) ? '' : 'کد ملی معتبر نیست.');
         else input.setCustomValidity(/^09\d{9}$/.test(input.value) ? '' : 'شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.');
       });
       input.addEventListener('input', function () { input.setCustomValidity(''); });
+    });
+    root.querySelectorAll('[data-national-code-exception]').forEach(function (checkbox) {
+      var input = checkbox.form && checkbox.form.querySelector('input[name="national_code"]');
+      checkbox.addEventListener('change', function () {
+        if (input) input.setCustomValidity('');
+      });
+      if (input) input.addEventListener('input', function () { checkbox.checked = false; });
     });
     root.querySelectorAll('form').forEach(function (form) {
       form.addEventListener('submit', function (event) {
         var invalid = Array.from(form.querySelectorAll(identitySelector)).find(function (input) {
           if (!input.value) return false;
           var isNational = input.name === 'national_code' || input.name.slice(-13) === 'national_code' || input.id.indexOf('national-code') !== -1;
-          var valid = isNational ? window.penNationalCodeChecksumValid(input.value) : /^09\d{9}$/.test(input.value);
+          var valid = isNational ? nationalCodeInputValid(input) : /^09\d{9}$/.test(input.value);
           input.setCustomValidity(valid ? '' : (isNational ? 'کد ملی معتبر نیست.' : 'شماره موبایل باید دقیقاً ۱۱ رقم و با ۰۹ شروع شود.'));
           return !valid;
         });

@@ -9,6 +9,7 @@ from django.views.generic import TemplateView
 
 from apps.core.pages import StaffRequiredMixin
 from apps.persons.forms import PersonDefinitionForm, TARGET_LABELS
+from apps.persons.validation import can_approve_national_code_exception
 from apps.persons.person_definition import (
     PersonDefinitionPermissionError,
     PersonDefinitionService,
@@ -43,6 +44,7 @@ class PersonsPage(StaffRequiredMixin, TemplateView):
         form = PersonDefinitionForm(actor=self.request.user, directory=self.directory)
         actor_roles = set(self.request.user.role_codes())
         context["person_form"] = form
+        context["can_approve_national_code_exception"] = can_approve_national_code_exception(self.request.user)
         context["person_page_context"] = {
             "api_url": "/api/persons/?directory=" + self.directory,
             "directory": self.directory,

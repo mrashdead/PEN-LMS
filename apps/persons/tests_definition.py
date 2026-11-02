@@ -115,3 +115,50 @@ class PersonDefinitionFormTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="person-create-form"')
         self.assertContains(response, "assets/pen/js/persons.js")
+
+
+class NationalCodeExceptionTests(TestCase):
+    def setUp(self):
+        seed_roles()
+        self.manager = UserFactory(username="exception-manager", roles=["manager"])
+        self.employee = UserFactory(username="exception-employee", roles=["employee"])
+        self.data = {
+            "target": "student", "first_name": "آوا", "last_name": "آزمون",
+            "national_code": "2300331441", "phone_number": "09121234567",
+            "gender": "female", "father_first_name": "رضا",
+            "father_last_name": "آزمون", "father_phone_number": "09129876543",
+        }
+
+    def test_manager_explicitly_approves_and_records_exception(self):
+        self.client.force_login(self.manager)
+        url = "/workspace/persons/create/"
+        response = self.client.post(url, self.data)
+        self.assertEqual(response.status_code, 400)
+        response = self.client.post(url, {**self.data, "approve_national_code_exception": "on"})
+        self.assertEqual(response.status_code, 201, response.content)
+        person = Person.objects.get(pk=response.json()["person"]["id"])
+        self.assertEqual(person.national_code_exception_approved_by, self.manager)
+        self.assertTrue(person.national_code_exception_approved)
+        person.full_clean()
+        person.national_code = "2300331442"
+        self.assertFalse(person.national_code_exception_approved)
+        from django.core.exceptions import ValidationError
+        with self.assertRaises(ValidationError):
+            person.full_clean()
+
+    def test_employee_cannot_approve_and_manager_cannot_override_bad_format(self):
+        for actor, code in ((self.employee, "2300331441"), (self.manager, "123"),
+                            (self.manager, "1111111111")):
+            form = PersonDefinitionForm(data={**self.data, "national_code": code,
+                "approve_national_code_exception": "on"}, actor=actor)
+            self.assertFalse(form.is_valid())
+            self.assertIn("national_code", form.errors)
+
+    def test_service_rechecks_permission_when_form_is_bypassed(self):
+        from apps.persons.services import PersonService, PersonServiceError
+        with self.assertRaises(PersonServiceError):
+            PersonService().create_person(
+                national_code="2300331441", first_name="آ", last_name="ب",
+                person_type="student", mobile="09121234567", registered_by=self.employee,
+                approve_national_code_exception=True,
+            )

@@ -13,6 +13,8 @@ from apps.persons.validation import (
     is_valid_iranian_mobile,
     national_code_error,
     normalize_national_code,
+    can_approve_national_code_exception,
+    is_national_code_checksum_exception,
 )
 
 
@@ -59,6 +61,9 @@ class PersonDefinitionForm(forms.Form):
             pattern="[0-9۰-۹]{10}", autocomplete="off",
         ),
         help_text="دقیقاً ۱۰ رقم عددی.",
+    )
+    approve_national_code_exception = forms.BooleanField(
+        required=False, widget=forms.CheckboxInput(attrs={"class": "form-check-input", "data-national-code-exception": ""}),
     )
     phone_number = forms.CharField(
         # The widget prevents normal over-typing; the larger server limit
@@ -183,7 +188,10 @@ class PersonDefinitionForm(forms.Form):
     def clean_national_code(self) -> str:
         value = normalize_national_code(self.cleaned_data.get("national_code"))
         error = national_code_error(value, require_location=True)
-        if error:
+        approved = (self.data.get("approve_national_code_exception") in ("on", "true", "1", True)
+                    and can_approve_national_code_exception(self.actor)
+                    and is_national_code_checksum_exception(value))
+        if error and not approved:
             raise forms.ValidationError(error)
         if Person.objects.filter(national_code=value, is_deleted=False).exists():
             raise forms.ValidationError("شخصی با این کد ملی از قبل ثبت شده است.")

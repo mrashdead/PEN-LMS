@@ -87,3 +87,17 @@ def national_code_error(value: object, *, require_location: bool = False) -> str
 def is_valid_iranian_mobile(value: object) -> bool:
     phone = english_numbers(str(value or "")).strip()
     return len(phone) == 11 and phone.isdigit() and phone.startswith("09")
+
+
+def can_approve_national_code_exception(actor) -> bool:
+    if not actor or not getattr(actor, "is_authenticated", False) or not getattr(actor, "is_active", False):
+        return False
+    roles = set(actor.role_codes()) if hasattr(actor, "role_codes") else set()
+    return bool(getattr(actor, "is_superuser", False) or roles & {"manager", "workflow_admin"})
+
+
+def is_national_code_checksum_exception(value: object) -> bool:
+    code = normalize_national_code(value)
+    return (len(code) == 10 and code.isascii() and code.isdigit()
+            and len(set(code)) > 1 and national_code_location(code) is not None
+            and not is_valid_national_code(code))

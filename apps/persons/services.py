@@ -8,7 +8,8 @@ from django.db import IntegrityError, transaction
 
 from apps.core.utils import english_numbers
 from apps.persons.models import Person, PersonTypeAssignment, StudentGuardian
-from apps.persons.validation import is_valid_iranian_mobile, national_code_error
+from apps.persons.validation import (is_valid_iranian_mobile, national_code_error,
+    can_approve_national_code_exception, is_national_code_checksum_exception)
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def student_account_creation_missing_fields(person) -> list[str]:
         if not (value or "").strip():
             missing.append(label)
 
-    if national_code_error(person.national_code, require_location=True):
+    if national_code_error(person.national_code, require_location=True) and not person.national_code_exception_approved:
         missing.append("کد ملی معتبر")
     if not is_valid_iranian_mobile(english_numbers(person.mobile)):
         missing.append("شماره همراه دانش‌آموز معتبر")
@@ -253,6 +254,7 @@ class PersonService:
         auto_create_user: bool = False,
         password: Optional[str] = None,
         grant_role: Optional[str] = None,
+        approve_national_code_exception: bool = False,
     ) -> Person:
         """ثبت شخص جدید و در صورت درخواست، ساخت حساب کاربری."""
         # Soft-deleted twins keep their unique key in the DB only through the
@@ -261,7 +263,12 @@ class PersonService:
         # caller-friendly 400 first (B5).
         normalized_nc = english_numbers(national_code).strip()
         national_error = national_code_error(normalized_nc, require_location=True)
-        if national_error:
+        approved_exception = bool(
+            national_error and approve_national_code_exception
+            and can_approve_national_code_exception(registered_by)
+            and is_national_code_checksum_exception(normalized_nc)
+        )
+        if national_error and not approved_exception:
             raise PersonServiceError(national_error)
         normalized_mobile = english_numbers(mobile).strip()
         if not is_valid_iranian_mobile(normalized_mobile):
@@ -273,6 +280,8 @@ class PersonService:
         try:
             person = Person.objects.create(
                 national_code=normalized_nc,
+                national_code_exception_value=normalized_nc if approved_exception else "",
+                national_code_exception_approved_by=registered_by if approved_exception else None,
                 first_name=first_name,
                 last_name=last_name,
                 father_name=father_name,
