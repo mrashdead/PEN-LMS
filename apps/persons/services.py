@@ -220,6 +220,10 @@ class DuplicateNationalCodeError(PersonServiceError):
     """کد ملی (یا کد دانش‌آموزی/پرسنلی) تکراری در میان اشخاص زنده."""
 
 
+class DuplicateAccountEmailError(PersonServiceError):
+    """ایمیل قبلاً برای حساب دیگری ثبت شده است."""
+
+
 class PersonService:
     """
     سرویس مدیریت اشخاص.
@@ -348,6 +352,32 @@ class PersonService:
         final_username = english_numbers(username or person.national_code).strip()
         final_password = english_numbers(password or person.national_code).strip()
 
+        # A soft-deleted person may still have a live linked account. Preserve
+        # that account for history, but retire its login before reusing either
+        # identifier. Never touch accounts linked to a non-deleted person.
+        from django.db.models import Q
+        from django.utils import timezone
+
+        email = (person.email or "").strip()
+        matches = Q(username=final_username)
+        if email:
+            matches |= Q(email__iexact=email)
+        for old_user in User.objects.select_for_update().filter(matches).order_by("pk"):
+            linked_person = Person.all_objects.filter(user_id=old_user.pk).first()
+            retired = (linked_person is not None and linked_person.is_deleted) or (
+                linked_person is None and old_user.is_deleted
+            )
+            if not retired or old_user.is_superuser:
+                continue
+            old_user.username = f"retired-{old_user.pk}"
+            old_user.email = None
+            old_user.is_active = False
+            old_user.is_deleted = True
+            old_user.deleted_at = old_user.deleted_at or timezone.now()
+            old_user.set_unusable_password()
+            old_user.save(update_fields=["username", "email", "is_active", "is_deleted",
+                                         "deleted_at", "password", "updated_at"])
+
         # The national code is the stable default login identifier. Never
         # silently suffix it: a collision must be reported and the enclosing
         # transaction must roll back instead of creating a surprising login.
@@ -362,14 +392,25 @@ class PersonService:
                 final_username = f"{base}_{suffix}"
                 suffix += 1
 
-        user = User.objects.create_user(
-            username=final_username,
-            email=person.email or "",
-            password=final_password,
-            first_name=person.first_name,
-            last_name=person.last_name,
-            is_active=True,
-        )
+        if email and User.objects.filter(email__iexact=email).exists():
+            raise DuplicateAccountEmailError("این ایمیل قبلاً برای حساب دیگری ثبت شده است.")
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=final_username,
+                    email=email,
+                    password=final_password,
+                    first_name=person.first_name,
+                    last_name=person.last_name,
+                    is_active=True,
+                )
+        except IntegrityError as exc:
+            constraint = getattr(getattr(exc.__cause__, "diag", None), "constraint_name", None)
+            if constraint == "uniq_user_email_nonempty" or (
+                email and "accounts_user.email" in str(exc)
+            ):
+                raise DuplicateAccountEmailError("این ایمیل قبلاً برای حساب دیگری ثبت شده است.") from exc
+            raise
 
         # Provision roles/groups for EVERY effective type — primary type plus
         # time-bound additional assignments (criterion §13-1: a teacher who is

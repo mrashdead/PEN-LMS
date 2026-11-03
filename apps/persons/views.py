@@ -26,6 +26,7 @@ from apps.persons.serializers import (
     PersonListSerializer,
 )
 from apps.persons.services import (
+    DuplicateAccountEmailError,
     DuplicateNationalCodeError,
     PersonService,
     PersonServiceError,
@@ -182,6 +183,8 @@ class PersonListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         try:
             person = self.perform_create(serializer)
+        except DuplicateAccountEmailError as exc:
+            return Response({"email": [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
         except DuplicateNationalCodeError as exc:
             return Response({"national_code": [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
         from apps.core.models import AuditEvent

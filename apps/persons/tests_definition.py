@@ -162,3 +162,46 @@ class NationalCodeExceptionTests(TestCase):
                 person_type="student", mobile="09121234567", registered_by=self.employee,
                 approve_national_code_exception=True,
             )
+
+
+class DuplicateAccountEmailTests(TestCase):
+    def setUp(self):
+        seed_roles()
+        self.manager = UserFactory(username="email-manager", roles=["manager"])
+        UserFactory(username="email-owner", email="existing@example.com")
+        self.client.force_login(self.manager)
+
+    def test_staff_creation_reports_duplicate_email_without_creating_person(self):
+        response = self.client.post("/workspace/persons/staff/create/", {
+            "target": "employee", "first_name": "مریم", "last_name": "آزمون",
+            "national_code": "0012345679", "phone_number": "09121112233",
+            "gender": "female", "employee_kind": "ordinary", "job_title": "کارمند",
+            "password": "SafePass123!", "email": "existing@example.com",
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("email", response.json()["errors"])
+        self.assertFalse(Person.objects.filter(national_code="0012345679").exists())
+
+    def test_recreate_deleted_person_with_same_email_and_national_code(self):
+        data = {
+            "target": "employee", "first_name": "مریم", "last_name": "آزمون",
+            "national_code": "0012345679", "phone_number": "09121112233",
+            "gender": "female", "employee_kind": "ordinary", "job_title": "کارمند",
+            "password": "SafePass123!", "email": "reusable@example.com",
+        }
+        first = self.client.post("/workspace/persons/staff/create/", data)
+        self.assertEqual(first.status_code, 201, first.content)
+        original = Person.objects.get(pk=first.json()["person"]["id"])
+        old_user = original.user
+        original.soft_delete()
+        second = self.client.post("/workspace/persons/staff/create/", data)
+        self.assertEqual(second.status_code, 201, second.content)
+        old_user.refresh_from_db()
+        self.assertTrue(old_user.is_deleted)
+        self.assertFalse(old_user.is_active)
+        self.assertIsNone(old_user.email)
+        new = Person.objects.get(pk=second.json()["person"]["id"])
+        self.assertNotEqual(new.user_id, old_user.pk)
+        self.assertEqual(new.user.username, data["national_code"])
+        self.assertEqual(new.user.email, data["email"])
+        self.assertTrue(new.user.check_password(data["password"]))

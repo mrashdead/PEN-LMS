@@ -15,7 +15,7 @@ from apps.persons.person_definition import (
     PersonDefinitionService,
     PersonDefinitionValidationError,
 )
-from apps.persons.services import DuplicateNationalCodeError, PersonServiceError
+from apps.persons.services import DuplicateAccountEmailError, DuplicateNationalCodeError, PersonServiceError
 
 
 def _form_error_payload(form) -> dict[str, list[str]]:
@@ -85,6 +85,8 @@ class PersonCreatePageView(StaffRequiredMixin, View):
             )
         except PersonDefinitionPermissionError as exc:
             return JsonResponse({"errors": {"target": [str(exc)]}}, status=403)
+        except DuplicateAccountEmailError as exc:
+            return JsonResponse({"errors": {"email": [str(exc)]}}, status=400)
         except DuplicateNationalCodeError as exc:
             return JsonResponse({"errors": {"national_code": [str(exc)]}}, status=400)
         except PersonDefinitionValidationError as exc:
