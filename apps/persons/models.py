@@ -123,6 +123,8 @@ class Person(DomainModel):
         related_name="person",
     )
 
+    user_active_before_person_deletion = models.BooleanField(null=True, blank=True, editable=False, default=None)
+
     # ─── ثبّات ───
     registered_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

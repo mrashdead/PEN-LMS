@@ -205,3 +205,50 @@ class DuplicateAccountEmailTests(TestCase):
         self.assertEqual(new.user.username, data["national_code"])
         self.assertEqual(new.user.email, data["email"])
         self.assertTrue(new.user.check_password(data["password"]))
+
+
+class DeletedPersonAccountLifecycleTests(TestCase):
+    def setUp(self):
+        from apps.accounts.models import User
+        self.admin = User.objects.create_superuser(username="lifecycle-admin", password="password")
+        self.user = User.objects.create_user(username="lifecycle-user", password="password", email="lifecycle@example.com")
+        self.person = Person.objects.create(national_code="0012345679", first_name="آ", last_name="ب", mobile="09121112233", person_type="student", user=self.user)
+        self.client.force_login(self.admin)
+
+    def test_delete_disables_account_hides_permissions_and_restore_recovers_it(self):
+        from apps.org.services import user_directory
+        response = self.client.post(f"/api/persons/{self.person.pk}/delete/")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_deleted)
+        self.assertFalse(self.user.is_active)
+        self.assertNotIn(str(self.user.pk), [str(row["id"]) for row in user_directory()])
+        self.client.logout()
+        self.assertFalse(self.client.login(username="lifecycle-user", password="password"))
+        self.client.force_login(self.admin)
+        response = self.client.post(f"/api/persons/{self.person.pk}/restore/")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_deleted)
+        self.assertTrue(self.user.is_active)
+        self.client.logout()
+        self.assertTrue(self.client.login(username="lifecycle-user", password="password"))
+
+    def test_delete_preserves_prior_inactive_status_on_restore(self):
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+        self.assertEqual(self.client.post(f"/api/persons/{self.person.pk}/delete/").status_code, 200)
+        self.assertEqual(self.client.post(f"/api/persons/{self.person.pk}/restore/").status_code, 200)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+        self.assertFalse(self.user.is_deleted)
+
+    def test_system_administrator_account_cannot_be_deleted_via_person(self):
+        self.person.user = self.admin
+        self.person.save(update_fields=["user"])
+        response = self.client.post(f"/api/persons/{self.person.pk}/delete/")
+        self.assertEqual(response.status_code, 400)
+        self.person.refresh_from_db()
+        self.assertFalse(self.person.is_deleted)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)

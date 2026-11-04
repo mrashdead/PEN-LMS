@@ -199,7 +199,8 @@ class ResourceCRUDPermission(BasePermission):
             return False
         resource = self._resource(view)
         if getattr(view, "restore_action", False):
-            return can_restore_resource(user, getattr(view, "queryset", None).model if getattr(view, "queryset", None) else None)
+            queryset = getattr(view, "queryset", None)
+            return can_restore_resource(user, queryset.model if queryset is not None else None)
         if getattr(view, "soft_delete_action", False):
             return bool(user.is_superuser or user.role_codes() & {"manager", "workflow_admin", "hr", "supervisor"})
         if request.method in SAFE_METHODS:

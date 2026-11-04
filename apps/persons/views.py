@@ -220,10 +220,41 @@ class PersonSoftDeleteView(SoftDeleteView):
     queryset = Person.objects.all()
     resource_key = "persons"
 
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        person = self.get_object()
+        self.check_object_permissions(request, person)
+        user = person.user
+        if user and (user.is_superuser or user.pk == request.user.pk):
+            return Response({"detail": "حذف پروندهٔ حساب مدیر سیستم یا حساب خودتان مجاز نیست."}, status=400)
+        response = super().post(request, *args, **kwargs)
+        if user and not user.is_deleted:
+            person.user_active_before_person_deletion = user.is_active
+            person.save(update_fields=["user_active_before_person_deletion", "updated_at"])
+            user.is_active = False
+            user.is_deleted = True
+            user.deleted_at = timezone.now()
+            user.save(update_fields=["is_active", "is_deleted", "deleted_at", "updated_at"])
+        return response
+
 
 class PersonRestoreView(SoftRestoreView):
     queryset = Person.all_objects.all()
     resource_key = "persons"
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        person = self.get_object()
+        response = super().post(request, *args, **kwargs)
+        if person.user_id and person.user_active_before_person_deletion is not None:
+            user = person.user
+            user.is_active = person.user_active_before_person_deletion
+            user.is_deleted = False
+            user.deleted_at = None
+            user.save(update_fields=["is_active", "is_deleted", "deleted_at", "updated_at"])
+            person.user_active_before_person_deletion = None
+            person.save(update_fields=["user_active_before_person_deletion", "updated_at"])
+        return response
 
 
 class CreateUserForPersonView(views.APIView):
